@@ -11,6 +11,7 @@ core.*
 .hgignore
 .hgtags
 /.hg/
+/.hg/*
 
 tests/output/bin/
 
