@@ -19,4 +19,4 @@ Directories
 - gclasses:
     Collection of gclass
 - yunos:
-    Full applications or utilities built with yuneta.
+    Full applications or utilities built with yunetas.
