@@ -1,4 +1,4 @@
-menu "Yuneta"
+menu "Yuneta core"
     config YUNETA_UART
         bool "Include Yuneta UART"
         default y

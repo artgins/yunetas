@@ -1,0 +1,7 @@
+menu "Yuneta GC Protocol"
+    config YUNETA_MODBUS_MASTER
+        bool "Include Yuneta Modbus master protocol"
+        default n
+        help
+            Include Yuneta Modbus master protocol
+endmenu

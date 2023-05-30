@@ -11,9 +11,18 @@ set(srcs
     src/log_udp_handler.c
 )
 
+if(CONFIG_YUNETA_UART)
+    list(APPEND srcs "src/c_esp_uart.c")
+endif()
+
+if(CONFIG_YUNETA_ETHERNET)
+    list(APPEND srcs "src/c_esp_ethernet.c")
+endif()
+
 set(include
     src
 )
+
 set(requires
     log
     driver
@@ -28,15 +37,6 @@ set(requires
     wpa_supplicant
     esp_gobj
 )
-
-if(CONFIG_YUNETA_UART)
-    list(APPEND srcs "src/c_esp_uart.c")
-endif()
-
-if(CONFIG_YUNETA_ETHERNET)
-    list(APPEND srcs "src/c_esp_ethernet.c")
-endif()
-
 
 #------------------------------------------------------#
 #           Register
