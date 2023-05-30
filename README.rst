@@ -1,7 +1,7 @@
 Yunetas
 =======
 
-Yuneta simplified
+Yuneta Simplified, a complete C development framework.
 
 Directories
 -----------
