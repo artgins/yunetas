@@ -15,11 +15,13 @@ Directories
     with publish/subscribe pattern integrated.
 - core-esp32:
     Core for esp32 microcontroller (`esp-idf <https://docs.espressif.com/projects/esp-idf/>`_).
-    List of components order by dependency::
+    List of components order by dependency (bottom higher dependency) ::
         - esp_jansson
         - esp_gobj          (depends of esp_jansson)
         - esp_yuneta        (depends of esp_gobj)
         - esp_gc_prot       (depends of esp_yuneta)
+
+    It's only necessary to include the component with higher dependency
 
 - core-linux:
     Core for linux
