@@ -24,8 +24,8 @@ Directories
     It's only necessary to include the component with higher dependency
 
 - core-linux:
-    Core for linux
+    Core for linux (TODO).
 - gc_prot
-    Collection of gclasses working with protocols
+    Collection of gclasses working with protocols.
 - yunos:
-    Full applications or utilities built with yunetas.
+    Full applications or utilities built with yunetas (TODO).
