@@ -2,6 +2,7 @@ Yunetas
 =======
 
 Yuneta Simplified, a complete C development framework.
+
 Inherited from `ginsfms <https://pypi.org/project/ginsfsm/>`_ and `Yuneta <http://yuneta.io>`_.
 
 Directories
@@ -13,7 +14,7 @@ Directories
     and an api to let communicate between objects through events,
     with publish/subscribe pattern integrated.
 - core-esp32:
-    Core for esp32 microcontroller (esp-idf).
+    Core for esp32 microcontroller (`esp-idf <https://docs.espressif.com/projects/esp-idf/>`_).
 - core-linux:
     Core for linux
 - gclasses:
