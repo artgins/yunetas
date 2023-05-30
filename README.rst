@@ -17,7 +17,7 @@ Directories
     Core for esp32 microcontroller (`esp-idf <https://docs.espressif.com/projects/esp-idf/>`_).
 - core-linux:
     Core for linux
-- gclasses:
-    Collection of gclass
+- gc_prot
+    Collection of gclasses working with protocols
 - yunos:
     Full applications or utilities built with yunetas.

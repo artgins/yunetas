@@ -1,0 +1,12 @@
+menu "Yuneta"
+    config YUNETA_UART
+        bool "Include Yuneta UART"
+        default y
+        help
+            Include Yuneta UART
+    config YUNETA_ETHERNET
+        bool "Include Yuneta ETHERNET"
+        default y
+        help
+            Include Yuneta ETHERNET
+endmenu
