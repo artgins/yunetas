@@ -5,6 +5,7 @@
  *          Copyright (c) 2013 Niyamaka.
  *          All Rights Reserved.
  ***********************************************************************/
+#define _GNU_SOURCE
 #include <string.h>
 #include <ctype.h>
 #include "ghttp_parser.h"
@@ -254,24 +255,6 @@ PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length)
     }
     memcpy(parser->url + pos, at, length);
     return 0;
-}
-
-/***************************************************************************
- *  Convert n bytes of string to upper case
- ***************************************************************************/
-PUBLIC char *strntoupper(char* s, size_t n)
-{
-    if(!s || n == 0)
-        return 0;
-
-    char *p = s;
-    while (n > 0 && *p != '\0') {
-        *p = (char)toupper(*p);
-        p++;
-        n--;
-    }
-
-    return s;
 }
 
 /***************************************************************************

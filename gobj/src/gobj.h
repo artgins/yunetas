@@ -44,7 +44,7 @@
 #include <string.h>
 #include <time.h>
 #include <regex.h>
-// #include <inttypes.h>
+#include <inttypes.h>
 #include <jansson.h>
 
 #ifdef __cplusplus
@@ -1535,6 +1535,8 @@ PUBLIC void nice_size(char* bf, int bfsize, uint64_t bytes);
 PUBLIC void delete_right_blanks(char *s);
 PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);
+PUBLIC char *strntoupper(char* s, size_t n);
+PUBLIC char *strntolower(char* s, size_t n);
 
 // Compile with -DINCLUDE_LIBUNWIND if you want the internal backtrace function for linux
 PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);

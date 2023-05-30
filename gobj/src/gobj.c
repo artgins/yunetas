@@ -6512,7 +6512,7 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
  ***************************************************************************/
 #ifdef INCLUDE_LIBUNWIND
 # define UNW_LOCAL_ONLY
-# include <libunwind.h>
+# include <libunwind/libunwind.h>
 #endif
 PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
 {
@@ -7057,6 +7057,42 @@ PUBLIC void left_justify(char *s)
          *-----------------------------------*/
         delete_left_blanks(s);
     }
+}
+
+/***************************************************************************
+ *  Convert n bytes of string to upper case
+ ***************************************************************************/
+PUBLIC char *strntoupper(char* s, size_t n)
+{
+    if(!s || n == 0)
+        return 0;
+
+    char *p = s;
+    while (n > 0 && *p != '\0') {
+        *p = toupper(*p);
+        p++;
+        n--;
+    }
+
+    return s;
+}
+
+/***************************************************************************
+ *  Convert n bytes of string to lower case
+ ***************************************************************************/
+PUBLIC char *strntolower(char* s, size_t n)
+{
+    if(!s || n == 0)
+        return 0;
+
+    char *p = s;
+    while (n > 0 && *p != '\0') {
+        *p = tolower(*p);
+        p++;
+        n--;
+    }
+
+    return s;
 }
 
 /***************************************************************************

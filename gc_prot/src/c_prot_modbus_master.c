@@ -1272,7 +1272,7 @@ PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type_)
 {
     char type[64];
     snprintf(type, sizeof(type), "%s", type_);
-    strlwr(type);
+    strntolower(type, strlen(type));
 
     modbus_object_type_t object_type;
     SWITCHS(type) {
@@ -2164,7 +2164,7 @@ PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format_)
 
     char format[64];
     snprintf(format, sizeof(format), "%s", format_);
-    strlwr(format);
+    strntolower(format, strlen(format));
 
     SWITCHS(format) {
         CASES("big_endian")
@@ -2206,7 +2206,7 @@ PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format_)
 
     char format[64];
     snprintf(format, sizeof(format), "%s", format_);
-    strlwr(format);
+    strntolower(format, strlen(format));
 
     SWITCHS(format) {
         CASES("int16")
