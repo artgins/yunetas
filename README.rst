@@ -1,7 +1,7 @@
 Yunetas
 =======
 
-Yuneta Simplified, a complete C development framework.
+Yuneta Simplified, a complete asynchronous C development framework.
 
 Inherited from `ginsfms <https://pypi.org/project/ginsfsm/>`_ and `Yuneta <http://yuneta.io>`_.
 
