@@ -21,7 +21,7 @@ set(requires
 #           Register
 #------------------------------------------------------#
 idf_component_register(
-    SRCS ${SRC}
+    SRCS ${srcs}
     REQUIRES ${requires}
     INCLUDE_DIRS ${include}
 )

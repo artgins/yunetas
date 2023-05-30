@@ -1,7 +1,7 @@
 #------------------------------------------------------#
 #           Source
 #------------------------------------------------------#
-file(GLOB SRC src/*.c)
+file(GLOB srcs src/*.c)
 
 set(requires
     esp_jansson
@@ -11,7 +11,7 @@ set(requires
 #           Register
 #------------------------------------------------------#
 idf_component_register(
-    SRCS ${SRC}
+    SRCS ${srcs}
     REQUIRES ${requires}
     INCLUDE_DIRS
         src/

@@ -2,13 +2,13 @@
 #           Source
 #------------------------------------------------------#
 # Add the lib sources.
-file(GLOB JANSSON_SRC jansson/src/*.c)
+file(GLOB srcs jansson/src/*.c)
 
 #------------------------------------------------------#
 #           Register
 #------------------------------------------------------#
 idf_component_register(
-    SRCS ${JANSSON_SRC}
+    SRCS ${srcs}
     INCLUDE_DIRS jansson/src
 )
 
