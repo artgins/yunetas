@@ -283,7 +283,6 @@ PUBLIC void trace_vjson(
 PRIVATE char *tab(char *bf, int bflen);
 PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event);
 PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj);
-PRIVATE void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)));
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
 
