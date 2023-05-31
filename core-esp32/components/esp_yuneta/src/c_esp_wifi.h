@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(GC_WIFI);
+GOBJ_DECLARE_GCLASS(C_WIFI);
 
 /*------------------------*
  *      States

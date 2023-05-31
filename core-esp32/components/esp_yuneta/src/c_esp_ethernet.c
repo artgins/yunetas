@@ -186,7 +186,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_ETHERNET);
+GOBJ_DEFINE_GCLASS(C_ETHERNET);
 
 /*------------------------*
  *      States
@@ -256,7 +256,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_esp_ethernet(void)
 {
-    return create_gclass(GC_ETHERNET);
+    return create_gclass(C_ETHERNET);
 }
 
 

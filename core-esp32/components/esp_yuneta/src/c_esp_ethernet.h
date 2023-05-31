@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(GC_ETHERNET);
+GOBJ_DECLARE_GCLASS(C_ETHERNET);
 
 /*------------------------*
  *      States

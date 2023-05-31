@@ -880,7 +880,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_ESP_TRANSPORT);
+GOBJ_DEFINE_GCLASS(C_ESP_TRANSPORT);
 
 /*------------------------*
  *      States
@@ -978,5 +978,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_esp_transport(void)
 {
-    return create_gclass(GC_ESP_TRANSPORT);
+    return create_gclass(C_ESP_TRANSPORT);
 }

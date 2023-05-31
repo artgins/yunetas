@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(GC_YUNO);
+GOBJ_DECLARE_GCLASS(C_YUNO);
 
 /*------------------------*
  *      States

@@ -454,7 +454,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create(gobj_name(gobj), GC_TIMER, 0, gobj);
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -3284,7 +3284,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_PROT_MODBUS_M);
+GOBJ_DEFINE_GCLASS(C_PROT_MODBUS_M);
 
 /*------------------------*
  *      States
@@ -3375,5 +3375,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_prot_modbus_master(void)
 {
-    return create_gclass(GC_PROT_MODBUS_M);
+    return create_gclass(C_PROT_MODBUS_M);
 }

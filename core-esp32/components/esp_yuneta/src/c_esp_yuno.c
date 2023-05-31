@@ -194,8 +194,8 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_integer_attr(gobj, "start_time", now);
     node_uuid();
 
-    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), GC_TIMER, 0, gobj);
-    priv->gobj_wifi = gobj_create_service("wifi", GC_WIFI, 0, gobj);
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
     gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
 
     char timestamp[90];
@@ -598,7 +598,7 @@ PRIVATE LMETHOD lmt[] = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_YUNO);
+GOBJ_DEFINE_GCLASS(C_YUNO);
 
 /*------------------------*
  *      States
@@ -689,7 +689,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_esp_yuno(void)
 {
-    return create_gclass(GC_YUNO);
+    return create_gclass(C_YUNO);
 }
 
 /***************************************************************************

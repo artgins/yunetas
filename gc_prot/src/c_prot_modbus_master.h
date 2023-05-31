@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(GC_PROT_MODBUS_M);
+GOBJ_DECLARE_GCLASS(C_PROT_MODBUS_M);
 
 /*------------------------*
  *      States

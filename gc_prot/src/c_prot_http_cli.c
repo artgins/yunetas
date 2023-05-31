@@ -88,7 +88,7 @@ PRIVATE void mt_create(hgobj gobj)
         "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
         "url", gobj_read_str_attr(gobj, "url")
     );
-    priv->gobj_transport = gobj_create(gobj_name(gobj), GC_ESP_TRANSPORT, kw, gobj);
+    priv->gobj_transport = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
     gobj_set_bottom_gobj(gobj, priv->gobj_transport);
 
     priv->parsing_response = ghttp_parser_create(
@@ -457,7 +457,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_PROT_HTTP_CL);
+GOBJ_DEFINE_GCLASS(C_PROT_HTTP_CL);
 
 /*------------------------*
  *      States
@@ -538,5 +538,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_prot_http_cli(void)
 {
-    return create_gclass(GC_PROT_HTTP_CL);
+    return create_gclass(C_PROT_HTTP_CL);
 }

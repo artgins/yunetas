@@ -617,7 +617,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_WIFI);
+GOBJ_DEFINE_GCLASS(C_WIFI);
 
 /*------------------------*
  *      States
@@ -738,5 +738,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_esp_wifi(void)
 {
-    return create_gclass(GC_WIFI);
+    return create_gclass(C_WIFI);
 }

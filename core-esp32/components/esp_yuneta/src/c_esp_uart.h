@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(GC_ESP_UART);
+GOBJ_DECLARE_GCLASS(C_ESP_UART);
 
 /*------------------------*
  *      States

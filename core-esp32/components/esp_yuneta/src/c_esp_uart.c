@@ -573,7 +573,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GC_ESP_UART);
+GOBJ_DEFINE_GCLASS(C_ESP_UART);
 
 /*------------------------*
  *      States
@@ -648,5 +648,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_esp_uart(void)
 {
-    return create_gclass(GC_ESP_UART);
+    return create_gclass(C_ESP_UART);
 }
