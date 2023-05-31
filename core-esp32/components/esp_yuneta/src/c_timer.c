@@ -367,8 +367,8 @@ PUBLIC int register_c_timer(void)
 PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
 {
     if(gobj_get_deep_tracing()>1) {
-        trace_machine("⏲ ✅ set_timeout %d: %s",
-            msec,
+        trace_machine("⏲ ✅ set_timeout %ld: %s",
+            (long)msec,
             gobj_full_name(gobj)
         );
     }
@@ -388,8 +388,8 @@ PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
 PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
     if(gobj_get_deep_tracing()>1) {
-        trace_machine("⏲ ⏲ ✅ set_timeout_periodic %d: %s",
-            msec,
+        trace_machine("⏲ ⏲ ✅ set_timeout_periodic %ld: %s",
+            (long)msec,
             gobj_full_name(gobj)
         );
     }

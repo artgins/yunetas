@@ -647,7 +647,7 @@ PUBLIC hgclass gclass_create(
     }
 
 #ifdef ESP_PLATFORM
-    if(strlen(gclass_name) > 16) {
+    if(strlen(gclass_name) > 15) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -827,7 +827,7 @@ PUBLIC int gclass_add_ev_action(
     }
 
     event_action_t *event_action = sys_malloc_fn(sizeof(*event_action));
-    if(action == NULL) {
+    if(event_action == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
