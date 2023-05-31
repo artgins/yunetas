@@ -25,6 +25,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define OLIMEX_LED_PIN      33
 
 /***************************************************************
  *              Prototypes
@@ -554,6 +555,9 @@ PRIVATE int ac_wifi_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     );
 
     get_rssi(gobj);
+
+#ifdef ESP_PLATFORM
+#endif
 
     JSON_DECREF(kw)
     return 0;

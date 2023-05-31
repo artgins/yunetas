@@ -13,6 +13,8 @@
   #include <esp_mac.h>
   #include <esp_log.h>
   #include <esp_sntp.h>
+  #include <driver/gpio.h>
+  #include <rom/gpio.h>
 #endif
 #include <time.h>
 #include "c_esp_ethernet.h"
@@ -25,7 +27,8 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-void *p = 0;
+#define OLIMEX_LED_PIN      33  // TODO put in config
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -230,6 +233,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gpio_pad_select_gpio(OLIMEX_LED_PIN);   // TODO put in config
+    gpio_set_direction(OLIMEX_LED_PIN, GPIO_MODE_OUTPUT);
 
     gobj_start(priv->gobj_timer);
 
@@ -469,6 +475,7 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         gobj_log_add_handler("udp", "udp", LOG_OPT_ALL, udpc);
         //esp_log_set_vprintf(udp_log); TODO set in prod
     }
+    gpio_set_level(OLIMEX_LED_PIN, 1); // TODO put in config
 
 #endif
 
@@ -491,6 +498,7 @@ PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     gobj_save_persistent_attrs(gobj, json_string("timestamp"));
 
 #ifdef ESP_PLATFORM
+    gpio_set_level(OLIMEX_LED_PIN, 0); // TODO put in config
     sntp_stop();
 #endif
 
