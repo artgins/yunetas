@@ -69,18 +69,6 @@ PRIVATE hgclass gclass = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-#ifdef ESP_PLATFORM
-    /*--------------------------------*
-     *      Create timer
-     *--------------------------------*/
-    esp_timer_create_args_t esp_timer_create_args = {
-        .callback = &timer_callback,
-        .arg = gobj,
-        .skip_unhandled_events = true
-    };
-
-    ESP_ERROR_CHECK(esp_timer_create(&esp_timer_create_args, &priv->esp_timer_handle));
-#endif
 
     SET_PRIV(periodic,          gobj_read_bool_attr)
 }
@@ -100,6 +88,49 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  *      Framework Method
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+#ifdef ESP_PLATFORM
+    /*--------------------------------*
+     *      Create timer
+     *--------------------------------*/
+    esp_timer_create_args_t esp_timer_create_args = {
+        .callback = &timer_callback,
+        .arg = gobj,
+        .skip_unhandled_events = true
+    };
+
+    ESP_ERROR_CHECK(esp_timer_create(&esp_timer_create_args, &priv->esp_timer_handle));
+#endif
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+#ifdef ESP_PLATFORM
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    esp_err_t err = esp_timer_delete(priv->esp_timer_handle);
+    if(err) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "esp_timer_delete() FAILED",
+            "esp_error",    "%s", esp_err_to_name(err),
+            NULL
+        );
+    }
+#endif
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
 {
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -138,7 +169,7 @@ PRIVATE int mt_start(hgobj gobj)
 /***************************************************************************
  *      Framework Method
  ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
+PRIVATE int mt_pause(hgobj gobj)
 {
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -165,19 +196,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    esp_err_t err = esp_timer_delete(priv->esp_timer_handle);
-    if(err) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "esp_timer_delete() FAILED",
-            "esp_error",    "%s", esp_err_to_name(err),
-            NULL
-        );
-    }
-#endif
 }
 
 
@@ -252,6 +270,8 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_play = mt_play,
+    .mt_pause = mt_pause,
 };
 
 /*------------------------*
@@ -346,20 +366,20 @@ PUBLIC int register_c_timer(void)
  ***************************************************************************/
 PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
 {
-//    if(gobj_get_deep_tracing()>1) {
-//        trace_machine("⏲ ✅ set_timeout %d: %s",
-//            msec,
-//            gobj_full_name(gobj)
-//        );
-//    }
+    if(gobj_get_deep_tracing()>1) {
+        trace_machine("⏲ ✅ set_timeout %d: %s",
+            msec,
+            gobj_full_name(gobj)
+        );
+    }
 
-    if(gobj_is_running(gobj)) { // clear_timeout(gobj);
-        gobj_stop(gobj);
+    if(gobj_is_playing(gobj)) { // clear_timeout(gobj);
+        gobj_pause(gobj);
     }
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", FALSE);
-    gobj_start(gobj);
+    gobj_play(gobj);
 }
 
 /***************************************************************************
@@ -367,20 +387,20 @@ PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
-//    if(gobj_get_deep_tracing()>1) {
-//        trace_machine("⏲ ⏲ ✅ set_timeout_periodic %d: %s",
-//            msec,
-//            gobj_full_name(gobj)
-//        );
-//    }
+    if(gobj_get_deep_tracing()>1) {
+        trace_machine("⏲ ⏲ ✅ set_timeout_periodic %d: %s",
+            msec,
+            gobj_full_name(gobj)
+        );
+    }
 
-    if(gobj_is_running(gobj)) { // clear_timeout(gobj);
-        gobj_stop(gobj);
+    if(gobj_is_playing(gobj)) { // clear_timeout(gobj);
+        gobj_pause(gobj);
     }
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", TRUE);
-    gobj_start(gobj);
+    gobj_play(gobj);
 }
 
 /***************************************************************************
@@ -388,13 +408,13 @@ PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void IRAM_ATTR clear_timeout(hgobj gobj)
 {
-//    if(gobj_get_deep_tracing()>1) {
-//        trace_machine("⏲ ❎ clear_timeout: %s",
-//            gobj_full_name(gobj)
-//        );
-//    }
+    if(gobj_get_deep_tracing()>1) {
+        trace_machine("⏲ ❎ clear_timeout: %s",
+            gobj_full_name(gobj)
+        );
+    }
 
-    if(gobj_is_running(gobj)) {
-        gobj_stop(gobj);
+    if(gobj_is_playing(gobj)) {
+        gobj_pause(gobj);
     }
 }

@@ -332,20 +332,20 @@ PRIVATE json_t *cmd_set_poll_timeout(hgobj gobj, const char *cmd, json_t *kw, hg
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_dump_data[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_INTEGER,   "slave_id",     0,              0,          "Slave id (-1 all slaves)"),
-SDATAPM (ASN_OCTET_STR, "address",      0,              0,          "Address"),
-SDATAPM (ASN_OCTET_STR, "size",         0,              0,          "Size (-1 all data)"),
+SDATAPM (DTP_INTEGER,   "slave_id",     0,              0,          "Slave id (-1 all slaves)"),
+SDATAPM (DTP_STRING,    "address",      0,              0,          "Address"),
+SDATAPM (DTP_STRING,    "size",         0,              0,          "Size (-1 all data)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_timeout[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_INTEGER,   "timeout",      0,              "1000",      "Pollig timeout in miliseconds"),
+SDATAPM (DTP_INTEGER,   "timeout",      0,              "1000",      "Polling timeout in miliseconds"),
 SDATA_END()
 };
 
@@ -353,9 +353,9 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "dump_data",        0,          pm_dump_data,   cmd_dump_data,  "Dump slave data"),
-SDATACM (ASN_SCHEMA,    "set-poll-timeout", 0,          pm_timeout,     cmd_set_poll_timeout, "Set polling timeout (in miliseconds)"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "dump_data",        0,          pm_dump_data,   cmd_dump_data,  "Dump slave data"),
+SDATACM (DTP_SCHEMA,    "set-poll-timeout", 0,          pm_timeout,     cmd_set_poll_timeout, "Set polling timeout (in miliseconds)"),
 SDATA_END()
 };
 
@@ -364,10 +364,10 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default-----description---------- */
-SDATA (ASN_OCTET_STR,   "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
-SDATA (ASN_JSON,        "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
-SDATA (ASN_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in miliseconds"),
-SDATA (ASN_INTEGER,     "timeout_response", SDF_PERSIST,    "5",        "Timeout response in seconds"),
+SDATA (DTP_STRING,      "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
+SDATA (DTP_JSON,        "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
+SDATA (DTP_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in miliseconds"),
+SDATA (DTP_INTEGER,     "timeout_response", SDF_PERSIST,    "5",        "Timeout response in seconds"),
 SDATA (DTP_INTEGER,     "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };

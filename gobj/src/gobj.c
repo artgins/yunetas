@@ -359,7 +359,6 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 #define __trace_gobj_periodic_timer__(gobj) (gobj_trace_level(gobj) & TRACE_PERIODIC_TIMER)
 
 PRIVATE uint32_t __global_trace_level__ = 0;
-PRIVATE volatile uint32_t __panic_trace__ = 0;
 PRIVATE uint32_t __deep_trace__ = 0;
 
 PRIVATE dl_list_t dl_log_handlers;
@@ -5166,7 +5165,7 @@ PUBLIC uint32_t gobj_trace_level(hgobj gobj_)
 {
     gobj_t * gobj = gobj_;
 
-    if(__deep_trace__ || __panic_trace__) {
+    if(__deep_trace__) {
         return (uint32_t)-1;
     }
     uint32_t bitmask = __global_trace_level__;
@@ -5410,16 +5409,6 @@ PUBLIC int gobj_set_gclass_trace(hgclass gclass_, const char *level, BOOL set)
     return 0;
 }
 
-/****************************************************************************
- *  Set panic trace
- ****************************************************************************/
-PUBLIC int gobj_set_panic_trace(BOOL panic_trace)
-{
-    __panic_trace__ = panic_trace?TRUE:FALSE;
-
-    return 0;
-}
-
 /***************************************************************************
  *  level 1 all but considering no_trace_level
  *  level >1 all
@@ -5429,6 +5418,10 @@ PUBLIC int gobj_set_deep_tracing(int level)
     __deep_trace__ = (uint32_t)level;
 
     return 0;
+}
+PUBLIC int gobj_get_deep_tracing(void)
+{
+    return __deep_trace__;
 }
 
 /****************************************************************************
@@ -5727,7 +5720,7 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
 {
-    if(__deep_trace__ || __panic_trace__) {
+    if(__deep_trace__) {
         return TRUE;
     }
     if(!gobj) {
@@ -5751,7 +5744,7 @@ PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj)
 {
-    if(__deep_trace__ > 1 || __panic_trace__) {
+    if(__deep_trace__ > 1) {
         return FALSE;
     }
     if(!gobj) {
@@ -5782,7 +5775,7 @@ PRIVATE char *tab(char *bf, int bflen)
 /****************************************************************************
  *  Trace machine function
  ****************************************************************************/
-PRIVATE void trace_machine(const char *fmt, ...)
+PUBLIC void trace_machine(const char *fmt, ...)
 {
     va_list ap;
     char bf[1024];

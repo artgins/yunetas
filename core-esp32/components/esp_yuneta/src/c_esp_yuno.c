@@ -84,7 +84,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATA_END()
 };
 
@@ -231,6 +231,8 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_start(priv->gobj_timer);
+
     /*
      *  Start wifi/ethernet and wait to connect some network before playing the default_service
      */
@@ -251,6 +253,7 @@ PRIVATE int mt_stop(hgobj gobj)
      *  When yuno stops, it's the death of the app
      */
     clear_timeout(priv->gobj_timer);
+    gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
 
 #ifdef ESP_PLATFORM

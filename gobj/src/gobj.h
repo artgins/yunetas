@@ -294,17 +294,17 @@ typedef enum {
 } data_type_t;
 
 // TODO backward compatibility: migrate old ASN_* to new DTP_*
-#define ASN_OCTET_STR   DTP_STRING
-#define ASN_BOOLEAN     DTP_BOOLEAN
-#define ASN_INTEGER     DTP_INTEGER
-#define ASN_UNSIGNED    DTP_INTEGER
-#define ASN_COUNTER64   DTP_INTEGER
-#define ASN_DOUBLE      DTP_REAL
-#define ASN_INTEGER64   DTP_INTEGER
-#define ASN_UNSIGNED64  DTP_INTEGER
-#define ASN_JSON        DTP_JSON
-#define ASN_SCHEMA      DTP_POINTER
-#define ASN_POINTER     DTP_POINTER
+//#define ASN_OCTET_STR   DTP_STRING
+//#define ASN_BOOLEAN     DTP_BOOLEAN
+//#define ASN_INTEGER     DTP_INTEGER
+//#define ASN_UNSIGNED    DTP_INTEGER
+//#define ASN_COUNTER64   DTP_INTEGER
+//#define ASN_DOUBLE      DTP_REAL
+//#define ASN_INTEGER64   DTP_INTEGER
+//#define ASN_UNSIGNED64  DTP_INTEGER
+//#define ASN_JSON        DTP_JSON
+#define DTP_SCHEMA      DTP_POINTER
+//#define ASN_POINTER     DTP_POINTER
 
 /*
  *  SData field flags.
@@ -1423,8 +1423,8 @@ PUBLIC uint32_t gobj_no_trace_level(hgobj gobj);
  */
 PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw);
 PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set);
-PUBLIC int gobj_set_panic_trace(BOOL panic_trace);
 PUBLIC int gobj_set_deep_tracing(int level); /* 1 all but considering __gobj_no_trace_level__, > 1 all */
+PUBLIC int gobj_get_deep_tracing(void);
 PUBLIC int gobj_set_global_trace(const char *level, BOOL set); // If level is empty, set all global traces
 
 /*
@@ -1442,6 +1442,7 @@ PUBLIC json_t *gobj_get_trace_filter(hgclass gclass); // Return is not YOURS
  */
 PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set);
 PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set);
+PUBLIC void trace_machine(const char *fmt, ...);
 
 /*---------------------------------*
  *      Log functions

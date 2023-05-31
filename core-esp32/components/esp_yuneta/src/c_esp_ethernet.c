@@ -24,9 +24,9 @@
   #include <sdkconfig.h>
   #if CONFIG_ETH_USE_SPI_ETHERNET
     #include <driver/spi_master.h>
-    #if CONFIG_ESTERILIZ_USE_ENC28J60
+    #if CONFIG_YUNETA_USE_ENC28J60
       #include "esp_eth_enc28j60.h"
-    #endif //CONFIG_ESTERILIZ_USE_ENC28J60
+    #endif //CONFIG_YUNETA_USE_ENC28J60
   #endif // CONFIG_ETH_USE_SPI_ETHERNET
 #endif // ESP_PLATFORM
 
@@ -284,9 +284,9 @@ PUBLIC int register_c_esp_ethernet(void)
 #include <sdkconfig.h>
 #if CONFIG_ETH_USE_SPI_ETHERNET
 #include <driver/spi_master.h>
-#if CONFIG_ESTERILIZ_USE_ENC28J60
+#if CONFIG_YUNETA_USE_ENC28J60
 #include "esp_eth_enc28j60.h"
-#endif //CONFIG_ESTERILIZ_USE_ENC28J60
+#endif //CONFIG_YUNETA_USE_ENC28J60
 #endif // CONFIG_ETH_USE_SPI_ETHERNET
 
 #include "c_esp_ethernet.h"
@@ -365,60 +365,60 @@ void register_ethernet(void)
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-    phy_config.phy_addr = CONFIG_ESTERILIZ_ETH_PHY_ADDR;
-    phy_config.reset_gpio_num = CONFIG_ESTERILIZ_ETH_PHY_RST_GPIO;
-#if CONFIG_ESTERILIZ_USE_INTERNAL_ETHERNET
+    phy_config.phy_addr = CONFIG_YUNETA_ETH_PHY_ADDR;
+    phy_config.reset_gpio_num = CONFIG_YUNETA_ETH_PHY_RST_GPIO;
+#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
     eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
-    esp32_emac_config.smi_mdc_gpio_num = CONFIG_ESTERILIZ_ETH_MDC_GPIO;
-    esp32_emac_config.smi_mdio_gpio_num = CONFIG_ESTERILIZ_ETH_MDIO_GPIO;
+    esp32_emac_config.smi_mdc_gpio_num = CONFIG_YUNETA_ETH_MDC_GPIO;
+    esp32_emac_config.smi_mdio_gpio_num = CONFIG_YUNETA_ETH_MDIO_GPIO;
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
-#if CONFIG_ESTERILIZ_ETH_PHY_IP101
+#if CONFIG_YUNETA_ETH_PHY_IP101
     esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
-#elif CONFIG_ESTERILIZ_ETH_PHY_RTL8201
+#elif CONFIG_YUNETA_ETH_PHY_RTL8201
     esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
-#elif CONFIG_ESTERILIZ_ETH_PHY_LAN87XX
+#elif CONFIG_YUNETA_ETH_PHY_LAN87XX
     esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
-#elif CONFIG_ESTERILIZ_ETH_PHY_DP83848
+#elif CONFIG_YUNETA_ETH_PHY_DP83848
     esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
-#elif CONFIG_ESTERILIZ_ETH_PHY_KSZ80XX
+#elif CONFIG_YUNETA_ETH_PHY_KSZ80XX
     esp_eth_phy_t *phy = esp_eth_phy_new_ksz80xx(&phy_config);
 #endif
 #elif CONFIG_ETH_USE_SPI_ETHERNET
     gpio_install_isr_service(0);
     spi_bus_config_t buscfg = {
-        .miso_io_num = CONFIG_ESTERILIZ_ETH_SPI_MISO_GPIO,
-        .mosi_io_num = CONFIG_ESTERILIZ_ETH_SPI_MOSI_GPIO,
-        .sclk_io_num = CONFIG_ESTERILIZ_ETH_SPI_SCLK_GPIO,
+        .miso_io_num = CONFIG_YUNETA_ETH_SPI_MISO_GPIO,
+        .mosi_io_num = CONFIG_YUNETA_ETH_SPI_MOSI_GPIO,
+        .sclk_io_num = CONFIG_YUNETA_ETH_SPI_SCLK_GPIO,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
     };
-    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_ESTERILIZ_ETH_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    ESP_ERROR_CHECK(spi_bus_initialize(CONFIG_YUNETA_ETH_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
     spi_device_interface_config_t spi_devcfg = {
         .mode = 0,
-        .clock_speed_hz = CONFIG_ESTERILIZ_ETH_SPI_CLOCK_MHZ * 1000 * 1000,
-        .spics_io_num = CONFIG_ESTERILIZ_ETH_SPI_CS_GPIO,
+        .clock_speed_hz = CONFIG_YUNETA_ETH_SPI_CLOCK_MHZ * 1000 * 1000,
+        .spics_io_num = CONFIG_YUNETA_ETH_SPI_CS_GPIO,
         .queue_size = 20
     };
-#if CONFIG_ESTERILIZ_USE_KSZ8851SNL
-    eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(CONFIG_ESTERILIZ_ETH_SPI_HOST, &spi_devcfg);
-    ksz8851snl_config.int_gpio_num = CONFIG_ESTERILIZ_ETH_SPI_INT_GPIO;
+#if CONFIG_YUNETA_USE_KSZ8851SNL
+    eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
+    ksz8851snl_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
     esp_eth_mac_t *mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
     esp_eth_phy_t *phy = esp_eth_phy_new_ksz8851snl(&phy_config);
-#elif CONFIG_ESTERILIZ_USE_DM9051
-    eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(CONFIG_ESTERILIZ_ETH_SPI_HOST, &spi_devcfg);
-    dm9051_config.int_gpio_num = CONFIG_ESTERILIZ_ETH_SPI_INT_GPIO;
+#elif CONFIG_YUNETA_USE_DM9051
+    eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
+    dm9051_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
     esp_eth_mac_t *mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
     esp_eth_phy_t *phy = esp_eth_phy_new_dm9051(&phy_config);
-#elif CONFIG_ESTERILIZ_USE_W5500
-    eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(CONFIG_ESTERILIZ_ETH_SPI_HOST, &spi_devcfg);
-    w5500_config.int_gpio_num = CONFIG_ESTERILIZ_ETH_SPI_INT_GPIO;
+#elif CONFIG_YUNETA_USE_W5500
+    eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
+    w5500_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
     esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
     esp_eth_phy_t *phy = esp_eth_phy_new_w5500(&phy_config);
-#elif CONFIG_ESTERILIZ_USE_ENC28J60
-    spi_devcfg.cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(CONFIG_ESTERILIZ_ETH_SPI_CLOCK_MHZ);
-    eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(CONFIG_ESTERILIZ_ETH_SPI_HOST, &spi_devcfg);
-    enc28j60_config.int_gpio_num = CONFIG_ESTERILIZ_ETH_SPI_INT_GPIO;
+#elif CONFIG_YUNETA_USE_ENC28J60
+    spi_devcfg.cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(CONFIG_YUNETA_ETH_SPI_CLOCK_MHZ);
+    eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
+    enc28j60_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
     esp_eth_mac_t *mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
     phy_config.autonego_timeout_ms = 0; // ENC28J60 doesn't support auto-negotiation
     phy_config.reset_gpio_num = -1; // ENC28J60 doesn't have a pin to reset internal PHY
@@ -427,7 +427,7 @@ void register_ethernet(void)
 #endif // CONFIG_ETH_USE_SPI_ETHERNET
     esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
     ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
-#if !CONFIG_ESTERILIZ_USE_INTERNAL_ETHERNET
+#if !CONFIG_YUNETA_USE_INTERNAL_ETHERNET
     /* The SPI Ethernet module might doesn't have a burned factory MAC address, we cat to set it manually.
        02:00:00 is a Locally Administered OUI range so should not be used except when testing on a LAN under your control.
     */
@@ -435,7 +435,7 @@ void register_ethernet(void)
         0x02, 0x00, 0x00, 0x12, 0x34, 0x56
     }));
 #endif
-#if CONFIG_ESTERILIZ_USE_ENC28J60 && CONFIG_ESTERILIZ_ENC28J60_DUPLEX_FULL
+#if CONFIG_YUNETA_USE_ENC28J60 && CONFIG_YUNETA_ENC28J60_DUPLEX_FULL
     eth_duplex_t duplex = ETH_DUPLEX_FULL;
     ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_DUPLEX_MODE, &duplex));
 #endif
