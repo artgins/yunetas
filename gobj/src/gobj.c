@@ -3363,7 +3363,16 @@ PUBLIC int gobj_stop_services(void)
  ***************************************************************************/
 PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
 {
-    gobj_t * gobj = gobj_;
+    gobj_t *gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
 
     if(is_machine_tracing(gobj, NULL)) {
         trace_machine("🔽 set_bottom_gobj('%s') = '%s'",
@@ -5420,7 +5429,7 @@ PUBLIC int gobj_set_deep_tracing(int level)
 }
 PUBLIC int gobj_get_deep_tracing(void)
 {
-    return __deep_trace__;
+    return (int)__deep_trace__;
 }
 
 /****************************************************************************
@@ -6962,7 +6971,7 @@ PUBLIC json_int_t jn2integer(json_t *jn_var)
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
  *  https://www.mbeckler.org/blog/?p=114
  ***************************************************************************/
-PUBLIC void nice_size(char* bf, int bfsize, uint64_t bytes)
+PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes)
 {
     const char* suffixes[7];
     suffixes[0] = "B";
@@ -6973,7 +6982,7 @@ PUBLIC void nice_size(char* bf, int bfsize, uint64_t bytes)
     suffixes[5] = "PB";
     suffixes[6] = "EB";
     unsigned int s = 0; // which suffix to use
-    double count = bytes;
+    double count = (double)bytes;
     while (count >= 1000 && s < 7)
     {
         s++;
@@ -6996,7 +7005,7 @@ PUBLIC void delete_right_blanks(char *s)
     /*---------------------------------*
      *  Elimina blancos a la derecha
      *---------------------------------*/
-    l=strlen(s);
+    l = (int)strlen(s);
     if(l==0)
         return;
     while(--l>=0) {
@@ -7013,7 +7022,7 @@ PUBLIC void delete_right_blanks(char *s)
  ***************************************************************************/
 PUBLIC void delete_left_blanks(char *s)
 {
-    int l;
+    unsigned l;
     char c;
 
     /*----------------------------*
@@ -7029,8 +7038,9 @@ PUBLIC void delete_left_blanks(char *s)
         else
             break;
     }
-    if(l>0)
-        memmove(s,s+l,strlen(s)-l+1);
+    if(l>0) {
+        memmove(s,s+l,(unsigned long)strlen(s) -l + 1);
+    }
 }
 
 /***************************************************************************
@@ -7061,7 +7071,7 @@ PUBLIC char *strntoupper(char* s, size_t n)
 
     char *p = s;
     while (n > 0 && *p != '\0') {
-        *p = toupper(*p);
+        *p = (char)toupper(*p);
         p++;
         n--;
     }
@@ -7079,7 +7089,7 @@ PUBLIC char *strntolower(char* s, size_t n)
 
     char *p = s;
     while (n > 0 && *p != '\0') {
-        *p = tolower(*p);
+        *p = (char)tolower(*p);
         p++;
         n--;
     }

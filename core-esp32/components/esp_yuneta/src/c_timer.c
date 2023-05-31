@@ -89,9 +89,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-#ifdef ESP_PLATFORM
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/

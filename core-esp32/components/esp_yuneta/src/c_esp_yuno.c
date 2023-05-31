@@ -234,8 +234,10 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+#ifdef ESP_PLATFORM
     gpio_pad_select_gpio(OLIMEX_LED_PIN);   // TODO put in config
     gpio_set_direction(OLIMEX_LED_PIN, GPIO_MODE_OUTPUT);
+#endif
 
     gobj_start(priv->gobj_timer);
 
@@ -302,8 +304,10 @@ PRIVATE int mt_play(hgobj gobj)
      */
 
     /*
-     *  The order to pause the default service is in the action of networking on
+     *  The order to play the default service is in the action of networking on
      */
+    // NOT here! gobj_play(gobj_default_service());
+
     return 0;
 }
 

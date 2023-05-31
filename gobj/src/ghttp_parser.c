@@ -5,7 +5,9 @@
  *          Copyright (c) 2013 Niyamaka.
  *          All Rights Reserved.
  ***********************************************************************/
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <string.h>
 #include <ctype.h>
 #include "ghttp_parser.h"

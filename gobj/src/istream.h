@@ -54,7 +54,7 @@ PUBLIC int istream_read_until_num_bytes(
 PUBLIC int istream_read_until_delimiter(
     istream istream,
     const char *delimiter,
-    int delimiter_size,
+    size_t delimiter_size,
     const char *event
 );
 PUBLIC size_t istream_consume(istream istream, char *bf, size_t len);

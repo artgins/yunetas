@@ -56,8 +56,8 @@ Example of modbus configuration:
  ***********************************************************************/
 #include <string.h>
 #include <arpa/inet.h>
-#include "c_timer.h"
-#include "istream.h"
+#include <c_timer.h>
+#include <istream.h>
 #include "c_prot_modbus_master.h"
 
 /***************************************************************************
@@ -219,9 +219,9 @@ typedef struct {
 
 typedef struct _FRAME_HEAD {
     // Common head
-    int slave_id;
-    int function;
-    int byte_count;
+    unsigned slave_id;
+    unsigned function;
+    unsigned byte_count;
     int error_code;
 
     // state of frame

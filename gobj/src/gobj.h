@@ -1532,7 +1532,7 @@ PUBLIC char *helper_quote2doublequote(char *str);
 PUBLIC char *helper_doublequote2quote(char *str);
 PUBLIC json_t * anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbose);
 PUBLIC json_int_t jn2integer(json_t *jn_var);
-PUBLIC void nice_size(char* bf, int bfsize, uint64_t bytes);
+PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
 PUBLIC void delete_right_blanks(char *s);
 PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);

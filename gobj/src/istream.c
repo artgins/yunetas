@@ -107,7 +107,7 @@ PUBLIC void istream_destroy(istream istream)
 PUBLIC int istream_read_until_delimiter(
     istream istream,
     const char *delimiter,
-    int delimiter_size,
+    size_t delimiter_size,
     const char *event
 )
 {
@@ -198,8 +198,8 @@ PUBLIC size_t istream_consume(istream istream, char *bf, size_t len)
         ist->completed = TRUE;
 
     } else if(ist->delimiter) {
-        for(int i=0; i<len; i++) {
-            uint8_t c = bf[i];
+        for(size_t i=0; i<len; i++) {
+            uint8_t c = (uint8_t)bf[i];
             if(gbuffer_append(ist->gbuf, &c, 1)!=1) {
                 gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
