@@ -8,9 +8,10 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <strings.h>
 #include <ghttp_parser.h>
-#include <c_esp_transport.h>
 #include <parse_url.h>
+#include <c_esp_transport.h>
 #include "c_prot_http_cli.h"
 
 /***************************************************************

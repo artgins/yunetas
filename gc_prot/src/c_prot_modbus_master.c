@@ -51,7 +51,7 @@ Example of modbus configuration:
 },
 
 
- *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2021-2023 Niyamaka.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -3090,7 +3090,7 @@ PRIVATE int check_conversion_variables(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  XXX
  ***************************************************************************/
 PRIVATE cell_control_t *get_cell_control(
     hgobj gobj,
@@ -3114,7 +3114,7 @@ PRIVATE cell_control_t *get_cell_control(
 }
 
 /***************************************************************************
- *
+ *  XXX
  ***************************************************************************/
 PRIVATE uint16_t get_input_register(
     hgobj gobj,
@@ -3127,7 +3127,7 @@ PRIVATE uint16_t get_input_register(
 }
 
 /***************************************************************************
- *
+ *  XXX
  ***************************************************************************/
 PRIVATE uint16_t get_holding_register(
     hgobj gobj,
@@ -3140,7 +3140,7 @@ PRIVATE uint16_t get_holding_register(
 }
 
 /***************************************************************************
- *
+ *  XXX
  ***************************************************************************/
 PRIVATE uint16_t *get_address_input_register(
     hgobj gobj,
@@ -3154,7 +3154,7 @@ PRIVATE uint16_t *get_address_input_register(
 }
 
 /***************************************************************************
- *
+ *  XXX
  ***************************************************************************/
 PRIVATE uint16_t *get_address_holding_register(
     hgobj gobj,
