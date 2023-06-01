@@ -77,6 +77,7 @@ typedef enum {
     TYPE_DISCRETE_INPUT     = 1,
     TYPE_INPUT_REGISTER     = 2,
     TYPE_HOLDING_REGISTER   = 3,
+    TYPE_UNKNOWN            = -1
 } modbus_object_type_t;
 
 typedef enum {
@@ -191,12 +192,15 @@ typedef struct { /* 1 word: 2 bytes */
 } cell_control_t;
 
 typedef struct {
-    cell_control_t control[4][0xFFFF+1]; // 0x00000 control coil
-                                                // 0x10000 control discrete input
-                                                // 0x20000 control input register
-                                                // 0x30000 control holding register
-    uint16_t input_register[0xFFFF+1];          // 0x40000 data input register
-    uint16_t holding_register[0xFFFF+0];        // 0x60000 data holding register HACK last addr to slave_id
+//cell_control_t control[4][0xFFFF+1];    // 0x00000 control coil
+//                                        // 0x10000 control discrete input
+//                                        // 0x20000 control input register
+//                                        // 0x30000 control holding register
+//uint16_t input_register[0xFFFF+1];      // 0x40000 data input register
+//uint16_t holding_register[0xFFFF+0];    // 0x60000 data holding register HACK last addr to slave_id
+    json_t *x_control;
+    json_t *x_input_register;
+    json_t *x_holding_register;
     uint16_t slave_id;
 } slave_data_t;
 
@@ -262,6 +266,34 @@ PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format);
 PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format);
 PRIVATE int build_message_to_publish(hgobj gobj);
 PRIVATE int check_conversion_variables(hgobj gobj);
+
+PRIVATE cell_control_t *get_cell_control(
+    hgobj gobj,
+    slave_data_t *pslv,
+    modbus_object_type_t object_type,
+    int32_t address,
+    BOOL create
+);
+PRIVATE uint16_t get_input_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+);
+PRIVATE uint16_t get_holding_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+);
+PRIVATE uint16_t * get_address_input_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+);
+PRIVATE uint16_t * get_address_holding_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -938,7 +970,7 @@ PRIVATE gbuffer *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave,
     uint16_t size = (uint16_t)kw_get_int(gobj, jn_map, "size", 0, KW_REQUIRED|KW_WILD_NUMBER);
     const char *id = kw_get_str(gobj, jn_map, "id", "", 0);
     const char *type = kw_get_str(gobj, jn_map, "type", "", KW_REQUIRED);
-    int object_type = get_object_type(gobj, type);
+    modbus_object_type_t object_type = get_object_type(gobj, type);
 
     uint8_t modbus_function = 0;
     switch(object_type) {
@@ -1143,7 +1175,7 @@ PRIVATE gbuffer *build_modbus_request_write_message(hgobj gobj, json_t *jn_reque
     }
 
     const char *type = kw_get_str(gobj, jn_request, "type", "", KW_REQUIRED);
-    int object_type = get_object_type(gobj, type);
+    modbus_object_type_t object_type = get_object_type(gobj, type);
 
     uint8_t modbus_function = 0;
     switch(object_type) {
@@ -1268,6 +1300,27 @@ PRIVATE gbuffer *build_modbus_request_write_message(hgobj gobj, json_t *jn_reque
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE const char *get_object_type_name(modbus_object_type_t object_type)
+{
+    switch(object_type) {
+        case TYPE_COIL:
+            return "coil";
+        case TYPE_DISCRETE_INPUT:
+            return "discrete_input";
+        case TYPE_INPUT_REGISTER:
+            return "input_register";
+        case TYPE_HOLDING_REGISTER:
+            return "holding_register";
+
+        case TYPE_UNKNOWN:
+        default:
+            return NULL;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type_)
 {
     char type[64];
@@ -1300,7 +1353,7 @@ PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type_)
                 "type",         "%s", type,
                 NULL
             );
-            object_type = -1;
+            object_type = TYPE_UNKNOWN;
     } SWITCHS_END;
 
     return object_type;
@@ -1337,6 +1390,16 @@ PRIVATE int build_slave_data(hgobj gobj)
      */
     int array_size = priv->max_slaves * sizeof(slave_data_t);
     priv->slave_data = GBMEM_MALLOC(array_size);
+    if(!priv->slave_data) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "no memory for slave_data",
+            "size",         "%d", array_size,
+            NULL
+        );
+        return -1;
+    }
     char temp[128];
     char nice[64];
     nice_size(nice, sizeof(nice), (uint64_t)array_size);
@@ -1360,12 +1423,21 @@ PRIVATE int build_slave_data(hgobj gobj)
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
         pslv->slave_id = slave_id;
+        pslv->x_control = json_object();
+
+        json_object_set_new(pslv->x_control, get_object_type_name(TYPE_COIL), json_object());
+        json_object_set_new(pslv->x_control, get_object_type_name(TYPE_DISCRETE_INPUT), json_object());
+        json_object_set_new(pslv->x_control, get_object_type_name(TYPE_INPUT_REGISTER), json_object());
+        json_object_set_new(pslv->x_control, get_object_type_name(TYPE_HOLDING_REGISTER), json_object());
+
+        pslv->x_input_register = json_object();
+        pslv->x_holding_register = json_object();
 
         json_t *jn_mapping = kw_get_list(gobj, jn_slave, "mapping", 0, KW_REQUIRED);
         int idx_map; json_t *jn_map;
         json_array_foreach(jn_mapping, idx_map, jn_map) {
             const char *type = kw_get_str(gobj, jn_map, "type", "", KW_REQUIRED);
-            int object_type = get_object_type(gobj, type);
+            modbus_object_type_t object_type = get_object_type(gobj, type);
             if(object_type < 0) {
                 json_object_set_new(jn_map, "disabled", json_true());
                 continue;
@@ -1421,7 +1493,18 @@ PRIVATE int build_slave_data(hgobj gobj)
             }
 
             for(int i=0; i<size; i++) {
-                cell_control_t *cell_control = &pslv->control[object_type][address+i];
+                //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
+                cell_control_t *cell_control = get_cell_control(
+                    gobj,
+                    pslv,
+                    object_type,
+                    address+i,
+                    TRUE
+                );
+                if(!cell_control) {
+                    // Error already logged
+                    continue;
+                }
                 if(cell_control->value_busy) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1865,14 +1948,24 @@ PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int store_slave_bit(hgobj gobj, int slave_id, int object_type, int address, int value)
-{
+PRIVATE int store_slave_bit(
+    hgobj gobj,
+    int slave_id,
+    modbus_object_type_t object_type,
+    int address,
+    int value
+) {
     slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
     if(!pslv) {
         // Error already logged
         return -1;
     }
-    cell_control_t *cell_control = &pslv->control[object_type][address];
+    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
+    if(!cell_control) {
+        // Error already logged
+        return -1;
+    }
     cell_control->bit_value = value?1:0;
     cell_control->updated = 1;
 
@@ -1882,14 +1975,24 @@ PRIVATE int store_slave_bit(hgobj gobj, int slave_id, int object_type, int addre
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int store_slave_word(hgobj gobj, int slave_id, int object_type, int address, uint8_t *bf)
-{
+PRIVATE int store_slave_word(
+    hgobj gobj,
+    int slave_id,
+    modbus_object_type_t object_type,
+    int address,
+    uint8_t *bf
+) {
     slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
     if(!pslv) {
         // Error already logged
         return -1;
     }
-    cell_control_t *cell_control = &pslv->control[object_type][address];
+    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
+    if(!cell_control) {
+        // Error already logged
+        return -1;
+    }
 
     if(address > 0xFFFF) {
         gobj_log_error(gobj, 0,
@@ -1906,11 +2009,13 @@ PRIVATE int store_slave_word(hgobj gobj, int slave_id, int object_type, int addr
 
     switch(object_type) {
         case TYPE_INPUT_REGISTER:
-            memmove(&pslv->input_register[address], bf, 2);
+            //memmove(&pslv->input_register[address], bf, 2); XXX
+            memmove(get_address_input_register(gobj, pslv, address), bf, 2);
             cell_control->updated = 1;
             break;
         case TYPE_HOLDING_REGISTER:
-            memmove(&pslv->holding_register[address], bf, 2);
+            //memmove(&pslv->holding_register[address], bf, 2); XXX
+            memmove(get_address_holding_register(gobj, pslv, address), bf, 2);
             cell_control->updated = 1;
             break;
         default:
@@ -2479,7 +2584,7 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
      *  These values are been checked in check_conversion_variable()
      */
     const char *type = kw_get_str(gobj, jn_variable, "type", "", KW_REQUIRED);
-    int object_type = get_object_type(gobj, type);
+    modbus_object_type_t object_type = get_object_type(gobj, type);
     if(object_type < 0) {
         return jn_value;
     }
@@ -2496,21 +2601,31 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
     const char *endian = kw_get_str(gobj, jn_variable, "endian", "big endian", 0);
     endian_format_t endian_format = get_endian_format(gobj, endian);
 
+    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
+    if(!cell_control) {
+        // Error already logged
+        return jn_value;
+    }
+    cell_control->updated = 0;
+
     switch(variable_format) {
         case FORMAT_BOOL:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
                         jn_value = cell_control->bit_value?json_true():json_false();
                         break;
                     case TYPE_INPUT_REGISTER:
-                        jn_value = pslv->input_register[address]?json_true():json_false();
+                        //jn_value = pslv->input_register[address]?json_true():json_false(); XXX
+                        jn_value = get_input_register(gobj, pslv, address)?json_true():json_false();
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        jn_value = pslv->holding_register[address]?json_true():json_false();
+                        //jn_value = pslv->holding_register[address]?json_true():json_false(); XXX
+                        jn_value = get_holding_register(gobj, pslv, address)?json_true():json_false();
+                        break;
+                    default:
                         break;
                 }
             }
@@ -2519,8 +2634,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         case FORMAT_INT16:
         case FORMAT_UINT16:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 uint16_t *pv = 0;
                 switch(object_type) {
                     case TYPE_COIL:
@@ -2528,10 +2641,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        pv = &pslv->input_register[address];
+                        //pv = &pslv->input_register[address]; XXX
+                        pv = get_address_input_register(gobj, pslv, address);
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        pv = &pslv->holding_register[address];
+                        //pv = &pslv->holding_register[address]; XXX
+                        pv = get_address_holding_register(gobj, pslv, address);
+                        break;
+                    default:
                         break;
                 }
 
@@ -2562,8 +2679,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         case FORMAT_INT32:
         case FORMAT_UINT32:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 uint16_t *pv = 0;
                 switch(object_type) {
                     case TYPE_COIL:
@@ -2571,10 +2686,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        pv = &pslv->input_register[address];
+                        //pv = &pslv->input_register[address]; XXX
+                        pv = get_address_input_register(gobj, pslv, address);
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        pv = &pslv->holding_register[address];
+                        //pv = &pslv->holding_register[address]; XXX
+                        pv = get_address_holding_register(gobj, pslv, address);
+                        break;
+                    default:
                         break;
                 }
 
@@ -2605,8 +2724,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         case FORMAT_INT64:
         case FORMAT_UINT64:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 uint16_t *pv = 0;
                 switch(object_type) {
                     case TYPE_COIL:
@@ -2614,10 +2731,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        pv = &pslv->input_register[address];
+                        //pv = &pslv->input_register[address]; XXX
+                        pv = get_address_input_register(gobj, pslv, address);
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        pv = &pslv->holding_register[address];
+                        //pv = &pslv->holding_register[address]; XXX
+                        pv = get_address_holding_register(gobj, pslv, address);
+                        break;
+                    default:
                         break;
                 }
 
@@ -2647,8 +2768,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
         case FORMAT_FLOAT:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 uint16_t *pv = 0;
                 switch(object_type) {
                     case TYPE_COIL:
@@ -2656,10 +2775,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        pv = &pslv->input_register[address];
+                        //pv = &pslv->input_register[address]; XXX
+                        pv = get_address_input_register(gobj, pslv, address);
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        pv = &pslv->holding_register[address];
+                        // pv = &pslv->holding_register[address]; XXX
+                        pv = get_address_holding_register(gobj, pslv, address);
+                        break;
+                    default:
                         break;
                 }
 
@@ -2673,8 +2796,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
         case FORMAT_DOUBLE:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 uint16_t *pv = 0;
                 switch(object_type) {
                     case TYPE_COIL:
@@ -2682,10 +2803,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        pv = &pslv->input_register[address];
+                        //pv = &pslv->input_register[address]; XXX
+                        pv = get_address_input_register(gobj, pslv, address);
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        pv = &pslv->holding_register[address];
+                        //pv = &pslv->holding_register[address]; XXX
+                        pv = get_address_holding_register(gobj, pslv, address);
+                        break;
+                    default:
                         break;
                 }
 
@@ -2699,8 +2824,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
         case FORMAT_STRING:
             {
-                cell_control_t *cell_control = &pslv->control[object_type][address];
-                cell_control->updated = 0;
                 int size = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
                 gbuffer *gbuf_string = gbuffer_create(size*2, size*2);
 
@@ -2708,10 +2831,14 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                     uint16_t *pv = 0;
                     switch(object_type) {
                         case TYPE_INPUT_REGISTER:
-                            pv = &pslv->input_register[address+i];
+                            //pv = &pslv->input_register[address+i]; XXX
+                            pv = get_address_input_register(gobj, pslv, address);
                             break;
                         case TYPE_HOLDING_REGISTER:
-                            pv = &pslv->holding_register[address+i];
+                            //pv = &pslv->holding_register[address+i]; XXX
+                            pv = get_address_holding_register(gobj, pslv, address);
+                            break;
+                        default:
                             break;
                     }
 
@@ -2788,7 +2915,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     int slave_id = pslv->slave_id;
 
     const char *type = kw_get_str(gobj, jn_variable, "type", "", KW_REQUIRED);
-    int object_type = get_object_type(gobj, type);
+    modbus_object_type_t object_type = get_object_type(gobj, type);
     if(object_type < 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -2892,8 +3019,9 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     }
 
     for(int i=0; i<compound_value; i++) {
-        cell_control_t *cell_control = &pslv->control[object_type][address+i];
-        if(!cell_control->value_busy) {
+        //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
+        cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
+        if(!cell_control || !cell_control->value_busy) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2961,12 +3089,90 @@ PRIVATE int check_conversion_variables(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE cell_control_t *get_cell_control(
+    hgobj gobj,
+    slave_data_t *pslv,
+    modbus_object_type_t object_type,
+    int32_t address,
+    BOOL create
+) {
+    json_t *jn_type = kw_get_dict(gobj, pslv->x_control, get_object_type_name(object_type), 0, KW_REQUIRED);
+    if(!jn_type) {
+        return NULL;
+    }
+    char saddress[32];
+    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
+    if(create) {
+        json_object_set_new(jn_type, saddress, json_integer(0));
+    }
+    json_t *jn_value = json_object_get(jn_type, saddress);
+    cell_control_t *cell_control = (cell_control_t *)json_integer_value_pointer(jn_value);
+    return cell_control;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t get_input_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+) {
+    char saddress[32];
+    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
+    return (uint16_t)kw_get_int(gobj, pslv->x_input_register, saddress, 0, KW_REQUIRED);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t get_holding_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+) {
+    char saddress[32];
+    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
+    return (uint16_t)kw_get_int(gobj, pslv->x_holding_register, saddress, 0, KW_REQUIRED);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t *get_address_input_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+) {
+    char saddress[32];
+    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
+    json_t *jn_v = json_object_get(pslv->x_input_register, saddress);
+    return (uint16_t *)json_integer_value_pointer(jn_v);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t *get_address_holding_register(
+    hgobj gobj,
+    slave_data_t *pslv,
+    int32_t address
+) {
+    char saddress[32];
+    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
+    json_t *jn_v = json_object_get(pslv->x_holding_register, saddress);
+    return (uint16_t *)json_integer_value_pointer(jn_v);
+}
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 

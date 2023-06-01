@@ -314,6 +314,9 @@ json_int_t json_integer_value(const json_t *integer);
 double json_real_value(const json_t *real);
 double json_number_value(const json_t *json);
 
+json_int_t *json_integer_value_pointer(const json_t *integer);
+double *json_real_value_pointer(const json_t *real);
+
 int json_string_set(json_t *string, const char *value);
 int json_string_setn(json_t *string, const char *value, size_t len);
 int json_string_set_nocheck(json_t *string, const char *value);

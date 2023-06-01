@@ -17,7 +17,7 @@
 #include <math.h>
 #include <wchar.h>
 
-#if defined(linux)
+#ifdef __linux__
     #include <unistd.h>
     #include <strings.h>
     #include <sys/utsname.h>
