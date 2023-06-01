@@ -234,6 +234,12 @@ PRIVATE int mt_start(hgobj gobj)
         NULL
     );
 
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_CONNECTED, 0);
+    }
+
     return 0;
 }
 
@@ -271,6 +277,11 @@ PRIVATE int mt_stop(hgobj gobj)
     uart_driver_delete((int) gobj_read_integer_attr(gobj, "uart_number"));
 #endif
 
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+    }
 
     return 0;
 }

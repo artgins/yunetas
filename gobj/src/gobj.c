@@ -373,7 +373,7 @@ PRIVATE gobj_t * __yuno__ = 0;
 PRIVATE gobj_t * __default_service__ = 0;
 
 PRIVATE char trace_with_short_name = FALSE; // TODO functions to set this variables
-PRIVATE char trace_with_full_name = FALSE;
+PRIVATE char trace_with_full_name = TRUE;  // TODO functions to set this variables
 
 PRIVATE char last_message[256];
 PRIVATE uint32_t __alert_count__ = 0;
@@ -5146,7 +5146,9 @@ PUBLIC int gobj_publish_event(
                 NULL
             );
             if(__trace_gobj_ev_kw__(publisher)) {
-                gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+                if(json_object_size(kw)) {
+                    gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+                }
             }
         }
     }
