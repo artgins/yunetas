@@ -525,6 +525,8 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_start(priv->timer);
+
     priv->jn_conversion = json_array();
     priv->jn_request_queue = json_array();
 
@@ -571,8 +573,6 @@ PRIVATE int mt_start(hgobj gobj)
         DEFAULTS
             break;
     } SWITCHS_END;
-
-    gobj_start(priv->timer);
 
     return 0;
 }

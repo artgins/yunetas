@@ -2727,15 +2727,6 @@ PUBLIC int gobj_start(hgobj gobj_)
         return -1;
     }
 
-    gobj_t *gobj_bottom = gobj_bottom_gobj(gobj);
-    if(gobj_bottom) {
-        if(!gobj_is_running(gobj_bottom) && !gobj_is_disabled(gobj_bottom)) {
-            if(!(gobj_bottom->gclass->gclass_flag & gcflag_manual_start)) {
-                gobj_start(gobj_bottom);
-            }
-        }
-    }
-
     /*
      *  Check required attributes.
      */
