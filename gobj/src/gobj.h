@@ -216,6 +216,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_CONNECTION             "Connection"
 #define MSGSET_DEBUG                  "Debug"
 #define MSGSET_PROTOCOL               "Protocol"
+#define MSGSET_GBUFFERS               "GBuffers"
 
 /*
  *  Options for handlers
@@ -1390,6 +1391,7 @@ enum { /* String table in s_global_trace_level */
     TRACE_AUTHZS            = 0x02000000,
     TRACE_STATES            = 0x04000000,
     TRACE_PERIODIC_TIMER    = 0x08000000,
+    TRACE_GBUFFERS          = 0x10000000,
 };
 #define TRACE_USER_LEVEL    0x0000FFFF
 #define TRACE_GLOBAL_LEVEL  0xFFFF0000

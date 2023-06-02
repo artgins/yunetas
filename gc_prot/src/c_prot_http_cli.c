@@ -263,7 +263,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     int result = parse_message(gobj, gbuf, priv->parsing_response);
     if (result < 0) {
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
 
     KW_DECREF(kw);
@@ -408,7 +408,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     json_t *kw_response = json_pack("{s:I}",
                                     "gbuffer", (json_int_t)(size_t)gbuf
     );
-    return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_response, gobj);
+    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_response, gobj);
 }
 
 /***************************************************************************
@@ -416,7 +416,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;

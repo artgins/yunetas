@@ -44,13 +44,13 @@ PRIVATE int start_smartconfig(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-----description---------- */
-//SDATA (DTP_BOOLEAN, "login_data_saved", SDF_PERSIST|SDF_STATS,  "false",    "Wifi data saved"),
-//SDATA (DTP_STRING,  "ssid",             SDF_PERSIST|SDF_STATS,  "",         "Wifi ssid (33)"),
-//SDATA (DTP_STRING,  "password",         SDF_PERSIST,            "",         "Wifi password (65)"),
-//SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wifi bssid (6)"), // not used
-//SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
+SDATA (DTP_BOOLEAN, "login_data_saved", SDF_PERSIST|SDF_STATS,  "false",    "Wifi data saved"),
+SDATA (DTP_STRING,  "ssid",             SDF_PERSIST|SDF_STATS,  "",         "Wifi ssid (33)"),
+SDATA (DTP_STRING,  "password",         SDF_PERSIST,            "",         "Wifi password (65)"),
+SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wifi bssid (6)"), // not used
+SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
-//SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
+SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
 SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "{}",       "List of wifis (ssid/passw)"),
 SDATA_END()
 };

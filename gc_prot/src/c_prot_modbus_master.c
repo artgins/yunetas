@@ -556,6 +556,10 @@ PRIVATE int mt_start(hgobj gobj)
             break;
     } SWITCHS_END;
 
+//    gobj_start(gobj_bottom_gobj(gobj));
+//    gobj_change_state(gobj, ST_SESSION); // TODO TEST
+//    gobj_send_event(gobj, EV_TIMEOUT, 0, gobj); // TODO TEST
+
     return 0;
 }
 
@@ -861,7 +865,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer *gbuf)
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", gbuf
     );
-    return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_send, gobj);
+    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_send, gobj);
 }
 
 /***************************************************************************
@@ -1629,6 +1633,12 @@ PRIVATE int next_map(hgobj gobj)
             );
         }
         return 0; // do polling
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_POLLING) {
+        gobj_trace_msg(gobj, "🔊🔊🔊🔊⏩⏩⏩ end cycle: idx slave %d, idx map %d",
+            priv->idx_slaves, priv->idx_mapping
+        );
     }
 
     /*
@@ -3191,7 +3201,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                         "msg",          "%s", "modbus framehead_consume() FAILED",
                         NULL
                     );
-                    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+                    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
                     break;
                 } else if (n > 0) {
                     gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -3294,7 +3304,7 @@ PRIVATE int ac_enqueue_tx_message(hgobj gobj, const char *event, json_t *kw, hgo
 
     // TODO enqueue the message and send after poll cycle or between responses
     // format output message or directly send
-    //gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw, gobj);
+    //gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 
     json_array_append_new(priv->jn_request_queue, json_deep_copy(kw));
 
@@ -3307,7 +3317,7 @@ PRIVATE int ac_enqueue_tx_message(hgobj gobj, const char *event, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw);
     return 0;

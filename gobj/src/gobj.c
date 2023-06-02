@@ -340,6 +340,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
     {"periodic_timer",  "Trace periodic timers"},
+    {"gbuffers",        "Trace gbuffers"},
     {0, 0},
 };
 
@@ -353,6 +354,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 #define __trace_gobj_authzs__(gobj)         (gobj_trace_level(gobj) & TRACE_AUTHZS)
 #define __trace_gobj_states__(gobj)         (gobj_trace_level(gobj) & TRACE_STATES)
 #define __trace_gobj_periodic_timer__(gobj) (gobj_trace_level(gobj) & TRACE_PERIODIC_TIMER)
+#define __trace_gobj_gbuffers__(gobj)       (gobj_trace_level(gobj) & TRACE_GBUFFERS)
 
 PRIVATE uint32_t __global_trace_level__ = 0;
 PRIVATE uint32_t __deep_trace__ = 0;
@@ -9111,15 +9113,15 @@ PUBLIC gbuffer gbuffer_create(
     /*----------------------------*
      *   Retorna pointer a gbuf
      *----------------------------*/
-//    if(__trace_create_delete__) {
-//        log_debug(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_CREATION_DELETION_GBUFFERS,
-//            "msg",          "%s", "Creating gbuffer",
-//            "pointer",      "%p", gbuf,
-//            "data_size",    "%d", (int)data_size,
-//            NULL);
-//    }
+    if(__trace_gobj_gbuffers__(0)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_GBUFFERS,
+            "msg",          "%s", "Creating gbuffer",
+            "pointer",      "%p", gbuf,
+            "data_size",    "%d", (int)data_size,
+            NULL);
+    }
 
     return gbuf;
 }
@@ -9161,7 +9163,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     }
     gbuf->data = new_buf;
     gbuf->data_size = more;
-//    if(__trace_create_delete__) {
+//    if(__trace_gobj_gbuffers__) {
 //        log_debug(0,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_CREATION_DELETION_GBUFFERS,
@@ -9181,7 +9183,7 @@ PUBLIC void gbuffer_remove(gbuffer hgbuf)
 {
     gbuffer_t *gbuf = hgbuf;
 
-//    if(__trace_create_delete__) {
+//    if(__trace_gobj_gbuffers__) {
 //        log_debug(0,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_CREATION_DELETION_GBUFFERS,
@@ -9794,15 +9796,6 @@ PUBLIC size_t gbuffer_freebytes(gbuffer hgbuf)
 {
     gbuffer_t *gbuf = hgbuf;
     return gbuf->data_size - gbuf->tail;
-}
-
-/***************************************************************************
- *    Pon /quit debug
- ***************************************************************************/
-PUBLIC int gbuffer_trace_create_delete(BOOL enable)
-{
-    // TODO __trace_create_delete__ = enable;
-    return 0;
 }
 
 /***************************************************************************
