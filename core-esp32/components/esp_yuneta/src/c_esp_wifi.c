@@ -51,6 +51,7 @@ SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wif
 SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
+SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "{}",       "List of wifis (ssid/passw)"),
 SDATA_END()
 };
 
@@ -65,7 +66,6 @@ typedef struct _PRIVATE_DATA {
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
-
 
 
 
@@ -89,7 +89,7 @@ PRIVATE void mt_create(hgobj gobj)
     assert(priv->sta_netif);
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, gobj));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &event_handler, gobj));
@@ -165,15 +165,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     char ip[20];
     memset(ssid, 0, sizeof(ssid));
 
-// TODO implement trace level
-//    gobj_log_debug(gobj, 0,
-//        "msgset",       "%s", MSGSET_DEBUG,
-//        "msg",          "%s", "esp event wifi",
-//        "base",         "%s", event_base,
-//        "event_id",     "%d", event_id,
-//        NULL
-//    );
-
     if(event_base == WIFI_EVENT) {
         wifi_event_sta_disconnected_t *wifi_event_sta_disconnected;
         wifi_event_sta_connected_t *wifi_event_sta_connected;
@@ -185,6 +176,37 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                 break;
             case WIFI_EVENT_STA_STOP:
                 gobj_post_event(gobj, EV_WIFI_STA_STOP, 0, gobj); // from esp_wifi_stop()
+                processed = TRUE;
+                break;
+            case WIFI_EVENT_SCAN_DONE:
+                {
+                    #define DEFAULT_SCAN_LIST_SIZE 10
+                    uint16_t number = DEFAULT_SCAN_LIST_SIZE;
+                    wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
+                    uint16_t ap_count = 0;
+                    memset(ap_info, 0, sizeof(ap_info));
+
+                    esp_wifi_scan_get_ap_records(&number, ap_info);
+                    esp_wifi_scan_get_ap_num(&ap_count);
+                    json_t *kw_scan = json_object();
+                    for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++) {
+                        json_t *jn_ssid = json_object();
+                        json_object_set_new(jn_ssid, "SSID", json_string((const char *)ap_info[i].ssid));
+                        json_object_set_new(jn_ssid, "RSSI", json_integer(ap_info[i].rssi));
+                        json_object_set_new(jn_ssid, "authmode", json_integer(ap_info[i].authmode));
+                        if (ap_info[i].authmode != WIFI_AUTH_WEP) {
+                            json_object_set_new(
+                                jn_ssid, "pairwise_cipher", json_integer(ap_info[i].pairwise_cipher)
+                            );
+                            json_object_set_new(
+                                jn_ssid, "group_cipher", json_integer(ap_info[i].group_cipher)
+                            );
+                        }
+                        json_object_set_new(jn_ssid, "channel", json_integer(ap_info[i].primary));
+                        json_object_set_new(kw_scan, (const char *)ap_info[i].ssid, jn_ssid);
+                    }
+                    gobj_post_event(gobj, EV_WIFI_SCAN_DONE, kw_scan, gobj); // from esp_wifi_scan_start()
+                }
                 processed = TRUE;
                 break;
             case WIFI_EVENT_STA_CONNECTED:
@@ -293,7 +315,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         }
     }
     if(!processed) {
-        gobj_log_error(0, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "ESP WIFI event not processed",
@@ -419,18 +441,13 @@ PRIVATE int ac_wifi_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 #ifdef ESP_PLATFORM
     char mac_addr[32];
     esp_wifi_get_mac(ESP_IF_WIFI_STA, (uint8_t *)mac_addr);
-    snprintf(mac_addr, sizeof(mac_addr), "%02X:%02X:%02X:%02X:%02X:%02X",
+    snprintf(mac_addr, sizeof(mac_addr), "%02X-%02X-%02X-%02X-%02X-%02X",
          mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]
     );
     gobj_write_str_attr(gobj, "mac_address", mac_addr);
 #endif
 
-    BOOL login_data_saved = gobj_read_bool_attr(gobj, "login_data_saved");
-    if(login_data_saved) {
-        connect_station(gobj);      // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
-    } else {
-        start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF, wait forever
-    }
+    esp_wifi_scan_start(NULL, false);
 
     JSON_DECREF(kw)
     return 0;
@@ -514,6 +531,29 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             break;
     }
 #endif
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECTION,
+        "msg",          "%s", "scan done",
+        NULL
+    );
+    gobj_trace_json(gobj, kw, "scan done");
+
+    BOOL login_data_saved = gobj_read_bool_attr(gobj, "login_data_saved");
+    if(login_data_saved) {
+        connect_station(gobj);      // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
+    } else {
+        start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF, wait forever
+    }
+
     JSON_DECREF(kw)
     return 0;
 }
@@ -627,6 +667,7 @@ GOBJ_DEFINE_GCLASS(C_WIFI);
  *      States
  *------------------------*/
 GOBJ_DEFINE_STATE(ST_WIFI_WAIT_START);
+GOBJ_DEFINE_STATE(ST_WIFI_WAIT_SCAN);
 GOBJ_DEFINE_STATE(ST_WIFI_WAIT_SSID_CONF);
 GOBJ_DEFINE_STATE(ST_WIFI_WAIT_STA_CONNECTED);
 GOBJ_DEFINE_STATE(ST_WIFI_WAIT_IP);
@@ -639,6 +680,7 @@ GOBJ_DEFINE_EVENT(EV_WIFI_STA_START);
 GOBJ_DEFINE_EVENT(EV_WIFI_STA_STOP);
 GOBJ_DEFINE_EVENT(EV_WIFI_STA_CONNECTED);
 GOBJ_DEFINE_EVENT(EV_WIFI_STA_DISCONNECTED);
+GOBJ_DEFINE_EVENT(EV_WIFI_SCAN_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_SMARTCONFIG_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_GOT_IP);
 GOBJ_DEFINE_EVENT(EV_WIFI_LOST_IP);
@@ -665,7 +707,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_wifi_wait_start[] = {
-        {EV_WIFI_STA_START,         ac_wifi_start,          0},
+        {EV_WIFI_STA_START,         ac_wifi_start,          ST_WIFI_WAIT_SCAN},
+        {0,0,0}
+    };
+    ev_action_t st_wifi_wait_scan[] = {
+        {EV_WIFI_SCAN_DONE,         ac_scan_done,           0}, // Do connect_station() or start_smartconfig()
+        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
@@ -693,6 +740,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     states_t states[] = {
         {ST_WIFI_WAIT_START,            st_wifi_wait_start},
+        {ST_WIFI_WAIT_SCAN,             st_wifi_wait_scan},
         {ST_WIFI_WAIT_SSID_CONF,        st_wifi_wait_ssid_conf},
         {ST_WIFI_WAIT_STA_CONNECTED,    st_wifi_wait_sta_connected},
         {ST_WIFI_WAIT_IP,               st_wifi_wait_ip},

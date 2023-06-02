@@ -3987,7 +3987,9 @@ PUBLIC int gobj_send_event(
                 );
                 if(kw) {
                     if(__trace_gobj_ev_kw__(dst)) {
-                        gobj_trace_json(dst, kw, "kw");
+                        if(json_object_size(kw)) {
+                            gobj_trace_json(dst, kw, "kw send_event");
+                        }
                     }
                 }
             }
@@ -4041,7 +4043,9 @@ PUBLIC int gobj_send_event(
         );
         if(kw) {
             if(__trace_gobj_ev_kw__(dst)) {
-                gobj_trace_json(dst, kw, "kw");
+                if(json_object_size(kw)) {
+                    gobj_trace_json(dst, kw, "kw exec event");
+                }
             }
         }
     }
@@ -4612,7 +4616,9 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         );
         if(kw) {
             if(1 || __trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
-                gobj_trace_json(publisher, kw, "subscribing event");
+                if(json_object_size(kw)) {
+                    gobj_trace_json(publisher, kw, "subscribing event");
+                }
             }
         }
     }
@@ -4964,7 +4970,9 @@ PUBLIC int gobj_publish_event(
             Color_Off
         );
         if(__trace_gobj_ev_kw__(publisher)) {
-            gobj_trace_json(publisher, kw, "kw");
+            if(json_object_size(kw)) {
+                gobj_trace_json(publisher, kw, "kw publish event");
+            }
         }
     }
 
@@ -5102,7 +5110,9 @@ PUBLIC int gobj_publish_event(
                     gobj_short_name(publisher)
                 );
                 if(__trace_gobj_ev_kw__(publisher)) {
-                    gobj_trace_json(publisher, kw2publish, "kw");
+                    if(json_object_size(kw2publish)) {
+                        gobj_trace_json(publisher, kw2publish, "kw publish send event");
+                    }
                 }
             }
 

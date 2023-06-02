@@ -486,7 +486,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -2015,6 +2015,8 @@ PRIVATE int store_slave_word(
             break;
         case TYPE_HOLDING_REGISTER:
             //memmove(&pslv->holding_register[address], bf, 2); XXX
+            int die; // TODO se muere aquí
+
             memmove(get_address_holding_register(gobj, pslv, address), bf, 2);
             cell_control->updated = 1;
             break;
