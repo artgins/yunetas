@@ -182,13 +182,17 @@ enum {
     Total por nodo slave: 524288 bytes (1/2 mega)
 */
 typedef struct { /* 1 word: 2 bytes */
-    uint16_t bit_value: 1;  // Valor para las variables bit (nos cabe en la palabra de control)
-    uint16_t updated: 1;    // Indica si el valor ha sido actualizado (reseteado cuando se publique)
-    uint16_t compound_value: 1;
-    uint16_t to_write: 1;
+    struct {
+        uint16_t bit_value: 1;  // Valor para las variables bit (nos cabe en la palabra de control)
+        uint16_t updated: 1;    // Indica si el valor ha sido actualizado (reseteado cuando se publique)
+        uint16_t compound_value: 1;
+        uint16_t to_write: 1;
 
-    uint16_t free2:3;
-    uint16_t value_busy: 1;     // Si la celda (bit o word) está ocupada. Tamaño celdas: 0xFFFF
+        uint16_t free2: 3;
+        uint16_t value_busy: 1;     // Si la celda (bit o word) está ocupada. Tamaño celdas: 0xFFFF
+    } control;
+    uint16_t input_register;
+    uint16_t holding_register;
 } cell_control_t;
 
 typedef struct {
@@ -199,8 +203,6 @@ typedef struct {
 //uint16_t input_register[0xFFFF+1];      // 0x40000 data input register
 //uint16_t holding_register[0xFFFF+0];    // 0x60000 data holding register HACK last addr to slave_id
     json_t *x_control;
-    json_t *x_input_register;
-    json_t *x_holding_register;
     uint16_t slave_id;
 } slave_data_t;
 
@@ -273,26 +275,6 @@ PRIVATE cell_control_t *get_cell_control(
     modbus_object_type_t object_type,
     int32_t address,
     BOOL create
-);
-PRIVATE uint16_t get_input_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-);
-PRIVATE uint16_t get_holding_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-);
-PRIVATE uint16_t * get_address_input_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-);
-PRIVATE uint16_t * get_address_holding_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
 );
 
 /***************************************************************************
@@ -1430,9 +1412,6 @@ PRIVATE int build_slave_data(hgobj gobj)
         json_object_set_new(pslv->x_control, get_object_type_name(TYPE_INPUT_REGISTER), json_object());
         json_object_set_new(pslv->x_control, get_object_type_name(TYPE_HOLDING_REGISTER), json_object());
 
-        pslv->x_input_register = json_object();
-        pslv->x_holding_register = json_object();
-
         json_t *jn_mapping = kw_get_list(gobj, jn_slave, "mapping", 0, KW_REQUIRED);
         int idx_map; json_t *jn_map;
         json_array_foreach(jn_mapping, idx_map, jn_map) {
@@ -1505,7 +1484,7 @@ PRIVATE int build_slave_data(hgobj gobj)
                     // Error already logged
                     continue;
                 }
-                if(cell_control->value_busy) {
+                if(cell_control->control.value_busy) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1521,7 +1500,9 @@ PRIVATE int build_slave_data(hgobj gobj)
                     json_object_set_new(jn_map, "disabled", json_true());
                     break;
                 }
-                cell_control->value_busy = 1;
+                cell_control->control.value_busy = 1;
+                cell_control->input_register = 0;
+                cell_control->holding_register = 0;
             }
         }
 
@@ -1552,8 +1533,6 @@ PRIVATE int free_slave_data(hgobj gobj)
     for(int i=0; i<priv->max_slaves; i++) {
         // Next slave
         JSON_DECREF(pslv->x_control)
-        JSON_DECREF(pslv->x_input_register)
-        JSON_DECREF(pslv->x_holding_register)
         pslv++;
     }
 
@@ -1995,8 +1974,8 @@ PRIVATE int store_slave_bit(
         // Error already logged
         return -1;
     }
-    cell_control->bit_value = value?1:0;
-    cell_control->updated = 1;
+    cell_control->control.bit_value = value?1:0;
+    cell_control->control.updated = 1;
 
     return 0;
 }
@@ -2023,31 +2002,16 @@ PRIVATE int store_slave_word(
         return -1;
     }
 
-    if(address > 0xFFFF) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "BAD address",
-            "slave_id",     "%d", slave_id,
-            "object_type",  "%d", object_type,
-            "address",      "%d", address,
-            NULL
-        );
-        return -1;
-    }
-
     switch(object_type) {
         case TYPE_INPUT_REGISTER:
             //memmove(&pslv->input_register[address], bf, 2); XXX
-            memmove(get_address_input_register(gobj, pslv, address), bf, 2);
-            cell_control->updated = 1;
+            memmove(&cell_control->input_register, bf, 2);
+            cell_control->control.updated = 1;
             break;
         case TYPE_HOLDING_REGISTER:
             //memmove(&pslv->holding_register[address], bf, 2); XXX
-            int die; // TODO se muere aquí
-
-            memmove(get_address_holding_register(gobj, pslv, address), bf, 2);
-            cell_control->updated = 1;
+            memmove(&cell_control->holding_register, bf, 2);
+            cell_control->control.updated = 1;
             break;
         default:
             gobj_log_error(gobj, 0,
@@ -2638,7 +2602,7 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         // Error already logged
         return jn_value;
     }
-    cell_control->updated = 0;
+    cell_control->control.updated = 0;
 
     switch(variable_format) {
         case FORMAT_BOOL:
@@ -2646,15 +2610,15 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_true():json_false();
+                        jn_value = cell_control->control.bit_value?json_true():json_false();
                         break;
                     case TYPE_INPUT_REGISTER:
                         //jn_value = pslv->input_register[address]?json_true():json_false(); XXX
-                        jn_value = get_input_register(gobj, pslv, address)?json_true():json_false();
+                        jn_value = cell_control->input_register?json_true():json_false();
                         break;
                     case TYPE_HOLDING_REGISTER:
                         //jn_value = pslv->holding_register[address]?json_true():json_false(); XXX
-                        jn_value = get_holding_register(gobj, pslv, address)?json_true():json_false();
+                        jn_value = cell_control->holding_register?json_true():json_false();
                         break;
                     default:
                         break;
@@ -2669,15 +2633,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
+                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //pv = &pslv->input_register[address]; XXX
-                        pv = get_address_input_register(gobj, pslv, address);
+                        pv = &cell_control->input_register;
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        //pv = &pslv->holding_register[address]; XXX
-                        pv = get_address_holding_register(gobj, pslv, address);
+                        pv = &cell_control->holding_register;
                         break;
                     default:
                         break;
@@ -2714,15 +2676,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
+                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //pv = &pslv->input_register[address]; XXX
-                        pv = get_address_input_register(gobj, pslv, address);
+                        pv = &cell_control->input_register;
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        //pv = &pslv->holding_register[address]; XXX
-                        pv = get_address_holding_register(gobj, pslv, address);
+                        pv = &cell_control->holding_register;
                         break;
                     default:
                         break;
@@ -2759,15 +2719,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
+                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //pv = &pslv->input_register[address]; XXX
-                        pv = get_address_input_register(gobj, pslv, address);
+                        pv = &cell_control->input_register;
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        //pv = &pslv->holding_register[address]; XXX
-                        pv = get_address_holding_register(gobj, pslv, address);
+                        pv = &cell_control->holding_register;
                         break;
                     default:
                         break;
@@ -2803,15 +2761,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
+                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //pv = &pslv->input_register[address]; XXX
-                        pv = get_address_input_register(gobj, pslv, address);
+                        pv = &cell_control->input_register;
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        // pv = &pslv->holding_register[address]; XXX
-                        pv = get_address_holding_register(gobj, pslv, address);
+                         pv = &cell_control->holding_register;
                         break;
                     default:
                         break;
@@ -2831,15 +2787,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                 switch(object_type) {
                     case TYPE_COIL:
                     case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->bit_value?json_integer(1):json_integer(0);
+                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //pv = &pslv->input_register[address]; XXX
-                        pv = get_address_input_register(gobj, pslv, address);
+                        pv = &cell_control->input_register;
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        //pv = &pslv->holding_register[address]; XXX
-                        pv = get_address_holding_register(gobj, pslv, address);
+                        pv = &cell_control->holding_register;
                         break;
                     default:
                         break;
@@ -2860,14 +2814,13 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
                 for(int i=0; i<size; i++) {
                     uint16_t *pv = 0;
+                    cell_control_t *cell2 = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
                     switch(object_type) {
                         case TYPE_INPUT_REGISTER:
-                            //pv = &pslv->input_register[address+i]; XXX
-                            pv = get_address_input_register(gobj, pslv, address);
+                            pv = &cell2->input_register;
                             break;
                         case TYPE_HOLDING_REGISTER:
-                            //pv = &pslv->holding_register[address+i]; XXX
-                            pv = get_address_holding_register(gobj, pslv, address);
+                            pv = &cell2->holding_register;
                             break;
                         default:
                             break;
@@ -3052,7 +3005,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     for(int i=0; i<compound_value; i++) {
         //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
         cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
-        if(!cell_control || !cell_control->value_busy) {
+        if(!cell_control || !cell_control->control.value_busy) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -3068,7 +3021,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
             json_object_set_new(jn_variable, "disabled", json_true());
             break;
         }
-        if(cell_control->compound_value) {
+        if(cell_control->control.compound_value) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -3085,7 +3038,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
             break;
         }
         if(compound_value > 1) {
-            cell_control->compound_value = 1;
+            cell_control->control.compound_value = 1;
         }
     }
 
@@ -3142,60 +3095,6 @@ PRIVATE cell_control_t *get_cell_control(
     json_t *jn_value = json_object_get(jn_type, saddress);
     cell_control_t *cell_control = (cell_control_t *)json_integer_value_pointer(jn_value);
     return cell_control;
-}
-
-/***************************************************************************
- *  XXX
- ***************************************************************************/
-PRIVATE uint16_t get_input_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-) {
-    char saddress[32];
-    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
-    return (uint16_t)kw_get_int(gobj, pslv->x_input_register, saddress, 0, KW_REQUIRED);
-}
-
-/***************************************************************************
- *  XXX
- ***************************************************************************/
-PRIVATE uint16_t get_holding_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-) {
-    char saddress[32];
-    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
-    return (uint16_t)kw_get_int(gobj, pslv->x_holding_register, saddress, 0, KW_REQUIRED);
-}
-
-/***************************************************************************
- *  XXX
- ***************************************************************************/
-PRIVATE uint16_t *get_address_input_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-) {
-    char saddress[32];
-    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
-    json_t *jn_v = json_object_get(pslv->x_input_register, saddress);
-    return (uint16_t *)json_integer_value_pointer(jn_v);
-}
-
-/***************************************************************************
- *  XXX
- ***************************************************************************/
-PRIVATE uint16_t *get_address_holding_register(
-    hgobj gobj,
-    slave_data_t *pslv,
-    int32_t address
-) {
-    char saddress[32];
-    snprintf(saddress, sizeof(saddress), "%04X", (int)address);
-    json_t *jn_v = json_object_get(pslv->x_holding_register, saddress);
-    return (uint16_t *)json_integer_value_pointer(jn_v);
 }
 
 
