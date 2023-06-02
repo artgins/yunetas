@@ -1538,6 +1538,25 @@ PRIVATE int build_slave_data(hgobj gobj)
 PRIVATE int free_slave_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    slave_data_t *pslv = priv->slave_data;
+    if(!pslv) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "slave data NULL",
+            NULL
+        );
+        return 0;
+    }
+    for(int i=0; i<priv->max_slaves; i++) {
+        // Next slave
+        JSON_DECREF(pslv->x_control)
+        JSON_DECREF(pslv->x_input_register)
+        JSON_DECREF(pslv->x_holding_register)
+        pslv++;
+    }
+
     GBMEM_FREE(priv->slave_data);
     return 0;
 }
@@ -1702,7 +1721,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     send_data(gobj, gbuf);
 
     // Change state
-    gobj_change_state(gobj, "ST_WAIT_RESPONSE");
+    gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
     set_timeout(priv->timer, priv->timeout_response*1000);
@@ -1733,7 +1752,7 @@ PRIVATE BOOL send_request(hgobj gobj)
     send_data(gobj, gbuf);
 
     // Change state
-    gobj_change_state(gobj, "ST_WAIT_RESPONSE");
+    gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
     set_timeout(priv->timer, priv->timeout_response*1000);
@@ -1925,6 +1944,16 @@ PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     slave_data_t *pslv = priv->slave_data;
+    if(!pslv) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "slave data NULL",
+            "slave_id",     "%d", slave_id,
+            NULL
+        );
+        return 0;
+    }
     for(int i=0; i<priv->max_slaves; i++) {
         if(pslv->slave_id == slave_id) {
             return pslv;
@@ -3188,7 +3217,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     RESET_MACHINE();
 
-    gobj_change_state(gobj, "ST_SESSION");
+    gobj_change_state(gobj, ST_SESSION);
 
     priv->inform_on_close = TRUE;
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
@@ -3331,7 +3360,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *---------------------------*/
     if(response_completed) {
         RESET_MACHINE()
-        gobj_change_state(gobj, "ST_SESSION");
+        gobj_change_state(gobj, ST_SESSION);
 
         if(!send_request(gobj)) {
             if(next_map(gobj)<0) {

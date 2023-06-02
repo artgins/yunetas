@@ -1538,6 +1538,16 @@ PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
+PUBLIC int change_char(char *s, char old_c, char new_c);
+/**rst**
+    Split string `str` by `delim` chars returning the list of strings.
+    Fill `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free3().
+    HACK: Yes, It does include the empty strings!
+**rst**/
+PUBLIC const char **split3(const char *str, const char *delim, int *plist_size);
+PUBLIC void split_free3(const char **list);
 
 // Compile with -DINCLUDE_LIBUNWIND if you want the internal backtrace function for linux
 PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
@@ -1579,8 +1589,13 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
     }                                                               \
 }
 
+#define json_array_backward(array, index, value) \
+    for(index = json_array_size(array) - 1; \
+        index >= 0 && (value = json_array_get(array, index)); \
+        index--)
+
 /*---------------------------------*
- *      KW
+ *          KW
  *---------------------------------*/
 typedef void (*incref_fn_t)(void *);
 typedef void (*decref_fn_t)(void *);
@@ -1627,13 +1642,34 @@ PUBLIC json_t *kw_decref(json_t* kw);
 PUBLIC BOOL kw_has_key(json_t *kw, const char *key);
 
 /**rst**
-   Like json_object_set but with a path.
+   Set delimiter. Default is '`'.
+   Return previous delimiter
+**rst**/
+PUBLIC char kw_set_path_delimiter(char delimiter);
+
+/**rst**
+    Return the json value find by path
+    Walk over dicts and lists
+**rst**/
+PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose);
+
+/**rst**
+    Like json_object_set but with a path (doesn't create arrays, only objects)
 **rst**/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
     json_t *kw,
     const char *path,   // The last word after delimiter (.) is the key
     json_t *value // owned
+);
+
+/**rst**
+   Delete value searched by path
+**rst**/
+PUBLIC int kw_delete(
+    hgobj gobj,
+    json_t *kw,
+    const char *path
 );
 
 /**rst**
@@ -1653,15 +1689,6 @@ PUBLIC int kw_find_str_in_list(
 PUBLIC int kw_find_json_in_list(
     json_t *kw_list,  // not owned
     json_t *item  // not owned
-);
-
-/**rst**
-   Delete the dict's value searched by path
-**rst**/
-PUBLIC int kw_delete(
-    hgobj gobj,
-    json_t *kw,
-    const char *path
 );
 
 /**rst**
@@ -1797,6 +1824,24 @@ PUBLIC json_t *kw_clone_by_not_keys(
 PUBLIC int kw_pop(
     json_t *kw1, // NOT owned
     json_t *kw2  // NOT owned
+);
+
+/*---------------------------------*
+ *          KWID
+ *---------------------------------*/
+/***************************************************************************
+    Utility for databases.
+    Get a json item walking by the tree (routed by path)
+    options:  "verbose", "backward", "lower", "upper"
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter are '`' by default, can be changed by kw_set_path_delimiter
+ ***************************************************************************/
+PUBLIC json_t *kwid_get(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    char *path,
+    const char *options // "verbose", "backward", "lower", "upper"
 );
 
 /*---------------------------------*

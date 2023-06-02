@@ -265,9 +265,6 @@ PRIVATE int rc_walk_by_level(
     cb_walking_t cb_walking,
     void *user_data
 );
-#ifdef __linux__
-PRIVATE int change_char(char *s, char old_c, char new_c);
-#endif
 
 PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
@@ -7074,7 +7071,8 @@ PUBLIC char *strntoupper(char* s, size_t n)
 
     char *p = s;
     while (n > 0 && *p != '\0') {
-        *p = (char)toupper(*p);
+        int c = (int)*p;
+        *p = (char)toupper(c);
         p++;
         n--;
     }
@@ -7092,7 +7090,8 @@ PUBLIC char *strntolower(char* s, size_t n)
 
     char *p = s;
     while (n > 0 && *p != '\0') {
-        *p = (char)tolower(*p);
+        int c = (int)*p;
+        *p = (char)tolower(c);
         p++;
         n--;
     }
@@ -7101,18 +7100,9 @@ PUBLIC char *strntolower(char* s, size_t n)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
-{
-    show_backtrace_fn = show_backtrace;
-}
-
-/***************************************************************************
  *    cambia el character old_d por new_c. Retorna los caracteres cambiados
  ***************************************************************************/
-#ifdef __linux__
-PRIVATE int change_char(char *s, char old_c, char new_c)
+PUBLIC int change_char(char *s, char old_c, char new_c)
 {
     int count = 0;
 
@@ -7125,7 +7115,93 @@ PRIVATE int change_char(char *s, char old_c, char new_c)
     }
     return count;
 }
-#endif
+
+/***************************************************************************
+    Split string `str` by `delim` chars returning the list of strings.
+    Fill `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free3().
+    HACK: Yes, It does include the empty strings!
+ ***************************************************************************/
+PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
+{
+    char *ptr, *p;
+    int max_items = 0;
+    if(plist_size) {
+        max_items = *plist_size;
+        *plist_size = 0; // error case
+    }
+    char *buffer = GBMEM_STRDUP(str);
+    if(!buffer) {
+        return 0;
+    }
+
+    // Get list size
+    int list_size = 0;
+
+    p = buffer;
+    while ((ptr = strsep(&p, delim)) != NULL) {
+        list_size++;
+    }
+    GBMEM_FREE(buffer);
+
+    // Limit list
+    if(max_items > 0) {
+        list_size = MIN(max_items, list_size);
+    }
+
+    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    if(!buffer) {
+        return 0;
+    }
+
+    // Alloc list
+    size_t size = sizeof(char *) * (list_size + 1);
+    const char **list = GBMEM_MALLOC(size);
+
+    // Fill list
+    int i = 0;
+    p = buffer;
+    while ((ptr = strsep(&p, delim)) != NULL) {
+        if (i < list_size) {
+            list[i] = GBMEM_STRDUP(ptr);
+            i++;
+        } else {
+            break;
+        }
+    }
+    GBMEM_FREE(buffer);
+
+    if(plist_size) {
+        *plist_size = list_size;
+    }
+    return list;
+}
+
+/***************************************************************************
+ *  Free split list content
+ ***************************************************************************/
+PUBLIC void split_free3(const char **list)
+{
+    if(list) {
+        char **p = (char **)list;
+        while(*p) {
+            GBMEM_FREE(*p);
+            *p = 0;
+            p++;
+        }
+        GBMEM_FREE(list);
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
+{
+    show_backtrace_fn = show_backtrace;
+}
+
 
 
 
@@ -7635,21 +7711,20 @@ PUBLIC BOOL kw_has_key(json_t *kw, const char *key)
 }
 
 /***************************************************************************
- *  Search delimiter
+   Set delimiter. Default is '`'
  ***************************************************************************/
-PRIVATE char *search_delimiter(const char *s, char delimiter_)
+PUBLIC char kw_set_path_delimiter(char delimiter_)
 {
-    if(!delimiter_) {
-        return 0;
-    }
-    return strchr(s, delimiter_);
+    char old_delimiter = delimiter[0];
+    delimiter[0] = delimiter_;
+    return old_delimiter;
 }
 
 /***************************************************************************
- *  Return the json's value find by path
+ *  Return the json value find by path
  *  Walk over dicts and lists
  ***************************************************************************/
-PRIVATE json_t *_kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
 {
     if(!(json_is_object(kw) || json_is_array(kw))) {
         if(verbose) {
@@ -7682,98 +7757,97 @@ PRIVATE json_t *_kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL ver
         return 0;
     }
 
-    char *p = search_delimiter(path, delimiter[0]);
-    if(!p) {
-        if(json_is_object(kw)) {
-            // Dict
-            json_t *value = json_object_get(kw, path);
-            if(!value && verbose) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "path not found",
-                    "path",         "%s", path,
-                    NULL
-                );
-            }
-            return value;
+    int list_size = 0;
+    const char **segments = split3(path, delimiter, &list_size);
 
-        } else {
-            // Array
-            int idx = atoi(path);
-            json_t *value = json_array_get(kw, (size_t)idx);
-            if(!value && verbose) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "path not found",
-                    "path",         "%s", path,
-                    "idx",          "%d", idx,
-                    NULL
-                );
-            }
-            return value;
-        }
-    }
-
-    char segment[256];
-    if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=(int)sizeof(segment)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "buffer too small",
-            "path",         "%s", path,
-            NULL
-        );
-    }
-
-    json_t *next_json = 0;
-    if(json_is_object(kw)) {
-        // Dict
-        next_json = json_object_get(kw, segment);
-        if(!next_json) {
+    json_t *v = kw;
+    BOOL fin = FALSE;
+    int i;
+    const char *segment = 0;
+    for(i=0; i<list_size && !fin; i++) {
+        segment = *(segments +i);
+        if(!v) {
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "Dict segment not found",
+                    "msg",          "%s", "short path",
                     "path",         "%s", path,
                     "segment",      "%s", segment,
                     NULL
                 );
             }
-            return 0;
+            break;
         }
-    } else {
-        // Array
-        int idx = atoi(segment);
-        next_json = json_array_get(kw, (size_t)idx);
-        if(!next_json) {
-            if(verbose) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "List segment not found",
-                    "path",         "%s", path,
-                    "segment",      "%s", segment,
-                    "idx",          "%d", idx,
-                    NULL
-                );
+
+        switch(json_typeof(v)) {
+        case JSON_OBJECT:
+            v = json_object_get(v, segment);
+            if(!v) {
+                fin = TRUE;
+                if(verbose) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "path not found",
+                        "path",         "%s", path,
+                        "segment",      "%s", segment,
+                        NULL
+                    );
+                }
             }
-            return 0;
+            break;
+        case JSON_ARRAY:
+            {
+                int idx = atoi(segment);
+                v = json_array_get(kw, (size_t)idx);
+                if(!v) {
+                    fin = TRUE;
+                    if(verbose) {
+                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                            "msg",          "%s", "path not found",
+                            "path",         "%s", path,
+                            "segment",      "%s", segment,
+                            "idx",          "%d", idx,
+                            NULL
+                        );
+                    }
+                }
+            }
+            break;
+        default:
+            fin = TRUE;
+            break;
         }
     }
 
-    return _kw_find_path(gobj, next_json, p+1, verbose);
+    if(i<list_size) {
+        if(verbose) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "long path",
+                "path",         "%s", path,
+                "segment",      "%s", segment,
+                NULL
+            );
+        }
+    }
+
+    split_free3(segments);
+    return v;
 }
 
 /***************************************************************************
- *  Like json_object_set but with a path.
+ *  Like json_object_set but with a path
+ *  (doesn't create arrays, only objects)
  ***************************************************************************/
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
     json_t *kw,
-    const char *path,   // The last word after . is the key
+    const char *path,   // The last word after '.' is the key
     json_t *value) // owned
 {
     if(!json_is_object(kw)) {
@@ -7788,42 +7862,132 @@ PUBLIC int kw_set_dict_value(
         return -1;
     }
 
-    char *p = search_delimiter(path, delimiter[0]);
-    if(p) {
-        char segment[256];
-        if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=(int)sizeof(segment)) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "buffer too small",
-                "path",         "%s", path,
-                NULL
-            );
-        }
-
-        if(empty_string(segment)) {
-            return kw_set_dict_value(gobj, kw, p+1, value);
-        }
-        json_t *node_dict = json_object_get(kw, segment);
-        if(node_dict) {
-            return kw_set_dict_value(gobj, node_dict, p+1, value);
-        } else {
-            node_dict = json_object();
-            json_object_set_new(kw, segment, node_dict);
-            return kw_set_dict_value(gobj, node_dict, p+1, value);
-        }
-    }
-    int ret = json_object_set_new(kw, path, value);
-    if(ret < 0) {
+    if(kw->refcount <=0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "json_object_set_new() FAILED",
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json refcount 0",
             "path",         "%s", path,
             NULL
         );
-        gobj_trace_json(gobj, value, "json_object_set_new() FAILED");
+        return 0;
     }
+
+    int list_size = 0;
+    const char **segments = split3(path, delimiter, &list_size);
+
+    json_t *v = kw;
+    BOOL fin = FALSE;
+    int i;
+    const char *segment = 0;
+    json_t *next = 0;
+    for(i=0; i<list_size && !fin; i++) {
+        segment = *(segments +i);
+        if(!v) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "short path",
+                "path",         "%s", path,
+                "segment",      "%s", segment,
+                NULL
+            );
+            break;
+        }
+
+        switch(json_typeof(v)) {
+        case JSON_OBJECT:
+            next = json_object_get(v, segment);
+            if(!next) {
+                json_object_set_new(v, segment, json_object());
+                next = json_object_get(v, segment);
+            }
+            v = next;
+            break;
+
+        case JSON_ARRAY:
+            {
+                int idx = atoi(segment);
+                v = json_array_get(kw, (size_t)idx);
+                if(!v) {
+                    fin = TRUE;
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "path not found",
+                        "path",         "%s", path,
+                        "segment",      "%s", segment,
+                        "idx",          "%d", idx,
+                        NULL
+                    );
+                }
+            }
+            break;
+        default:
+            fin = TRUE;
+            break;
+        }
+    }
+
+    if(i<list_size) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "long path",
+            "path",         "%s", path,
+            "segment",      "%s", segment,
+            NULL
+        );
+    }
+
+    split_free3(segments);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Delete the value searched by path
+ ***************************************************************************/
+PUBLIC int kw_delete(
+    hgobj gobj,
+    json_t *kw,
+    const char *path
+) {
+    int ret = 0;
+    char *s = GBMEM_STRDUP(path);
+    char *k = strrchr(s, delimiter[0]);
+    if(k) {
+        *k = 0;
+        k++;
+        json_t *v = kw_find_path(gobj, kw, s, TRUE);
+        json_t *jn_item = json_object_get(v, k);
+        if(jn_item) {
+            json_object_del(v, k);
+        }
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "path not found",
+            "path",         "%s", path,
+            NULL
+        );
+        ret = -1;
+    } else {
+        json_t *jn_item = json_object_get(kw, path);
+        if(jn_item) {
+            json_object_del(kw, path);
+        }
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "path not found",
+            "path",         "%s", path,
+            NULL
+        );
+        ret = -1;
+    }
+
+    GBMEM_FREE(s);
     return ret;
 }
 
@@ -7881,68 +8045,6 @@ PUBLIC int kw_find_json_in_list(
 }
 
 /***************************************************************************
- *  Delete the dict's value searched by path
- ***************************************************************************/
-PUBLIC int kw_delete(
-    hgobj gobj,
-    json_t *kw,
-    const char *path
-) {
-    if(!json_is_object(kw)) {
-        // silence
-        return 0;
-    }
-    if(empty_string(path)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "path EMPTY",
-            NULL
-        );
-        return 0;
-    }
-    if(kw->refcount <=0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "json refcount 0",
-            "path",         "%s", path,
-            NULL
-        );
-        return 0;
-    }
-    char *p = search_delimiter(path, delimiter[0]);
-    if(!p) {
-        json_t *jn_item = json_object_get(kw, path);
-        if(jn_item) {
-            return json_object_del(kw, path);
-        }
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "path not found",
-            "path",         "%s", path,
-            NULL
-        );
-        return -1;
-    }
-
-    char segment[256];
-    if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=(int)sizeof(segment)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "buffer too small",
-            "path",         "%s", path,
-            NULL
-        );
-    }
-
-    json_t *deep_dict = json_object_get(kw, segment);
-    return kw_delete(gobj, deep_dict, p+1);
-}
-
-/***************************************************************************
  *  Get an dict value from an json object searched by path
  ***************************************************************************/
 PUBLIC json_t *kw_get_dict(
@@ -7952,7 +8054,7 @@ PUBLIC json_t *kw_get_dict(
     json_t *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_dict = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_dict = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_dict) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -7966,7 +8068,7 @@ PUBLIC json_t *kw_get_dict(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned of '%s'", path);
         }
         return default_value;
     }
@@ -7979,7 +8081,7 @@ PUBLIC json_t *kw_get_dict(
                 "path",         "%s", path,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "path '%s' MUST BE a json dict, default value returned", path);
+            gobj_trace_json(gobj, kw, "path MUST BE a json dict, default value returned of '%s'", path);
         }
         return default_value;
     }
@@ -8003,7 +8105,7 @@ PUBLIC json_t *kw_get_list(
     json_t *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_list = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_list = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_list) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -8054,7 +8156,7 @@ PUBLIC json_int_t kw_get_int(
     json_int_t default_value,
     kw_flag_t flag)
 {
-    json_t *jn_int = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_int = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_int) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_integer(default_value);
@@ -8133,7 +8235,7 @@ PUBLIC double kw_get_real(
     double default_value,
     kw_flag_t flag)
 {
-    json_t *jn_real = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_real = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_real) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_real(default_value);
@@ -8204,7 +8306,7 @@ PUBLIC BOOL kw_get_bool(
     BOOL default_value,
     kw_flag_t flag)
 {
-    json_t *jn_bool = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_bool = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_bool) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_boolean(default_value);
@@ -8282,7 +8384,7 @@ PUBLIC const char *kw_get_str(
     const char *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_str = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_str = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_str) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new;
@@ -8344,7 +8446,7 @@ PUBLIC json_t *kw_get_dict_value(
     json_t *default_value,  // owned
     kw_flag_t flag)
 {
-    json_t *jn_value = _kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_value = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_value) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -8572,6 +8674,114 @@ PUBLIC int kw_pop(
 
 
 
+                    /*---------------------------------*
+                     *          KWID
+                     *---------------------------------*/
+
+
+
+
+/***************************************************************************
+    Utility for databases.
+    Get a json item walking by the tree (routed by path)
+    options:  "verbose", "backward", "lower", "upper"
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter are '`' by default, can be changed by kw_set_path_delimiter
+ ***************************************************************************/
+PUBLIC json_t *kwid_get(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    char *path,
+    const char *options // "verbose", "backward", "lower", "upper"
+)
+{
+    BOOL verbose = (options && strstr(options, "verbose"))?TRUE:FALSE;
+    BOOL backward = (options && strstr(options, "backward"))?TRUE:FALSE;
+
+    if(options && strstr(options, "lower")) {
+        strntolower(path, strlen(path));
+    }
+    if(options && strstr(options, "upper")) {
+        strntoupper(path, strlen(path));
+    }
+
+    int list_size;
+    const char **segments = split3(path, delimiter, &list_size);
+
+    json_t *v = kw;
+    BOOL fin = FALSE;
+    for(int i=0; i<list_size && !fin; i++) {
+        const char *segment = *(segments +i);
+
+        if(!v) {
+            if(verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "short path",
+                    "path",         "%s", path,
+                    "segment",      "%s", segment,
+                    NULL
+                );
+            }
+            break;
+        }
+
+        switch(json_typeof(v)) {
+        case JSON_OBJECT:
+            v = json_object_get(v, segment);
+            if(!v) {
+                fin = TRUE;
+            }
+            break;
+        case JSON_ARRAY:
+            {
+                int idx; json_t *v_;
+                BOOL found = FALSE;
+                if(!backward) {
+                    json_array_foreach(v, idx, v_) {
+                        const char *id = json_string_value(json_object_get(v_, "id"));
+                        if(id && strcmp(id, segment)==0) {
+                            v = v_;
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        v = 0;
+                        fin = TRUE;
+                    }
+                } else {
+                    json_array_backward(v, idx, v_) {
+                        const char *id = json_string_value(json_object_get(v_, "id"));
+                        if(id && strcmp(id, segment)==0) {
+                            v = v_;
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        v = 0;
+                        fin = TRUE;
+                    }
+                }
+
+            }
+            break;
+        default:
+            fin = TRUE;
+            break;
+        }
+    }
+
+    split_free3(segments);
+
+    return v;
+}
+
+
+
                         /*---------------------------------*
                          *      SECTION: memory
                          *---------------------------------*/
@@ -8635,6 +8845,9 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
  ***********************************************************************/
 PRIVATE void *_mem_malloc(size_t size)
 {
+    size_t extra = sizeof(size_t) + EXTRA_MEM;
+    size += extra;
+
     if(size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -8646,7 +8859,6 @@ PRIVATE void *_mem_malloc(size_t size)
         );
         return NULL;
     }
-    size +=  sizeof(size_t) + EXTRA_MEM;
 
     __cur_system_memory__ += size;
 
@@ -8673,7 +8885,7 @@ PRIVATE void *_mem_malloc(size_t size)
     size_t *pm_ = (size_t*)pm;
     *pm_ = size;
 
-    pm += sizeof(size_t);
+    pm += extra;
 
     return pm;
 }
@@ -8686,9 +8898,10 @@ PRIVATE void _mem_free(void *p)
     if(!p) {
         return; // El comportamiento como free() es que no salga error; lo quito por libuv (uv_try_write)
     }
+    size_t extra = sizeof(size_t) + EXTRA_MEM;
 
     char *pm = p;
-    pm -= sizeof(size_t);
+    pm -= extra;
 
     size_t *pm_ = (size_t*)pm;
     size_t size = *pm_;
@@ -8709,10 +8922,11 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
         return _mem_malloc(new_size);
     }
 
-    new_size += sizeof(size_t) + EXTRA_MEM;
+    size_t extra = sizeof(size_t) + EXTRA_MEM;
+    new_size += extra;
 
     char *pm = p;
-    pm -= sizeof(size_t);
+    pm -= extra;
 
     size_t *pm_ = (size_t*)pm;
     size_t size = *pm_;
@@ -8743,7 +8957,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     pm = pm__;
     pm_ = (size_t*)pm;
     *pm_ = new_size;
-    pm += sizeof(size_t);
+    pm += extra;
     return pm;
 }
 
@@ -8846,17 +9060,6 @@ typedef struct gbuffer_s {
      *  In file_mode this buffer only is for read from file.
      */
     char *data;
-
-    /*
-     *  TODO optimize
-     *  Instead of creating new gbuffers to insert data in head,
-     *  use a linked list of gbuffers.
-     */
-    dl_list_t dl_gbuffers;
-
-    char writting;      // True when writting: the pointer is at the tail position.
-                        // False when reading: the pointer is at the curp position.
-
 } gbuffer_t;
 
 /***************************************************************************
