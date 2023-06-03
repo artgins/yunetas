@@ -949,13 +949,6 @@ double json_real_value(const json_t *json) {
     return json_to_real(json)->value;
 }
 
-double *json_real_value_pointer(const json_t *json) {
-    if (!json_is_real(json))
-        return 0;
-
-    return &(json_to_real(json)->value);
-}
-
 int json_real_set(json_t *json, double value) {
     if (!json_is_real(json) || isnan(value) || isinf(value))
         return -1;
