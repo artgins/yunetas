@@ -7765,6 +7765,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     json_t *v = kw;
     BOOL fin = FALSE;
     int i;
+    json_t *next = 0;
     const char *segment = 0;
     for(i=0; i<list_size && !fin; i++) {
         segment = *(segments +i);
@@ -7784,8 +7785,8 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
 
         switch(json_typeof(v)) {
         case JSON_OBJECT:
-            v = json_object_get(v, segment);
-            if(!v) {
+            next = json_object_get(v, segment);
+            if(!next) {
                 fin = TRUE;
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -7796,14 +7797,16 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
                         "segment",      "%s", segment,
                         NULL
                     );
+                    gobj_trace_json(gobj, v, "path not found");
                 }
             }
+            v = next;
             break;
         case JSON_ARRAY:
             {
                 int idx = atoi(segment);
-                v = json_array_get(kw, (size_t)idx);
-                if(!v) {
+                next = json_array_get(v, (size_t)idx);
+                if(!next) {
                     fin = TRUE;
                     if(verbose) {
                         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -7815,8 +7818,10 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
                             "idx",          "%d", idx,
                             NULL
                         );
+                        gobj_trace_json(gobj, v, "path not found");
                     }
                 }
+                v = next;
             }
             break;
         default:
@@ -7910,8 +7915,8 @@ PUBLIC int kw_set_dict_value(
         case JSON_ARRAY:
             {
                 int idx = atoi(segment);
-                v = json_array_get(kw, (size_t)idx);
-                if(!v) {
+                next = json_array_get(v, (size_t)idx);
+                if(!next) {
                     fin = TRUE;
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -7922,7 +7927,9 @@ PUBLIC int kw_set_dict_value(
                         "idx",          "%d", idx,
                         NULL
                     );
+                    gobj_trace_json(gobj, v, "path not found");
                 }
+                v = next;
             }
             break;
         default:
@@ -7965,28 +7972,33 @@ PUBLIC int kw_delete(
         json_t *jn_item = json_object_get(v, k);
         if(jn_item) {
             json_object_del(v, k);
+        } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "path not found",
+                "path",         "%s", s,
+                NULL
+            );
+            gobj_trace_json(gobj, kw, "path not found");
+            ret = -1;
         }
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "path not found",
-            "path",         "%s", path,
-            NULL
-        );
-        ret = -1;
+
     } else {
         json_t *jn_item = json_object_get(kw, path);
         if(jn_item) {
             json_object_del(kw, path);
+        } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "path not found",
+                "path",         "%s", path,
+                NULL
+            );
+            gobj_trace_json(gobj, kw, "path not found");
+            ret = -1;
         }
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "path not found",
-            "path",         "%s", path,
-            NULL
-        );
-        ret = -1;
     }
 
     GBMEM_FREE(s);
@@ -9163,16 +9175,16 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     }
     gbuf->data = new_buf;
     gbuf->data_size = more;
-//    if(__trace_gobj_gbuffers__) {
-//        log_debug(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_CREATION_DELETION_GBUFFERS,
-//            "msg",          "%s", "Reallocationg gbuffer",
-//            "pointer",      "%p", gbuf,
-//            "more",         "%d", (int)more,
-//            NULL
-//        );
-//    }
+    if(__trace_gobj_gbuffers__(0)) {
+        gobj_log_debug(0,0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_GBUFFERS,
+            "msg",          "%s", "Realloc gbuffer",
+            "pointer",      "%p", gbuf,
+            "more",         "%d", (int)more,
+            NULL
+        );
+    }
     return TRUE;
 }
 
@@ -9183,14 +9195,15 @@ PUBLIC void gbuffer_remove(gbuffer hgbuf)
 {
     gbuffer_t *gbuf = hgbuf;
 
-//    if(__trace_gobj_gbuffers__) {
-//        log_debug(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_CREATION_DELETION_GBUFFERS,
-//            "msg",          "%s", "Deleting gbuffer",
-//            "pointer",      "%p", gbuf,
-//            NULL);
-//    }
+    if(__trace_gobj_gbuffers__(0)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_GBUFFERS,
+            "msg",          "%s", "Deleting gbuffer",
+            "pointer",      "%p", gbuf,
+            NULL
+        );
+    }
 
     /*-----------------------*
      *  Libera la memoria
@@ -9711,6 +9724,8 @@ PUBLIC int gbuffer_vprintf(gbuffer hgbuf, const char *format, va_list ap)
     }
     return written;
 }
+
+
 
 
 
@@ -10297,7 +10312,10 @@ PUBLIC void gobj_trace_dump_gbuf(
     size_t len = gbuffer_chunk(gbuf);
 
     json_t *jn_data = json_object();
-    json_object_set_new(jn_data, "label", json_string(gbuffer_getlabel(gbuf)));
+    char *label = gbuffer_getlabel(gbuf);
+    json_object_set_new(jn_data, "pointer", json_sprintf("%p", gbuf));
+    json_object_set_new(jn_data, "len", json_integer(len));
+    json_object_set_new(jn_data, "label", json_string(label?label:""));
     json_object_set_new(jn_data, "mark", json_integer((json_int_t)gbuffer_getmark(gbuf)));
     json_object_set_new(jn_data, "data", tdump2json(bf, len));
 
@@ -10329,7 +10347,10 @@ PUBLIC void gobj_trace_dump_full_gbuf(
     size_t len = gbuffer_totalbytes(gbuf);
 
     json_t *jn_data = json_object();
-    json_object_set_new(jn_data, "label", json_string(gbuffer_getlabel(gbuf)));
+    char *label = gbuffer_getlabel(gbuf);
+    json_object_set_new(jn_data, "pointer", json_sprintf("%p", gbuf));
+    json_object_set_new(jn_data, "len", json_integer(len));
+    json_object_set_new(jn_data, "label", json_string(label?label:""));
     json_object_set_new(jn_data, "mark", json_integer((json_int_t)gbuffer_getmark(gbuf)));
     json_object_set_new(jn_data, "data", tdump2json(bf, len));
 

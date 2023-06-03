@@ -37,7 +37,7 @@ typedef enum {
  ***************************************************************/
 #ifdef ESP_PLATFORM
 PRIVATE void rx_task(void *pv);
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void transport_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,
@@ -206,7 +206,7 @@ PRIVATE void mt_create(hgobj gobj)
         priv->tx_ev_loop_h,         // event loop handle
         ESP_EVENT_ANY_BASE,         // event base
         ESP_EVENT_ANY_ID,           // event id
-        tx_ev_loop_callback,        // event handler
+        transport_tx_ev_loop_callback,        // event handler
         gobj,                       // event_handler_arg
         NULL                        // event handler instance, useful to unregister callback
     ));
@@ -595,7 +595,7 @@ PRIVATE void rx_task(void *pv)
  *  - The event-specific data (event_data) is a pointer to a deep copy of the original data,
  *  and is managed automatically.
 ***************************************************************************/
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void transport_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,

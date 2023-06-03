@@ -59,6 +59,7 @@
 typedef struct {
     DL_ITEM_FIELDS
     size_t udp_frame_size;
+    char *buffer;   // dynamic mem of buffer_size bytes
     size_t buffer_size;
     output_format_t output_format;
     int _s;
@@ -66,8 +67,6 @@ typedef struct {
     struct sockaddr_in si_other;
     char schema[32], host[64], port[32];
     char bindip[64];
-    char *buffer;
-    char temp[8*1024];
     BOOL exit_on_fail;
 #ifdef ESP_PLATFORM
     esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
@@ -94,7 +93,7 @@ PRIVATE const char *months[12] = {
 PRIVATE int _udpc_socket(udp_client_t *uc);
 PRIVATE int _udpc_write(udp_client_t *uc, char *bf, size_t len);
 #ifdef ESP_PLATFORM
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void udp_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,
@@ -247,7 +246,7 @@ PUBLIC udpc_t udpc_open(
         uc->tx_ev_loop_h,           // event loop handle
         ESP_EVENT_ANY_BASE,         // event base
         ESP_EVENT_ANY_ID,           // event id
-        tx_ev_loop_callback,        // event handler
+        udp_tx_ev_loop_callback,        // event handler
         uc,                         // event_handler_arg
         NULL                        // event handler instance, useful to unregister callback
     ));
@@ -476,20 +475,21 @@ PUBLIC int udpc_fwrite(udpc_t udpc, int priority, const char *format, ...)
 {
     udp_client_t *uc = udpc;
     va_list ap;
+    char temp[1024];
 
     if(!udpc) {
         return -1;
     }
     va_start(ap, format);
     vsnprintf(
-        uc->temp,
-        sizeof(uc->temp),
+        temp,
+        sizeof(temp),
         format,
         ap
     );
     va_end(ap);
 
-    return udpc_write(uc, priority, uc->temp, strlen(uc->temp));
+    return udpc_write(uc, priority, temp, strlen(temp));
 }
 
 /***************************************************************************
@@ -573,20 +573,20 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
 PRIVATE int _udpc_write(udp_client_t *uc, char *bf, size_t len)
 {
 #ifdef ESP_PLATFORM
-    gbuffer *gbuf = gbuffer_create(len, len);
-    if(gbuf) {
-        gbuffer_append(gbuf, bf, len);
+    char *buf = malloc(len);
+    if(buf) {
+        memmove(buf, bf, len);
         esp_err_t err = esp_event_post_to(
             uc->tx_ev_loop_h,
             EV_SEND_MESSAGE,
-            0,
-            &gbuf,
-            sizeof(gbuffer *),
+            (int32_t)len,
+            &buf,
+            sizeof(char *),
             2
         );
         if (err != ESP_OK) {
             ESP_LOGE("YUNETA", "esp_event_post_to() FAILED");
-            GBUFFER_DECREF(gbuf)
+            free(buf);
             return -1;
         }
     }
@@ -617,7 +617,7 @@ PRIVATE int _udpc_write(udp_client_t *uc, char *bf, size_t len)
  *  and is managed automatically.
 ***************************************************************************/
 #ifdef ESP_PLATFORM
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void udp_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,
@@ -627,10 +627,8 @@ PRIVATE void tx_ev_loop_callback(
      *  Manage tx_ev_loop_h
      */
     udp_client_t *uc = event_handler_arg;
-    gbuffer *gbuf = *((gbuffer **) event_data);
-
-    size_t len = gbuffer_leftbytes(gbuf);
-    char *bf = gbuffer_cur_rd_pointer(gbuf);
+    char *bf = *((char **) event_data);
+    size_t len = (size_t)id;
 
     if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
         ESP_LOGE("YUNETA", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
@@ -638,6 +636,6 @@ PRIVATE void tx_ev_loop_callback(
         uc->_s = 0;
     }
 
-    GBUFFER_DECREF(gbuf)
+    free(bf);
 }
 #endif

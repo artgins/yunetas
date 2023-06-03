@@ -470,7 +470,7 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     udpc_t udpc = udpc_open(
         gobj_read_str_attr(gobj, "url_udp_log"),
         NULL,   // bindip
-        4*1024, // bfsize
+        8*1024, // bfsize
         0,      // udp_frame_size
         0,      // output_format
         FALSE   // exit on failure

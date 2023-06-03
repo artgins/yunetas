@@ -25,7 +25,7 @@
  ***************************************************************/
 #ifdef ESP_PLATFORM
 PRIVATE void rx_task(void *pv);
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void uart_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,
@@ -108,7 +108,7 @@ PRIVATE void mt_create(hgobj gobj)
         .queue_size = 64,
         .task_name = gobj_name(gobj), // task will be created
         .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 4*1024,
+        .task_stack_size = 8*1024,
         .task_core_id = tskNO_AFFINITY
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
@@ -117,7 +117,7 @@ PRIVATE void mt_create(hgobj gobj)
         priv->tx_ev_loop_h,         // event loop handle
         ESP_EVENT_ANY_BASE,         // event base
         ESP_EVENT_ANY_ID,           // event id
-        tx_ev_loop_callback,        // event handler
+        uart_tx_ev_loop_callback,        // event handler
         gobj,                       // event_handler_arg
         NULL                        // event handler instance, useful to unregister callback
     ));
@@ -202,7 +202,7 @@ PRIVATE int mt_start(hgobj gobj)
         portBASE_TYPE ret = xTaskCreate(
             rx_task,
             gobj_name(gobj),
-            2*1024,
+            8*1024,
             gobj,
             tskIDLE_PRIORITY,
             &priv->rx_task_h
@@ -325,7 +325,7 @@ PRIVATE void rx_task(void *pv)
 
     priv->task_running = true;
     while(priv->task_running) {
-        if(xQueueReceive(priv->uart_queue, (void *)&event, 20/portTICK_PERIOD_MS)) {
+        if(xQueueReceive(priv->uart_queue, (void *)&event, 1/portTICK_PERIOD_MS)) {
             switch(event.type) {
                 case UART_DATA:
                     {
@@ -432,7 +432,7 @@ PRIVATE void rx_task(void *pv)
  *  - The event-specific data (event_data) is a pointer to a deep copy of the original data,
  *  and is managed automatically.
 ***************************************************************************/
-PRIVATE void tx_ev_loop_callback(
+PRIVATE void uart_tx_ev_loop_callback(
     void *event_handler_arg,
     esp_event_base_t base,
     int32_t id,

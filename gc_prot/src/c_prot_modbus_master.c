@@ -863,7 +863,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer *gbuf)
     }
 
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", gbuf
+        "gbuffer", (json_int_t)(size_t)gbuf
     );
     return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_send, gobj);
 }
