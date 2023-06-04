@@ -11,7 +11,7 @@ echo "extrae jannson"
 tar xzf ../sources/jansson-2.14-gines.tar.gz
 
 echo "extrae libunwind"
-tar xzf ../sources/libunwind-1.6.2.tar.gz
+tar xzf ../sources/libunwind-1.7.0.tar.gz
 
 echo "extrae libuv"
 tar xzf ../sources/libuv-1.45.0-gines.tar.gz

@@ -20,6 +20,14 @@ cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
 
 ##########################################
+#       core-linux
+##########################################
+cd /yuneta/development/yuneta/yunetas/core-esp32
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
+make install
+
+##########################################
 #       c_prot
 ##########################################
 cd /yuneta/development/yuneta/yunetas/c_prot
