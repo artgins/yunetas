@@ -6752,7 +6752,7 @@ PUBLIC int print_json2(const char *label, json_t *jn)
         return -1;
     }
 
-    size_t flags = JSON_INDENT(4)|JSON_ENCODE_ANY;
+    size_t flags = JSON_INDENT(2)|JSON_ENCODE_ANY;
     fprintf(stdout, "%s (%p) (refcount: %d, type %d) ==>\n",
         label,
         jn,
