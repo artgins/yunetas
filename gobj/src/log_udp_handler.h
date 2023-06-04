@@ -8,9 +8,9 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{

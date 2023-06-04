@@ -25,12 +25,9 @@ include_directories(/yuneta/development/outputs/include)
 ##############################################
 
 set (SRCS
-    src/log_udp_handler.c
-    src/environment.c
 )
 
 set (HDRS
-    src/log_udp_handler.h
 )
 
 

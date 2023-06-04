@@ -30,17 +30,20 @@ set (SRCS
     src/gobj.c
     src/istream.c
     src/parse_url.c
+    src/log_udp_handler.c
+    src/environment.c
 )
 
 
 set (HDRS
     src/00_http_parser.h
     src/ansi_escape_codes.h
-    src/environment.h
+#    src/environment.h
     src/ghttp_parser.h
     src/gobj.h
     src/istream.h
     src/parse_url.h
+#    src/log_udp_handler.h
 )
 
 ##############################################
