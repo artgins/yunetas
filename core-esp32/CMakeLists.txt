@@ -11,16 +11,8 @@ set(CMAKE_INSTALL_PREFIX /yuneta/development/outputs)
 set(INC_DEST_DIR ${CMAKE_INSTALL_PREFIX}/include)
 set(LIB_DEST_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=c99")
-
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions(-DDEBUG)
-
-  if(CMAKE_COMPILER_IS_GNUCC)
-    # GCC specific debug options
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -ggdb3 -gdwarf-2")
-    set(AVOID_VERSION -avoid-version)
-  endif(CMAKE_COMPILER_IS_GNUCC)
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 add_definitions(-D_GNU_SOURCE)
@@ -63,7 +55,10 @@ set (HDRS
 ##############################################
 #   Lib
 ##############################################
-add_library(yunetas-esp32 ${SRCS} ${HDRS})
+add_library(${PROJECT_NAME} ${SRCS} ${HDRS})
+
+target_compile_options(${PROJECT_NAME} PUBLIC -Wall -std=c99 -g)
+target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
 ##############################################
 #   System install
@@ -71,7 +66,7 @@ add_library(yunetas-esp32 ${SRCS} ${HDRS})
 install(FILES ${HDRS} DESTINATION ${INC_DEST_DIR})
 
 install(
-    TARGETS yunetas-esp32
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE
     GROUP_READ GROUP_WRITE
