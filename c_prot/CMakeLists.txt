@@ -38,14 +38,14 @@ include_directories(/yuneta/development/outputs/include)
 set (SRCS
     # Protocols
     src/c_prot_http_cli.c
-    src/c_prot_modbus_master.c
+#    src/c_prot_modbus_master.c
 )
 
 
 set (HDRS
     # Protocols
     src/c_prot_http_cli.h
-    src/c_prot_modbus_master.h
+#    src/c_prot_modbus_master.h
 )
 
 

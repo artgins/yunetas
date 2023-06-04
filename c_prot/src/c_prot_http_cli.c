@@ -11,7 +11,9 @@
 #include <strings.h>
 #include <ghttp_parser.h>
 #include <parse_url.h>
-#include <c_esp_transport.h>
+#ifdef ESP_PLATFORM
+  #include <c_esp_transport.h>
+#endif
 #include "c_prot_http_cli.h"
 
 /***************************************************************
@@ -85,12 +87,14 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+#ifdef ESP_PLATFORM
     json_t *kw = json_pack("{s:s, s:s}",
         "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
         "url", gobj_read_str_attr(gobj, "url")
     );
     priv->gobj_transport = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
     gobj_set_bottom_gobj(gobj, priv->gobj_transport);
+#endif
 
     priv->parsing_response = ghttp_parser_create(
         gobj,
@@ -233,6 +237,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     ghttp_parser_reset(priv->parsing_response);
     gobj_publish_event(gobj, EV_ON_OPEN, kw);
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -242,6 +248,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_publish_event(gobj, EV_ON_CLOSE, kw);
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -266,7 +274,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -346,16 +354,16 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             char *p = gbuffer_cur_rd_pointer(gbuf);
             content = gobj_strdup(p);
             content_length = strlen(content);
-            GBUFFER_DECREF(gbuf);
+            GBUFFER_DECREF(gbuf)
         }
         if (strcasecmp(method, "GET")==0) {
             // parameters must be in resource
             size_t l = strlen(resource) + content_length + 1;
             char *new_resource = GBMEM_MALLOC(l);
             snprintf(new_resource, l, "%s%s%s", resource, "?", content);
-            GBMEM_FREE(resource);
+            GBMEM_FREE(resource)
             resource = new_resource;
-            GBMEM_FREE(content);
+            GBMEM_FREE(content)
         }
 
     } else {
@@ -374,10 +382,10 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "msg",          "%s", "gbuf_create() FAILED",
             NULL
         );
-        GBMEM_FREE(resource);
-        JSON_DECREF(jn_headers);
-        GBMEM_FREE(content);
-        KW_DECREF(kw);
+        GBMEM_FREE(resource)
+        JSON_DECREF(jn_headers)
+        GBMEM_FREE(content)
+        KW_DECREF(kw)
         return -1;
     }
     gbuffer_printf(gbuf, "%s %s HTTP/%s\r\n", method, resource, http_version);
@@ -400,10 +408,10 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         );
     }
 
-    GBMEM_FREE(resource);
-    JSON_DECREF(jn_headers);
-    GBMEM_FREE(content);
-    KW_DECREF(kw);
+    GBMEM_FREE(resource)
+    JSON_DECREF(jn_headers)
+    GBMEM_FREE(content)
+    KW_DECREF(kw)
 
     json_t *kw_response = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
