@@ -1,6 +1,10 @@
 ##############################################
 #   CMake
 ##############################################
+
+#
+# This file is to compile esp32 firmware in linux environment
+#
 project(yunetas-esp32 C)
 cmake_minimum_required(VERSION 3.0)
 include(CheckIncludeFiles)
