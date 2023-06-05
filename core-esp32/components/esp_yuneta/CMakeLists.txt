@@ -7,7 +7,6 @@ set(srcs
     src/c_esp_yuno.c
     src/c_timer.c
     src/esp_persistent.c
-    src/log_udp_handler.c
 )
 
 if(CONFIG_YUNETA_UART)

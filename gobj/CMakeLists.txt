@@ -35,13 +35,13 @@ set (SRCS
 
 
 set (HDRS
-    src/00_http_parser.h
     src/ansi_escape_codes.h
-#    src/environment.h
+    src/00_http_parser.h
     src/ghttp_parser.h
     src/gobj.h
     src/istream.h
     src/parse_url.h
+    src/environment.h
 )
 
 ##############################################

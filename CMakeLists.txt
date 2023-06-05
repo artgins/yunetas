@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.0)
 #   Source
 ##############################################
 add_subdirectory(gobj)
-add_subdirectory(core-linux)
+#add_subdirectory(core-linux)
 add_subdirectory(core-esp32)
 add_subdirectory(c_prot)
 add_subdirectory(yunos)

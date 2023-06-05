@@ -4,6 +4,7 @@
 file(GLOB srcs src/*.c)
 
 set(requires
+    esp_event
     esp_jansson
 )
 
