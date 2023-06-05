@@ -31,6 +31,7 @@ set (SRCS
     src/istream.c
     src/parse_url.c
     src/environment.c
+    src/log_udp_handler.c
 )
 
 
@@ -42,6 +43,7 @@ set (HDRS
     src/istream.h
     src/parse_url.h
     src/environment.h
+    src/log_udp_handler.h
 )
 
 ##############################################
