@@ -27,6 +27,7 @@ include_directories(/yuneta/development/outputs/include)
 set (SRCS
     src/c_linux_yuno.c
     src/c_timer.c
+    src/uring.c
 )
 
 set (HDRS
