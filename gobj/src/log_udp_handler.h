@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#include <gobj.h>
+#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{
