@@ -1,3 +1,5 @@
+external-libs/liburing/
+
 .vscode/
 cmake-build-release/
 cmake-build-debug/
