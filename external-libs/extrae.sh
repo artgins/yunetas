@@ -25,5 +25,8 @@ tar xzf ../sources/pcre2-10.42.tar.gz
 echo "extrae nginx"
 tar xzf ../sources/nginx-1.24.0.tar.gz
 
+echo "extrae mbedtls"
+tar xzf ../sources/mbedtls-3.4.0.tar.gz
+
 
 cd ..

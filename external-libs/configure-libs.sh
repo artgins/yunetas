@@ -91,7 +91,23 @@ make install
 cd ../..
 
 #------------------------------------------
-#   liburing
+#   mbedtls
+#------------------------------------------
+echo "===================== MBEDTLS ======================="
+cd build/mbedtls-3.4.0
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+  -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
+make
+make install
+cd ..
+
+cd ../..
+
+
+#------------------------------------------
+#   liburing WARNING  master version!
 #------------------------------------------
 echo "===================== liburing ======================="
 cd liburing
