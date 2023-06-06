@@ -89,3 +89,14 @@ cd build/nginx-1.24.0
 make
 make install
 cd ../..
+
+#------------------------------------------
+#   liburing
+#------------------------------------------
+echo "===================== liburing ======================="
+cd liburing
+./configure --prefix=/yuneta/development/outputs
+make -j$(nproc);
+make install
+make clean
+cd ..
