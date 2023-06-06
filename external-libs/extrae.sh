@@ -28,5 +28,8 @@ tar xzf ../sources/nginx-1.24.0.tar.gz
 echo "extrae mbedtls"
 tar xzf ../sources/mbedtls-3.4.0.tar.gz
 
+echo "extrae liburing"
+tar xzf ../sources/liburing-master-2023-06-06.tar.gz
+
 
 cd ..

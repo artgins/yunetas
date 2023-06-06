@@ -48,3 +48,20 @@ cd ../..
 cd build/nginx-1.24.0
 make install
 cd ../..
+
+#------------------------------------------
+#   mbedtls
+#------------------------------------------
+cd build/mbedtls-3.4.0
+cd build
+make install
+cd ..
+cd ../..
+
+
+#------------------------------------------
+#   liburing WARNING  master version!
+#------------------------------------------
+cd build/liburing-master-2023-06-06
+make install
+cd ../..
