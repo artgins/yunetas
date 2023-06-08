@@ -62,6 +62,6 @@ cd ../..
 #------------------------------------------
 #   liburing WARNING  master version!
 #------------------------------------------
-cd build/liburing-master-2023-06-06
+cd build/liburing-master-2023-06-08
 make install
 cd ../..

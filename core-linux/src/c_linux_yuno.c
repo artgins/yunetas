@@ -142,7 +142,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_loop_t yev_loop;
+    yev_loop_h yev_loop;
 
     size_t t_flush;
     size_t t_stats;
@@ -649,7 +649,7 @@ PUBLIC int register_c_linux_yuno(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_loop_t yuno_event_loop(void)
+PUBLIC yev_loop_h yuno_event_loop(void)
 {
     PRIVATE_DATA *priv;
     hgobj yuno = gobj_yuno();

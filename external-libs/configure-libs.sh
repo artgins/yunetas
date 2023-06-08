@@ -110,7 +110,7 @@ cd ../..
 #   liburing WARNING  master version!
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing-master-2023-06-06
+cd build/liburing-master-2023-06-08
 ./configure --prefix=/yuneta/development/outputs
 make
 make install
