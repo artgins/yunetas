@@ -57,13 +57,11 @@ PUBLIC char *yuneta_log_file(
     const char *filename,
     BOOL create
 );
-
 PUBLIC char *yuneta_bin_dir(
     char *bf,
     int bfsize,
     BOOL create
 );
-
 PUBLIC char *yuneta_bin_file(
     char *bf,
     int bfsize,

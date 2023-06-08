@@ -11,16 +11,12 @@
 #include <libintl.h>
 #include <locale.h>
 #include <unistd.h>
-#include <syslog.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
 #include <string.h>
 #include <limits.h>
-#include <sys/statvfs.h>
-#include <sys/utsname.h>
 #include <gobj_environment.h>
+#include "yuneta_ev_loop.h"
+#include "yuneta_environment.h"
 #include "c_timer.h"
 #include "c_linux_yuno.h"
 
@@ -145,6 +141,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
+    yev_loop_t yev_loop;
 
     size_t t_flush;
     size_t t_stats;
@@ -154,7 +151,6 @@ typedef struct _PRIVATE_DATA {
     int timeout_restart;
     int periodic;
     int autokill;
-
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -225,8 +221,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Create the event loop
      */
-// TODO   uv_loop_init(&priv->uv_loop);
-//    priv->uv_loop.data = gobj;
+    yev_loop_init(gobj, &priv->yev_loop);
 
     SET_PRIV(periodic,              (int)gobj_read_integer_attr)
     SET_PRIV(autokill,              (int)gobj_read_integer_attr)
@@ -312,7 +307,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO uv_loop_close(&priv->uv_loop);
+     yev_loop_close(priv->yev_loop);
 }
 
 /***************************************************************************
@@ -413,10 +408,10 @@ PRIVATE int save_pid_in_file(hgobj gobj)
      *  Let it create the bin_path. Can exist some zombi yuno.
      */
     unsigned int pid = getpid();
-// TODO    yuneta_bin_file(pidfile, sizeof(pidfile), "yuno.pid", TRUE);
-//    FILE *file = fopen(pidfile, "w");
-//    fprintf(file, "%d\n", pid);
-//    fclose(file);
+    yuneta_bin_file(pidfile, sizeof(pidfile), "yuno.pid", TRUE);
+    FILE *file = fopen(pidfile, "w");
+    fprintf(file, "%d\n", pid);
+    fclose(file);
     return 0;
 }
 
