@@ -24,7 +24,7 @@
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_init(hgobj gobj, yev_loop_t *yev_loop)
+PUBLIC int yev_loop_create(hgobj gobj, yev_loop_t *yev_loop)
 {
     return 0;
 }
@@ -32,7 +32,7 @@ PUBLIC int yev_loop_init(hgobj gobj, yev_loop_t *yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_loop_close(yev_loop_t yev_loop)
+PUBLIC void yev_loop_free(yev_loop_t yev_loop)
 {
 
 }
@@ -41,6 +41,15 @@ PUBLIC void yev_loop_close(yev_loop_t yev_loop)
  *
  ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_t yev_loop)
+{
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_loop_stop(yev_loop_t yev_loop)
 {
 
     return 0;

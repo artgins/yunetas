@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <signal.h>
 #include <gobj_environment.h>
 #include "yuneta_ev_loop.h"
 #include "yuneta_environment.h"
@@ -221,7 +222,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Create the event loop
      */
-    yev_loop_init(gobj, &priv->yev_loop);
+    yev_loop_create(gobj, &priv->yev_loop);
 
     SET_PRIV(periodic,              (int)gobj_read_integer_attr)
     SET_PRIV(autokill,              (int)gobj_read_integer_attr)
@@ -307,7 +308,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-     yev_loop_close(priv->yev_loop);
+     yev_loop_free(priv->yev_loop);
 }
 
 /***************************************************************************
@@ -392,12 +393,67 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int tries = 0;
+
+    /*
+     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
+     */
+    hgobj gobj = gobj_yuno();
+
+    if(gobj) {
+        tries++;
+        gobj_set_yuno_must_die();
+        if(tries > 1) {
+            _exit(-1);
+        }
+    }
+}
+
+PRIVATE void debug_sighandler(int sig)
+{
+    /*
+     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
+     */
+    hgobj gobj = gobj_yuno();
+
+    if(gobj) {
+        gobj_set_deep_tracing(2);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    sigIntHandler.sa_handler = debug_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGUSR1, &sigIntHandler, NULL);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void remove_pid_file(void)
 {
     if(!empty_string(pidfile)) {
         unlink(pidfile);
+        pidfile[0] = 0;
     }
 }
 

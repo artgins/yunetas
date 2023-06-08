@@ -354,7 +354,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 #define __trace_gobj_gbuffers__(gobj)       (gobj_trace_level(gobj) & TRACE_GBUFFERS)
 
 PRIVATE uint32_t __global_trace_level__ = 0;
-PRIVATE uint32_t __deep_trace__ = 0;
+PRIVATE volatile uint32_t __deep_trace__ = 0;
 
 PRIVATE dl_list_t dl_log_handlers;
 PRIVATE int max_log_register = 0;
