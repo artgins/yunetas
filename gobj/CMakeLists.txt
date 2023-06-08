@@ -30,8 +30,9 @@ set (SRCS
     src/gobj.c
     src/istream.c
     src/parse_url.c
-    src/environment.c
+    src/gobj_environment.c
     src/log_udp_handler.c
+    src/dirs.c
 )
 
 
@@ -42,8 +43,9 @@ set (HDRS
     src/gobj.h
     src/istream.h
     src/parse_url.h
-    src/environment.h
+    src/gobj_environment.h
     src/log_udp_handler.h
+    src/dirs.h
 )
 
 ##############################################

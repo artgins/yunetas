@@ -12,7 +12,6 @@ add_subdirectory(core-linux)
 add_subdirectory(core-esp32)
 add_subdirectory(c_prot)
 add_subdirectory(yunos)
-add_subdirectory(external-libs/uSockets)
 
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :

@@ -1,5 +1,5 @@
 /****************************************************************************
- *          environment.h
+ *          gobj_environment.h
  *
  *          Environment
  *
@@ -20,6 +20,9 @@ extern "C"{
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+#ifdef __linux
+PUBLIC const char *generate_node_uuid(void);
+#endif
 PUBLIC const char *node_uuid(void);
 PUBLIC const char *get_hostname(void);
 

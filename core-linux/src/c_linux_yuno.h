@@ -43,6 +43,26 @@ PUBLIC int register_c_linux_yuno(void);
 //     hgobj src
 // );
 
+/*
+ *  uv loop
+ */
+PUBLIC void *yuno_event_loop(hgobj yuno);
+
+/*--------------------------------------------------*
+ *  Denied ips (prevalence over allowed)
+ *
+ *  Allowed ips for authz without jwt
+ *      (in addition to local ip with yuneta user)
+ *--------------------------------------------------*/
+PUBLIC BOOL is_ip_denied(hgobj yuno, const char *peername);
+PUBLIC int add_denied_ip(hgobj yuno, const char *ip, BOOL denied); // denied: TRUE to deny, FALSE to not deny
+PUBLIC int remove_denied_ip(hgobj yuno, const char *ip); // Remove from internal list
+
+PUBLIC BOOL is_ip_allowed(hgobj yuno, const char *peername);
+PUBLIC int add_allowed_ip(hgobj yuno, const char *ip, BOOL allowed); // allowed: TRUE to allow, FALSE to not allow
+PUBLIC int remove_allowed_ip(hgobj yuno, const char *ip); // Remove from internal list
+
+
 #ifdef __cplusplus
 }
 #endif

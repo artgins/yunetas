@@ -6,25 +6,22 @@
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#define _XOPEN_SOURCE 600
 #include <time.h>
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
-#include <time.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <math.h>
 #include <wchar.h>
 
 #ifdef __linux__
-    #include <unistd.h>
     #include <strings.h>
     #include <sys/utsname.h>
 #endif
 
 #include "ansi_escape_codes.h"
-#include "environment.h"
+#include "gobj_environment.h"
 #include "gobj.h"
 
 extern void jsonp_free(void *ptr);

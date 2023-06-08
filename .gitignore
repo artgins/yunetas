@@ -1,4 +1,5 @@
 external-libs/liburing/
+external-libs/projects_with_liburing/
 
 .vscode/
 cmake-build-release/
