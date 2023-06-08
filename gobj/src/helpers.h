@@ -1,6 +1,6 @@
 /****************************************************************************
- *              DIRS.H
- *              Copyright (c) 2014 Niyamaka.
+ *              helpers.h
+ *              Copyright (c) 2014,2023 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -48,50 +48,6 @@ PUBLIC int copyfile(
     const char* destination,
     int permission,
     BOOL overwrite
-);
-
-PUBLIC char *get_last_segment(char *path);
-PUBLIC char *pop_last_segment(char *path); // WARNING path modified
-
-PUBLIC char *build_path2(
-    char *path,
-    int pathsize,
-    const char *dir1,
-    const char *dir2
-);
-PUBLIC char *build_path3(
-    char *path,
-    int pathsize,
-    const char *dir1,
-    const char *dir2,
-    const char *dir3
-);
-PUBLIC char *build_path4(
-    char *path,
-    int pathsize,
-    const char *dir1,
-    const char *dir2,
-    const char *dir3,
-    const char *dir4
-);
-PUBLIC char *build_path5(
-    char *path,
-    int pathsize,
-    const char *dir1,
-    const char *dir2,
-    const char *dir3,
-    const char *dir4,
-    const char *dir5
-);
-PUBLIC char *build_path6(
-    char *path,
-    int pathsize,
-    const char *dir1,
-    const char *dir2,
-    const char *dir3,
-    const char *dir4,
-    const char *dir5,
-    const char *dir6
 );
 
 PUBLIC json_t *load_json_from_file(

@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <limits.h>
-#include <dirs.h>
+#include <helpers.h>
 #include "yuneta_environment.h"
 
 /***************************************************************************

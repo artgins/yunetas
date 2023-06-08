@@ -14,13 +14,13 @@
   #include <unistd.h>
   #include <dirent.h>
   #include <jansson.h>
-  #include "dirs.h"
 #endif
 #ifdef ESP_PLATFORM
   #include <esp_mac.h>
   #include <esp_log.h>
 #endif
 #include "gobj_environment.h"
+#include "helpers.h"
 
 /***************************************************************
  *              Data
