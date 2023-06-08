@@ -173,6 +173,11 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Create the event loop
+     */
+    yev_loop_create(gobj, &priv->yev_loop);
+
     if (!atexit_registered) {
         atexit(remove_pid_file);
         atexit_registered = 1;
@@ -218,11 +223,6 @@ PRIVATE void mt_create(hgobj gobj)
     if(gobj_read_integer_attr(gobj, "launch_id")) {
         save_pid_in_file(gobj);
     }
-
-    /*
-     *  Create the event loop
-     */
-    yev_loop_create(gobj, &priv->yev_loop);
 
     SET_PRIV(periodic,              (int)gobj_read_integer_attr)
     SET_PRIV(autokill,              (int)gobj_read_integer_attr)
@@ -298,6 +298,8 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
 
+    yev_loop_stop(priv->yev_loop);
+
     return 0;
 }
 
@@ -308,7 +310,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-     yev_loop_free(priv->yev_loop);
+     yev_loop_destroy(priv->yev_loop);
 }
 
 /***************************************************************************
