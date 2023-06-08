@@ -50,6 +50,10 @@ PUBLIC int copyfile(
     BOOL overwrite
 );
 
+PUBLIC char *build_path(char *bf, size_t bfsize, ...);
+PUBLIC char *delete_right_char(char *s, char x);
+PUBLIC char *delete_left_char(char *s, char x);
+
 PUBLIC json_t *load_json_from_file(
     const char *directory,
     const char *filename,

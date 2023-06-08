@@ -9,9 +9,7 @@
 #ifdef __linux__
   #include <unistd.h>
   #include <limits.h>
-  #include <sys/types.h>
   #include <sys/stat.h>
-  #include <unistd.h>
   #include <dirent.h>
   #include <jansson.h>
 #endif
@@ -247,7 +245,7 @@ PUBLIC const char *node_uuid(void)
         );
 #endif
 #ifdef __linux__
-        read_node_uuid();
+        generate_node_uuid();
 #endif
     }
     return uuid;

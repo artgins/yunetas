@@ -2,7 +2,7 @@
  *              YUNETA_ENVIRONMENT.C
  *              Yuneta
  *
- *              Copyright (c) 2014-2015 Niyamaka.
+ *              Copyright (c) 2014-2023 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>
@@ -21,15 +21,14 @@
 PRIVATE json_t *__jn_config__ = 0;
 PRIVATE int __xpermission__ = 0;    // permission for directories and executable files
 PRIVATE int __rpermission__ = 0;    // permission for regular files
-PRIVATE char __work_dir__[PATH_MAX] = {0};
+PRIVATE char __root_dir__[PATH_MAX] = {0};
 PRIVATE char __domain_dir__[PATH_MAX] = {0};
-PRIVATE char global_uuid[256] = {0};
 
 /***************************************************************************
  *  Register environment
  ***************************************************************************/
 PUBLIC int register_yuneta_environment(
-    const char *work_dir,
+    const char *root_dir,
     const char *domain_dir,
     int xpermission,
     int rpermission,
@@ -38,10 +37,10 @@ PUBLIC int register_yuneta_environment(
     __xpermission__ = xpermission;
     __rpermission__ = rpermission;
 
-    snprintf(__work_dir__, sizeof(__work_dir__), "%s", work_dir?work_dir:"");
+    snprintf(__root_dir__, sizeof(__root_dir__), "%s", root_dir?root_dir:"");
     snprintf(__domain_dir__, sizeof(__domain_dir__), "%s", domain_dir?domain_dir:"");
 
-    strntolower(__work_dir__, strlen(__work_dir__));
+    strntolower(__root_dir__, strlen(__root_dir__));
     strntolower(__domain_dir__, strlen(__domain_dir__));
 
     __jn_config__ = jn_config;
@@ -77,9 +76,9 @@ PUBLIC int yuneta_rpermission(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *yuneta_work_dir(void)
+PUBLIC const char *yuneta_root_dir(void)
 {
-    return __work_dir__;
+    return __root_dir__;
 }
 
 /***************************************************************************
@@ -100,12 +99,12 @@ PUBLIC char *yuneta_realm_dir(
     BOOL create
 )
 {
-    if(empty_string(yuneta_work_dir()) || empty_string(yuneta_domain_dir())) {
+    if(empty_string(yuneta_root_dir()) || empty_string(yuneta_domain_dir())) {
         *bf = 0;
         return 0;
     }
 
-    build_path3(bf, bfsize, yuneta_work_dir(), yuneta_domain_dir(), subdomain);
+    build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain);
 
     if(create) {
         if(access(bf, 0)!=0) {
@@ -135,7 +134,63 @@ PUBLIC char *yuneta_realm_file(
         return 0;
     }
 
-    build_path2(bf, bfsize, realm_path, filename);
+    build_path(bf, bfsize, realm_path, filename);
+
+    return bf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *yuneta_log_dir(char *bf, int bfsize, BOOL create)
+{
+    return yuneta_realm_dir(bf, bfsize, "logs", create);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *yuneta_log_file(
+    char *bf,
+    int bfsize,
+    const char *filename,
+    BOOL create)    // from environment.global_store_dir json config
+{
+    char log_path[PATH_MAX];
+    if(!yuneta_log_dir(log_path, sizeof(log_path), create)) {
+        *bf = 0;
+        return 0;
+    }
+
+    build_path(bf, bfsize, log_path, filename);
+
+    return bf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *yuneta_bin_dir(char *bf, int bfsize, BOOL create)
+{
+    return yuneta_realm_dir(bf, bfsize, "bin", create);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *yuneta_bin_file(
+    char *bf,
+    int bfsize,
+    const char *filename,
+    BOOL create)    // from environment.global_store_dir json config
+{
+    char log_path[PATH_MAX];
+    if(!yuneta_bin_dir(log_path, sizeof(log_path), create)) {
+        *bf = 0;
+        return 0;
+    }
+
+    build_path(bf, bfsize, log_path, filename);
 
     return bf;
 }
@@ -151,12 +206,12 @@ PUBLIC char *yuneta_store_dir(
     BOOL create
 )
 {
-    if(empty_string(yuneta_work_dir())) {
+    if(empty_string(yuneta_root_dir())) {
         *bf = 0;
         return 0;
     }
 
-    build_path4(bf, bfsize, yuneta_work_dir(), "store", dir, subdir);
+    build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir);
 
     if(create) {
         if(access(bf, 0)!=0) {
@@ -187,63 +242,7 @@ PUBLIC char *yuneta_store_file(
         return 0;
     }
 
-    build_path2(bf, bfsize, store_path, filename);
-
-    return bf;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *yuneta_log_dir(char *bf, int bfsize, BOOL create)
-{
-    return yuneta_realm_dir(bf, bfsize, "logs", create);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *yuneta_log_file(
-    char *bf,
-    int bfsize,
-    const char *filename,
-    BOOL create)    // from environment.global_store_dir json config
-{
-    char log_path[PATH_MAX];
-    if(!yuneta_log_dir(log_path, sizeof(log_path), create)) {
-        *bf = 0;
-        return 0;
-    }
-
-    build_path2(bf, bfsize, log_path, filename);
-
-    return bf;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *yuneta_bin_dir(char *bf, int bfsize, BOOL create)
-{
-    return yuneta_realm_dir(bf, bfsize, "bin", create);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *yuneta_bin_file(
-    char *bf,
-    int bfsize,
-    const char *filename,
-    BOOL create)    // from environment.global_store_dir json config
-{
-    char log_path[PATH_MAX];
-    if(!yuneta_bin_dir(log_path, sizeof(log_path), create)) {
-        *bf = 0;
-        return 0;
-    }
-
-    build_path2(bf, bfsize, log_path, filename);
+    build_path(bf, bfsize, store_path, filename);
 
     return bf;
 }
@@ -261,12 +260,12 @@ PUBLIC char *yuneta_realm_store_dir(
     BOOL create
 )
 {
-    if(empty_string(yuneta_work_dir())) {
+    if(empty_string(yuneta_root_dir())) {
         *bf = 0;
         return 0;
     }
 
-    build_path6(bf, bfsize, yuneta_work_dir(), "store", service, owner, realm_id, dir);
+    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, dir);
 
     if(create) {
         if(access(bf, 0)!=0) {

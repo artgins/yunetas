@@ -11,8 +11,8 @@
 #ifdef ESP_PLATFORM
   #include <esp_timer.h>
   #include <esp_event.h>
+  #include "c_esp_yuno.h"
 #endif
-#include "c_esp_yuno.h"
 #include "c_timer.h"
 
 /***************************************************************

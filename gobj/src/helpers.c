@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+#include <syslog.h>
 
 #ifdef WIN32
     #include <direct.h>
@@ -244,7 +245,7 @@ PUBLIC BOOL is_directory(const char *path)
 PUBLIC BOOL file_exists(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path2(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename);
 
     if(is_regular_file(full_path)) {
         return TRUE;
@@ -259,7 +260,7 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename)
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 {
     char full_path[PATH_MAX];
-    build_path2(full_path, sizeof(full_path), directory, subdir);
+    build_path(full_path, sizeof(full_path), directory, subdir);
 
     if(is_directory(full_path)) {
         return TRUE;
@@ -274,7 +275,7 @@ PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 PUBLIC int file_remove(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path2(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename);
 
     if(!is_regular_file(full_path)) {
         return -1;
@@ -565,6 +566,58 @@ PUBLIC char *delete_left_char(char *s, char x)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC char *build_path(char *bf, size_t bfsize, ...)
+{
+    const char *segment;
+    char *segm = 0;
+    va_list ap;
+    va_start(ap, bfsize);
+
+    int writted = 0;
+    int i = 0;
+    while ((segment = (char *)va_arg (ap, char *)) != NULL) {
+        if(!empty_string(segment)) {
+            segm = strdup(segment);
+            if(!segm) {
+                syslog(LOG_CRIT, "YUNETA: " "No memory");
+                break;
+            }
+            if(i==0) {
+                // The first segment can be absolute (begin with /) or relative (not begin with /)
+                delete_right_char(segm, '/');
+            } else {
+                delete_left_char(segm, '/');
+                delete_right_char(segm, '/');
+            }
+
+            writted = snprintf(bf, bfsize, "%s%s", i>0?"/":"", segm);
+            if(writted < 0) {
+                syslog(LOG_CRIT, "YUNETA: " "snprintf() FAILED");
+                break;
+            }
+            bf += writted;
+            bfsize -= writted;
+
+            EXEC_AND_RESET(free, segm)
+
+            if(bfsize <= 0) {
+                syslog(LOG_CRIT, "YUNETA: " "No space to snprintf in build_path()");
+                break;
+            }
+            i++;
+        }
+    }
+
+    EXEC_AND_RESET(free, segm)
+
+    va_end(ap);
+
+    return bf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_t *load_json_from_file(
     const char *directory,
     const char *filename,
@@ -575,7 +628,7 @@ PUBLIC json_t *load_json_from_file(
      *  Full path
      */
     char full_path[PATH_MAX];
-    build_path2(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename);
 
     if(access(full_path, 0)!=0) {
         return 0;
