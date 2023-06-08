@@ -44,9 +44,9 @@ PUBLIC int register_c_linux_yuno(void);
 // );
 
 /*
- *  uv loop
+ *  Get yuno event loop
  */
-PUBLIC void *yuno_event_loop(hgobj yuno);
+PUBLIC yev_loop_t yuno_event_loop(void);
 
 /*--------------------------------------------------*
  *  Denied ips (prevalence over allowed)

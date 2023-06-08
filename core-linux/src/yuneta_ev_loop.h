@@ -24,6 +24,7 @@ typedef void *yev_loop_t;
  ***************************************************************/
 PUBLIC int yev_loop_init(hgobj gobj, yev_loop_t *yev_loop);
 PUBLIC void yev_loop_close(yev_loop_t yev_loop);
+PUBLIC int yev_loop_run(yev_loop_t yev_loop);
 
 
 #ifdef __cplusplus

@@ -315,6 +315,8 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  This play order can come from yuneta_agent or autoplay config option or programmatic sentence
      */
@@ -333,7 +335,7 @@ PRIVATE int mt_play(hgobj gobj)
         NULL
     );
 
-// TODO    uv_run(&priv->uv_loop, UV_RUN_DEFAULT);
+    yev_loop_run(priv->yev_loop);   // Infinite loop while some handler is active
 
     return 0;
 }
@@ -584,4 +586,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 PUBLIC int register_c_linux_yuno(void)
 {
     return create_gclass(C_YUNO);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_loop_t yuno_event_loop(void)
+{
+    PRIVATE_DATA *priv;
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return 0;
+    }
+    priv = gobj_priv_data(yuno);
+
+    return priv->yev_loop;
 }
