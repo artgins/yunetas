@@ -48,6 +48,10 @@ PUBLIC int register_c_linux_yuno(void);
  *  Get yuno event loop
  */
 PUBLIC yev_loop_h yuno_event_loop(void);
+
+/*
+ *  Set quit/debug signals
+ */
 PUBLIC void yuno_catch_signals(void);
 
 /*--------------------------------------------------*
