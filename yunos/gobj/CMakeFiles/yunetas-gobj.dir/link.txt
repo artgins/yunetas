@@ -1,2 +1,0 @@
-/usr/bin/ar qc libyunetas-gobj.a "CMakeFiles/yunetas-gobj.dir/src/00_http_parser.c.o" "CMakeFiles/yunetas-gobj.dir/src/ghttp_parser.c.o" "CMakeFiles/yunetas-gobj.dir/src/gobj.c.o" "CMakeFiles/yunetas-gobj.dir/src/istream.c.o" "CMakeFiles/yunetas-gobj.dir/src/parse_url.c.o" "CMakeFiles/yunetas-gobj.dir/src/gobj_environment.c.o" "CMakeFiles/yunetas-gobj.dir/src/log_udp_handler.c.o" "CMakeFiles/yunetas-gobj.dir/src/helpers.c.o"
-/usr/bin/ranlib libyunetas-gobj.a
