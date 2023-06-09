@@ -29,4 +29,4 @@ else()
     add_compile_options(-std=c99 -Wall -O)
 endif()
 
-add_link_options(-no-pie)
+add_link_options(-no-pie)   # to stacktrace with bfd
