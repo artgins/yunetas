@@ -4,6 +4,12 @@
  *          Print stack trace with bfd library
  *          Source code copied from http://www.kigen.de/demos/stacktrace/index.html
  *
+ *          The development files of binutils are required:
+ *              sudo apt -y install binutils-dev
+ *              sudo apt -y install libiberty-dev
+ *
+ *              link with bfd
+
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) Torsten Rupp
  *          All Rights Reserved.
@@ -19,7 +25,6 @@
 #include <limits.h>
 #include <libiberty/demangle.h>
 #include <link.h>
-#include <errno.h>
 #include <execinfo.h>
 #endif
 
@@ -28,12 +33,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-// detect libbfd version
-#ifdef bfd_get_section_flags
-#define LIBBFD_230
-#else
-#define LIBBFD_23x
-#endif
 
 /***************************************************************
  *              Structures
@@ -220,24 +219,12 @@ PRIVATE void findAddressInSection(bfd *abfd, asection *section, void *data) {
     }
 
     // find section
-#ifdef LIBBFD_230
-    if ((bfd_get_section_flags(abfd,section) & SEC_ALLOC) == 0)
-#else
     if ((bfd_section_flags(section) & SEC_ALLOC) == 0)
-#endif
     {
         return;
     }
-#ifdef LIBBFD_230
-    vma  = bfd_get_section_vma(abfd,section);
-#else
     vma = bfd_section_vma(section);
-#endif
-#ifdef LIBBFD_230
-    size = bfd_section_size(abfd,section);
-#else
     size = bfd_section_size(section);
-#endif
     if ((addressInfo->address < vma)
         || (addressInfo->address >= vma + size)
         ) {

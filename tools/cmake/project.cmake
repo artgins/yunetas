@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.16)
-set (CMAKE_C_COMPILER /usr/bin/clang)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 
@@ -21,12 +20,19 @@ add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
 include_directories(/yuneta/development/outputs/include)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /yuneta/development/outputs/lib)
 
-#gcc -fno-pie -no-pie -g3 -o $@ stacktrace_demo.c -lbfd -ldl
-
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-    add_compile_options(-std=c99 -Wall -g3)
+    add_compile_options(-std=c99 -Wall -g3 -no-pie)
+    add_link_options(-no-pie)
 else()
-    add_compile_options(-std=c99 -Wall -O)
+    add_compile_options(-std=c99 -Wall -O -no-pie)
+    add_link_options(-no-pie)
 endif()
 
-add_link_options(-no-pie)   # to stacktrace with bfd
+# to stacktrace with bfd
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+#    MESSAGE("=================> Clang")
+#    MESSAGE(${CMAKE_CURRENT_SOURCE_DIR})
+else()
+#    MESSAGE("=================> GCC")
+#    MESSAGE(${CMAKE_CURRENT_SOURCE_DIR})
+endif()
