@@ -6521,30 +6521,22 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
 /***************************************************************************
  *
  ***************************************************************************/
-#ifdef __linux__
-void print_backtrace(void)
+PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
 {
+#ifdef __linux__
     void* callstack[128];
     int frames = backtrace(callstack, sizeof(callstack) / sizeof(void*));
     char** symbols = backtrace_symbols(callstack, frames);
 
     if (symbols == NULL) {
-        printf("Failed to retrieve backtrace symbols\n");
         return;
     }
-
+    fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
     for (int i = 0; i < frames; i++) {
-        printf("%s\n", symbols[i]);
+        fwrite_fn(h, LOG_DEBUG, "%s", symbols[i]);
     }
-
+    fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
     free(symbols);
-}
-#endif
-
-PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
-{
-#ifdef __linux__
-        print_backtrace();
 #endif
 }
 
