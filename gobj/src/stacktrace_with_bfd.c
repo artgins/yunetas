@@ -425,6 +425,50 @@ PRIVATE bool getSymbolInfoFromFile(
 }
 
 /***********************************************************************\
+* Name   : storeSymbolLine
+* Purpose: callback to store symbol line into array
+* Input  : address    - address
+*          fileName   - file name
+*          symbolName - symbol name
+*          lineNb     - line number
+*          userData   - callback user data
+* Output : -
+* Return : -
+* Notes  : get data from SymbolLineInfo structure
+\***********************************************************************/
+PRIVATE void storeSymbolLine(
+    const void *address,
+    const char *fileName,
+    const char *symbolName,
+    uint lineNb,
+    void *userData
+) {
+    SymbolLineInfo *symbolLineInfo = (SymbolLineInfo *) userData;
+    char line[512];
+
+    if(!symbolLineInfo || !symbolLineInfo->lines) {
+        return;
+    }
+
+    if (symbolLineInfo->lineCount < symbolLineInfo->maxLines) {
+        if (fileName == NULL) {
+            fileName = "<unknown file>";
+        }
+        if (symbolName == NULL) {
+            symbolName = "<unknown symbol>";
+        }
+        snprintf(line, sizeof(line), "%-32s %s:%u",
+            symbolName,
+            fileName,
+            lineNb
+        );
+
+        symbolLineInfo->lines[symbolLineInfo->lineCount] = strdup(line);
+        symbolLineInfo->lineCount++;
+    }
+}
+
+/***********************************************************************\
 * Name   : findMatchingFile
 * Purpose: callback for find address in loaded shared libraries
 * Input  : info     - dynamic object info
@@ -470,50 +514,6 @@ PRIVATE int findMatchingFile(
 }
 
 /***********************************************************************\
-* Name   : storeSymbolLine
-* Purpose: callback to store symbol line into array
-* Input  : address    - address
-*          fileName   - file name
-*          symbolName - symbol name
-*          lineNb     - line number
-*          userData   - callback user data
-* Output : -
-* Return : -
-* Notes  : get data from SymbolLineInfo structure
-\***********************************************************************/
-PRIVATE void storeSymbolLine(
-    const void *address,
-    const char *fileName,
-    const char *symbolName,
-    uint lineNb,
-    void *userData
-) {
-    SymbolLineInfo *symbolLineInfo = (SymbolLineInfo *) userData;
-    char line[512];
-
-    if(!symbolLineInfo || !symbolLineInfo->lines) {
-        return;
-    }
-
-    if (symbolLineInfo->lineCount < symbolLineInfo->maxLines) {
-        if (fileName == NULL) {
-            fileName = "<unknown file>";
-        }
-        if (symbolName == NULL) {
-            symbolName = "<unknown symbol>";
-        }
-        snprintf(line, sizeof(line), "%-32s %s:%u",
-            symbolName,
-            fileName,
-            lineNb
-        );
-
-        symbolLineInfo->lines[symbolLineInfo->lineCount] = strdup(line);
-        symbolLineInfo->lineCount++;
-    }
-}
-
-/***********************************************************************\
 * Name   : getSymbolInfo
 * Purpose: get symbol information
 * Input  : executableFileName - executable name
@@ -533,7 +533,7 @@ PRIVATE void getSymbolInfo(
     void *symbolUserData
 ) {
     uint i;
-    FileMatchInfo fileMatchInfo;
+    FileMatchInfo fileMatchInfo = {0};
     bool symbolInfoFromFile;
 
     if(!executableFileName || !addresses || !symbolFunction) {
