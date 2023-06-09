@@ -283,6 +283,9 @@ PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
 /***************************************************************
  *              Data
  ***************************************************************/
+PRIVATE int argc;
+PRIVATE char **argv;
+
 PRIVATE char __initialized__ = 0;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 
@@ -404,6 +407,8 @@ PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
  *  Initialize the yuno
  ***************************************************************************/
 PUBLIC int gobj_start_up(
+    int argc_,
+    char *argv_[],
     json_t *jn_global_settings,
     int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),
@@ -434,7 +439,8 @@ PUBLIC int gobj_start_up(
     if(__initialized__) {
         return -1;
     }
-
+    argc = argc_;
+    argv = argv_;
     if (!atexit_registered) {
         atexit(gobj_shutdown);
         atexit_registered = 1;
@@ -6238,6 +6244,7 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
     }
     __inside__ = 1;
 
+    BOOL backtrace_showed = FALSE;
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         if(must_ignore(lh, priority)) {
@@ -6255,9 +6262,12 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
             }
         }
         if(opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) {
-            if(show_backtrace_fn && lh->hr->fwrite_fn) {
-                show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
+            if(!backtrace_showed) {
+                if(show_backtrace_fn && lh->hr->fwrite_fn) {
+                    show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
+                }
             }
+            backtrace_showed = TRUE;
         }
 
         /*
@@ -6510,12 +6520,36 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
 /***************************************************************************
  *
  ***************************************************************************/
+#include <execinfo.h>
+
+void print_backtrace(void) {
+    void* callstack[128];
+    int frames = backtrace(callstack, sizeof(callstack) / sizeof(void*));
+    char** symbols = backtrace_symbols(callstack, frames);
+
+    if (symbols == NULL) {
+        printf("Failed to retrieve backtrace symbols\n");
+        return;
+    }
+
+    for (int i = 0; i < frames; i++) {
+        printf("%s\n", symbols[i]);
+    }
+
+    free(symbols);
+}
+
 #ifdef INCLUDE_LIBUNWIND
 # define UNW_LOCAL_ONLY
-# include <libunwind/libunwind.h>
+# include <libunwind.h>
 #endif
 PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
 {
+    {
+        print_backtrace();
+        return;
+    }
+
 #ifdef INCLUDE_LIBUNWIND
     static int inside = 0;
 
@@ -6524,28 +6558,42 @@ PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
     }
     inside = 1;
     char name[256+10];
+    char buf[300];
+    char symbol_name[256];
     unw_cursor_t cursor; unw_context_t uc;
-    unw_word_t ip, sp, offp;
+    unw_proc_info_t pi;
+    unw_word_t ip, sp, off;
 
     unw_getcontext(&uc);
     unw_init_local(&cursor, &uc);
 
     fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
 
+    int ret;
     while (unw_step(&cursor) > 0) {
-        name[0] = '\0';
-        unw_get_proc_name(&cursor, name, 256, &offp);
-        unw_get_reg(&cursor, UNW_REG_IP, &ip);
-        unw_get_reg(&cursor, UNW_REG_SP, &sp);
-        strcat(name, "()");
+        unw_get_reg (&cursor, UNW_REG_IP, &ip);
+        unw_get_reg (&cursor, UNW_REG_SP, &sp);
+        buf[0] = '\0';
+        if (unw_get_proc_name (&cursor, name, sizeof(name), &off) == 0) {
+            snprintf(buf, sizeof(buf), "%s()", name);
+        }
 
-        fwrite_fn(h, LOG_DEBUG, "%-32s ip = 0x%llx, sp = 0x%llx, off = 0x%llx",
-            name,
+        if (unw_get_proc_info(&cursor, &pi) == 0) {
+            // Call addr2line to retrieve the source file name and line number
+            char addr2line_cmd[256];
+            snprintf(addr2line_cmd, sizeof(addr2line_cmd), "addr2line -e %s %p -f -i", argv[0], (void*)ip);
+            system(addr2line_cmd);
+        }
+
+        fwrite_fn(h, LOG_DEBUG, "%-32s ip = 0x%llx, sp = 0x%llx, off = 0x%llx %lld",
+            buf,
             (long long) ip,
             (long long) sp,
-            (long long) offp
+            (long long) off,
+            (long long) off
         );
     }
+
     fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
     inside = 0;
 #endif /* INCLUDE_LIBUNWIND */

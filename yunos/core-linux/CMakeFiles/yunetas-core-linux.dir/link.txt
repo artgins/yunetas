@@ -1,0 +1,2 @@
+/usr/bin/ar qc libyunetas-core-linux.a "CMakeFiles/yunetas-core-linux.dir/src/c_linux_yuno.c.o" "CMakeFiles/yunetas-core-linux.dir/src/c_timer.c.o" "CMakeFiles/yunetas-core-linux.dir/src/yuneta_environment.c.o" "CMakeFiles/yunetas-core-linux.dir/src/yuneta_ev_loop.c.o"
+/usr/bin/ranlib libyunetas-core-linux.a

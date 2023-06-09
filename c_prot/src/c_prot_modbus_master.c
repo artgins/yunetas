@@ -1313,7 +1313,7 @@ PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type_)
     snprintf(type, sizeof(type), "%s", type_);
     strntolower(type, strlen(type));
 
-    modbus_object_type_t object_type;
+    modbus_object_type_t object_type = 0;
     SWITCHS(type) {
         CASES("coil")
         CASES("coil_status")
@@ -2270,7 +2270,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
  ***************************************************************************/
 PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format_)
 {
-    endian_format_t endian_format;
+    endian_format_t endian_format = 0;
 
     char format[64];
     snprintf(format, sizeof(format), "%s", format_);
@@ -2312,7 +2312,7 @@ PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format_)
  ***************************************************************************/
 PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format_)
 {
-    variable_format_t variable_format;
+    variable_format_t variable_format = 0;
 
     char format[64];
     snprintf(format, sizeof(format), "%s", format_);

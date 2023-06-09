@@ -1,8 +1,9 @@
 ##############################################
 #   CMake
 ##############################################
+cmake_minimum_required(VERSION 3.16)
+include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
 project(yunetas C)
-cmake_minimum_required(VERSION 3.0)
 
 ##############################################
 #   Source
@@ -21,6 +22,4 @@ add_subdirectory(yunos)
 # or compile with NO optimization and adding debug symbols :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Debug ..
-#
-# Compilando para ARM poner cmake -DNOT_INCLUDE_LIBUNWIND
 #

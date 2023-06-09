@@ -47,7 +47,7 @@ PUBLIC int yev_loop_create(hgobj gobj, yev_loop_h *yev_loop_)
     params_test.flags |= IORING_SETUP_SINGLE_ISSUER;     // Available since 6.0
 retry:
     err = io_uring_queue_init_params(ENTRIES, &ring_test, &params_test);
-    if (err) {
+    if(err) {
         if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
             params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
             goto retry;
@@ -67,6 +67,17 @@ retry:
         return -1;
     }
     io_uring_queue_exit(&ring_test);
+
+    /* FAST_POOL is required for pre-posting receive buffers */
+    if (!(params_test.features & IORING_FEAT_FAST_POLL)) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_SYSTEM_ERROR,
+            "msg",                  "%s", "Linux kernel without io_uring IORING_FEAT_FAST_POLL, cannot run yunetas",
+            NULL
+        );
+        return -1;
+    }
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {

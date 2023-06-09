@@ -145,6 +145,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO change gobj_transport to bottom_gobj
     gobj_start(priv->gobj_transport);
 
     return 0;

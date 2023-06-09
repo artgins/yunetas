@@ -480,13 +480,6 @@ typedef struct event_type_s {
     event_flag_t event_flag;
 } event_type_t;
 
-typedef json_t *(*json_function_t)(
-    void *param1,
-    const char *something,
-    json_t *kw, // Owned
-    void *param2
-);
-
 /*-------------------------------------------------------*
  *                  GClass Methods
  *-------------------------------------------------------*/
@@ -976,6 +969,8 @@ PUBLIC size_t dl_size(dl_list_t *dl);
  *      Start up functions
  *---------------------------------*/
 PUBLIC int gobj_start_up(                   /* Initialize the yuno */
+    int argc,
+    char *argv[],
     json_t *jn_global_settings,
     int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),

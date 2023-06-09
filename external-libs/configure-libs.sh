@@ -23,13 +23,13 @@ cd ../..
 #------------------------------------------
 #   Libunwind
 #------------------------------------------
-echo "===================== UNWIND ======================="
-cd build/libunwind-1.7.0
-autoreconf -i
-./configure --prefix=/yuneta/development/outputs
-make
-make install
-cd ../..
+# echo "===================== UNWIND ======================="
+# cd build/libunwind-1.7.0
+# autoreconf -i
+# ./configure --prefix=/yuneta/development/outputs
+# make
+# make install
+# cd ../..
 
 
 #------------------------------------------
