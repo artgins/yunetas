@@ -17,6 +17,7 @@ set (SRCS
     src/gobj_environment.c
     src/log_udp_handler.c
     src/helpers.c
+    src/stacktrace_with_bfd.c
 )
 
 
@@ -30,6 +31,7 @@ set (HDRS
     src/gobj_environment.h
     src/log_udp_handler.h
     src/helpers.h
+    src/stacktrace_with_bfd.h
 )
 
 ##############################################
