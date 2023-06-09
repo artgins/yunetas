@@ -1472,7 +1472,7 @@ PUBLIC const char *gobj_get_log_priority_name(int priority);
 PUBLIC void gobj_log_clear_counters(void);
 PUBLIC const char *gobj_log_last_message(void);
 PUBLIC void gobj_log_set_last_message(const char *msg, ...) JANSSON_ATTRS((format(printf, 1, 2)));
-
+PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
 
 PUBLIC void trace_vjson(
     hgobj gobj,
@@ -1544,9 +1544,6 @@ PUBLIC int change_char(char *s, char old_c, char new_c);
 **rst**/
 PUBLIC const char **split3(const char *str, const char *delim, int *plist_size);
 PUBLIC void split_free3(const char **list);
-
-// Compile with -DINCLUDE_LIBUNWIND if you want the internal backtrace function for linux
-PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
 
 /*---------------------------------*
  *      Json functions

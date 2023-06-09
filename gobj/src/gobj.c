@@ -18,6 +18,7 @@
 #ifdef __linux__
     #include <strings.h>
     #include <sys/utsname.h>
+    #include <execinfo.h>
 #endif
 
 #include "ansi_escape_codes.h"
@@ -6520,9 +6521,9 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
 /***************************************************************************
  *
  ***************************************************************************/
-#include <execinfo.h>
-
-void print_backtrace(void) {
+#ifdef __linux__
+void print_backtrace(void)
+{
     void* callstack[128];
     int frames = backtrace(callstack, sizeof(callstack) / sizeof(void*));
     char** symbols = backtrace_symbols(callstack, frames);
@@ -6538,65 +6539,21 @@ void print_backtrace(void) {
 
     free(symbols);
 }
-
-#ifdef INCLUDE_LIBUNWIND
-# define UNW_LOCAL_ONLY
-# include <libunwind.h>
 #endif
+
 PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
 {
-    {
+#ifdef __linux__
         print_backtrace();
-        return;
-    }
+#endif
+}
 
-#ifdef INCLUDE_LIBUNWIND
-    static int inside = 0;
-
-    if(inside) {
-        return;
-    }
-    inside = 1;
-    char name[256+10];
-    char buf[300];
-    char symbol_name[256];
-    unw_cursor_t cursor; unw_context_t uc;
-    unw_proc_info_t pi;
-    unw_word_t ip, sp, off;
-
-    unw_getcontext(&uc);
-    unw_init_local(&cursor, &uc);
-
-    fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
-
-    int ret;
-    while (unw_step(&cursor) > 0) {
-        unw_get_reg (&cursor, UNW_REG_IP, &ip);
-        unw_get_reg (&cursor, UNW_REG_SP, &sp);
-        buf[0] = '\0';
-        if (unw_get_proc_name (&cursor, name, sizeof(name), &off) == 0) {
-            snprintf(buf, sizeof(buf), "%s()", name);
-        }
-
-        if (unw_get_proc_info(&cursor, &pi) == 0) {
-            // Call addr2line to retrieve the source file name and line number
-            char addr2line_cmd[256];
-            snprintf(addr2line_cmd, sizeof(addr2line_cmd), "addr2line -e %s %p -f -i", argv[0], (void*)ip);
-            system(addr2line_cmd);
-        }
-
-        fwrite_fn(h, LOG_DEBUG, "%-32s ip = 0x%llx, sp = 0x%llx, off = 0x%llx %lld",
-            buf,
-            (long long) ip,
-            (long long) sp,
-            (long long) off,
-            (long long) off
-        );
-    }
-
-    fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
-    inside = 0;
-#endif /* INCLUDE_LIBUNWIND */
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
+{
+    show_backtrace_fn = show_backtrace;
 }
 
 /***************************************************************************
@@ -7239,14 +7196,6 @@ PUBLIC void split_free3(const char **list)
         }
         GBMEM_FREE(list);
     }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
-{
-    show_backtrace_fn = show_backtrace;
 }
 
 
