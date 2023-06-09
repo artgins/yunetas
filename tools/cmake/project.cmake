@@ -24,8 +24,8 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_compile_options(-std=c99 -Wall -g3 -no-pie)
     add_link_options(-no-pie)
 else()
-    add_compile_options(-std=c99 -Wall -O -no-pie)
-    add_link_options(-no-pie)
+    add_compile_options(-std=c99 -Wall -O)
+#    add_link_options()
 endif()
 
 # to stacktrace with bfd
