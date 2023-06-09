@@ -469,51 +469,6 @@ PRIVATE void storeSymbolLine(
 }
 
 /***********************************************************************\
-* Name   : findMatchingFile
-* Purpose: callback for find address in loaded shared libraries
-* Input  : info     - dynamic object info
-*          size     -
-*          userData - callback user data
-* Output : -
-* Return : always 0 (not used)
-* Notes  : fills in data into FileMatchInfo structure
-\***********************************************************************/
-PRIVATE int findMatchingFile(
-    struct dl_phdr_info *info,
-    size_t infoSize,
-    void *userData
-) {
-    FileMatchInfo *fileMatchInfo = (FileMatchInfo *) userData;
-
-    ElfW(Half) i;
-    ElfW(Addr) vaddr;
-
-    if(!info || !fileMatchInfo) {
-        return 0;
-    }
-
-    // unused
-    (void) infoSize;
-
-    for (i = 0; i < info->dlpi_phnum; i++) {
-        if (info->dlpi_phdr[i].p_type == PT_LOAD) {
-            vaddr = info->dlpi_addr + info->dlpi_phdr[i].p_vaddr;
-            if (((uintptr_t) fileMatchInfo->address >= vaddr)
-                && ((uintptr_t) fileMatchInfo->address < vaddr + info->dlpi_phdr[i].p_memsz)
-                && (info->dlpi_name != NULL)
-                && (info->dlpi_name[0] != '\0')
-                ) {
-                fileMatchInfo->found = TRUE;
-                fileMatchInfo->fileName = info->dlpi_name;
-                fileMatchInfo->base = (void *) (uintptr_t) info->dlpi_addr;
-            }
-        }
-    }
-
-    return 0; // return value not used
-}
-
-/***********************************************************************\
 * Name   : getSymbolInfo
 * Purpose: get symbol information
 * Input  : executableFileName - executable name
@@ -533,58 +488,16 @@ PRIVATE void getSymbolInfo(
     void *symbolUserData
 ) {
     uint i;
-    FileMatchInfo fileMatchInfo = {0};
-    bool symbolInfoFromFile;
-
     if(!executableFileName || !addresses || !symbolFunction) {
         return;
     }
 
     for (i = 0; i < addressCount; i++) {
-        fileMatchInfo.found = FALSE;
-        fileMatchInfo.address = addresses[i];
-        dl_iterate_phdr(findMatchingFile, &fileMatchInfo);
-        if (fileMatchInfo.found) {
-            symbolInfoFromFile = getSymbolInfoFromFile(
-                fileMatchInfo.fileName,
-                (bfd_vma) ((uintptr_t) addresses[i] - (uintptr_t) fileMatchInfo.base),
-                symbolFunction,
-                symbolUserData
-            );
-        } else {
-            symbolInfoFromFile = getSymbolInfoFromFile(executableFileName,
-                (bfd_vma) addresses[i],
-                symbolFunction,
-                symbolUserData
-            );
-        }
-
-        if (!symbolInfoFromFile) {
-            // use dladdr() as fallback
-            Dl_info info;
-            char buffer[256];
-            const char *symbolName;
-            const char *fileName;
-
-            if (dladdr(addresses[i], &info)) {
-                if ((info.dli_sname != NULL) && ((*info.dli_sname) != '\0')) {
-                    if (!demangleSymbolName(info.dli_sname, buffer, sizeof(buffer))) {
-                        symbolName = buffer;
-                    } else {
-                        symbolName = info.dli_sname;
-                    }
-                } else {
-                    symbolName = NULL;
-                }
-                fileName = info.dli_fname;
-            } else {
-                symbolName = NULL;
-                fileName = NULL;
-            }
-
-            // handle line
-            symbolFunction(addresses[i], fileName, symbolName, 0, symbolUserData);
-        }
+        getSymbolInfoFromFile(executableFileName,
+            (bfd_vma) addresses[i],
+            symbolFunction,
+            symbolUserData
+        );
     }
 }
 
