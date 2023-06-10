@@ -21,7 +21,7 @@ include_directories(/yuneta/development/outputs/include)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /yuneta/development/outputs/lib)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-    add_compile_options(-std=c99 -Wall -g3 -no-pie)
+    add_compile_options(-std=c99 -Wall -g3 -fno-pie)
     add_link_options(-no-pie)
 else()
     add_compile_options(-std=c99 -Wall -O)

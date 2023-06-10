@@ -21,10 +21,9 @@
 #include <string.h>
 #include <syslog.h>
 #include <stdbool.h>
-#include <bfd.h>
 #include <limits.h>
+#include <bfd.h>
 #include <libiberty/demangle.h>
-#include <link.h>
 #include <execinfo.h>
 #endif
 
@@ -205,11 +204,13 @@ PRIVATE bool demangleSymbolName(
 * Return : -
 * Notes  : fills in data into AddressInfo structure
 \***********************************************************************/
-PRIVATE void findAddressInSection(bfd *abfd, asection *section, void *data) {
+PRIVATE void findAddressInSection(bfd *abfd, asection *section, void *data)
+{
     AddressInfo *addressInfo = (AddressInfo *) data;
     bfd_vma vma;
     bfd_size_type size;
 
+    // TODO PIERDE en esta function
     if(!addressInfo) {
         return;
     }
@@ -232,6 +233,7 @@ PRIVATE void findAddressInSection(bfd *abfd, asection *section, void *data) {
     }
     addressInfo->sectionFound = TRUE;
 
+    // TODO pierde por aqui
     // find symbol
     addressInfo->symbolFound = bfd_find_nearest_line(
         abfd,
@@ -265,17 +267,21 @@ PRIVATE bool addressToSymbolInfo(
     SymbolFunction symbolFunction,
     void *symbolUserData
 ) {
-    AddressInfo addressInfo;
     if(!symbolFunction) {
         return FALSE;
     }
+
+    AddressInfo addressInfo = {0};
 
     // find symbol
     addressInfo.symbols = symbols;
     addressInfo.symbolCount = symbolCount;
     addressInfo.address = address;
     addressInfo.symbolFound = FALSE;
+
+    // TODO pierde por aqui
     bfd_map_over_sections(abfd, findAddressInSection, (PTR) &addressInfo);
+
     if (!addressInfo.sectionFound) {
         return FALSE;
     }
@@ -285,8 +291,8 @@ PRIVATE bool addressToSymbolInfo(
 
     while (addressInfo.symbolFound) {
         char buffer[256];
-        const char *symbolName;
-        const char *fileName;
+        const char *symbolName = NULL;
+        const char *fileName = NULL;
 
         // get symbol data
         if ((addressInfo.symbolName != NULL) && ((*addressInfo.symbolName) != '\0')) {
@@ -305,7 +311,7 @@ PRIVATE bool addressToSymbolInfo(
             fileName = NULL;
         }
 
-        // handle found symbol
+        // handle found symbol TODO en esta parece que no pierde
         symbolFunction((void *) address, fileName, symbolName, addressInfo.lineNb, symbolUserData);
 
         // get next information
@@ -390,41 +396,6 @@ PRIVATE void closeBFD(
 }
 
 /***********************************************************************\
-* Name   : getSymbolInfoFromFile
-* Purpose: get symbol information from file
-* Input  : fileName       - file name
-*          address        - address
-*          symbolFunction - callback function for symbol
-*          symbolUserData - callback user data
-* Output : -
-* Return : TRUE iff symbol read
-* Notes  : -
-\***********************************************************************/
-PRIVATE bool getSymbolInfoFromFile(
-    const char *fileName,
-    bfd_vma address,
-    SymbolFunction symbolFunction,
-    void *symbolUserData
-) {
-    bfd *abfd;
-    const asymbol **symbols;
-    ulong symbolCount;
-    bool result;
-
-    if(!fileName) {
-        return FALSE;
-    }
-
-    abfd = openBFD(fileName, &symbols, &symbolCount);
-    if (abfd == NULL) {
-        return 0;
-    }
-    result = addressToSymbolInfo(abfd, symbols, symbolCount, address, symbolFunction, symbolUserData);
-    closeBFD(abfd, symbols, symbolCount);
-    return result;
-}
-
-/***********************************************************************\
 * Name   : storeSymbolLine
 * Purpose: callback to store symbol line into array
 * Input  : address    - address
@@ -466,6 +437,42 @@ PRIVATE void storeSymbolLine(
         symbolLineInfo->lines[symbolLineInfo->lineCount] = strdup(line);
         symbolLineInfo->lineCount++;
     }
+}
+
+/***********************************************************************\
+* Name   : getSymbolInfoFromFile
+* Purpose: get symbol information from file
+* Input  : fileName       - file name
+*          address        - address
+*          symbolFunction - callback function for symbol
+*          symbolUserData - callback user data
+* Output : -
+* Return : TRUE iff symbol read
+* Notes  : -
+\***********************************************************************/
+PRIVATE bool getSymbolInfoFromFile(
+    const char *fileName,
+    bfd_vma address,
+    SymbolFunction symbolFunction,
+    void *symbolUserData
+) {
+    bfd *abfd;
+    const asymbol **symbols;
+    ulong symbolCount;
+    bool result = false;
+
+    if(!fileName) {
+        return FALSE;
+    }
+
+    abfd = openBFD(fileName, &symbols, &symbolCount);
+    if (abfd == NULL) {
+        return 0;
+    }
+    // TODO pierde en next sentence
+    result = addressToSymbolInfo(abfd, symbols, symbolCount, address, symbolFunction, symbolUserData);
+    closeBFD(abfd, symbols, symbolCount);
+    return result;
 }
 
 /***********************************************************************\
@@ -572,7 +579,7 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
     uint lineCount;
     uint i;
 
-    void *stackTrace[64];
+    void *stackTrace[64] = {0};
     uint stackTraceCount;
     stackTraceCount = backtrace(stackTrace, 64);
 

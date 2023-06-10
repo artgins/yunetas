@@ -18,6 +18,8 @@ set (SRCS
     src/log_udp_handler.c
     src/helpers.c
     src/stacktrace_with_bfd.c
+#    src/backtrace_symbols.c
+    src/addr2line.c
 )
 
 
