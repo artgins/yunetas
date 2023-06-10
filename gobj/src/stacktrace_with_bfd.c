@@ -122,15 +122,6 @@ static void translate_addresses(
     for (int i = 0; i < addressCount; i++) {
         address_info_t address_info = {0};
         address_info.pc = (bfd_vma) addresses[i];
-        if (bfd_get_flavour (abfd) == bfd_target_elf_flavour) {
-            printf("KKKK\n");
-//            const struct elf_backend_data *bed = get_elf_backend_data(abfd);
-//            bfd_vma sign = (bfd_vma) 1 << (bed->s->arch_size - 1);
-//
-//            pc &= (sign << 1) - 1;
-//            if (bed->sign_extend_vma)
-//                pc = (pc ^ sign) - sign;
-        }
 
         bfd_map_over_sections(abfd, find_address_in_section, &address_info);
         if (!address_info.found) {
