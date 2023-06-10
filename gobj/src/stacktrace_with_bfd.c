@@ -573,15 +573,14 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
         return;
     }
 
-    const uint MAX_LINES = 64;
-
-    char *lines[MAX_LINES];
+    #define MAX_LINES 128
+    char *lines[MAX_LINES] = {0};
     uint lineCount;
     uint i;
 
-    void *stackTrace[64] = {0};
+    void *stackTrace[128] = {0};
     uint stackTraceCount;
-    stackTraceCount = backtrace(stackTrace, 64);
+    stackTraceCount = backtrace(stackTrace, 128);
 
     // TODO HASTA aqui Bien, no pierde
 
