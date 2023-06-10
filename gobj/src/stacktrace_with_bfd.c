@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <bfd.h>
@@ -36,44 +37,6 @@
 /***************************************************************
  *              Structures
  ***************************************************************/
-// callback for symbol information
-typedef void(*SymbolFunction)(
-    const void *address,
-    const char *fileName,
-    const char *symbolName,
-    uint lineNb,
-    void *userData
-);
-
-// section info
-typedef struct {
-    const asymbol **symbols;
-    ulong symbolCount;
-    bfd_vma address;
-
-    bool sectionFound;
-    bool symbolFound;
-    const char *fileName;
-    const char *symbolName;
-    uint lineNb;
-} AddressInfo;
-
-// file match info
-typedef struct {
-    bool found;
-    const void *address;
-
-    const char *fileName;
-    void *base;
-    void *hdr;
-} FileMatchInfo;
-
-// symbol line info
-typedef struct {
-    char **lines;
-    uint lineCount;
-    uint maxLines;
-} SymbolLineInfo;
 
 /***************************************************************
  *              Prototypes
@@ -85,482 +48,287 @@ typedef struct {
 PRIVATE char initialized = FALSE;
 PRIVATE char program_name[NAME_MAX];
 
-/***********************************************************************\
-* Name   : readSymbolTable
-* Purpose: read symbol table from BFD
-* Input  : abfd - BFD handle
-* Output : symbols     - array with symbols
-*          symbolCount - number of entries in array
-* Return : TRUE iff symbol table read
-* Notes  : -
-\***********************************************************************/
-PRIVATE bool readSymbolTable(
-    bfd *abfd,
-    const asymbol **symbols[],
-    ulong *symbolCount
-) {
-    uint size;
-    long n;
-    if(!symbols || !symbolCount) {
-        return FALSE;
-    }
+static int demangle_flags = DMGL_PARAMS | DMGL_ANSI | DMGL_NO_RECURSE_LIMIT;
+static long symcount;
+static asymbol **syms;		/* Symbol table.  */
 
-    // check if symbols available
-    if ((bfd_get_file_flags(abfd) & HAS_SYMS) == 0) {
-        return FALSE;
-    }
+static bool unwind_inlines = TRUE;	/* -i, unwind inlined functions. */
+static bool with_addresses = TRUE;	/* -a, show addresses.  */
+static bool with_functions = TRUE;	/* -f, show function names.  */
+static bool do_demangle = TRUE;	/* -C, demangle names.  */
+static bool pretty_print = TRUE;	/* -p, print on one line.  */
+static bool base_names = FALSE;		/* -s, strip directory names.  */
 
-    // read mini-symbols
-    (*symbols) = NULL;
-    n = bfd_read_minisymbols(
-        abfd,
-        FALSE,  // not dynamic
-        (void **) symbols,
-        &size
-    );
-    if (n == 0) {
-        if ((*symbols) != NULL) {
-            free(*symbols);
-        }
-
-        (*symbols) = NULL;
-        n = bfd_read_minisymbols(
-            abfd,
-            TRUE /* dynamic */ ,
-            (void **) symbols,
-            &size
-        );
-    }
-    if (n < 0) {
-        return FALSE;
-    } else if (n == 0) {
-        return FALSE;
-    }
-    (void) size;
-    (*symbolCount) = (ulong) n;
-
-    return TRUE;
-}
-
-/***********************************************************************\
-* Name   : freeSymbolTable
-* Purpose: free symbol table
-* Input  : symbols     - symbol array
-*          symbolCount - number of entries in symbol array
-* Output : -
-* Return : -
-* Notes  : -
-\***********************************************************************/
-PRIVATE void freeSymbolTable(
-    const asymbol *symbols[],
-    ulong symbolCount
-) {
-    if(!symbols) {
-        return;
-    }
-    // unused
-    (void) symbolCount;
-    free(symbols);
-}
-
-/***********************************************************************\
-* Name   : demangleSymbolName
-* Purpose: demangle C++ name
-* Input  : symbolName - symbolname
-*          demangledSymbolName     - variable for demangled symbol name
-*          demangledSymbolNameSize - max. length of demangled symbol name
-* Output : -
-* Return : TRUE iff name demangled
-* Notes  : -
-\***********************************************************************/
-PRIVATE bool demangleSymbolName(
-    const char *symbolName,
-    char *demangledSymbolName,
-    uint demangledSymbolNameSize
-) {
-    char *s;
-    if(!symbolName || !demangledSymbolName) {
-        return FALSE;
-    }
-
-    s = bfd_demangle(NULL, symbolName, DMGL_ANSI | DMGL_PARAMS);
-    if (s != NULL) {
-        strncpy(demangledSymbolName, s, demangledSymbolNameSize);
-        free(s);
-        return TRUE;
-    } else {
-        strncpy(demangledSymbolName, symbolName, demangledSymbolNameSize);
-        return FALSE;
-    }
-}
-
-/***********************************************************************\
-* Name   : findAddressInSection
-* Purpose: callback for find symbol in section
-* Input  : abfd     - BFD handle
-*          section  - section
-*          userData - callback user data
-* Output : -
-* Return : -
-* Notes  : fills in data into AddressInfo structure
-\***********************************************************************/
-PRIVATE void findAddressInSection(bfd *abfd, asection *section, void *data)
+/***************************************************************************
+ * Lookup a symbol with offset in symbol table
+ ***************************************************************************/
+static bfd_vma lookup_symbol (bfd *abfd, char *sym, size_t offset)
 {
-    AddressInfo *addressInfo = (AddressInfo *) data;
+    long i;
+
+    for (i = 0; i < symcount; i++) {
+        if (!strcmp (syms[i]->name, sym))
+            return syms[i]->value + offset + bfd_asymbol_section (syms[i])->vma;
+    }
+    /* Try again mangled */
+    for (i = 0; i < symcount; i++) {
+        char *d = bfd_demangle (abfd, syms[i]->name, demangle_flags);
+        bool match = d && !strcmp (d, sym);
+        free (d);
+
+        if (match) {
+            return syms[i]->value + offset + bfd_asymbol_section(syms[i])->vma;
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ * Split an symbol+offset expression. adr is modified.
+ ***************************************************************************/
+static bool is_symbol (char *adr, char **symp, size_t *offset)
+{
+    char *end;
+
+    while (isspace (*adr))
+        adr++;
+    if (isdigit (*adr) || *adr == 0)
+        return false;
+    /* Could be either symbol or hex number. Check if it has +.  */
+    if (toupper(*adr) >= 'A' && toupper(*adr) <= 'F' && !strchr (adr, '+'))
+        return false;
+
+    *symp = adr;
+    while (*adr && !isspace (*adr) && *adr != '+')
+        adr++;
+    end = adr;
+    while (isspace (*adr))
+        adr++;
+    *offset = 0;
+    if (*adr == '+')
+    {
+        adr++;
+        *offset = strtoul(adr, NULL, 0);
+    }
+    *end = 0;
+    return true;
+}
+
+/***************************************************************************
+ * Look for an address in a section.
+ * This is called via bfd_map_over_sections.
+ ***************************************************************************/
+/* These global variables are used to pass information between
+   translate_addresses and find_address_in_section.  */
+
+static bfd_vma pc;
+static const char *filename;
+static const char *functionname;
+static unsigned int line;
+static unsigned int discriminator;
+static bool found;
+
+static void find_address_in_section (
+    bfd *abfd,
+    asection *section,
+     void *data ATTRIBUTE_UNUSED
+) {
     bfd_vma vma;
     bfd_size_type size;
 
-    // TODO PIERDE en esta function
-    if(!addressInfo) {
+    if (found)
         return;
-    }
-    // check if already found
-    if (addressInfo->symbolFound) {
-        return;
-    }
 
-    // find section
-    if ((bfd_section_flags(section) & SEC_ALLOC) == 0)
-    {
+    if ((bfd_section_flags (section) & SEC_ALLOC) == 0)
         return;
-    }
-    vma = bfd_section_vma(section);
-    size = bfd_section_size(section);
-    if ((addressInfo->address < vma)
-        || (addressInfo->address >= vma + size)
-        ) {
-        return;
-    }
-    addressInfo->sectionFound = TRUE;
 
-    // TODO pierde por aqui
-    // find symbol
-    addressInfo->symbolFound = bfd_find_nearest_line(
+    vma = bfd_section_vma (section);
+    if (pc < vma)
+        return;
+
+    size = bfd_section_size (section);
+    if (pc >= vma + size)
+        return;
+
+    found = bfd_find_nearest_line_discriminator (
         abfd,
         section,
-        (asymbol **) addressInfo->symbols,
-        addressInfo->address - vma,
-        &addressInfo->fileName,
-        &addressInfo->symbolName,
-        &addressInfo->lineNb
+        syms,
+        pc - vma,
+        &filename, &functionname,
+        &line, &discriminator
     );
 }
 
-/***********************************************************************\
-* Name   : addressToSymbolInfo
-* Purpose: get symbol info for address
-* Input  : abfd           - BFD handle
-*          symbols        - symbol array
-*          symbolCount    - number of entries in symbol array
-*          address        - address
-*          symbolFunction - callback function for symbol
-*          symbolUserData - callback user data
-* Output : -
-* Return : TRUE iff symbol information found
-* Notes  : -
-\***********************************************************************/
-PRIVATE bool addressToSymbolInfo(
+/***************************************************************************
+ * Read hexadecimal or symbolic with offset addresses,
+ * translate into file_name:line_number and optionally function name.
+ ***************************************************************************/
+static void translate_addresses(
     bfd *abfd,
-    const asymbol *symbols[],
-    ulong symbolCount,
-    bfd_vma address,
-    SymbolFunction symbolFunction,
-    void *symbolUserData
+    const void *addresses[],
+    uint addressCount
 ) {
-    if(!symbolFunction) {
-        return FALSE;
-    }
+    for (int i = 0; i < addressCount; i++) {
+        pc = (bfd_vma) addresses[i];
+        if (bfd_get_flavour (abfd) == bfd_target_elf_flavour) {
+            printf("KKKK\n");
+//            const struct elf_backend_data *bed = get_elf_backend_data(abfd);
+//            bfd_vma sign = (bfd_vma) 1 << (bed->s->arch_size - 1);
+//
+//            pc &= (sign << 1) - 1;
+//            if (bed->sign_extend_vma)
+//                pc = (pc ^ sign) - sign;
+        }
 
-    AddressInfo addressInfo = {0};
-
-    // find symbol
-    addressInfo.symbols = symbols;
-    addressInfo.symbolCount = symbolCount;
-    addressInfo.address = address;
-    addressInfo.symbolFound = FALSE;
-
-    // TODO pierde por aqui
-    bfd_map_over_sections(abfd, findAddressInSection, (PTR) &addressInfo);
-
-    if (!addressInfo.sectionFound) {
-        return FALSE;
-    }
-    if (!addressInfo.symbolFound) {
-        return FALSE;
-    }
-
-    while (addressInfo.symbolFound) {
-        char buffer[256];
-        const char *symbolName = NULL;
-        const char *fileName = NULL;
-
-        // get symbol data
-        if ((addressInfo.symbolName != NULL) && ((*addressInfo.symbolName) != '\0')) {
-            if (demangleSymbolName(addressInfo.symbolName, buffer, sizeof(buffer))) {
-                symbolName = buffer;
+        if (with_addresses)  {
+            printf ("0x");
+            bfd_printf_vma (abfd, pc);
+            if (pretty_print) {
+                printf(": ");
             } else {
-                symbolName = addressInfo.symbolName;
+                printf("\n");
             }
+        }
+
+        bfd_map_over_sections(abfd, find_address_in_section, NULL);
+        if (!found) {
+            if (with_functions)  {
+                if (pretty_print) {
+                    printf("?? ");
+                } else {
+                    printf("??\n");
+                }
+            }
+            printf ("??:0\n");
         } else {
-            symbolName = NULL;
+            while (1)  {
+                if (with_functions) {
+                    const char *name;
+                    char *alloc = NULL;
+
+                    name = functionname;
+                    if (name == NULL || *name == '\0') {
+                        name = "??";
+                    } else if (do_demangle)  {
+                        alloc = bfd_demangle (abfd, name, demangle_flags);
+                        if (alloc != NULL)
+                            name = alloc;
+                    }
+
+                    printf ("%s", name);
+                    if (pretty_print) {
+                        /* Note for translators:  This printf is used to join the
+                           function name just printed above to the line number/
+                           file name pair that is about to be printed below.  Eg:
+
+                             foo at 123:bar.c  */
+                        printf(" at ");
+                    } else {
+                        printf("\n");
+                    }
+
+                    free (alloc);
+                }
+
+                if (base_names && filename != NULL) {
+                    char *h;
+
+                    h = strrchr (filename, '/');
+                    if (h != NULL)
+                        filename = h + 1;
+                }
+
+                printf ("%s:", filename ? filename : "??");
+                if (line != 0) {
+                    if (discriminator != 0)
+                        printf ("%u (discriminator %u)\n", line, discriminator);
+                    else
+                        printf ("%u\n", line);
+                } else {
+                    printf("?\n");
+                }
+                if (!unwind_inlines) {
+                    found = false;
+                } else {
+                    found = bfd_find_inliner_info (
+                        abfd,
+                        &filename,
+                        &functionname,
+                        &line
+                    );
+                }
+                if (!found) {
+                    break;
+                }
+                if (pretty_print) {
+                    /* Note for translators: This printf is used to join the
+                       line number/file name pair that has just been printed with
+                       the line number/file name pair that is going to be printed
+                       by the next iteration of the while loop.  Eg:
+
+                         123:bar.c (inlined by) 456:main.c  */
+                    printf(" (inlined by) ");
+                }
+            }
         }
 
-        if (addressInfo.fileName != NULL) {
-            fileName = addressInfo.fileName;
-        } else {
-            fileName = NULL;
-        }
-
-        // handle found symbol TODO en esta parece que no pierde
-        symbolFunction((void *) address, fileName, symbolName, addressInfo.lineNb, symbolUserData);
-
-        // get next information
-        addressInfo.symbolFound = bfd_find_inliner_info(
-            abfd,
-            &addressInfo.fileName,
-            &addressInfo.symbolName,
-            &addressInfo.lineNb
-        );
-    }
-
-    return TRUE;
-}
-
-/***********************************************************************\
-* Name   : openBFD
-* Purpose: open BFD and read symbol table
-* Input  : fileName - file name
-* Output : symbols     - symbol array
-*          symbolCount - number of entries in symbol array
-* Return : TRUE iff BFD opened
-* Notes  : -
-\***********************************************************************/
-PRIVATE bfd *openBFD(
-    const char *fileName,
-    const asymbol **symbols[],
-    ulong *symbolCount
-) {
-    bfd *abfd;
-    char **matching;
-    if(!fileName || !symbols || !symbolCount) {
-        return NULL;
-    }
-
-    abfd = bfd_openr(fileName, NULL);
-    if (abfd == NULL) {
-        //fprintf(stderr, "ERROR: can not open file '%s' (error: %s)\n", fileName, strerror(errno));
-        return NULL;
-    }
-
-    if (bfd_check_format(abfd, bfd_archive)) {
-        //fprintf(stderr, "ERROR: invalid format\n");
-        bfd_close(abfd);
-        return NULL;
-    }
-
-    if (!bfd_check_format_matches(abfd, bfd_object, &matching)) {
-        if (bfd_get_error() == bfd_error_file_ambiguously_recognized) {
-            free(matching);
-        }
-        //fprintf(stderr, "ERROR: format does not match\n");
-        bfd_close(abfd);
-        return NULL;
-    }
-
-    if (!readSymbolTable(abfd, symbols, symbolCount)) {
-        bfd_close(abfd);
-        return NULL;
-    }
-
-    return abfd;
-}
-
-/***********************************************************************\
-* Name   : closeBFD
-* Purpose: close BFD
-* Input  : abfd - BFD handle
-* Output : -
-* Return : -
-* Notes  : -
-\***********************************************************************/
-PRIVATE void closeBFD(
-    bfd *abfd,
-    const asymbol *symbols[],
-    ulong symbolCount
-) {
-    if(!abfd) {
-        return;
-    }
-    freeSymbolTable(symbols, symbolCount);
-    bfd_close(abfd);
-}
-
-/***********************************************************************\
-* Name   : storeSymbolLine
-* Purpose: callback to store symbol line into array
-* Input  : address    - address
-*          fileName   - file name
-*          symbolName - symbol name
-*          lineNb     - line number
-*          userData   - callback user data
-* Output : -
-* Return : -
-* Notes  : get data from SymbolLineInfo structure
-\***********************************************************************/
-PRIVATE void storeSymbolLine(
-    const void *address,
-    const char *fileName,
-    const char *symbolName,
-    uint lineNb,
-    void *userData
-) {
-    SymbolLineInfo *symbolLineInfo = (SymbolLineInfo *) userData;
-    char line[512];
-
-    if(!symbolLineInfo || !symbolLineInfo->lines) {
-        return;
-    }
-
-    if (symbolLineInfo->lineCount < symbolLineInfo->maxLines) {
-        if (fileName == NULL) {
-            fileName = "<unknown file>";
-        }
-        if (symbolName == NULL) {
-            symbolName = "<unknown symbol>";
-        }
-        snprintf(line, sizeof(line), "%-32s %s:%u",
-            symbolName,
-            fileName,
-            lineNb
-        );
-
-        symbolLineInfo->lines[symbolLineInfo->lineCount] = strdup(line);
-        symbolLineInfo->lineCount++;
+        /* fflush() is essential for using this command as a server
+           child process that reads addresses from a pipe and responds
+           with line number information, processing one address at a
+           time.  */
+        fflush (stdout);
     }
 }
 
-/***********************************************************************\
-* Name   : getSymbolInfoFromFile
-* Purpose: get symbol information from file
-* Input  : fileName       - file name
-*          address        - address
-*          symbolFunction - callback function for symbol
-*          symbolUserData - callback user data
-* Output : -
-* Return : TRUE iff symbol read
-* Notes  : -
-\***********************************************************************/
-PRIVATE bool getSymbolInfoFromFile(
-    const char *fileName,
-    bfd_vma address,
-    SymbolFunction symbolFunction,
-    void *symbolUserData
-) {
-    bfd *abfd;
-    const asymbol **symbols;
-    ulong symbolCount;
-    bool result = false;
-
-    if(!fileName) {
-        return FALSE;
-    }
-
-    abfd = openBFD(fileName, &symbols, &symbolCount);
-    if (abfd == NULL) {
-        return 0;
-    }
-    // TODO pierde en next sentence
-    result = addressToSymbolInfo(abfd, symbols, symbolCount, address, symbolFunction, symbolUserData);
-    closeBFD(abfd, symbols, symbolCount);
-    return result;
-}
-
-/***********************************************************************\
-* Name   : getSymbolInfo
-* Purpose: get symbol information
-* Input  : executableFileName - executable name
-*          addresses          - addresses
-*          addressCount       - number of addresses
-*          symbolFunction     - callback function for symbol
-*          symbolUserData     - callback user data
-* Output : -
-* Return : -
-* Notes  : -
-\***********************************************************************/
-PRIVATE void getSymbolInfo(
-    const char *executableFileName,
-    const void *addresses[],
-    uint addressCount,
-    SymbolFunction symbolFunction,
-    void *symbolUserData
-) {
-    uint i;
-    if(!executableFileName || !addresses || !symbolFunction) {
-        return;
-    }
-
-    for (i = 0; i < addressCount; i++) {
-        getSymbolInfoFromFile(executableFileName,
-            (bfd_vma) addresses[i],
-            symbolFunction,
-            symbolUserData
-        );
-    }
-}
-
-/***********************************************************************\
-* Name   : getSymbolInfoLines
-* Purpose: get symbol information lines
-* Input  : executableFileName - executable name
-*          addresses          - addresses
-*          addressCount       - number of addresses
-*          lines              - lines array to fill
-*          maxLines           - max. number of lines
-* Output : -
-* Return : number of lines in array or 0 on error
-* Notes  : Convenient function to get symbol informations as array of
-*          strings
-\***********************************************************************/
-PRIVATE uint getSymbolInfoLines(
-    const char *executableFileName,
-    const void *addresses[],
-    uint addressCount,
-    char *lines[],
-    uint maxLines
-) {
-    SymbolLineInfo symbolLineInfo;
-    if(!executableFileName || !lines || maxLines <= 0) {
-        return 0;
-    }
-    symbolLineInfo.lines = lines;
-    symbolLineInfo.lineCount = 0;
-    symbolLineInfo.maxLines = maxLines;
-    getSymbolInfo(executableFileName, addresses, addressCount, storeSymbolLine, &symbolLineInfo);
-
-    return symbolLineInfo.lineCount;
-}
-
-/***********************************************************************\
-* Name   : freeSymbolInfoLines
-* Purpose: free symbol information
-* Input  : lines     - lines
-*          lineCount - line count
-* Output : -
-* Return : -
-* Notes  : -
-\***********************************************************************/
-PRIVATE void freeSymbolInfoLines(char *lines[], uint lineCount)
+/***************************************************************************
+ *
+ ***************************************************************************/
+static void slurp_symtab (bfd *abfd)
 {
-    uint i;
-    if(!lines) {
+    long storage;
+    bool dynamic = false;
+
+    if ((bfd_get_file_flags (abfd) & HAS_SYMS) == 0)
+        return;
+
+    storage = bfd_get_symtab_upper_bound (abfd);
+    if (storage == 0) {
+        storage = bfd_get_dynamic_symtab_upper_bound (abfd);
+        dynamic = true;
+    }
+    if (storage < 0) {
+        //bfd_nonfatal (bfd_get_filename (abfd));
         return;
     }
 
-    for (i = 0; i < lineCount; i++) {
-        if(lines[i]) {
-            free(lines[i]);
-            lines[i] = NULL;
-        }
+    syms = (asymbol **) xmalloc (storage);
+    if (dynamic) {
+        symcount = bfd_canonicalize_dynamic_symtab (abfd, syms);
+    } else {
+        symcount = bfd_canonicalize_symtab (abfd, syms);
+    }
+    if (symcount < 0) {
+        //bfd_nonfatal(bfd_get_filename(abfd));
+    }
+
+    /* If there are no symbols left after canonicalization and
+       we have not tried the dynamic symbols then give them a go.  */
+    if (symcount == 0
+        && ! dynamic
+        && (storage = bfd_get_dynamic_symtab_upper_bound (abfd)) > 0)
+    {
+        free (syms);
+        syms = xmalloc (storage);
+        symcount = bfd_canonicalize_dynamic_symtab (abfd, syms);
+    }
+
+    /* PR 17512: file: 2a1d3b5b.
+       Do not pretend that we have some symbols when we don't.  */
+    if (symcount <= 0)
+    {
+        free (syms);
+        syms = NULL;
     }
 }
 
@@ -573,32 +341,65 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
         return;
     }
 
-    #define MAX_LINES 128
-    char *lines[MAX_LINES] = {0};
-    uint lineCount;
-    uint i;
-
     void *stackTrace[128] = {0};
     uint stackTraceCount;
     stackTraceCount = backtrace(stackTrace, 128);
 
-    // TODO HASTA aqui Bien, no pierde
-
     // get symbols and print stack trace
     fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
 
-    lineCount = getSymbolInfoLines(
-        program_name,
-        (const void **) stackTrace,
-        stackTraceCount,
-        lines,
-        MAX_LINES
+    bfd *abfd;
+    //asection *section = NULL;
+    char **matching;
+
+    abfd = bfd_openr(program_name, NULL);
+    if (abfd == NULL) {
+        // TODO bfd_fatal (file_name);
+        return;
+    }
+
+    /* Decompress sections.  */
+    abfd->flags |= BFD_DECOMPRESS;
+
+    if (bfd_check_format (abfd, bfd_archive)) {
+        printf("%s: cannot get addresses from archive", program_name);
+        bfd_close (abfd);
+        return;
+    }
+
+    if (!bfd_check_format_matches (abfd, bfd_object, &matching)) {
+        printf("%s: bfd_check_format_matches() failed", program_name);
+        bfd_close (abfd);
+        return;
+    }
+
+//    if (section_name != NULL) {
+//        section = bfd_get_section_by_name (abfd, section_name);
+//        if (section == NULL)
+//        {
+//            non_fatal (_("%s: cannot find section %s"), file_name, section_name);
+//            bfd_close (abfd);
+//            return 1;
+//        }
+//    } else {
+//        section = NULL;
+//    }
+
+    slurp_symtab (abfd);
+
+    translate_addresses(
+        abfd,
+        (const void **)stackTrace,
+        stackTraceCount
     );
 
-    for (i = 0; i < lineCount; i++) {
-        fwrite_fn(h, LOG_DEBUG, "%s", lines[i]);
+    if(syms) {
+        free(syms);
+        syms = NULL;
     }
-    freeSymbolInfoLines(lines, lineCount);
+
+    bfd_close (abfd);
+
 
     fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
 
