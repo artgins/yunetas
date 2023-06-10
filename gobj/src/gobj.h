@@ -254,7 +254,7 @@ typedef enum {
 
 typedef void (*loghandler_close_fn_t)(void *h);
 typedef int  (*loghandler_write_fn_t)(void *h, int priority, const char *bf, size_t len);
-typedef int  (*loghandler_fwrite_fn_t)(void *h, int priority, const char *format, ...);
+typedef int  (*loghandler_fwrite_fn_t)(void *h, int priority, const char *format, ...)  JANSSON_ATTRS((format(printf, 3, 4)));
 typedef void (*show_backtrace_fn_t)(loghandler_fwrite_fn_t fwrite_fn, void *h);
 
 /***************************************************************
@@ -1462,7 +1462,7 @@ PUBLIC int gobj_log_add_handler(
 PUBLIC int gobj_log_del_handler(const char *handler_name); // delete all handlers if handle_name is empty
 PUBLIC json_t *gobj_log_list_handlers(void);
 
-PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...);
+PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...); // WARNING don't put format printf here
 PUBLIC void gobj_log_critical(hgobj gobj, log_opt_t opt, ...);
 PUBLIC void gobj_log_error(hgobj gobj, log_opt_t opt, ...);
 PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
@@ -1970,13 +1970,13 @@ PUBLIC void gobj_trace_dump_gbuf(
     gbuffer hgbuf,
     const char *fmt,
     ...
-);
+)  JANSSON_ATTRS((format(printf, 3, 4)));
 PUBLIC void gobj_trace_dump_full_gbuf(
     hgobj gobj,
     gbuffer hgbuf,
     const char *fmt,
     ...
-);
+)  JANSSON_ATTRS((format(printf, 3, 4)));
 
 #ifdef __cplusplus
 }
