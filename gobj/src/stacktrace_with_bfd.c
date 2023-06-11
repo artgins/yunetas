@@ -139,12 +139,7 @@ static void translate_addresses(
         if(!address_info.filename) {
             snprintf(file_name, sizeof(file_name), "??");
         } else {
-            char *s = strrchr(address_info.filename, '/');
-            if(s) {
-                snprintf(file_name, sizeof(file_name), "%s", s+1);
-            } else {
-                snprintf(file_name, sizeof(file_name), "%s", address_info.filename);
-            }
+            snprintf(file_name, sizeof(file_name), "%s", address_info.filename);
         }
 
         fwrite_fn(h, LOG_DEBUG, "%-32s %s:%u", function_name, file_name, address_info.line);
