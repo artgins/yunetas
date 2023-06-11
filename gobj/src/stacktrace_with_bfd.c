@@ -36,9 +36,6 @@
 /***************************************************************
  *              Structures
  ***************************************************************/
-//static bfd_vma pc;
-//static bool found;
-
 typedef struct {
     asymbol **syms;		/* Symbol table.  */
     bfd_vma pc;
@@ -58,9 +55,6 @@ typedef struct {
  ***************************************************************/
 PRIVATE char initialized = FALSE;
 PRIVATE char program_name[NAME_MAX];
-
-
-//static bool unwind_inlines = FALSE;	/* -i, unwind inlined functions. */
 
 /***************************************************************************
  * Look for an address in a section.
@@ -111,7 +105,6 @@ static void translate_addresses(
     bfd *abfd,
     const void *addresses[],
     uint addressCount,
-    BOOL unwind_inlines,
     asymbol **syms,
     loghandler_fwrite_fn_t fwrite_fn,
     void *h
@@ -121,16 +114,17 @@ static void translate_addresses(
 
     for (int i = 0; i < addressCount; i++) {
         address_info_t address_info = {0};
+        address_info.syms = syms;
         address_info.pc = (bfd_vma) addresses[i];
 
         bfd_map_over_sections(abfd, find_address_in_section, &address_info);
         if (!address_info.found) {
             snprintf(function_name, sizeof(function_name), "%lx", address_info.pc);
-            fwrite_fn(h, LOG_DEBUG, "%-32s ???", function_name);
+            fwrite_fn(h, LOG_DEBUG, "%-32s ??:?", function_name);
             continue;
         }
 
-        if(empty_string(address_info.functionname)) {
+        if(!address_info.functionname) {
             snprintf(function_name, sizeof(function_name), "???");
         } else {
             char *s = bfd_demangle(abfd, address_info.functionname, DMGL_PARAMS | DMGL_ANSI);
@@ -142,7 +136,7 @@ static void translate_addresses(
             }
         }
 
-        if(empty_string(address_info.filename)) {
+        if(!address_info.filename) {
             snprintf(file_name, sizeof(file_name), "??");
         } else {
             char *s = strrchr(address_info.filename, '/');
@@ -245,7 +239,6 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
         abfd,
         (const void **)stackTrace,
         stackTraceCount,
-        FALSE, // unwind_inlines
         syms,
         fwrite_fn,
         h
