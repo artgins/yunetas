@@ -66,10 +66,10 @@ retry:
         );
         return -1;
     }
-    io_uring_queue_exit(&ring_test);
 
     /* FAST_POOL is required for pre-posting receive buffers */
     if (!(params_test.features & IORING_FEAT_FAST_POLL)) {
+        io_uring_queue_exit(&ring_test);
         gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_SYSTEM_ERROR,
@@ -78,6 +78,23 @@ retry:
         );
         return -1;
     }
+
+    // check if buffer selection is supported
+    struct io_uring_probe *probe;
+    probe = io_uring_get_probe_ring(&ring_test);
+    if (!probe || !io_uring_opcode_supported(probe, IORING_OP_PROVIDE_BUFFERS)) {
+        io_uring_free_probe(probe); // DIE here
+        io_uring_queue_exit(&ring_test);
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_SYSTEM_ERROR,
+            "msg",                  "%s", "Linux kernel without io_uring IORING_OP_PROVIDE_BUFFERS, cannot run yunetas",
+            NULL
+        );
+        return -1;
+    }
+    io_uring_free_probe(probe); // DIE here
+    io_uring_queue_exit(&ring_test);
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {
