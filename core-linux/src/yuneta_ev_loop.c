@@ -135,6 +135,7 @@ PUBLIC void yev_timer_set(
     struct io_uring_sqe *sqe = io_uring_get_sqe(&t->yev_loop->ring);
     io_uring_prep_read(sqe, t->fd, &t->buf, sizeof(t->buf), 0);
     io_uring_sqe_set_data(sqe, (char *)t);
+    io_uring_submit(&t->yev_loop->ring);
 }
 
 /***************************************************************************
@@ -148,7 +149,9 @@ PUBLIC int yev_loop_create(hgobj yuno, yev_loop_h *yev_loop_)
     *yev_loop_ = 0;     // error case
 
     struct io_uring_params params_test = {0};
-    params_test.flags |= IORING_SETUP_SQPOLL;
+    // TODO use IORING_SETUP_SQPOLL when you know how to use
+    // Info in https://unixism.net/loti/tutorial/sq_poll.html
+    //params_test.flags |= IORING_SETUP_SQPOLL;
     params_test.flags |= IORING_SETUP_COOP_TASKRUN;      // Available since 5.18
     params_test.flags |= IORING_SETUP_SINGLE_ISSUER;     // Available since 6.0
 retry:
@@ -167,7 +170,8 @@ retry:
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_SYSTEM_ERROR,
             "msg",                  "%s", "Linux kernel without io_uring, cannot run yunetas",
-            "errno",                "%s", strerror(-err),
+            "errno",                "%d", -err,
+            "serrno",               "%s", strerror(-err),
             NULL
         );
         return -1;
@@ -199,7 +203,7 @@ retry:
         );
         return -1;
     }
-    io_uring_free_probe(probe); // DIE here
+    io_uring_free_probe(probe);
     io_uring_queue_exit(&ring_test);
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
@@ -222,7 +226,8 @@ retry:
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_SYSTEM_ERROR,
             "msg",                  "%s", "Linux io_uring_queue_init_params() FAILED, cannot run yunetas",
-            "errno",                "%s", strerror(-err),
+            "errno",                "%d", -err,
+            "serrno",               "%s", strerror(-err),
             NULL
         );
         return -1;
@@ -277,43 +282,50 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
 //    }
 //    io_uring_cqe_seen(&yev_loop->ring, cqe);
 
-    yev_timer_set(
+    yev_timer_set( // TODO move to C_TIMER
         yev_loop->timer,
         NULL,
         1000,
-        FALSE
+        TRUE
     );
 
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
     while(gobj_is_running(yev_loop->yuno)) {
-        io_uring_submit_and_wait(&yev_loop->ring, 1);
-        unsigned head;
-        unsigned count = 0;
-
-printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-
-        // go through all CQEs
-        io_uring_for_each_cqe(&yev_loop->ring, head, cqe) {
-            yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
-            switch(yev_event->type) {
-                case TIMER_EV:
-                    {
-                        sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_prep_read(sqe, yev_event->fd, &yev_event->buf, sizeof(yev_event->buf), 0);
-                        io_uring_sqe_set_data(sqe, yev_event);
-                        gobj_send_event(yev_event->gobj, yev_event->ev, 0, yev_loop->yuno);
-                    }
-                    break;
-                default:
-                    printf("=============> Event %d\n", yev_event->type);
+        int err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
+        if (err < 0) {
+            if(err == -EINTR) {
+                // Ctrl+C cause this
+                continue;
             }
-
-            ++count;
+            gobj_log_error(yev_loop->yuno, 0,
+                "function",             "%s", __FUNCTION__,
+                "msgset",               "%s", MSGSET_SYSTEM_ERROR,
+                "msg",                  "%s", "io_uring_wait_cqe() FAILED",
+                "errno",                "%d", -err,
+                "serrno",               "%s", strerror(-err),
+                NULL
+            );
+            break;
+        }
+        yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
+        switch(yev_event->type) {
+            case TIMER_EV:
+                {
+                    sqe = io_uring_get_sqe(&yev_loop->ring);
+                    io_uring_prep_read(sqe, yev_event->fd, &yev_event->buf, sizeof(yev_event->buf), 0);
+                    io_uring_sqe_set_data(sqe, yev_event);
+                    io_uring_submit(&yev_loop->ring); // TODO
+                    gobj_send_event(yev_event->gobj, yev_event->ev, 0, yev_loop->yuno);
+                }
+                break;
+            default:
+                printf("=============> Event %d\n", yev_event->type);
         }
 
-        io_uring_cq_advance(&yev_loop->ring, count);
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
     return 0;
