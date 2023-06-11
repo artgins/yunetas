@@ -281,7 +281,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
         yev_loop->timer,
         NULL,
         1000,
-        TRUE
+        FALSE
     );
 
     /*------------------------------------------*
@@ -303,7 +303,7 @@ printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
                         sqe = io_uring_get_sqe(&yev_loop->ring);
                         io_uring_prep_read(sqe, yev_event->fd, &yev_event->buf, sizeof(yev_event->buf), 0);
                         io_uring_sqe_set_data(sqe, yev_event);
-//                        gobj_send_event(yev_event->gobj, yev_event->ev, 0, yev_loop->yuno);
+                        gobj_send_event(yev_event->gobj, yev_event->ev, 0, yev_loop->yuno);
                     }
                     break;
                 default:
