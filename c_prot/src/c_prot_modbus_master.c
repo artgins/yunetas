@@ -1098,11 +1098,6 @@ PRIVATE gbuffer *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave,
         );
     }
 
-    // TODO TEST
-    char *pp = gbuffer_cur_rd_pointer(gbuf);
-    size_t ll = gbuffer_leftbytes(gbuf);
-    tdump("", pp, ll, 0, 0);
-
     return gbuf;
 }
 
