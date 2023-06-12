@@ -238,9 +238,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ghttp_parser_reset(priv->parsing_response);
-    gobj_publish_event(gobj, EV_ON_OPEN, kw);
+    gobj_publish_event(
+        gobj,
+        EV_ON_OPEN,
+        kw // use the same kw
+    );
 
-    JSON_DECREF(kw)
     return 0;
 }
 
@@ -249,9 +252,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_publish_event(gobj, EV_ON_CLOSE, kw);
+    gobj_publish_event(
+        gobj,
+        EV_ON_CLOSE,
+        kw // use the same kw
+    );
 
-    JSON_DECREF(kw)
     return 0;
 }
 

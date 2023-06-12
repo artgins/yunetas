@@ -468,6 +468,8 @@ PUBLIC json_t *kw_incref(json_t *kw)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "BAD kw_incref()",
+            "refcount",     "%d", (int)(kw->refcount),
+            "type",         "%d", (int)(kw->type),
             NULL
         );
         return 0;
@@ -510,11 +512,13 @@ PUBLIC json_t *kw_decref(json_t* kw)
     if(!kw) {
         return 0;
     }
-    if((int)kw->refcount <= 0) {
+    if((int)(kw->refcount) <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "BAD kw_decref()",
+            "refcount",     "%d", (int)(kw->refcount),
+            "type",         "%d", (int)(kw->type),
             NULL
         );
         return 0;

@@ -730,7 +730,14 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->connected_published = TRUE;
-    gobj_publish_event(gobj, EV_CONNECTED, 0);
+
+    json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
+        "url",          gobj_read_str_attr(gobj, "url"),
+        "peername",     gobj_read_str_attr(gobj, "peername"),
+        "sockname",     gobj_read_str_attr(gobj, "sockname")
+    );
+
+    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 
     JSON_DECREF(kw)
     return 0;

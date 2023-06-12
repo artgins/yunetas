@@ -380,7 +380,6 @@ PRIVATE int start_smartconfig(hgobj gobj)
  ***************************************************************************/
 PRIVATE int connect_station(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
@@ -393,11 +392,19 @@ PRIVATE int connect_station(hgobj gobj)
     gobj_trace_json(gobj, jn_wifi_list, "connect_station------------------->wifi_list"); // TODO TEST
 
     int max_wifi_list = (int)json_array_size(jn_wifi_list);
-    int idx_wifi_list = ++priv->idx_wifi_list % max_wifi_list;
-    json_t *jn_wifi = json_array_get(jn_wifi_list, idx_wifi_list);
+    if(max_wifi_list > 0) {
+        int x = ++priv->idx_wifi_list % max_wifi_list;
+        priv->idx_wifi_list = x;
+        json_t *jn_wifi = json_array_get(jn_wifi_list, priv->idx_wifi_list);
 
-    gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", idx_wifi_list); // TODO TEST
+        gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", priv->idx_wifi_list); // TODO TEST
+    }
 
+    json_t *jn_wifi = json_array_get(jn_wifi_list, priv->idx_wifi_list);
+
+    gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", priv->idx_wifi_list); // TODO TEST
+
+#ifdef ESP_PLATFORM
     wifi_config_t wifi_config;
     const char *ssid = kw_get_str(gobj, jn_wifi, "ssid", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, jn_wifi, "password", "", KW_REQUIRED);
@@ -623,6 +630,8 @@ PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *
         json_object_update(jn_record, kw);
     }
     gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
+
+    gobj_trace_json(gobj, jn_wifi_list, "ac_smartconfig_done_connect DONE"); // TODO TEST
 
     connect_station(gobj);
 

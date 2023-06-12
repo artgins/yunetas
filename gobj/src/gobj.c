@@ -4031,7 +4031,7 @@ PUBLIC int gobj_send_event(
         if(kw) {
             if(__trace_gobj_ev_kw__(dst)) {
                 if(json_object_size(kw)) {
-                    gobj_trace_json(dst, kw, "kw exec event");
+                    gobj_trace_json(dst, kw, "kw exec event :%s", event?event:"");
                 }
             }
         }
@@ -4958,7 +4958,7 @@ PUBLIC int gobj_publish_event(
         );
         if(__trace_gobj_ev_kw__(publisher)) {
             if(json_object_size(kw)) {
-                gobj_trace_json(publisher, kw, "kw publish event");
+                gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
             }
         }
     }
@@ -5028,8 +5028,7 @@ PUBLIC int gobj_publish_event(
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
 
-            KW_INCREF(kw)
-            json_t *kw2publish = kw;
+            json_t *kw2publish = kw_incref(kw);
 
             /*-------------------------------------*
              *  User filter method or filter parameter
@@ -5049,6 +5048,7 @@ PUBLIC int gobj_publish_event(
             }
 
             if(topublish<0) {
+                KW_DECREF(kw2publish);
                 break;
             } else if(topublish==0) {
                 /*
@@ -6557,6 +6557,10 @@ PUBLIC void trace_vjson(
     json_object_set_new(jn_log, "msg", json_string(msg));
     if(jn_data) {
         json_object_set(jn_log, "data", jn_data);
+        json_object_set_new(jn_log, "refcount", json_integer(jn_data->refcount));
+        json_object_set_new(jn_log, "type", json_integer(jn_data->type));
+    } else {
+        json_object_set(jn_log, "data", json_string("NULL"));
     }
 
     char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
@@ -6591,7 +6595,7 @@ PUBLIC void gobj_trace_json(
     trace_vjson(gobj, jn, "trace_json", fmt, ap);
     va_end(ap);
 
-    gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, jn, "gbuffer", 0, 0);
+    gbuffer *gbuf = (gbuffer *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
     if(gbuf) {
         gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
     }
@@ -6640,6 +6644,77 @@ static inline char * byte_to_strhex(char *s, char w)
 
 /***********************************************************************
  *  Vuelca en formato tdump un array de longitud 'len'
+ *  nivel 1 -> solo en hexa
+ *  nivel 2 -> en hexa y en asci
+ *  nivel 3 -> en hexa y en asci y con contador (indice)
+ ***********************************************************************/
+PUBLIC void tdump(const char *prefix, const char *s, size_t len, view_fn_t view, int nivel)
+{
+    static char bf[80+1];
+    static char asci[40+1];
+    char *p;
+    size_t i, j;
+
+    if(!nivel) {
+        nivel = 3;
+    }
+    if(!view) {
+        view = printf;
+    }
+    if(!prefix) {
+        prefix = (char *) "";
+    }
+
+    p = bf;
+    for(i=j=0; i<len; i++) {
+        asci[j] = (*s<' ' || *s>0x7f)? '.': *s;
+        if(asci[j] == '%')
+            asci[j] = '.';
+        j++;
+        p = byte_to_strhex(p, *s++);
+        *p++ = ' ';
+        if(j == 16) {
+            *p++ = '\0';
+            asci[j] = '\0';
+
+            if(nivel==1) {
+                view("%s%s\n", prefix, bf);
+
+            } else if(nivel==2) {
+                view("%s%s  %s\n", prefix, bf, asci);
+
+            } else {
+                view("%s%04X: %s  %s\n", prefix, i-15, bf, asci);
+            }
+
+            p = bf;
+            j = 0;
+        }
+    }
+    if(j) {
+        len = 16 - j;
+        while(len-- >0) {
+            *p++ = ' ';
+            *p++ = ' ';
+            *p++ = ' ';
+        }
+        *p++ = '\0';
+        asci[j] = '\0';
+
+        if(nivel==1) {
+           view("%s%s\n", prefix, bf);
+
+        } else if(nivel==2) {
+            view("%s%s  %s\n", prefix, bf, asci);
+
+        } else {
+            view("%s%04X: %s  %s\n", prefix, i - j, bf, asci);
+        }
+    }
+}
+
+/***********************************************************************
+ *  Vuelca en formato tdump un array de longitud 'len'
  *    Contador, hexa, ascii
  ***********************************************************************/
 PUBLIC json_t *tdump2json(const char *s, size_t len)
@@ -6654,7 +6729,7 @@ PUBLIC json_t *tdump2json(const char *s, size_t len)
 
     p = hexa;
     for(i=j=0; i<len; i++) {
-        asci[j] = (*s<' ')? '.': *s;
+        asci[j] = (*s<' ' || *s>0x7f)? '.': *s;
         if(asci[j] == '%')
             asci[j] = '.';
         j++;
@@ -8936,6 +9011,7 @@ PUBLIC void gobj_trace_dump_gbuf(
 
     char *bf = gbuffer_cur_rd_pointer(gbuf);
     size_t len = gbuffer_chunk(gbuf);
+
 
     json_t *jn_data = json_object();
     char *label = gbuffer_getlabel(gbuf);

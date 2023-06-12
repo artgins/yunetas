@@ -35,6 +35,8 @@ extern "C"{
                 "function",     "%s", __FUNCTION__,                 \
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,        \
                 "msg",          "%s", "BAD json_decref()",          \
+                "refcount",     "%d", (int)((json)->refcount),      \
+                "type",         "%d", (int)((json)->type),          \
                 NULL                                                \
             );                                                      \
         } else {                                                    \
@@ -52,6 +54,8 @@ extern "C"{
                 "function",     "%s", __FUNCTION__,                 \
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,        \
                 "msg",          "%s", "BAD json_incref()",          \
+                "refcount",     "%d", (int)((json)->refcount),      \
+                "type",         "%d", (int)((json)->type),          \
                 NULL                                                \
             );                                                      \
         } else {                                                    \
