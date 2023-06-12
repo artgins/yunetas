@@ -10,6 +10,7 @@
 #endif
 #include <string.h>
 #include <ctype.h>
+#include "kwid.h"
 #include "ghttp_parser.h"
 
 /****************************************************************

@@ -19,6 +19,7 @@
 #endif
 #include "gobj_environment.h"
 #include "helpers.h"
+#include "kwid.h"
 
 /***************************************************************
  *              Data

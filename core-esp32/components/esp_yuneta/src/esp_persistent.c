@@ -11,6 +11,7 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #endif
+#include <kwid.h>
 #include "esp_persistent.h"
 
 extern void jsonp_free(void *ptr);

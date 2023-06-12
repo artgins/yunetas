@@ -19,6 +19,7 @@
 #include <time.h>
 #include <log_udp_handler.h>    // log upd is open when wifi/ethernet is connected
 #include <gobj_environment.h>
+#include <kwid.h>
 #include "c_esp_ethernet.h"
 #include "c_esp_wifi.h"
 #include "c_timer.h"

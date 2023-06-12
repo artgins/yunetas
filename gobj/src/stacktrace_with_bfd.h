@@ -10,7 +10,6 @@
  *              link with bfd
  *
  *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) Torsten Rupp
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

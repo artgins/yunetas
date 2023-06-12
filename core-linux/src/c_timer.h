@@ -10,6 +10,7 @@
 #pragma once
 
 #include <gobj.h>
+#include <kwid.h>
 
 #ifdef __cplusplus
 extern "C"{

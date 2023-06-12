@@ -16,6 +16,7 @@
   #include <c_esp_yuno.h>
 #endif
 #include <parse_url.h>
+#include <kwid.h>
 #include "c_esp_transport.h"
 
 #ifdef ESP_PLATFORM

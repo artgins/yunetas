@@ -14,6 +14,7 @@
 #ifdef ESP_PLATFORM
   #include <c_esp_transport.h>
 #endif
+#include <kwid.h>
 #include "c_prot_http_cli.h"
 
 /***************************************************************

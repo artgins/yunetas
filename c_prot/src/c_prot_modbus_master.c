@@ -58,6 +58,7 @@ Example of modbus configuration:
 #include <arpa/inet.h>
 #include <c_timer.h>
 #include <istream.h>
+#include <kwid.h>
 #include "c_prot_modbus_master.h"
 
 /***************************************************************************

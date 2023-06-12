@@ -1,7 +1,17 @@
 #------------------------------------------------------#
-#           Source
+#           ESP32 Source
 #------------------------------------------------------#
-file(GLOB srcs src/*.c)
+set(srcs
+    src/00_http_parser.c
+    src/ghttp_parser.c
+    src/gobj.c
+    src/gobj_environment.c
+    src/istream.c
+    src/log_udp_handler.c
+    src/parse_url.c
+    src/helpers.c
+    src/kwid.c
+)
 
 set(requires
     esp_event

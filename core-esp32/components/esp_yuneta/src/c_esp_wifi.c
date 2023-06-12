@@ -19,6 +19,8 @@
   #include <esp_smartconfig.h>
 #endif
 
+#include <helpers.h>
+#include <kwid.h>
 #include "c_esp_yuno.h"
 #include "c_esp_wifi.h"
 
@@ -39,19 +41,30 @@ PRIVATE int start_smartconfig(hgobj gobj);
 /***************************************************************
  *              Data
  ***************************************************************/
+PRIVATE json_desc_t jn_wifi_desc[] = {
+// Name         Type        Default
+{"ssid",        "str",      ""},
+{"password",    "str",      ""},
+{"bssid",       "str",      ""},
+{"bssid_set",   "bool",     "false"},
+{0}   // HACK important, final null
+};
+
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-----description---------- */
-SDATA (DTP_BOOLEAN, "login_data_saved", SDF_PERSIST|SDF_STATS,  "false",    "Wifi data saved"),
-SDATA (DTP_STRING,  "ssid",             SDF_PERSIST|SDF_STATS,  "",         "Wifi ssid (33)"),
-SDATA (DTP_STRING,  "password",         SDF_PERSIST,            "",         "Wifi password (65)"),
-SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wifi bssid (6)"), // not used
-SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
-SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "{}",       "List of wifis (ssid/passw)"),
+
+//SDATA (DTP_BOOLEAN, "login_data_saved", SDF_PERSIST|SDF_STATS,  "false",    "Wifi data saved"),
+//SDATA (DTP_STRING,  "ssid",             SDF_PERSIST|SDF_STATS,  "",         "Wifi ssid (33)"),
+//SDATA (DTP_STRING,  "password",         SDF_PERSIST,            "",         "Wifi password (65)"),
+//SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wifi bssid (6)"), // not used
+//SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
+
+SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "[]",       "List of wifis (ssid/passw)"),
 SDATA_END()
 };
 
@@ -63,6 +76,7 @@ typedef struct _PRIVATE_DATA {
     esp_netif_t *sta_netif;
 #endif
     BOOL on_open_published;
+    int idx_wifi_list;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -302,13 +316,14 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                         "bssid_set", evt->bssid_set,
                         "bssid", bssid
                     );
+
                     gobj_post_event(gobj, EV_WIFI_SMARTCONFIG_DONE, kw, gobj);
                     processed = TRUE;
                 }
                 break;
             case SC_EVENT_SEND_ACK_DONE:
                 processed = TRUE;
-                esp_smartconfig_stop();
+                gobj_post_event(gobj, EV_WIFI_SMARTCONFIG_ACK_DONE, kw, gobj);
                 break;
             default:
                 break;
@@ -344,7 +359,11 @@ PRIVATE int start_smartconfig(hgobj gobj)
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
 #endif
 
-    gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
+    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
+    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    if(json_array_size(jn_wifi_list) == 0) {
+        gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
+    }
 
     return 0;
 }
@@ -361,6 +380,8 @@ PRIVATE int connect_station(hgobj gobj)
         "msg",          "%s", "DO connect_station",
         NULL
     );
+
+// TODO    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
 
 #ifdef ESP_PLATFORM
     wifi_config_t wifi_config;
@@ -495,8 +516,6 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         NULL
     );
 
-    get_rssi(gobj);
-
     if(priv->on_open_published) {
         priv->on_open_published =  FALSE;
         if(!gobj_is_shutdowning()) {
@@ -518,19 +537,18 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 "rssi",         "%d", rssi,
                 NULL
             );
-            gobj_write_bool_attr(gobj, "login_data_saved", FALSE);
-            gobj_save_persistent_attrs(gobj, 0);
-            start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF, wait forever
             break;
 
         case WIFI_REASON_NO_AP_FOUND: // wifi shutdown
         default:
-            if(gobj_is_running(gobj)) {
-                connect_station(gobj);  // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
-            }
             break;
     }
 #endif
+
+    if(gobj_is_running(gobj)) {
+        connect_station(gobj);  // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
+    }
+
     JSON_DECREF(kw)
     return 0;
 }
@@ -547,12 +565,12 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     );
     gobj_trace_json(gobj, kw, "scan done");
 
-    BOOL login_data_saved = gobj_read_bool_attr(gobj, "login_data_saved");
-    if(login_data_saved) {
+    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    if(json_array_size(jn_wifi_list) > 0) {
         connect_station(gobj);      // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
-    } else {
-        start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF, wait forever
     }
+
+    start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
 
     JSON_DECREF(kw)
     return 0;
@@ -561,11 +579,51 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_smartconfig_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECTION,
-        "msg",          "%s", "smartconfig done",
+        "msg",          "%s", "smartconfig done, connect",
+        NULL
+    );
+
+    const char *id = kw_get_str(gobj, kw, "ssid", "", KW_REQUIRED);
+    if(empty_string(id)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ssid empty",
+            NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    json_object_set_new(kw, "id", json_string(id));
+
+    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    json_t *jn_record = kwid_get(gobj, jn_wifi_list, json_string(id), "");
+    if(!jn_record) {
+        json_array_append(jn_wifi_list, kw);
+    } else  {
+        json_object_update(jn_record, kw);
+    }
+    gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
+
+    connect_station(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECTION,
+        "msg",          "%s", "smartconfig done, save",
         NULL
     );
 
@@ -575,7 +633,24 @@ PRIVATE int ac_smartconfig_done(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     gobj_write_str_attr(gobj, "bssid", kw_get_str(gobj, kw, "bssid", "", KW_REQUIRED));
     gobj_write_bool_attr(gobj, "login_data_saved", TRUE);
     gobj_save_persistent_attrs(gobj, 0);
-    connect_station(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECTION,
+        "msg",          "%s", "smartconfig ACK done",
+        NULL
+    );
+
+    esp_smartconfig_stop();
+    start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
 
     JSON_DECREF(kw)
     return 0;
@@ -682,6 +757,7 @@ GOBJ_DEFINE_EVENT(EV_WIFI_STA_CONNECTED);
 GOBJ_DEFINE_EVENT(EV_WIFI_STA_DISCONNECTED);
 GOBJ_DEFINE_EVENT(EV_WIFI_SCAN_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_SMARTCONFIG_DONE);
+GOBJ_DEFINE_EVENT(EV_WIFI_SMARTCONFIG_ACK_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_GOT_IP);
 GOBJ_DEFINE_EVENT(EV_WIFI_LOST_IP);
 GOBJ_DEFINE_EVENT(EV_WIFI_ON_OPEN);
@@ -707,34 +783,42 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_wifi_wait_start[] = {
-        {EV_WIFI_STA_START,         ac_wifi_start,          ST_WIFI_WAIT_SCAN},
+        {EV_WIFI_STA_START,             ac_wifi_start,              ST_WIFI_WAIT_SCAN},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_scan[] = {
-        {EV_WIFI_SCAN_DONE,         ac_scan_done,           0}, // Do connect_station() or start_smartconfig()
-        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
+        {EV_WIFI_SCAN_DONE,             ac_scan_done,               0},
+        // Do connect_station() or start_smartconfig()
+
+        {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
-        {EV_WIFI_SMARTCONFIG_DONE,  ac_smartconfig_done,    0}, // Do connect_station()
-        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
+        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_connect,0}, // Do connect_station()
+        {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_sta_connected[] = { // From connect_station()
-        {EV_WIFI_STA_DISCONNECTED,  ac_wifi_disconnected,   0}, // Do connect_station() or start_smartconfig()
-        {EV_WIFI_STA_CONNECTED,     ac_wifi_connected,      ST_WIFI_WAIT_IP},
-        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
+        {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
+        {EV_WIFI_STA_CONNECTED,         ac_wifi_connected,          ST_WIFI_WAIT_IP},
+        {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
+        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
+        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_ip[] = {
-        {EV_WIFI_GOT_IP,            ac_wifi_got_ip,         ST_WIFI_IP_ASSIGNED},
-        {EV_WIFI_STA_DISCONNECTED,  ac_wifi_disconnected,   0}, // Do connect_station() or start_smartconfig()
-        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
+        {EV_WIFI_GOT_IP,                ac_wifi_got_ip,             ST_WIFI_IP_ASSIGNED},
+        {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
+        {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
+        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
+        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
     ev_action_t st_wifi_ip_assigned[] = {
-        {EV_WIFI_STA_DISCONNECTED,  ac_wifi_disconnected,   0}, // Do connect_station() or start_smartconfig()
-        {EV_WIFI_STA_STOP,          ac_wifi_stop,           ST_WIFI_WAIT_START},
+        {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
+        {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
+        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
+        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
 
