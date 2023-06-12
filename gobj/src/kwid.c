@@ -1548,7 +1548,7 @@ PUBLIC int kw_pop(
 /***************************************************************************
     Utility for databases.
     Get a json item walking by the tree (routed by path)
-    options:  "verbose", "backward", "lower", "upper"
+    options:  "verbose", "backward"
     Convention:
         - all arrays are list of records (dicts) with "id" field as primary key
         - delimiter are '`' by default, can be changed by kw_set_path_delimiter
@@ -1556,90 +1556,84 @@ PUBLIC int kw_pop(
 PUBLIC json_t *kwid_get(
     hgobj gobj,
     json_t *kw,  // NOT owned
-    char *path,
-    const char *options // "verbose", "backward", "lower", "upper"
+    const char *id,
+    json_t *default_value,
+    kw_flag_t flag
 )
 {
-    BOOL verbose = (options && strstr(options, "verbose"))?TRUE:FALSE;
-    BOOL backward = (options && strstr(options, "backward"))?TRUE:FALSE;
+    json_t *v = NULL;
+    BOOL backward = flag & KW_BACKWARD;
 
-    if(options && strstr(options, "lower")) {
-        strntolower(path, strlen(path));
+    if(empty_string(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "id NULL",
+            NULL
+        );
+        return NULL;
     }
-    if(options && strstr(options, "upper")) {
-        strntoupper(path, strlen(path));
-    }
 
-    int list_size;
-    const char **segments = split3(path, delimiter, &list_size);
-
-    json_t *v = kw;
-    BOOL fin = FALSE;
-    for(int i=0; i<list_size && !fin; i++) {
-        const char *segment = *(segments +i);
-
+    switch(json_typeof(kw)) {
+    case JSON_OBJECT:
+        v = json_object_get(kw, id);
         if(!v) {
-            if(verbose) {
+            if(flag & KW_REQUIRED) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "short path",
-                    "path",         "%s", path,
-                    "segment",      "%s", segment,
+                    "msg",          "%s", "record NOT FOUND, default value returned",
+                    "id",           "%s", id,
                     NULL
                 );
+                gobj_trace_json(gobj, kw, "record NOT FOUND, default value returned, id='%s'", id);
             }
-            break;
+            return default_value;
         }
+        return v;
 
-        switch(json_typeof(v)) {
-        case JSON_OBJECT:
-            v = json_object_get(v, segment);
-            if(!v) {
-                fin = TRUE;
-            }
-            break;
-        case JSON_ARRAY:
-            {
-                int idx; json_t *v_;
-                BOOL found = FALSE;
-                if(!backward) {
-                    json_array_foreach(v, idx, v_) {
-                        const char *id = json_string_value(json_object_get(v_, "id"));
-                        if(id && strcmp(id, segment)==0) {
-                            v = v_;
-                            found = TRUE;
-                            break;
-                        }
-                    }
-                    if(!found) {
-                        v = 0;
-                        fin = TRUE;
-                    }
-                } else {
-                    json_array_backward(v, idx, v_) {
-                        const char *id = json_string_value(json_object_get(v_, "id"));
-                        if(id && strcmp(id, segment)==0) {
-                            v = v_;
-                            found = TRUE;
-                            break;
-                        }
-                    }
-                    if(!found) {
-                        v = 0;
-                        fin = TRUE;
+    case JSON_ARRAY:
+        {
+            int idx;
+            if(!backward) {
+                json_array_foreach(kw, idx, v) {
+                    const char *id_ = json_string_value(json_object_get(v, "id"));
+                    if(id_ && strcmp(id_, id)==0) {
+                        return v;
                     }
                 }
-
+            } else {
+                json_array_backward(kw, idx, v) {
+                    const char *id_ = json_string_value(json_object_get(v, "id"));
+                    if(id_ && strcmp(id_, id)==0) {
+                        return v;
+                    }
+                }
             }
-            break;
-        default:
-            fin = TRUE;
-            break;
+
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "record NOT FOUND, default value returned",
+                    "id",           "%s", id,
+                    NULL
+                );
+                gobj_trace_json(gobj, kw, "record NOT FOUND, default value returned, id='%s'", id);
+            }
+            return default_value;
         }
+        break;
+    default:
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw must be an array or a list",
+            "id",           "%s", id,
+            NULL
+        );
+        break;
     }
 
-    split_free3(segments);
-
-    return v;
+    return NULL;
 }

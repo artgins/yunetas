@@ -41,14 +41,14 @@ PRIVATE int start_smartconfig(hgobj gobj);
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE json_desc_t jn_wifi_desc[] = {
-// Name         Type        Default
-{"ssid",        "str",      ""},
-{"password",    "str",      ""},
-{"bssid",       "str",      ""},
-{"bssid_set",   "bool",     "false"},
-{0}   // HACK important, final null
-};
+//PRIVATE json_desc_t jn_wifi_desc[] = {
+//// Name         Type        Default
+//{"ssid",        "str",      ""},
+//{"password",    "str",      ""},
+//{"bssid",       "str",      ""},
+//{"bssid_set",   "bool",     "false"},
+//{0}   // HACK important, final null
+//};
 
 /*---------------------------------------------*
  *          Attributes
@@ -125,9 +125,14 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
 #ifdef ESP_PLATFORM
     ESP_ERROR_CHECK(esp_wifi_start()); // Will arise WIFI_EVENT_STA_START
 #endif
+
+    priv->idx_wifi_list = -1;
+
     return 0;
 }
 
@@ -359,9 +364,11 @@ PRIVATE int start_smartconfig(hgobj gobj)
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
 #endif
 
-    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     if(json_array_size(jn_wifi_list) == 0) {
+        /*
+         *  if the wifi list is empty then change to ST_WIFI_WAIT_SSID_CONF, wait forever
+         */
         gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
     }
 
@@ -373,7 +380,8 @@ PRIVATE int start_smartconfig(hgobj gobj)
  ***************************************************************************/
 PRIVATE int connect_station(hgobj gobj)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+#ifdef ESP_PLATFORM
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECTION,
@@ -381,18 +389,24 @@ PRIVATE int connect_station(hgobj gobj)
         NULL
     );
 
-// TODO    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    gobj_trace_json(gobj, jn_wifi_list, "connect_station------------------->wifi_list"); // TODO TEST
 
-#ifdef ESP_PLATFORM
+    int max_wifi_list = (int)json_array_size(jn_wifi_list);
+    int idx_wifi_list = ++priv->idx_wifi_list % max_wifi_list;
+    json_t *jn_wifi = json_array_get(jn_wifi_list, idx_wifi_list);
+
+    gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", idx_wifi_list); // TODO TEST
+
     wifi_config_t wifi_config;
-    const char *ssid = gobj_read_str_attr(gobj, "ssid");
-    const char *password = gobj_read_str_attr(gobj, "password");
-    //const char *bssid = gobj_read_str_attr(gobj, "bssid");
+    const char *ssid = kw_get_str(gobj, jn_wifi, "ssid", "", KW_REQUIRED);
+    const char *password = kw_get_str(gobj, jn_wifi, "password", "", KW_REQUIRED);
+    //const char *bssid = kw_get_str(gobj, jn_wifi, "bssid", "", KW_REQUIRED);
     /*
      *  Generally, station_config.bssid_set needs to be 0;
      *  and it needs to be 1 only when users need to check the MAC address of the AP.
      */
-    BOOL bssid_set = 0; //gobj_read_bool_attr(gobj, "bssid_set");
+    BOOL bssid_set = 0; //kw_get_bool(gobj, jn_wifi, "bssid_set", 0, KW_REQUIRED);
 
     bzero(&wifi_config, sizeof(wifi_config_t));
     memcpy(wifi_config.sta.ssid, ssid, MIN(strlen(ssid), sizeof(wifi_config.sta.ssid)));
@@ -596,15 +610,15 @@ PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *
             NULL
         );
         JSON_DECREF(kw)
-        return 0;
+        return -1;
     }
 
     json_object_set_new(kw, "id", json_string(id));
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    json_t *jn_record = kwid_get(gobj, jn_wifi_list, json_string(id), "");
+    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0);
     if(!jn_record) {
-        json_array_append(jn_wifi_list, kw);
+        json_array_insert(jn_wifi_list, 0, kw);
     } else  {
         json_object_update(jn_record, kw);
     }
@@ -627,12 +641,28 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
         NULL
     );
 
-    gobj_write_str_attr(gobj, "ssid", kw_get_str(gobj, kw, "ssid", "", KW_REQUIRED));
-    gobj_write_str_attr(gobj, "password", kw_get_str(gobj, kw, "password", "", KW_REQUIRED));
-    gobj_write_bool_attr(gobj, "bssid_set", kw_get_bool(gobj, kw, "bssid_set", "false", KW_REQUIRED));
-    gobj_write_str_attr(gobj, "bssid", kw_get_str(gobj, kw, "bssid", "", KW_REQUIRED));
-    gobj_write_bool_attr(gobj, "login_data_saved", TRUE);
-    gobj_save_persistent_attrs(gobj, 0);
+    const char *id = kw_get_str(gobj, kw, "ssid", "", KW_REQUIRED);
+    if(empty_string(id)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ssid empty",
+            NULL
+        );
+        JSON_DECREF(kw)
+        return -1;
+    }
+
+    json_object_set_new(kw, "id", json_string(id));
+
+    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0);
+    if(!jn_record) {
+        json_array_insert(jn_wifi_list, 0, kw);
+    } else  {
+        json_object_update(jn_record, kw);
+    }
+    gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
 
     JSON_DECREF(kw)
     return 0;
@@ -649,7 +679,9 @@ PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, 
         NULL
     );
 
+#ifdef ESP_PLATFORM
     esp_smartconfig_stop();
+#endif
     start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
 
     JSON_DECREF(kw)

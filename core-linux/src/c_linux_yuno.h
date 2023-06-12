@@ -48,11 +48,6 @@ PUBLIC int register_c_linux_yuno(void);
  */
 PUBLIC void *yuno_event_loop(void);
 
-/*
- *  Set quit/debug signals
- */
-PUBLIC void yuno_catch_signals(void);
-
 /*--------------------------------------------------*
  *  Denied ips (prevalence over allowed)
  *

@@ -89,6 +89,7 @@ typedef enum {
     KW_CREATE           = 0x0002,   // Create if not exist
     KW_WILD_NUMBER      = 0x0004,   // For numbers work with real/int/bool/string without error logging
     KW_EXTRACT          = 0x0008,   // Extract (delete) the key on read from dictionary.
+    KW_BACKWARD         = 0x0010,   // Search backward in lists or arrays
 } kw_flag_t;
 
 PUBLIC int kw_add_binary_type(
@@ -309,17 +310,17 @@ PUBLIC int kw_pop(
 
 /***************************************************************************
     Utility for databases.
-    Get a json item walking by the tree (routed by path)
-    options:  "verbose", "backward", "lower", "upper"
+    Get a json list or dict, get the **first** record that match `id`
     Convention:
-        - all arrays are list of records (dicts) with "id" field as primary key
-        - delimiter are '`' by default, can be changed by kw_set_path_delimiter
+        - If it's a list of dict: the records have "id" field as primary key
+        - If it's a dict, the key is the `id`
  ***************************************************************************/
 PUBLIC json_t *kwid_get(
     hgobj gobj,
     json_t *kw,  // NOT owned
-    char *path,
-    const char *options // "verbose", "backward", "lower", "upper"
+    const char *id,
+    json_t *default_value,
+    kw_flag_t flag
 );
 
 
