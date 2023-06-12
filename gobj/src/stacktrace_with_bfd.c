@@ -15,7 +15,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #ifdef __linux__
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +24,6 @@
 #include <bfd.h>
 #include <libiberty/demangle.h>
 #include <execinfo.h>
-#endif
 
 #include "stacktrace_with_bfd.h"
 
@@ -195,7 +193,6 @@ static asymbol **slurp_symtab(bfd *abfd)
  *
  ***************************************************************************/
 PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
-#ifdef __linux__
     if(!initialized) {
         return;
     }
@@ -247,8 +244,6 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
     bfd_close (abfd);
 
     fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
-
-#endif
 }
 
 /***************************************************************************
@@ -263,3 +258,5 @@ PUBLIC int init_backtrace_with_bfd(const char *program)
     snprintf(program_name, sizeof(program_name), "%s", program);
     return 0;
 }
+
+#endif
