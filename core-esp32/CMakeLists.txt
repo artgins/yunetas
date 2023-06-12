@@ -16,11 +16,11 @@ set (SRCS
     /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_esp_transport.c
     /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_esp_uart.c
     /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_esp_wifi.c
-    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_esp_yuno.c
-    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_timer.c
+#    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_esp_yuno.c
+#    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/src/c_timer.c
 
-    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/src/c_prot_http_cli.c
-    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/src/c_prot_modbus_master.c
+#    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/src/c_prot_http_cli.c
+#    /yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/src/c_prot_modbus_master.c
 )
 
 
