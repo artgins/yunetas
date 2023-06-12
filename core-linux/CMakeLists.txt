@@ -19,7 +19,6 @@ set (HDRS
     src/c_linux_yuno.h
     src/c_timer.h
     src/yuneta_environment.h
-    src/yuneta_ev_loop.h
 )
 
 

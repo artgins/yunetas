@@ -2,7 +2,7 @@
  *          c_timer.h
  *
  *          GClass Timer
- *          Low level esp-idf
+ *          Low level linux
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.

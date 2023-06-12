@@ -10,7 +10,6 @@
 #pragma once
 
 #include <gobj.h>
-#include "yuneta_ev_loop.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -47,7 +46,7 @@ PUBLIC int register_c_linux_yuno(void);
 /*
  *  Get yuno event loop
  */
-PUBLIC yev_loop_h yuno_event_loop(void);
+PUBLIC void *yuno_event_loop(void);
 
 /*
  *  Set quit/debug signals

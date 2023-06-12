@@ -2,17 +2,14 @@
  *          c_timer.c
  *
  *          GClass Timer
- *          Low level esp-idf
+ *          Low level linux
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <time.h>
-#ifdef ESP_PLATFORM
-  #include <esp_timer.h>
-  #include <esp_event.h>
-  #include "c_esp_yuno.h"
-#endif
+#include "c_linux_yuno.h"
+#include "yuneta_ev_loop.h"
 #include "c_timer.h"
 
 /***************************************************************
@@ -22,9 +19,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-#ifdef ESP_PLATFORM
-static void timer_callback(void* arg);
-#endif
+PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, gbuffer *gbuf);
 
 /***************************************************************
  *              Data
@@ -45,9 +40,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     BOOL periodic;
-#ifdef ESP_PLATFORM
-    esp_timer_handle_t esp_timer_handle;
-#endif
+    yev_event_t *yev_event;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -89,20 +82,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
-    esp_timer_create_args_t esp_timer_create_args = {
-        .callback = &timer_callback,
-        .arg = gobj,
-        .skip_unhandled_events = true
-    };
-
-    ESP_ERROR_CHECK(esp_timer_create(&esp_timer_create_args, &priv->esp_timer_handle));
-#endif
+    priv->yev_event = yev_create_timer(yuno_event_loop(), yev_callback, gobj);
     return 0;
 }
 
@@ -111,19 +96,12 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    esp_err_t err = esp_timer_delete(priv->esp_timer_handle);
-    if(err) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "esp_timer_delete() FAILED",
-            "esp_error",    "%s", esp_err_to_name(err),
-            NULL
-        );
+
+    if(priv->yev_event) {
+        yev_destroy_event(priv->yev_event);
+        priv->yev_event = NULL;
     }
-#endif
     return 0;
 }
 
@@ -132,36 +110,12 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_int_t msec = gobj_read_integer_attr(gobj, "msec");
+    time_t msec = (time_t)gobj_read_integer_attr(gobj, "msec");
     BOOL periodic = gobj_read_bool_attr(gobj, "periodic");
 
-    if(periodic) {
-        esp_err_t err = esp_timer_start_periodic(priv->esp_timer_handle, msec*1000); // timer in microseconds
-        if(err != ESP_OK) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "esp_timer_start_periodic() FAILED",
-                "esp_error",    "%s", esp_err_to_name(err),
-                NULL
-            );
-        }
-    } else {
-        esp_err_t err = esp_timer_start_once(priv->esp_timer_handle, msec*1000); // timer in microseconds
-        if(err != ESP_OK) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "esp_timer_start_once() FAILED",
-                "esp_error",    "%s", esp_err_to_name(err),
-                NULL
-            );
-        }
-    }
-#endif
+    yev_timer_set(priv->yev_event, msec, periodic);
 
     return 0;
 }
@@ -171,22 +125,9 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(esp_timer_is_active(priv->esp_timer_handle)) {
-        esp_err_t err = esp_timer_stop(priv->esp_timer_handle);
-        if(err != ESP_OK) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "esp_timer_stop() FAILED",
-                "esp_error",    "%s", esp_err_to_name(err),
-                NULL
-            );
-        }
-    }
-#endif
+    yev_timer_set(priv->yev_event, 0, 0);
 
     return 0;
 }
@@ -212,19 +153,17 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-#ifdef ESP_PLATFORM
-static void timer_callback(void* arg)
+PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, gbuffer *gbuf)
 {
-    hgobj gobj = arg;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->periodic) {
-        gobj_post_event(gobj, EV_PERIODIC_TIMEOUT, 0, gobj);
+        gobj_send_event(gobj, EV_PERIODIC_TIMEOUT, 0, gobj);
     } else {
-        gobj_post_event(gobj, EV_TIMEOUT, 0, gobj);
+        gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
     }
+    return 0;
 }
-#endif
 
 
 
@@ -364,7 +303,7 @@ PUBLIC int register_c_timer(void)
 /***************************************************************************
  *  Set timeout
  ***************************************************************************/
-PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
+PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
     if(gobj_get_deep_tracing()>1) {
         trace_machine("⏲ ✅ set_timeout %ld: %s",
@@ -385,7 +324,7 @@ PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
 /***************************************************************************
  *  Set periodic timeout
  ***************************************************************************/
-PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
+PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
     if(gobj_get_deep_tracing()>1) {
         trace_machine("⏲ ⏲ ✅ set_timeout_periodic %ld: %s",
@@ -406,7 +345,7 @@ PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
 /***************************************************************************
  *  Clear timeout
  ***************************************************************************/
-PUBLIC void IRAM_ATTR clear_timeout(hgobj gobj)
+PUBLIC void clear_timeout(hgobj gobj)
 {
     if(gobj_get_deep_tracing()>1) {
         trace_machine("⏲ ❎ clear_timeout: %s",
