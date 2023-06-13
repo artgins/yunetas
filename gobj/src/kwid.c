@@ -1598,8 +1598,9 @@ PUBLIC json_t *kwid_get(
 
     case JSON_ARRAY:
         {
-            int idx;
             if(!backward) {
+                size_t idx;
+
                 json_array_foreach(kw, idx, v) {
                     const char *id_ = json_string_value(json_object_get(v, "id"));
                     if(id_ && strcmp(id_, id)==0) {
@@ -1607,6 +1608,7 @@ PUBLIC json_t *kwid_get(
                     }
                 }
             } else {
+                int idx;
                 json_array_backward(kw, idx, v) {
                     const char *id_ = json_string_value(json_object_get(v, "id"));
                     if(id_ && strcmp(id_, id)==0) {

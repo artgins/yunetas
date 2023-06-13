@@ -6648,7 +6648,7 @@ static inline char * byte_to_strhex(char *s, char w)
  *  nivel 2 -> en hexa y en asci
  *  nivel 3 -> en hexa y en asci y con contador (indice)
  ***********************************************************************/
-PUBLIC void tdump(const char *prefix, const char *s, size_t len, view_fn_t view, int nivel)
+PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)
 {
     static char bf[80+1];
     static char asci[40+1];
@@ -6717,7 +6717,7 @@ PUBLIC void tdump(const char *prefix, const char *s, size_t len, view_fn_t view,
  *  Vuelca en formato tdump un array de longitud 'len'
  *    Contador, hexa, ascii
  ***********************************************************************/
-PUBLIC json_t *tdump2json(const char *s, size_t len)
+PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)
 {
     char hexa[80+1];
     char asci[40+1];
@@ -6777,7 +6777,7 @@ PUBLIC void gobj_trace_dump(
 ) {
     va_list ap;
 
-    json_t *jn_data = tdump2json(bf, len);
+    json_t *jn_data = tdump2json((uint8_t *)bf, len);
 
     va_start(ap, fmt);
     trace_vjson(gobj, jn_data, "trace_dump", fmt, ap);
@@ -9009,7 +9009,7 @@ PUBLIC void gobj_trace_dump_gbuf(
         return;
     }
 
-    char *bf = gbuffer_cur_rd_pointer(gbuf);
+    uint8_t *bf = gbuffer_cur_rd_pointer(gbuf);
     size_t len = gbuffer_chunk(gbuf);
 
 
@@ -9045,7 +9045,7 @@ PUBLIC void gobj_trace_dump_full_gbuf(
         return;
     }
 
-    char *bf = gbuffer_head_pointer(gbuf);
+    uint8_t *bf = gbuffer_head_pointer(gbuf);
     size_t len = gbuffer_totalbytes(gbuf);
 
     json_t *jn_data = json_object();

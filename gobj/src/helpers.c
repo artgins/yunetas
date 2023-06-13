@@ -243,7 +243,7 @@ PUBLIC int mkrdir(const char *path, int index, int permission)
     char *p = strchr(path + index, '/');
     int len;
     if(p) {
-        len = MIN(p-path, sizeof(bf)-1);
+        len = MIN((size_t)(p-path), sizeof(bf)-1);
         strncpy(bf, path, len);
         bf[len]=0;
     } else {

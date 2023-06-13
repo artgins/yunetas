@@ -1511,8 +1511,8 @@ PUBLIC void gobj_trace_dump(
 ) JANSSON_ATTRS((format(printf, 4, 5)));
 
 typedef int (*view_fn_t)(const char *format, ...);;
-PUBLIC void tdump(const char *prefix, const char *s, size_t len, view_fn_t view, int nivel);
-PUBLIC json_t *tdump2json(const char *s, size_t len);
+PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel);
+PUBLIC json_t *tdump2json(const uint8_t *s, size_t len);
 PUBLIC int print_json2(const char *label, json_t *jn);
 
 /*---------------------------------*

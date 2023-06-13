@@ -517,8 +517,6 @@ PRIVATE int mt_start(hgobj gobj)
     build_slave_data(gobj);
     check_conversion_variables(gobj);
 
-    regex_t __regex; regcomp(&__regex, ".*", 0);
-
     SWITCHS(priv->modbus_protocol) {
         CASES("TCP")
             priv->istream_head = istream_create(
@@ -1406,7 +1404,7 @@ PRIVATE int build_slave_data(hgobj gobj)
      *  Fill data
      */
     slave_data_t *pslv = priv->slave_data;
-    int idx_slaves; json_t *jn_slave;
+    size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
         pslv->slave_id = slave_id;
@@ -1418,7 +1416,7 @@ PRIVATE int build_slave_data(hgobj gobj)
         json_object_set_new(pslv->x_control, get_object_type_name(TYPE_HOLDING_REGISTER), json_object());
 
         json_t *jn_mapping = kw_get_list(gobj, jn_slave, "mapping", 0, KW_REQUIRED);
-        int idx_map; json_t *jn_map;
+        size_t idx_map; json_t *jn_map;
         json_array_foreach(jn_mapping, idx_map, jn_map) {
             const char *type = kw_get_str(gobj, jn_map, "type", "", KW_REQUIRED);
             modbus_object_type_t object_type = get_object_type(gobj, type);
@@ -2867,7 +2865,7 @@ PRIVATE int build_message_to_publish(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int idx_slaves; json_t *jn_slave;
+    size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
         slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
@@ -2882,7 +2880,7 @@ PRIVATE int build_message_to_publish(hgobj gobj)
         json_t *kw_data = json_object();
         json_object_set_new(kw_data, "slave_id", json_integer(slave_id));
 
-        int idx_conversion; json_t *jn_variable;
+        size_t idx_conversion; json_t *jn_variable;
         json_array_foreach(jn_conversion, idx_conversion, jn_variable) {
             BOOL disabled = kw_get_bool(gobj, jn_variable, "disabled", 0, 0);
             if(disabled) {
@@ -3063,7 +3061,7 @@ PRIVATE int check_conversion_variables(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int idx_slaves; json_t *jn_slave;
+    size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
         slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
@@ -3075,7 +3073,7 @@ PRIVATE int check_conversion_variables(hgobj gobj)
             continue;
         }
 
-        int idx_conversion; json_t *jn_variable;
+        size_t idx_conversion; json_t *jn_variable;
         json_array_foreach(jn_conversion, idx_conversion, jn_variable) {
             check_conversion_variable(gobj, pslv, jn_variable);
         }

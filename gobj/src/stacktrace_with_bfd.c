@@ -101,7 +101,7 @@ static void find_address_in_section (
 static void translate_addresses(
     bfd *abfd,
     const void *addresses[],
-    uint addressCount,
+    int addressCount,
     asymbol **syms,
     loghandler_fwrite_fn_t fwrite_fn,
     void *h
@@ -197,8 +197,7 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
     }
 
     void *stackTrace[128] = {0};
-    uint stackTraceCount;
-    stackTraceCount = backtrace(stackTrace, 128);
+    int stackTraceCount = stackTraceCount = backtrace(stackTrace, 128);
 
     // get symbols and print stack trace
     fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");

@@ -18,10 +18,10 @@ set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /yuneta/development/outputs/lib)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)
-    add_compile_options(-std=c99 -Wall -g3 -fno-pie)
+    add_compile_options(-std=c99 -Wall -Wextra -g3 -fno-pie -fno-stack-protector -Wno-unused-parameter)
     add_link_options(-no-pie)
 else()
-    add_compile_options(-std=c99 -Wall -g3 -O -fno-pie)
+    add_compile_options(-std=c99 -Wall -Wextra -g3 -O -fno-pie -fno-stack-protector -Wno-unused-parameter)
     add_link_options(-no-pie)
 endif()
 
