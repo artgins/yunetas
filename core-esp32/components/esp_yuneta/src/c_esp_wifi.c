@@ -589,9 +589,9 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     if(json_array_size(jn_wifi_list) > 0) {
         connect_station(gobj);      // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
+    } else {
+        start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
     }
-
-    start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
 
     JSON_DECREF(kw)
     return 0;
@@ -691,7 +691,6 @@ PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, 
 #ifdef ESP_PLATFORM
     esp_smartconfig_stop();
 #endif
-    start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
 
     JSON_DECREF(kw)
     return 0;

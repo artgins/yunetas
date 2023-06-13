@@ -298,9 +298,10 @@ PUBLIC void udpc_close(udpc_t udpc)
 /***************************************************************************
  *  max len 64K bytes
  ***************************************************************************/
-PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
+PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf_, size_t len)
 {
     udp_client_t *uc = udpc;
+    const unsigned char* bf = (unsigned char*)bf_;
 
     if(!udpc || !bf) {
         #ifdef ESP_PLATFORM
@@ -399,7 +400,7 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
             );
 
             snprintf(
-                uc->buffer,
+                (char *)uc->buffer,
                 uc->buffer_size,
                 "<%d>%s %s %s[%d]: @cee:%.*s",
                     (1 << 3) | priority, // Always LOG_USER
@@ -410,7 +411,7 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
                     (int)len,
                     bf
             );
-            len = strlen(uc->buffer);
+            len = strlen((char *)uc->buffer);
             len++; // add final null
         }
         break;
@@ -420,16 +421,16 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
         {
             uint32_t i, crc;
 
-            char temp[12];
+            unsigned char temp[12];
             snprintf(
-                temp,
+                (char *)temp,
                 sizeof(temp),
                 "%c%08"PRIX32,
                 '0' + priority,
                 sequence
             );
             crc = 0;
-            for(i=0; i<strlen(temp); i++) {
+            for(i=0; i<strlen((char *)temp); i++) {
                 uint32_t x = (uint32_t)temp[i];
                 crc += x;
             }
@@ -438,7 +439,7 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
                 crc += x;
             }
             snprintf(
-                uc->buffer,
+                (char *)uc->buffer,
                 uc->buffer_size - 1,
                 "%c%08"PRIX32"%s%08"PRIX32,
                 '0' + priority,
@@ -446,7 +447,7 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf, size_t len)
                 bf,
                 crc
             );
-            len = strlen(uc->buffer);
+            len = strlen((char *)uc->buffer);
             len++; // add final null
             sequence++;
         }
