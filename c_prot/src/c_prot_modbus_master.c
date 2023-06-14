@@ -415,7 +415,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int timeout_polling;
     int timeout_response;
-    hgobj timer;
+    hgobj gobj_timer;
     const char *modbus_protocol;
 
     json_t *slaves_;
@@ -469,7 +469,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -508,7 +508,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->timer);
+    gobj_start(priv->gobj_timer);
 
     priv->jn_conversion = json_array();
     priv->jn_request_queue = json_array();
@@ -575,8 +575,8 @@ PRIVATE int mt_stop(hgobj gobj)
     RESET_MACHINE();
     ISTREAM_DESTROY(priv->istream_head);
 
-    clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
+    clear_timeout(priv->gobj_timer);
+    gobj_stop(priv->gobj_timer);
 
     JSON_DECREF(priv->jn_request_queue);
     JSON_DECREF(priv->jn_current_request);
@@ -1712,7 +1712,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
-    set_timeout(priv->timer, priv->timeout_response*1000);
+    set_timeout(priv->gobj_timer, priv->timeout_response*1000);
 
     return 0;
 }
@@ -1743,7 +1743,7 @@ PRIVATE BOOL send_request(hgobj gobj)
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
-    set_timeout(priv->timer, priv->timeout_response*1000);
+    set_timeout(priv->gobj_timer, priv->timeout_response*1000);
 
     return TRUE;
 }
@@ -3130,9 +3130,9 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     priv->inform_on_close = TRUE;
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
-    set_timeout(priv->timer, 1*1000);
+    set_timeout(priv->gobj_timer, 1*1000);
 
-    KW_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -3145,7 +3145,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     RESET_MACHINE();
 
-    clear_timeout(priv->timer);
+    clear_timeout(priv->gobj_timer);
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -3156,7 +3156,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_publish_event(gobj, EV_ON_CLOSE, 0);
     }
 
-    KW_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -3168,9 +3168,9 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*---------------------------------------------*
-     *   Reset response timer
+     *   Reset response gobj_timer
      *---------------------------------------------*/
-    clear_timeout(priv->timer);
+    clear_timeout(priv->gobj_timer);
 
     /*---------------------------------------------*
      *   Recupera el frame
@@ -3275,14 +3275,14 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 /*
                  *  NO map or end of cycle, wait timeout_polling
                  */
-                set_timeout(priv->timer, priv->timeout_polling);
+                set_timeout(priv->gobj_timer, priv->timeout_polling);
             } else {
                 if(poll_modbus(gobj)<0) {
                     /*
                      *  Problemas con el query actual, pasa al siguiente después del timeout
                      */
                     next_map(gobj);
-                    set_timeout(priv->timer, priv->timeout_polling);
+                    set_timeout(priv->gobj_timer, priv->timeout_polling);
                 } else {
                     // timeout set by poll_modbus
                 }
@@ -3290,7 +3290,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -3307,7 +3307,7 @@ PRIVATE int ac_enqueue_tx_message(hgobj gobj, const char *event, json_t *kw, hgo
 
     json_array_append_new(priv->jn_request_queue, json_deep_copy(kw));
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -3318,7 +3318,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
-    KW_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -3337,21 +3337,21 @@ PRIVATE int ac_timeout_polling(hgobj gobj, const char *event, json_t *kw, hgobj 
             /*
              *  NO map or end of cycle, wait timeout_polling
              */
-            set_timeout(priv->timer, priv->timeout_polling);
+            set_timeout(priv->gobj_timer, priv->timeout_polling);
         } else {
             if(poll_modbus(gobj)<0) {
                 /*
                  *  Problemas con el query actual, pasa al siguiente después del timeout
                  */
                 next_map(gobj);
-                set_timeout(priv->timer, priv->timeout_polling);
+                set_timeout(priv->gobj_timer, priv->timeout_polling);
             } else {
                 // timeout set by poll_modbus
             }
         }
     }
 
-    KW_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -3376,20 +3376,20 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
         /*
          *  NO map or end of cycle, wait timeout_polling
          */
-        set_timeout(priv->timer, priv->timeout_response*1000);
+        set_timeout(priv->gobj_timer, priv->timeout_response*1000);
     } else {
         if(poll_modbus(gobj)<0) {
             /*
              *  Problemas con el query actual, pasa al siguiente después del timeout
              */
             next_map(gobj);
-            set_timeout(priv->timer, priv->timeout_response*1000);
+            set_timeout(priv->gobj_timer, priv->timeout_response*1000);
         } else {
             // timeout set by poll_modbus
         }
     }
 
-    KW_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 

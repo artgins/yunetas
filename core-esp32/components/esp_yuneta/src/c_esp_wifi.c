@@ -21,6 +21,7 @@
 
 #include <helpers.h>
 #include <kwid.h>
+#include <c_timer.h>
 #include "c_esp_yuno.h"
 #include "c_esp_wifi.h"
 
@@ -41,15 +42,6 @@ PRIVATE int start_smartconfig(hgobj gobj);
 /***************************************************************
  *              Data
  ***************************************************************/
-//PRIVATE json_desc_t jn_wifi_desc[] = {
-//// Name         Type        Default
-//{"ssid",        "str",      ""},
-//{"password",    "str",      ""},
-//{"bssid",       "str",      ""},
-//{"bssid_set",   "bool",     "false"},
-//{0}   // HACK important, final null
-//};
-
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
@@ -57,12 +49,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-----description---------- */
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
-
-//SDATA (DTP_BOOLEAN, "login_data_saved", SDF_PERSIST|SDF_STATS,  "false",    "Wifi data saved"),
-//SDATA (DTP_STRING,  "ssid",             SDF_PERSIST|SDF_STATS,  "",         "Wifi ssid (33)"),
-//SDATA (DTP_STRING,  "password",         SDF_PERSIST,            "",         "Wifi password (65)"),
-//SDATA (DTP_STRING,  "bssid",            SDF_PERSIST,            "",         "Wifi bssid (6)"), // not used
-//SDATA (DTP_BOOLEAN, "bssid_set",        SDF_PERSIST,            "false",    "Wifi bssid set"), // not used
+SDATA (DTP_INTEGER, "timeout_smartconfig",SDF_PERSIST,          "30",       "Timeout in seconds waiting smartconfig"),
 
 SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "[]",       "List of wifis (ssid/passw)"),
 SDATA_END()
@@ -75,6 +62,8 @@ typedef struct _PRIVATE_DATA {
 #ifdef ESP_PLATFORM
     esp_netif_t *sta_netif;
 #endif
+    int timeout_smartconfig;
+    hgobj gobj_timer;
     BOOL on_open_published;
     int idx_wifi_list;
 } PRIVATE_DATA;
@@ -96,8 +85,10 @@ PRIVATE hgclass gclass = 0;
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+#ifdef ESP_PLATFORM
 
     priv->sta_netif = esp_netif_create_default_wifi_sta();
     assert(priv->sta_netif);
@@ -111,6 +102,8 @@ PRIVATE void mt_create(hgobj gobj)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 #endif
+
+    SET_PRIV(timeout_smartconfig,      (int)gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -118,6 +111,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(timeout_smartconfig,      (int)gobj_read_integer_attr)
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -126,6 +123,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_timer);
 
 #ifdef ESP_PLATFORM
     ESP_ERROR_CHECK(esp_wifi_start()); // Will arise WIFI_EVENT_STA_START
@@ -141,6 +140,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->gobj_timer);
+    gobj_stop(priv->gobj_timer);
+
 #ifdef ESP_PLATFORM
     esp_wifi_stop();    // Will arise WIFI_EVENT_STA_STOP
 #endif
@@ -352,6 +356,8 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
  ***************************************************************************/
 PRIVATE int start_smartconfig(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECTION,
         "msg",          "%s", "DO start_smartconfig",
@@ -365,13 +371,12 @@ PRIVATE int start_smartconfig(hgobj gobj)
 #endif
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    if(json_array_size(jn_wifi_list) == 0) {
-        /*
-         *  if the wifi list is empty then change to ST_WIFI_WAIT_SSID_CONF, wait forever
-         */
-        gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
+    if(json_array_size(jn_wifi_list) > 0) {
+        // Set smartconfig timeout if already got some config
+        set_timeout(priv->gobj_timer, priv->timeout_smartconfig*1000);
     }
 
+    gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
     return 0;
 }
 
@@ -697,6 +702,31 @@ PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, 
 }
 
 /***************************************************************************
+ *  Timeout esperando configuración teniendo alguna guardada,
+ *  reintenta conectar
+ ***************************************************************************/
+PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msg",          "%s", "smartconfig Timeout",
+        NULL
+    );
+
+#ifdef ESP_PLATFORM
+    esp_smartconfig_stop();
+#endif
+
+    connect_station(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_wifi_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -835,6 +865,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
         {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_connect,0}, // Do connect_station()
+        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
+        {EV_TIMEOUT,                    ac_timeout_smartconfig,     0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };
@@ -842,23 +874,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
         {EV_WIFI_STA_CONNECTED,         ac_wifi_connected,          ST_WIFI_WAIT_IP},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
-        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
-        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_ip[] = {
         {EV_WIFI_GOT_IP,                ac_wifi_got_ip,             ST_WIFI_IP_ASSIGNED},
         {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
-        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
-        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
     ev_action_t st_wifi_ip_assigned[] = {
         {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
-        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
-        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
         {0,0,0}
     };
 

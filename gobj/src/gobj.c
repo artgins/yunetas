@@ -5993,6 +5993,7 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
     }
     json_object_set_new(jn, "gclass", json_string(gobj->gclass->gclass_name));
     json_object_set_new(jn, "gobj_name", json_string(gobj->gobj_name));
+    json_object_set_new(jn, "state", json_string(gobj_current_state(gobj)));
     if(trace_with_full_name) {
         json_object_set_new(jn,
             "gobj_full_name",
