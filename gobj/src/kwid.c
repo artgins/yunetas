@@ -1562,11 +1562,16 @@ PUBLIC json_t *kwid_get(
     json_t *kw,  // NOT owned
     const char *id,
     json_t *default_value,
-    kw_flag_t flag
+    kw_flag_t flag,
+    size_t *idx_     // If not null set the idx in case of array
 )
 {
     json_t *v = NULL;
     BOOL backward = flag & KW_BACKWARD;
+
+    if(idx_) { // error case
+        *idx_ = 0;
+    }
 
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1600,10 +1605,12 @@ PUBLIC json_t *kwid_get(
         {
             if(!backward) {
                 size_t idx;
-
                 json_array_foreach(kw, idx, v) {
                     const char *id_ = json_string_value(json_object_get(v, "id"));
                     if(id_ && strcmp(id_, id)==0) {
+                        if(idx_) {
+                            *idx_ = idx;
+                        }
                         return v;
                     }
                 }
@@ -1612,6 +1619,9 @@ PUBLIC json_t *kwid_get(
                 json_array_backward(kw, idx, v) {
                     const char *id_ = json_string_value(json_object_get(v, "id"));
                     if(id_ && strcmp(id_, id)==0) {
+                        if(idx_) {
+                            *idx_ = idx;
+                        }
                         return v;
                     }
                 }

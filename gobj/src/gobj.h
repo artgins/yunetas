@@ -914,7 +914,7 @@ typedef enum { // HACK strict ascendant value!, strings in s_gobj_flag (TODO)
 
 // Timer Events, defined here to easy filtering in trace
 GOBJ_DECLARE_EVENT(EV_TIMEOUT);
-GOBJ_DECLARE_EVENT(EV_PERIODIC_TIMEOUT);
+GOBJ_DECLARE_EVENT(EV_TIMEOUT_PERIODIC);
 
 // System Events
 GOBJ_DECLARE_EVENT(EV_STATE_CHANGED);
@@ -1414,7 +1414,8 @@ PUBLIC uint32_t gobj_no_trace_level(hgobj gobj);
 /*
  *  Set trace levels and no-set trace levels, in gclass and gobj
  *      - if gobj is null then the trace level is global.
- *      - if level is empty, all levels are set/reset.
+ *      - if level is NULL, all global and gclass levels are set/reset.
+ *      - if level is "", all gclass levels are set/reset.
  *      - if gobj is not null then call mt_trace_on/mt_trace_off
  */
 PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw);

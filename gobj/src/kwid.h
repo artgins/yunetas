@@ -324,7 +324,8 @@ PUBLIC json_t *kwid_get(
     json_t *kw,  // NOT owned
     const char *id,
     json_t *default_value,
-    kw_flag_t flag
+    kw_flag_t flag,
+    size_t *idx     // If not null set the idx in case of array
 );
 
 

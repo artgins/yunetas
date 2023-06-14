@@ -213,7 +213,7 @@ PRIVATE void mt_create(hgobj gobj)
     ));
 #endif
 
-    gobj_subscribe_event(gobj_yuno(), EV_PERIODIC_TIMEOUT, NULL, gobj);
+    gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, NULL, gobj);
 
     /*
      *  Child, default subscriber, the parent
@@ -382,7 +382,7 @@ PRIVATE int mt_stop(hgobj gobj)
                 "msg",          "%s", "gobj cannot be stopped from ESP task",
                 NULL
             );
-            return -1;
+            //return -1;
         }
         priv->task_running = FALSE;
     } else {
@@ -392,7 +392,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "msg",          "%s", "gobj asked to stop task, but task was not started",
             NULL
         );
-        return -1;
+        //return -1;
     }
 #endif
 
@@ -920,7 +920,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
         {EV_DISCONNECTED,       ac_disconnected,            0},
-        {EV_PERIODIC_TIMEOUT,   ac_periodic_timeout_off,    0},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_off,    0},
         {EV_DROP,               ac_drop,                    0},
         {EV_STOPPED,            ac_stopped,                 ST_STOPPED},
         {0,0,0}
@@ -929,12 +929,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,            ac_rx_data,                 0},
         {EV_TX_DATA,            ac_tx_data,                 0},
         {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
-        {EV_PERIODIC_TIMEOUT,   ac_periodic_timeout_on,     0},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_on,     0},
         {EV_DROP,               ac_drop,                    ST_DISCONNECTED},
         {0,0,0}
     };
     ev_action_t st_stopped[] = {
-        {EV_PERIODIC_TIMEOUT,   ac_periodic_timeout_stopped,0},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_stopped,0},
         {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
         {0,0,0}
     };

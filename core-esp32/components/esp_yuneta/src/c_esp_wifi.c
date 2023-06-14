@@ -11,12 +11,13 @@
 #include <stdlib.h>
 
 #ifdef ESP_PLATFORM
-  #include <esp_wifi.h>
-  #include <esp_wpa2.h>
-  #include <esp_event.h>
-  #include <esp_log.h>
-  #include <esp_netif.h>
-  #include <esp_smartconfig.h>
+    #include <esp_wifi.h>
+    #include <esp_wpa2.h>
+    #include <esp_event.h>
+    #include <esp_log.h>
+    #include <esp_netif.h>
+    #include <esp_smartconfig.h>
+    #include <driver/gpio.h>
 #endif
 
 #include <helpers.h>
@@ -49,7 +50,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-----description---------- */
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),
-SDATA (DTP_INTEGER, "timeout_smartconfig",SDF_PERSIST,          "30",       "Timeout in seconds waiting smartconfig"),
+SDATA (DTP_INTEGER, "timeout_smartconfig",SDF_PERSIST|SDF_STATS,"30",       "Timeout in seconds waiting smartconfig"),
 
 SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "[]",       "List of wifis (ssid/passw)"),
 SDATA_END()
@@ -64,8 +65,10 @@ typedef struct _PRIVATE_DATA {
 #endif
     int timeout_smartconfig;
     hgobj gobj_timer;
+    hgobj gobj_periodic_timer;
     BOOL on_open_published;
     int idx_wifi_list;
+    BOOL light_on;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -86,7 +89,8 @@ PRIVATE hgclass gclass = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_timer = gobj_create_pure_child("wifi_once", C_TIMER, 0, gobj);
+    priv->gobj_periodic_timer = gobj_create_pure_child("wifi_periodic", C_TIMER, 0, gobj);
 
 #ifdef ESP_PLATFORM
 
@@ -125,12 +129,13 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_timer);
+    gobj_start(priv->gobj_periodic_timer);
 
 #ifdef ESP_PLATFORM
     ESP_ERROR_CHECK(esp_wifi_start()); // Will arise WIFI_EVENT_STA_START
 #endif
 
-    priv->idx_wifi_list = -1;
+    priv->idx_wifi_list = 0;
 
     return 0;
 }
@@ -144,6 +149,9 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->gobj_timer);
     gobj_stop(priv->gobj_timer);
+
+    clear_timeout(priv->gobj_periodic_timer);
+    gobj_stop(priv->gobj_periodic_timer);
 
 #ifdef ESP_PLATFORM
     esp_wifi_stop();    // Will arise WIFI_EVENT_STA_STOP
@@ -365,9 +373,27 @@ PRIVATE int start_smartconfig(hgobj gobj)
     );
 
 #ifdef ESP_PLATFORM
-    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
+    esp_err_t err = esp_smartconfig_set_type(SC_TYPE_ESPTOUCH);
+    if(err != ESP_OK) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "esp_smartconfig_set_type() FAILED",
+            "esp_error",    "%s", esp_err_to_name(err),
+            NULL
+        );
+    }
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
+    err = esp_smartconfig_start(&cfg);
+    if(err != ESP_OK) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "esp_smartconfig_start() FAILED",
+            "esp_error",    "%s", esp_err_to_name(err),
+            NULL
+        );
+    }
 #endif
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
@@ -375,8 +401,10 @@ PRIVATE int start_smartconfig(hgobj gobj)
         // Set smartconfig timeout if already got some config
         set_timeout(priv->gobj_timer, priv->timeout_smartconfig*1000);
     }
+    set_timeout_periodic(priv->gobj_periodic_timer, 1*1000);
 
     gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
+
     return 0;
 }
 
@@ -394,20 +422,39 @@ PRIVATE int connect_station(hgobj gobj)
     );
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    gobj_trace_json(gobj, jn_wifi_list, "connect_station------------------->wifi_list"); // TODO TEST
+    gobj_trace_json(gobj, jn_wifi_list, "connect_station----------->wifi_list"); // TODO TEST
 
     int max_wifi_list = (int)json_array_size(jn_wifi_list);
-    if(max_wifi_list > 0) {
-        int x = ++priv->idx_wifi_list % max_wifi_list;
-        priv->idx_wifi_list = x;
-        json_t *jn_wifi = json_array_get(jn_wifi_list, priv->idx_wifi_list);
-
-        gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", priv->idx_wifi_list); // TODO TEST
+    if(max_wifi_list == 0) {
+        // No debería entrar por aquí
+        start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "change to start_smartconfig from connect_station",
+            NULL
+        );
+        return -1;
     }
 
-    json_t *jn_wifi = json_array_get(jn_wifi_list, priv->idx_wifi_list);
+    int idx_now = priv->idx_wifi_list; // Usa el idx actual
+    if(idx_now >= max_wifi_list) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "BAD idx_wifi_list",
+            "idx_now",      "%d", idx_now,
+            "max_idx",      "%d", max_wifi_list,
+            NULL
+        );
+        idx_now = priv->idx_wifi_list = 0;
+    }
 
-    gobj_trace_json(gobj, jn_wifi, "Using %d------------------->wifi_list", priv->idx_wifi_list); // TODO TEST
+    int next = ++priv->idx_wifi_list % max_wifi_list;
+    priv->idx_wifi_list = next;
+
+    json_t *jn_wifi = json_array_get(jn_wifi_list, idx_now);
+    gobj_trace_json(gobj, jn_wifi, "Using %d----------->wifi_list, next %d", idx_now, next); // TODO TEST
 
 #ifdef ESP_PLATFORM
     wifi_config_t wifi_config;
@@ -428,9 +475,11 @@ PRIVATE int connect_station(hgobj gobj)
         //memcpy(wifi_config.sta.bssid, bssid, MIN(strlen(bssid), sizeof(wifi_config.sta.bssid)));
     }
 
+    esp_wifi_disconnect();
+
     esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if(err != 0) {
-        gobj_log_error(0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "esp_wifi_set_config() FAILED",
@@ -542,6 +591,8 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         NULL
     );
 
+    esp_wifi_disconnect();
+
     if(priv->on_open_published) {
         priv->on_open_published =  FALSE;
         if(!gobj_is_shutdowning()) {
@@ -572,7 +623,21 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 #endif
 
     if(gobj_is_running(gobj)) {
-        connect_station(gobj);  // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
+        /*
+         *  Si ha dado la vuelta a todas las configuraciones, entra en smartconfig
+         */
+        json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
+        int max_wifi_list = (int)json_array_size(jn_wifi_list);
+
+        if(reason == WIFI_REASON_NO_AP_FOUND) {
+            start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
+        } else {
+            if(max_wifi_list==0 || priv->idx_wifi_list >= max_wifi_list - 1) {
+                start_smartconfig(gobj); // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
+            } else {
+                connect_station(gobj);  // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
+            }
+        }
     }
 
     JSON_DECREF(kw)
@@ -589,7 +654,7 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "msg",          "%s", "scan done",
         NULL
     );
-    gobj_trace_json(gobj, kw, "scan done");
+//    gobj_trace_json(gobj, kw, "scan done"); TODO repon
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     if(json_array_size(jn_wifi_list) > 0) {
@@ -605,17 +670,19 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECTION,
-        "msg",          "%s", "smartconfig done, connect",
+        "msg",          "%s", "smartconfig done, save",
         NULL
     );
 
     const char *id = kw_get_str(gobj, kw, "ssid", "", KW_REQUIRED);
     if(empty_string(id)) {
-        gobj_log_error(0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "ssid empty",
@@ -628,15 +695,16 @@ PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *
     json_object_set_new(kw, "id", json_string(id));
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0);
+    size_t idx;
+    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0, &idx);
     if(!jn_record) {
+        priv->idx_wifi_list = 0;
         json_array_insert(jn_wifi_list, 0, kw);
     } else  {
+        priv->idx_wifi_list = (int)idx;
         json_object_update(jn_record, kw);
     }
     gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
-
-    gobj_trace_json(gobj, jn_wifi_list, "ac_smartconfig_done_connect DONE"); // TODO TEST
 
     connect_station(gobj);
 
@@ -647,55 +715,24 @@ PRIVATE int ac_smartconfig_done_connect(hgobj gobj, gobj_event_t event, json_t *
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
-        "msg",          "%s", "smartconfig done, save",
-        NULL
-    );
-
-    const char *id = kw_get_str(gobj, kw, "ssid", "", KW_REQUIRED);
-    if(empty_string(id)) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ssid empty",
-            NULL
-        );
-        JSON_DECREF(kw)
-        return -1;
-    }
-
-    json_object_set_new(kw, "id", json_string(id));
-
-    json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0);
-    if(!jn_record) {
-        json_array_insert(jn_wifi_list, 0, kw);
-    } else  {
-        json_object_update(jn_record, kw);
-    }
-    gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECTION,
         "msg",          "%s", "smartconfig ACK done",
         NULL
     );
 
-#ifdef ESP_PLATFORM
-    esp_smartconfig_stop();
-#endif
+//#ifdef ESP_PLATFORM
+//    esp_smartconfig_stop();
+//#endif
+
+    clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_periodic_timer);
+
+//    connect_station(gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -716,11 +753,34 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hg
         NULL
     );
 
-#ifdef ESP_PLATFORM
-    esp_smartconfig_stop();
-#endif
+    clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_periodic_timer);
+
+//#ifdef ESP_PLATFORM
+//    esp_smartconfig_stop();
+//#endif
 
     connect_station(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Timeout intermitente esperando configuracion
+ ***************************************************************************/
+PRIVATE int ac_periodic_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->light_on) {
+        gpio_set_level(OLIMEX_LED_PIN, 0);
+        priv->light_on = 0;
+
+    } else {
+        gpio_set_level(OLIMEX_LED_PIN, 1);
+        priv->light_on = 1;
+    }
 
     JSON_DECREF(kw)
     return 0;
@@ -864,9 +924,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
-        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_connect,0}, // Do connect_station()
-        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0},
+        {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
+        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0}, // Do connect_station()
         {EV_TIMEOUT,                    ac_timeout_smartconfig,     0},
+        {EV_TIMEOUT_PERIODIC,           ac_periodic_timeout_smartconfig, 0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };

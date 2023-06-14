@@ -170,7 +170,7 @@ typedef struct gobj_s {
  ***************************************************************/
 // Timer Events, defined here to easy filtering in trace
 GOBJ_DEFINE_EVENT(EV_TIMEOUT);
-GOBJ_DEFINE_EVENT(EV_PERIODIC_TIMEOUT);
+GOBJ_DEFINE_EVENT(EV_TIMEOUT_PERIODIC);
 
 // System Events
 GOBJ_DEFINE_EVENT(EV_STATE_CHANGED);
@@ -5291,7 +5291,9 @@ PRIVATE int _set_gobj_trace_level(gobj_t * gobj, const char *level, BOOL set)
 {
     uint32_t bitmask = 0;
 
-    if(empty_string(level)) {
+    if(level == NULL) {
+        bitmask = (uint32_t)-1;
+    } else if(empty_string(level)) {
         bitmask = TRACE_USER_LEVEL;
     } else {
         if(isdigit(*((unsigned char *)level))) {
@@ -5368,7 +5370,9 @@ PUBLIC int gobj_set_gclass_trace(hgclass gclass_, const char *level, BOOL set)
     gclass_t *gclass = gclass_;
     uint32_t bitmask = 0;
 
-    if(empty_string(level)) {
+    if(level == NULL) {
+        bitmask = (uint32_t)-1;
+    } else if(empty_string(level)) {
         bitmask = TRACE_USER_LEVEL;
     } else {
         if(isdigit(*((unsigned char *)level))) {
@@ -5728,7 +5732,7 @@ PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
         gobj->trace_level & TRACE_MACHINE ||
         gobj->gclass->trace_level & TRACE_MACHINE;
 
-    if(event == EV_PERIODIC_TIMEOUT) {
+    if(event == EV_TIMEOUT_PERIODIC) {
         if(!(__global_trace_level__ & TRACE_PERIODIC_TIMER)) {
             trace = 0;
         }

@@ -139,6 +139,19 @@ PRIVATE int mt_play(hgobj gobj)
     json_int_t msec = gobj_read_integer_attr(gobj, "msec");
     BOOL periodic = gobj_read_bool_attr(gobj, "periodic");
 
+    if(esp_timer_is_active(priv->esp_timer_handle)) {
+        esp_err_t err = esp_timer_stop(priv->esp_timer_handle);
+        if(err != ESP_OK) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "esp_timer_stop() FAILED",
+                "esp_error",    "%s", esp_err_to_name(err),
+                NULL
+            );
+        }
+    }
+
     if(periodic) {
         esp_err_t err = esp_timer_start_periodic(priv->esp_timer_handle, msec*1000); // timer in microseconds
         if(err != ESP_OK) {
@@ -178,7 +191,7 @@ PRIVATE int mt_pause(hgobj gobj)
     if(esp_timer_is_active(priv->esp_timer_handle)) {
         esp_err_t err = esp_timer_stop(priv->esp_timer_handle);
         if(err != ESP_OK) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "esp_timer_stop() FAILED",
@@ -220,7 +233,7 @@ static void timer_callback(void* arg)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->periodic) {
-        gobj_post_event(gobj, EV_PERIODIC_TIMEOUT, 0, gobj);
+        gobj_post_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
     } else {
         gobj_post_event(gobj, EV_TIMEOUT, 0, gobj);
     }
@@ -289,7 +302,7 @@ GOBJ_DEFINE_GCLASS(C_TIMER);
  *------------------------*/
 // HACK: Systems events: defined in gobj.h
 //GOBJ_DEFINE_EVENT(EV_TIMEOUT);
-//GOBJ_DEFINE_EVENT(EV_PERIODIC_TIMEOUT);
+//GOBJ_DEFINE_EVENT(EV_TIMEOUT_PERIODIC);
 
 /***************************************************************************
  *
@@ -312,7 +325,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,              ac_timeout,         0},
-        {EV_PERIODIC_TIMEOUT,     ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,     ac_timeout,         0},
         {0,0,0}
     };
     states_t states[] = {

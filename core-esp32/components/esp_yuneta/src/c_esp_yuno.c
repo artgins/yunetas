@@ -564,7 +564,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     // Let others uses the periodic timer, save resources
-    gobj_publish_event(gobj, EV_PERIODIC_TIMEOUT, 0);
+    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, 0);
     if(gobj_current_state(gobj) == ST_YUNO_NETWORK_ON) {
 #ifdef ESP_PLATFORM
         sntp_sync_status_t status = sntp_get_sync_status();
@@ -646,19 +646,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_network_off[] = {
         {EV_WIFI_ON_OPEN,           ac_wifi_on_open,        ST_YUNO_NETWORK_ON},
-        {EV_PERIODIC_TIMEOUT,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_network_on[] = {
         {EV_WIFI_ON_CLOSE,          ac_wifi_on_close,       ST_YUNO_NETWORK_OFF},
         {EV_YUNO_TIME_ON,           ac_time_on,             ST_YUNO_TIME_ON},
-        {EV_PERIODIC_TIMEOUT,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_time_on[] = {
         {EV_WIFI_ON_CLOSE,          ac_wifi_on_close,       ST_YUNO_NETWORK_OFF},
         {EV_YUNO_TIME_ON,           ac_time_on,             0},
-        {EV_PERIODIC_TIMEOUT,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     states_t states[] = {
@@ -669,7 +669,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_PERIODIC_TIMEOUT,     EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT_PERIODIC,     EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

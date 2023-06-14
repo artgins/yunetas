@@ -262,7 +262,7 @@ PRIVATE int mt_stop(hgobj gobj)
                 "msg",          "%s", "gobj cannot be stopped from ESP task",
                 NULL
             );
-            return -1;
+            //return -1;
         }
         priv->task_running = FALSE;
     } else {
@@ -272,7 +272,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "msg",          "%s", "gobj asked to stop task, but task was not started",
             NULL
         );
-        return -1;
+        //return -1;
     }
 
     uart_driver_delete((int) gobj_read_integer_attr(gobj, "uart_number"));
