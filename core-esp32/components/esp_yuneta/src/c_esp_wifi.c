@@ -340,7 +340,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                 break;
             case SC_EVENT_SEND_ACK_DONE:
                 processed = TRUE;
-                gobj_post_event(gobj, EV_WIFI_SMARTCONFIG_ACK_DONE, kw, gobj);
+                esp_smartconfig_stop();
                 break;
             default:
                 break;
@@ -634,10 +634,10 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
         int max_wifi_list = (int)json_array_size(jn_wifi_list);
 
-        if(reason == WIFI_REASON_NO_AP_FOUND) {
+        if(reason == WIFI_REASON_NO_AP_FOUND && max_wifi_list == 1) {
             start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
         } else {
-            if(max_wifi_list==0 || priv->idx_wifi_list >= max_wifi_list - 1) {
+            if(max_wifi_list==0 || priv->idx_wifi_list == 0) {
                 start_smartconfig(gobj); // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
             } else {
                 connect_station(gobj);  // change to ST_WIFI_WAIT_STA_CONNECTED, wait forever
@@ -711,29 +711,8 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
     }
     gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
 
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
-        "msg",          "%s", "smartconfig ACK done",
-        NULL
-    );
-
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_periodic_timer);
-
-#ifdef ESP_PLATFORM
-    esp_smartconfig_stop();
-#endif
 
     connect_station(gobj);
 
@@ -880,7 +859,6 @@ GOBJ_DEFINE_EVENT(EV_WIFI_STA_CONNECTED);
 GOBJ_DEFINE_EVENT(EV_WIFI_STA_DISCONNECTED);
 GOBJ_DEFINE_EVENT(EV_WIFI_SCAN_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_SMARTCONFIG_DONE);
-GOBJ_DEFINE_EVENT(EV_WIFI_SMARTCONFIG_ACK_DONE);
 GOBJ_DEFINE_EVENT(EV_WIFI_GOT_IP);
 GOBJ_DEFINE_EVENT(EV_WIFI_LOST_IP);
 GOBJ_DEFINE_EVENT(EV_WIFI_ON_OPEN);
@@ -918,7 +896,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
         {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
-        {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0}, // Do connect_station()
         {EV_TIMEOUT,                    ac_timeout_smartconfig,     0},
         {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic_smartconfig, 0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},

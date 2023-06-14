@@ -68,6 +68,7 @@ typedef struct {
     char schema[32], host[64], port[32];
     char bindip[64];
     BOOL exit_on_fail;
+    BOOL disabled;
 #ifdef ESP_PLATFORM
     esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
 #endif
@@ -333,16 +334,18 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf_, size_t len)
      *  Open or re-open the socket
      */
     if(uc->_s<=0) {
-        if(_udpc_socket(uc) < 0) {
-            // Error already logged
-            #ifdef ESP_PLATFORM
-                ESP_LOGE("YUNETA", "_udpc_socket(2) FAILED");
-            #endif
-            #ifdef __linux__
-                syslog(LOG_ERR, "YUNETA: " "_udpc_socket(2) FAILED");
-            #endif
-            return -1;
+        if(!uc->disabled) {
+            if(_udpc_socket(uc) < 0) {
+                // Error already logged
+                #ifdef ESP_PLATFORM
+                    ESP_LOGE("YUNETA", "_udpc_socket(2) FAILED");
+                #endif
+                #ifdef __linux__
+                    syslog(LOG_ERR, "YUNETA: " "_udpc_socket(2) FAILED");
+                #endif
+            }
         }
+        return -1;
     }
 
     /*
@@ -631,10 +634,15 @@ PRIVATE void udp_tx_ev_loop_callback(
     char *bf = *((char **) event_data);
     size_t len = (size_t)id;
 
-    if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
-        ESP_LOGE("YUNETA", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
-        close(uc->_s);
-        uc->_s = 0;
+    if(!uc->disabled) {
+        if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
+            ESP_LOGE("YUNETA", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            close(uc->_s);
+            uc->_s = 0;
+            uc->disabled = TRUE; // Wait to network on, yuno must re-open
+        }
+    } else {
+        ESP_LOGE("YUNETA", "%.*s", (int)len, bf);
     }
 
     free(bf);
