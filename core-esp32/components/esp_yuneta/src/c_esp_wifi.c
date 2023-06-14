@@ -401,7 +401,7 @@ PRIVATE int start_smartconfig(hgobj gobj)
         // Set smartconfig timeout if already got some config
         set_timeout(priv->gobj_timer, priv->timeout_smartconfig*1000);
     }
-    set_timeout_periodic(priv->gobj_periodic_timer, 1*1000);
+    set_timeout_periodic(priv->gobj_periodic_timer, 500);
 
     gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
 
@@ -420,6 +420,11 @@ PRIVATE int connect_station(hgobj gobj)
         "msg",          "%s", "DO connect_station",
         NULL
     );
+
+    if(priv->light_on) {
+        gpio_set_level(OLIMEX_LED_PIN, 0);
+        priv->light_on = 0;
+    }
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     gobj_trace_json(gobj, jn_wifi_list, "connect_station----------->wifi_list"); // TODO TEST
@@ -706,8 +711,6 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
     }
     gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
 
-    connect_station(gobj);
-
     JSON_DECREF(kw)
     return 0;
 }
@@ -725,14 +728,14 @@ PRIVATE int ac_smartconfig_ack_done(hgobj gobj, gobj_event_t event, json_t *kw, 
         NULL
     );
 
-//#ifdef ESP_PLATFORM
-//    esp_smartconfig_stop();
-//#endif
-
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_periodic_timer);
 
-//    connect_station(gobj);
+#ifdef ESP_PLATFORM
+    esp_smartconfig_stop();
+#endif
+
+    connect_station(gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -756,9 +759,9 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hg
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_periodic_timer);
 
-//#ifdef ESP_PLATFORM
-//    esp_smartconfig_stop();
-//#endif
+#ifdef ESP_PLATFORM
+    esp_smartconfig_stop();
+#endif
 
     connect_station(gobj);
 
@@ -769,17 +772,24 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *  Timeout intermitente esperando configuracion
  ***************************************************************************/
-PRIVATE int ac_periodic_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->light_on) {
-        gpio_set_level(OLIMEX_LED_PIN, 0);
-        priv->light_on = 0;
+    if(gobj_current_state(gobj) == ST_WIFI_WAIT_SSID_CONF) {
+        if(priv->light_on) {
+            gpio_set_level(OLIMEX_LED_PIN, 0);
+            priv->light_on = 0;
 
+        } else {
+            gpio_set_level(OLIMEX_LED_PIN, 1);
+            priv->light_on = 1;
+        }
     } else {
-        gpio_set_level(OLIMEX_LED_PIN, 1);
-        priv->light_on = 1;
+        if(priv->light_on) {
+            gpio_set_level(OLIMEX_LED_PIN, 0);
+            priv->light_on = 0;
+        }
     }
 
     JSON_DECREF(kw)
@@ -801,9 +811,6 @@ PRIVATE int ac_wifi_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     get_rssi(gobj);
 
-#ifdef ESP_PLATFORM
-#endif
-
     JSON_DECREF(kw)
     return 0;
 }
@@ -820,20 +827,6 @@ PRIVATE int ac_wifi_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         "msg",          "%s", "got ip",
         NULL
     );
-
-// TODO get time
-//    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-//    sntp_setservername(0, "pool.ntp.org");
-//    sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
-//    sntp_init();
-//    sntp_servermode_dhcp(1);
-//
-//    // wait for time to be set
-//    int retry = 0;
-//    const int retry_count = 10;
-//    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-//        vTaskDelay(2000 / portTICK_PERIOD_MS);
-//    }
 
     priv->on_open_published = TRUE;
     gobj_publish_event(gobj, EV_WIFI_ON_OPEN, json_incref(kw)); // Wait to play default_service until get time
@@ -927,13 +920,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
         {EV_WIFI_SMARTCONFIG_ACK_DONE,  ac_smartconfig_ack_done,    0}, // Do connect_station()
         {EV_TIMEOUT,                    ac_timeout_smartconfig,     0},
-        {EV_TIMEOUT_PERIODIC,           ac_periodic_timeout_smartconfig, 0},
+        {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic_smartconfig, 0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_wifi_wait_sta_connected[] = { // From connect_station()
         {EV_WIFI_STA_DISCONNECTED,      ac_wifi_disconnected,       0},
         {EV_WIFI_STA_CONNECTED,         ac_wifi_connected,          ST_WIFI_WAIT_IP},
+        {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic_smartconfig, 0}, // Llega retardado
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
     };
