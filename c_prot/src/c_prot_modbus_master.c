@@ -382,7 +382,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
 SDATA (DTP_JSON,        "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
 SDATA (DTP_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in miliseconds"),
-SDATA (DTP_INTEGER,     "timeout_response", SDF_PERSIST,    "5",        "Timeout response in seconds"),
+SDATA (DTP_INTEGER,     "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
 SDATA (DTP_INTEGER,     "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -3168,11 +3168,6 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*---------------------------------------------*
-     *   Reset response gobj_timer
-     *---------------------------------------------*/
-    clear_timeout(priv->gobj_timer);
-
-    /*---------------------------------------------*
      *   Recupera el frame
      *---------------------------------------------*/
     gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -3267,6 +3262,11 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *      Next map
      *---------------------------*/
     if(response_completed) {
+        /*---------------------------------------------*
+         *   Reset response gobj_timer
+         *---------------------------------------------*/
+        clear_timeout(priv->gobj_timer);
+
         RESET_MACHINE()
         gobj_change_state(gobj, ST_SESSION);
 
