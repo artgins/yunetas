@@ -1890,6 +1890,17 @@ PRIVATE int frame_completed(hgobj gobj)
         CASES("RTU")
             int len = gbuffer_leftbytes(gbuf);
             uint8_t *bf = gbuffer_get(gbuf, len);
+             if (len < 2 || !bf) {
+                 log_error(0,
+                    "gobj",             "%s", gobj_full_name(gobj),
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+                    "msg",              "%s", "Not enough data",
+                    "len",              "%d", len,
+                    NULL
+                 );
+                 return -1;
+             }
             int crc_calculated = crc16_rx(&priv->frame_head, bf, len - 2);
             int crc_received = (bf[len - 2] << 8) | bf[len - 1];
 
