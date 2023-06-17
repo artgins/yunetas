@@ -3263,6 +3263,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     }
                     frame_completed(gobj);
                     response_completed = TRUE;
+                    fin = TRUE;
                 }
             }
             break;
