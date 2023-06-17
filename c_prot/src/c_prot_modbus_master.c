@@ -3380,6 +3380,9 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
 //        NULL
 //    );
 
+    RESET_MACHINE()
+    gobj_change_state(gobj, "ST_SESSION");
+
     /*
      *  Next map
      */
