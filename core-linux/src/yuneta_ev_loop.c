@@ -244,18 +244,6 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
      *      Infinite loop
      *------------------------------------------*/
     while(gobj_is_running(yev_loop->yuno)) {
-        unsigned cq = io_uring_cq_ready(&yev_loop->ring);
-        unsigned sq = io_uring_sq_ready(&yev_loop->ring);
-        if(cq == 0 && sq == 0) {
-            gobj_log_info(yev_loop->yuno, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_STARTUP,
-                "msg",          "%s", "Exiting from event loop, no sq/cq pending",
-                NULL
-            );
-            //break;
-        }
-
         int err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         if (err < 0) {
             if(err == -EINTR) {
