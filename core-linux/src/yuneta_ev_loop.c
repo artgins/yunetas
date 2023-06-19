@@ -13,7 +13,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define ENTRIES 2024
+#define DEFAULT_ENTRIES 2024
 
 //#define MAX_CONNECTIONS     4096
 #define MAX_MESSAGE_LEN     2048
@@ -80,9 +80,6 @@ struct yev_loop_s {
 /***************************************************************
  *              Data
  ***************************************************************/
-//int group_id = 1337; // TODO ??? what is?
-//char bufs[BUFFERS_COUNT][MAX_MESSAGE_LEN]; // TODO ???
-
 
 /***************************************************************************
  *
@@ -95,7 +92,7 @@ PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_h *yev_loop_)
     *yev_loop_ = 0;     // error case
 
     if(entries == 0) {
-        entries = ENTRIES;
+        entries = DEFAULT_ENTRIES;
     }
 
     struct io_uring_params params_test = {0};
@@ -170,7 +167,7 @@ retry:
         .flags = params_test.flags
     };
 
-    err = io_uring_queue_init_params(ENTRIES, &yev_loop->ring, &params);
+    err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
     if (err < 0) {
         GBMEM_FREE(yev_loop)
         gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
@@ -199,7 +196,7 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 {
     yev_loop_t *yev_loop = yev_loop_;
 
-    if(1) {  // TODO destroy all events
+    if(1) {
         struct io_uring_sqe *sqe;
         sqe = io_uring_get_sqe(&yev_loop->ring);
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
@@ -282,12 +279,14 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
                     /*
                      *  Call Callback
                      */
-                    yev_event->callback(
-                        yev_event->gobj,
-                        yev_event,
-                        0,
-                        (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
-                    );
+                    if(yev_event->callback) {
+                        yev_event->callback(
+                            yev_event->gobj,
+                            yev_event,
+                            0,
+                            (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
+                        );
+                    }
 
                     /*
                      *  Rearm periodic timer if no stopped
@@ -339,10 +338,10 @@ PUBLIC int yev_start_event(yev_event_h yev_event_)
         case YEV_READ_TYPE:
             {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-    //    req->iov[0].iov_base = malloc(READ_SZ);
-    //    req->iov[0].iov_len = READ_SZ;
-    //    memset(req->iov[0].iov_base, 0, READ_SZ);
-    // TODO    io_uring_prep_readv(sqe, client_socket, &req->iov[0], 1, 0);
+                //    req->iov[0].iov_base = malloc(READ_SZ);
+                //    req->iov[0].iov_len = READ_SZ;
+                //    memset(req->iov[0].iov_base, 0, READ_SZ);
+                // TODO    io_uring_prep_readv(sqe, client_socket, &req->iov[0], 1, 0);
                 io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_submit(&yev_loop->ring);
 
@@ -407,6 +406,18 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_)
 PUBLIC void yev_destroy_event(yev_event_h yev_event_)
 {
     yev_event_t *yev_event = yev_event_;
+    hgobj gobj = yev_event->gobj;
+
+    if(!(yev_event->flag & YEV_STOPPED_FLAG)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "event not stopped",
+            NULL
+        );
+        yev_event->callback = NULL;
+        yev_stop_event(yev_event);
+    }
 
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
@@ -421,8 +432,6 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
             }
             break;
     }
-
-    // TODO remove from ring?
 
     GBMEM_FREE(yev_event)
 }
