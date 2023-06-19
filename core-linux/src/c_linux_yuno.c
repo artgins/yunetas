@@ -94,6 +94,8 @@ SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
 SDATA (DTP_STRING,  "start_date",       SDF_STATS,      "",             "Yuno starting date"),
 SDATA (DTP_INTEGER, "start_time",       SDF_STATS,      "0",            "Yuno starting time"),
+
+SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring"),
 SDATA_END()
 };
 
@@ -142,7 +144,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_loop_t *yev_loop;
+    yev_loop_h yev_loop;
 
     size_t t_flush;
     size_t t_stats;
@@ -176,7 +178,11 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Create the event loop
      */
-    yev_loop_create(gobj, &priv->yev_loop);
+    yev_loop_create(
+        gobj,
+        (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
+        &priv->yev_loop
+    );
 
     if (!atexit_registered) {
         atexit(remove_pid_file);

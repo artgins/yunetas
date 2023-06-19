@@ -15,17 +15,55 @@
  ***************************************************************/
 #define ENTRIES 2024
 
-#define MAX_CONNECTIONS     4096
+//#define MAX_CONNECTIONS     4096
 #define MAX_MESSAGE_LEN     2048
 #define BUFFERS_COUNT       MAX_CONNECTIONS
 
 
-//int group_id = 1337; // TODO ??? what is?
-//char bufs[BUFFERS_COUNT][MAX_MESSAGE_LEN]; // TODO ???
+typedef enum  {
+    YEV_TIMER_EV        = 1,
+    YEV_LISTEN_EV       = 2,
+    YEV_READ_EV         = 3,
+    YEV_READ_DATA_EV    = 4,
+    YEV_WRITE_DATA_EV   = 5,
+    YEV_WRITE_EV        = 6,
+    YEV_TIMER_ONCE_EV   = 7,
+    YEV_READ_CB_EV      = 8,
+    YEV_READV_EV        = 9,
+
+//    SOCKET_READ,
+//    SOCKET_WRITE,
+//    LISTEN_SOCKET_ACCEPT,
+//    SOCKET_CONNECT,
+} yev_type_t;
 
 /***************************************************************
  *              Structures
  ***************************************************************/
+typedef struct yev_event_s yev_event_t;
+typedef struct yev_loop_s yev_loop_t;
+
+struct yev_event_s {
+    yev_loop_t *yev_loop;
+    yev_type_t type;
+    int fd;
+    uint64_t buf;
+    hgobj gobj;
+    yev_callback_t callback;
+//    mr_timer_cb *tcb;
+//    mr_accept_cb *acb;
+//    mr_read_cb *rcb;
+//    mr_write_cb *wcb;
+//    mr_done_cb *dcb;
+//    void *user_data;
+//    struct iovec iov;
+};
+
+struct yev_loop_s {
+    struct io_uring ring;
+    // TODO fuera yev_event_t *timer;
+    hgobj yuno;
+};
 
 /***************************************************************
  *              Prototypes
@@ -34,17 +72,23 @@
 /***************************************************************
  *              Data
  ***************************************************************/
+//int group_id = 1337; // TODO ??? what is?
+//char bufs[BUFFERS_COUNT][MAX_MESSAGE_LEN]; // TODO ???
 
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, yev_loop_t **yev_loop_)
+PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_h *yev_loop_)
 {
     struct io_uring ring_test;
     int err;
 
     *yev_loop_ = 0;     // error case
+
+    if(entries == 0) {
+        entries = ENTRIES;
+    }
 
     struct io_uring_params params_test = {0};
     // TODO use IORING_SETUP_SQPOLL when you know how to use
@@ -53,7 +97,7 @@ PUBLIC int yev_loop_create(hgobj yuno, yev_loop_t **yev_loop_)
     //params_test.flags |= IORING_SETUP_COOP_TASKRUN;      // Available since 5.18
     //params_test.flags |= IORING_SETUP_SINGLE_ISSUER;     // Available since 6.0
 retry:
-    err = io_uring_queue_init_params(ENTRIES, &ring_test, &params_test);
+    err = io_uring_queue_init_params(entries, &ring_test, &params_test);
     if(err) {
         if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
             params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
@@ -141,8 +185,10 @@ retry:
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
+PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 {
+    yev_loop_t *yev_loop = yev_loop_;
+
     // TODO destroy all events
 
     io_uring_queue_exit(&yev_loop->ring);
@@ -152,14 +198,16 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
+PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
 {
+    yev_loop_t *yev_loop = yev_loop_;
+
     /*------------------------------------------*
      *  Register buffers for buffer selection
      *------------------------------------------*/
     struct io_uring_sqe *sqe;
     struct io_uring_cqe *cqe;
-
+// TODO
 //    sqe = io_uring_get_sqe(&yev_loop->ring);
 //    io_uring_prep_provide_buffers(sqe, bufs, MAX_MESSAGE_LEN, BUFFERS_COUNT, group_id, 0); // TODO bufs
 //
@@ -222,8 +270,10 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_destroy_event(yev_event_t *yev_event)
+PUBLIC void yev_destroy_event(yev_event_h yev_event_)
 {
+    yev_event_t *yev_event = yev_event_;
+
     // TODO remove from ring?
     GBMEM_FREE(yev_event)
 }
@@ -231,8 +281,10 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_timer(yev_loop_t *loop, yev_callback_t callback, hgobj gobj)
+PUBLIC yev_event_h yev_create_timer(yev_loop_h loop_, yev_callback_t callback, hgobj gobj)
 {
+    yev_loop_t *yev_loop = loop_;
+
     yev_event_t *yev_timer = GBMEM_MALLOC(sizeof(yev_event_t));
     if(!yev_timer) {
         gobj_log_critical(gobj, LOG_OPT_ABORT,
@@ -244,7 +296,7 @@ PUBLIC yev_event_t *yev_create_timer(yev_loop_t *loop, yev_callback_t callback, 
         return NULL;
     }
 
-    yev_timer->yev_loop = loop;
+    yev_timer->yev_loop = yev_loop;
     yev_timer->type = YEV_TIMER_EV;
     yev_timer->gobj = gobj;
     yev_timer->callback = callback;
@@ -266,10 +318,11 @@ PUBLIC yev_event_t *yev_create_timer(yev_loop_t *loop, yev_callback_t callback, 
  *
  ***************************************************************************/
 PUBLIC void yev_timer_set(
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     time_t timeout_ms,
     BOOL periodic
 ) {
+    yev_event_t *yev_event = yev_event_;
 
     struct timeval timeout = {
         .tv_sec  = timeout_ms / 1000,

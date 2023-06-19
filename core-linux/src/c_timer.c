@@ -19,7 +19,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, gbuffer *gbuf);
+PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf);
 
 /***************************************************************
  *              Data
@@ -40,7 +40,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     BOOL periodic;
-    yev_event_t *yev_event;
+    yev_event_h yev_event;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -153,7 +153,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, gbuffer *gbuf)
+PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
