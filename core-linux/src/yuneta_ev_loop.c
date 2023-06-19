@@ -132,7 +132,6 @@ retry:
     }
 
     yev_loop->yuno = yuno;
-    // TODO fuera yev_loop->timer = yev_create_timer(yev_loop, yuno, EV_PERIODIC_TIMEOUT);
 
     *yev_loop_ = yev_loop;
 
@@ -144,8 +143,9 @@ retry:
  ***************************************************************************/
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
+    // TODO destroy all events
+
     io_uring_queue_exit(&yev_loop->ring);
-    // TODO fuera GBMEM_FREE(yev_loop->timer)
     GBMEM_FREE(yev_loop)
 }
 
@@ -176,13 +176,6 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 //        return -1;
 //    }
 //    io_uring_cqe_seen(&yev_loop->ring, cqe);
-
-//    yev_timer_set( // TODO move to C_TIMER
-//        yev_loop->timer,
-//        NULL,
-//        1000,
-//        TRUE
-//    );
 
     /*------------------------------------------*
      *      Infinite loop
@@ -231,7 +224,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
-    // TODO
+    // TODO remove from ring?
     GBMEM_FREE(yev_event)
 }
 

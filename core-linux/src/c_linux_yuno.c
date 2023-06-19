@@ -90,6 +90,7 @@ SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trac
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "1000",         "Timeout periodic, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats"),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
+SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
 SDATA (DTP_STRING,  "start_date",       SDF_STATS,      "",             "Yuno starting date"),
 SDATA (DTP_INTEGER, "start_time",       SDF_STATS,      "0",            "Yuno starting time"),
@@ -245,7 +246,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_stats,     (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_flush,     (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_restart,   (int)gobj_read_integer_attr)
-        if(priv->timeout_restart) {
+        if(priv->timeout_restart > 0) {
             priv->t_restart = start_sectimer(priv->timeout_restart);
         } else {
             priv->t_restart = 0;
@@ -271,13 +272,13 @@ PRIVATE int mt_start(hgobj gobj)
 
     set_timeout_periodic(priv->gobj_timer, priv->periodic);
 
-    if(priv->timeout_flush) {
+    if(priv->timeout_flush > 0) {
         priv->t_flush = start_sectimer(priv->timeout_flush);
     }
-    if(priv->timeout_stats) {
+    if(priv->timeout_stats > 0) {
         priv->t_stats = start_sectimer(priv->timeout_stats);
     }
-    if(priv->timeout_restart) {
+    if(priv->timeout_restart > 0) {
         priv->t_restart = start_sectimer(priv->timeout_restart);
     }
 
@@ -447,7 +448,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         }
     }
 
-    if(priv->timeout_flush && test_sectimer(priv->t_flush)) {
+    if(priv->timeout_flush > 0 && test_sectimer(priv->t_flush)) {
         priv->t_flush = start_sectimer(priv->timeout_flush);
         // TODO rotatory_flush(0);
     }
@@ -456,7 +457,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         gobj_shutdown(); // provoca gobj_pause y gobj_stop del gobj yuno
         return 0;
     }
-    if(priv->timeout_restart && test_sectimer(priv->t_restart)) {
+    if(priv->timeout_restart > 0 && test_sectimer(priv->t_restart)) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_STARTUP,
             "msg",          "%s", "Exit to restart",
@@ -468,14 +469,14 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         return 0;
     }
 
-    if(priv->timeout_stats && test_sectimer(priv->t_stats)) {
+    if(priv->timeout_stats > 0 && test_sectimer(priv->t_stats)) {
         priv->t_stats = start_sectimer(priv->timeout_stats);
         // TODO load_stats(gobj);
     }
 
 
     // Let others uses the periodic timer, save resources
-    gobj_publish_event(gobj, EV_PERIODIC_TIMEOUT, 0);
+    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, 0);
 
     JSON_DECREF(kw)
     return 0;
@@ -544,7 +545,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_PERIODIC_TIMEOUT,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     states_t states[] = {
@@ -553,7 +554,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_PERIODIC_TIMEOUT,     EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT_PERIODIC,     EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

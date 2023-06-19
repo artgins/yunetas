@@ -422,7 +422,9 @@ PRIVATE int connect_station(hgobj gobj)
     );
 
     if(priv->light_on) {
+#ifdef ESP_PLATFORM
         gpio_set_level(OLIMEX_LED_PIN, 0);
+#endif
         priv->light_on = 0;
     }
 
@@ -625,7 +627,6 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         default:
             break;
     }
-#endif
 
     if(gobj_is_running(gobj)) {
         /*
@@ -644,6 +645,7 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             }
         }
     }
+#endif
 
     JSON_DECREF(kw)
     return 0;
@@ -753,6 +755,7 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hg
  ***************************************************************************/
 PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_current_state(gobj) == ST_WIFI_WAIT_SSID_CONF) {
@@ -770,6 +773,7 @@ PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, const char *event, json_
             priv->light_on = 0;
         }
     }
+#endif
 
     JSON_DECREF(kw)
     return 0;

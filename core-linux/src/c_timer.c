@@ -158,7 +158,7 @@ PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, gbuffer *gbuf)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->periodic) {
-        gobj_send_event(gobj, EV_PERIODIC_TIMEOUT, 0, gobj);
+        gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
     } else {
         gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
     }
@@ -227,7 +227,7 @@ GOBJ_DEFINE_GCLASS(C_TIMER);
  *------------------------*/
 // HACK: Systems events: defined in gobj.h
 //GOBJ_DEFINE_EVENT(EV_TIMEOUT);
-//GOBJ_DEFINE_EVENT(EV_PERIODIC_TIMEOUT);
+//GOBJ_DEFINE_EVENT(EV_TIMEOUT_PERIODIC);
 
 /***************************************************************************
  *
@@ -250,7 +250,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT,              ac_timeout,         0},
-        {EV_PERIODIC_TIMEOUT,     ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,     ac_timeout,         0},
         {0,0,0}
     };
     states_t states[] = {
