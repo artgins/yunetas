@@ -19,7 +19,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf);
+PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf, BOOL stopped);
 
 /***************************************************************
  *              Data
@@ -87,7 +87,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
-    priv->yev_event = yev_create_timer(yuno_event_loop(), yev_callback, gobj);
+    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_callback, gobj);
     return 0;
 }
 
@@ -153,14 +153,18 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf)
+PRIVATE int yev_callback(hgobj gobj, yev_event_h event, gbuffer *gbuf, BOOL stopped)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->periodic) {
-        gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
+    if(stopped) {
+        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
     } else {
-        gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
+        if(priv->periodic) {
+            gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
+        } else {
+            gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
+        }
     }
     return 0;
 }
