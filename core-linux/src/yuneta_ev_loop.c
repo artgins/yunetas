@@ -61,8 +61,6 @@ struct yev_event_s {
     } bf;
     hgobj gobj;
     yev_callback_t callback;
-    int iovec_count;
-    struct iovec *iov;
 };
 
 struct yev_loop_s {
@@ -260,6 +258,9 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
                      */
                     gbuffer *gbuf = yev_event->bf.gbuf;
                     yev_event->bf.gbuf = 0;
+
+                    gbuffer_set_wr(gbuf, cqe->res);     // Mark the written bytes of reading fd
+
                     if(yev_event->callback) {
                         yev_event->callback(
                             yev_event->gobj,
@@ -285,9 +286,11 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
                     /*
                      *  Call Callback
                      */
-                    GBMEM_FREE(yev_event->iov)
                     gbuffer *gbuf = yev_event->bf.gbuf;
                     yev_event->bf.gbuf = 0;
+
+                    gbuffer_get(gbuf, cqe->res);    // Pop the read bytes used to write fd
+
                     if(yev_event->callback) {
                         yev_event->callback(
                             yev_event->gobj,
@@ -389,15 +392,6 @@ PUBLIC int yev_start_event(yev_event_h yev_event_, gbuffer *gbuf)
         yev_event->flag &= ~YEV_STOPPED_FLAG;
     }
 
-    if(yev_event->iov) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "yev_event ALREADY using iov",
-            NULL
-        );
-        GBMEM_FREE(yev_event->iov)
-    }
     if(yev_event->bf.gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -463,22 +457,12 @@ PUBLIC int yev_start_event(yev_event_h yev_event_, gbuffer *gbuf)
                     break;
                 }
 
-//                gbuffer_cur_rd_pointer(gbuf),
-//                    gbuffer_leftbytes(gbuf),
-
-                yev_event->iovec_count = 1;
-                yev_event->iov = GBMEM_MALLOC(yev_event->iovec_count * sizeof(*yev_event->iov));
-                for(int i=0; i<yev_event->iovec_count; i++) {
-                    yev_event->iov[i].iov_base = gbuffer_cur_rd_pointer(gbuf);
-                    yev_event->iov[i].iov_len = gbuffer_leftbytes(gbuf);
-                }
-
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_prep_writev(
+                io_uring_prep_write(
                     sqe,
                     yev_event->fd,
-                    yev_event->iov,
-                    yev_event->iovec_count,
+                    gbuffer_cur_rd_pointer(gbuf),
+                    gbuffer_leftbytes(gbuf),
                     0
                 );
                 io_uring_sqe_set_data(sqe, yev_event);
