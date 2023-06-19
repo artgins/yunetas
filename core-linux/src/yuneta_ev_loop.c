@@ -265,7 +265,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
                         yev_event->callback(
                             yev_event->gobj,
                             yev_event,
-                            gbuf, // give out, callback responsible to free
+                            gbuf, // give out, callback responsible to free or reuse
                             (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                         );
                     }
@@ -295,7 +295,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_)
                         yev_event->callback(
                             yev_event->gobj,
                             yev_event,
-                            gbuf, // give out, callback responsible to free
+                            gbuf, // give out, callback responsible to free or reuse
                             (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                         );
                     }
