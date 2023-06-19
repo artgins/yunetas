@@ -44,6 +44,7 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event);
 PUBLIC yev_event_h yev_create_accept_event(yev_loop_h loop, yev_callback_t callback, hgobj gobj, int fd);
 PUBLIC yev_event_h yev_create_read_event(yev_loop_h loop, yev_callback_t callback, hgobj gobj, int fd);
 PUBLIC yev_event_h yev_create_write_event(yev_loop_h loop, yev_callback_t callback, hgobj gobj, int fd);
+PUBLIC yev_event_h yev_create_connect_event(yev_loop_h loop, yev_callback_t callback, hgobj gobj, int fd);
 
 #ifdef __cplusplus
 }
