@@ -62,8 +62,10 @@ struct yev_event_s {
     } bf;
     hgobj gobj;
     yev_callback_t callback;
-    struct sockaddr *addr;
-    socklen_t addrlen;
+    struct sockaddr *dst_addr;
+    socklen_t dst_addrlen;
+    struct sockaddr *src_addr;
+    socklen_t src_addrlen;
 };
 
 struct yev_loop_s {
@@ -87,11 +89,9 @@ PUBLIC void yev_timer_set(
     BOOL periodic
 );
 
-PUBLIC int yev_start_event(         // Don't use with timer event: use yev_timer_set
+PUBLIC int yev_start_event( // Don't use with timer event: use yev_timer_set
     yev_event_t *yev_event,
-    gbuffer *gbuf,                  // Used with yev_create_read_event(), yev_create_write_event()
-    const struct sockaddr *addr,    // Used with yev_create_connect_event(), yev_create_accept_event()
-    socklen_t addrlen
+    gbuffer *gbuf           // Used with yev_create_read_event(), yev_create_write_event()
 );
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
@@ -113,12 +113,22 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback,
     hgobj gobj
 );
+PUBLIC int yev_setup_connect_event(
+    yev_event_t *yev_event,
+    const char *url
+);
+
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
 );
+PUBLIC int yev_setup_accept_event(
+    yev_event_t *yev_event,
+    const char *url
+);
+
 
 #ifdef __cplusplus
 }
