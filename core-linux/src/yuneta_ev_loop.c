@@ -137,10 +137,8 @@ retry:
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop_)
+PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
-    yev_loop_t *yev_loop = yev_loop_;
-
     if(1) {
         struct io_uring_sqe *sqe;
         sqe = io_uring_get_sqe(&yev_loop->ring);
@@ -155,10 +153,8 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_run(yev_loop_t *yev_loop_)
+PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 {
-    yev_loop_t *yev_loop = yev_loop_;
-
     struct io_uring_sqe *sqe;
     struct io_uring_cqe *cqe;
 
@@ -502,9 +498,8 @@ PUBLIC int yev_start_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_t *yev_event_)
+PUBLIC int yev_stop_event(yev_event_t *yev_event)
 {
-    yev_event_t *yev_event = yev_event_;
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
 
@@ -527,9 +522,8 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_destroy_event(yev_event_t *yev_event_)
+PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
-    yev_event_t *yev_event = yev_event_;
     hgobj gobj = yev_event->gobj;
 
     if(!(yev_event->flag & YEV_STOPPED_FLAG)) {
