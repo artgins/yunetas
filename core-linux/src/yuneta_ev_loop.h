@@ -113,20 +113,22 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback,
     hgobj gobj
 );
-PUBLIC int yev_setup_connect_event(
-    yev_event_t *yev_event,
-    const char *url
-);
 
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop,
     yev_callback_t callback,
-    hgobj gobj,
-    int fd
+    hgobj gobj
 );
+
+PUBLIC int yev_setup_connect_event(
+    yev_event_t *yev_event,
+    const char *dst_url,
+    const char *src_url
+);
+
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
-    const char *url
+    const char *listen_url
 );
 
 

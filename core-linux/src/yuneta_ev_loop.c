@@ -795,7 +795,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, 0);
+    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -812,10 +812,9 @@ PUBLIC yev_event_t *yev_create_connect_event(
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop_,
     yev_callback_t callback,
-    hgobj gobj,
-    int fd
+    hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, fd);
+    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -831,7 +830,8 @@ PUBLIC yev_event_t *yev_create_accept_event(
  ***************************************************************************/
 PUBLIC int yev_setup_connect_event(
     yev_event_t *yev_event,
-    const char *url
+    const char *dst_url,
+    const char *src_url
 ) {
     yev_event->dst_addrlen = sizeof(*yev_event->dst_addr);
     // TODO
@@ -843,7 +843,7 @@ PUBLIC int yev_setup_connect_event(
  ***************************************************************************/
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
-    const char *url
+    const char *listen_url
 ) {
     // TODO
     yev_event->src_addrlen = sizeof(*yev_event->src_addr);
