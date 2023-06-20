@@ -11,6 +11,7 @@
 #include <time.h>
 #include <liburing.h>
 #include <gobj.h>
+#include <parse_url.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -33,6 +34,7 @@ typedef enum  {
     YEV_STOPPING_FLAG           = 0x01,
     YEV_STOPPED_FLAG            = 0x02,
     YEV_TIMER_PERIODIC_FLAG     = 0x04,
+    YEV_USE_SSL                 = 0x08,
 } yev_flag_t;
 
 /***************************************************************
@@ -123,12 +125,13 @@ PUBLIC yev_event_t *yev_create_accept_event(
 PUBLIC int yev_setup_connect_event(
     yev_event_t *yev_event,
     const char *dst_url,
-    const char *src_url
+    const char *src_url     /* only host:port */
 );
 
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
-    const char *listen_url
+    const char *listen_url,
+    BOOL exitOnError
 );
 
 

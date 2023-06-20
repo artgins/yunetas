@@ -8,6 +8,10 @@
  ****************************************************************************/
 #include <liburing.h>
 #include <sys/timerfd.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include "yuneta_ev_loop.h"
 
 /***************************************************************
@@ -21,6 +25,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE void print_addrinfo(char *bf, int bfsize, struct addrinfo *ai);
 
 /***************************************************************
  *              Data
@@ -833,9 +838,225 @@ PUBLIC int yev_setup_connect_event(
     const char *dst_url,
     const char *src_url
 ) {
-    yev_event->dst_addrlen = sizeof(*yev_event->dst_addr);
-    // TODO
-    return 0;
+    hgobj gobj = yev_event->gobj;
+    char schema[16];
+    char dst_host[120];
+    char dst_port[10];
+
+    int ret = parse_url(
+        gobj,
+        dst_url,
+        schema, sizeof(schema),
+        dst_host, sizeof(dst_host),
+        dst_port, sizeof(dst_port),
+        0, 0,
+        0, 0,
+        FALSE
+    );
+    if(ret < 0) {
+        // Error already logged
+        return -1;
+    }
+    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
+        yev_event->flag |= YEV_USE_SSL;
+    } else {
+        yev_event->flag &= ~YEV_USE_SSL;
+    }
+
+    struct addrinfo hints = {
+        .ai_family = AF_UNSPEC,  /* Allow IPv4 or IPv6 */
+        .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
+    };
+
+    SWITCHS(schema) { // WARNING Repeated
+        ICASES("tcps")
+        ICASES("tcp")
+        ICASES("http")
+        ICASES("https")
+        ICASES("wss")
+        ICASES("ws")
+            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints.ai_protocol = IPPROTO_TCP;
+            break;
+
+        ICASES("udps")
+        ICASES("udp")
+                hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
+                hints.ai_protocol = IPPROTO_UDP;
+            break;
+
+        DEFAULTS
+            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "schema NOT supported, using tcp",
+                "url",          "%s", dst_url,
+                "schema",       "%s", schema,
+                NULL
+            );
+            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints.ai_protocol = IPPROTO_TCP;
+            break;
+    } SWITCHS_END;
+
+    struct addrinfo *results;
+    struct addrinfo *rp;
+    ret = getaddrinfo(
+        dst_host,
+        dst_port,
+        &hints,
+        &results
+    );
+    if(ret != 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "getaddrinfo() FAILED",
+            "url",          "%s", dst_url,
+            "host",         "%s", dst_host,
+            "port",         "%s", dst_port,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    int fd = -1;
+    for (rp = results; rp; rp = rp->ai_next) {
+		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (fd == -1) {
+			continue;
+		}
+
+        /*--------------------------------------*
+         *  Option to bind to local host/port
+         *--------------------------------------*/
+		if(!empty_string(src_url)) {
+            char src_host[120] = {0};
+            char src_port[10] = {0};
+            if(!empty_string(src_host)) {
+                ret = parse_url(
+                    gobj,
+                    src_url,
+                    0, 0,
+                    src_host, sizeof(src_host),
+                    src_port, sizeof(src_port),
+                    0, 0,
+                    0, 0,
+                    TRUE
+                );
+                if(ret < 0) {
+                    close(fd);
+                    // Error already logged
+                    return -1;
+                }
+            }
+
+            struct addrinfo *res;
+            ret = getaddrinfo(
+                src_host,
+                src_port,
+                &hints,
+                &res
+            );
+            if(ret != 0) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "getaddrinfo() src_url FAILED",
+                    "url",          "%s", src_url,
+                    "host",         "%s", src_host,
+                    "port",         "%s", src_port,
+                    "errno",        "%d", errno,
+                    "strerror",     "%s", strerror(errno),
+                    NULL
+                );
+                close(fd);
+                return -1;
+            }
+
+            ret = bind(fd, res->ai_addr, (socklen_t) res->ai_addrlen);
+			if (ret == -1) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "bind() FAILED",
+                    "url",          "%s", src_url,
+                    "host",         "%s", src_host,
+                    "port",         "%s", src_port,
+                    "errno",        "%d", errno,
+                    "strerror",     "%s", strerror(errno),
+                    NULL
+                );
+            }
+            freeaddrinfo(res);
+            if(ret == -1) {
+                close(fd);
+                return -1;
+            }
+		}
+
+        char s[80] = {0};
+		print_addrinfo(s, sizeof(s), rp);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECTION,
+            "msg",          "%s", "addrinfo to connect",
+            "url",          "%s", dst_url,
+            "addrinfo",     "%s", s,
+            NULL
+        );
+
+        ret = 0;    // Got a addr
+        break;
+	}
+
+    if (!rp || fd == -1) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot get addr to connect",
+            "url",          "%s", dst_url,
+            "host",         "%s", dst_host,
+            "port",         "%s", dst_port,
+            NULL
+        );
+        ret = -1;
+    }
+
+    if(ret == 0) {
+        yev_event->dst_addr = GBMEM_MALLOC(rp->ai_addrlen);
+        if(yev_event->dst_addr) {
+            memcpy(yev_event->dst_addr, rp->ai_addr, rp->ai_addrlen);
+            yev_event->dst_addrlen = (socklen_t) rp->ai_addrlen;
+        } else {
+            close(fd);
+            fd = -1;
+            ret = -1;
+        }
+    }
+
+    freeaddrinfo(results);
+
+    if(hints.ai_protocol == IPPROTO_TCP) {
+        int on = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+        #ifdef TCP_KEEPIDLE
+        int delay = 60; /* seconds */
+        int intvl = 1;  /*  1 second; same as default on Win32 */
+        int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+        #endif
+    }
+
+    yev_event->fd = fd;
+
+    return ret;
 }
 
 /***************************************************************************
@@ -843,554 +1064,77 @@ PUBLIC int yev_setup_connect_event(
  ***************************************************************************/
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
-    const char *listen_url
+    const char *listen_url,
+    BOOL exitOnError
 ) {
+    hgobj gobj = yev_event->gobj;
+    char schema[16];
+    char host[120];
+    char port[10];
+
+    parse_url(
+        gobj,
+        listen_url,
+        schema, sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        0, 0,
+        0, 0,
+        FALSE
+    );
+    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
+        yev_event->flag |= YEV_USE_SSL;
+    }
+
+    SWITCHS(schema) { // WARNING Repeated
+        ICASES("tcps")
+        ICASES("tcp")
+        ICASES("http")
+        ICASES("https")
+        ICASES("wss")
+        ICASES("ws")
+            break;
+
+        ICASES("udps")
+        ICASES("udp")
+            break;
+
+        DEFAULTS
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "schema NOT supported",
+                "schema",       "%s", schema,
+                NULL
+            );
+            return -1;
+    } SWITCHS_END;
+
+
+//            if(gobj_read_bool_attr(gobj, "shared")) {
+//                // TODO FALTA CHEQUEAR si el S.O. lo soporta.
+//                int sfd;
+//                uv_fileno((const uv_handle_t *) &priv->uv_socket, &sfd);
+//                int optval = 1;
+//                if(setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))<0) {
+
     // TODO
     yev_event->src_addrlen = sizeof(*yev_event->src_addr);
     return 0;
 }
 
-#ifdef PEPE
-struct us_socket_t *us_socket_context_connect(int ssl, struct us_socket_context_t *context, const char *host, int port, const char *source_host, int options, int socket_ext_size) {
-
-
-    struct us_socket_t *s = malloc(sizeof(struct us_socket_t) + socket_ext_size);
-    s->context = context;
-
-    s->timeout = 255;
-    s->long_timeout = 255;
-
-    us_internal_socket_context_link_socket(context, s);
-
-
-    struct addrinfo hints, *result;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    char port_string[16];
-    snprintf(port_string, 16, "%d", port);
-
-    if (getaddrinfo(host, port_string, &hints, &result) != 0) {
-        return NULL;
-    }
-
-    LIBUS_SOCKET_DESCRIPTOR fd = bsd_create_socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    bsd_socket_nodelay(fd, 1);
-    if (fd == LIBUS_SOCKET_ERROR) {
-        freeaddrinfo(result);
-        return NULL;
-    }
-
-    if (source_host) {
-        struct addrinfo *interface_result;
-        if (!getaddrinfo(source_host, NULL, NULL, &interface_result)) {
-            int ret = bind(fd, interface_result->ai_addr, (socklen_t) interface_result->ai_addrlen);
-            freeaddrinfo(interface_result);
-            if (ret == LIBUS_SOCKET_ERROR) {
-                bsd_close_socket(fd);
-                freeaddrinfo(result);
-                return NULL;
-            }
-        }
-    }
-
-    struct io_uring_sqe *sqe = io_uring_get_sqe(&context->loop->ring);
-    io_uring_prep_connect(sqe, fd, result->ai_addr, (socklen_t) result->ai_addrlen);
-
-        static int num_sockets;
-
-    // register this file add
-    io_uring_register_files_update(&context->loop->ring, num_sockets, &fd, 1);
-
-
-
-    s->dd = num_sockets++;
-
-
-    struct iovec iovecs = {s->sendBuf, 16 * 1024};
-    //printf("register: %d\n", io_uring_register_buffers_update_tag(&context->loop->ring, s->dd, &iovecs, 0, 1));
-
-
-    io_uring_sqe_set_data(sqe, (char *)s + SOCKET_CONNECT);
-
-
-    freeaddrinfo(result);
-
-
-
-    return s;
-}
-
-
-static int pp_getaddrinfo(char *name, uint16_t port, struct addrinfo **results)
-{
-	int ret;
-	const char *err_msg;
-	char port_s[6];
-
-	struct addrinfo hints = {
-	    .ai_family = pp_ipv6 ? AF_INET6 : AF_INET,
-	    .ai_socktype = SOCK_STREAM, /* TCP socket */
-	    .ai_protocol = IPPROTO_TCP, /* Any protocol */
-	    .ai_flags = AI_NUMERICSERV /* numeric port is used */
-	};
-
-	snprintf(port_s, 6, "%" PRIu16, port);
-
-	ret = getaddrinfo(name, port_s, &hints, results);
-	if (ret != 0) {
-		err_msg = (const char *) gai_strerror(ret);
-		PP_ERR("getaddrinfo : %s", err_msg);
-		ret = -EXIT_FAILURE;
-		goto out;
-	}
-	ret = EXIT_SUCCESS;
-
-out:
-	return ret;
-}
-
-static void pp_print_addrinfo(struct addrinfo *ai, char *msg)
-{
-	char s[80] = {0};
-	void *addr;
-
-	if (ai->ai_family == AF_INET6)
-		addr = &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr;
-	else
-		addr = &((struct sockaddr_in *)ai->ai_addr)->sin_addr;
-
-	inet_ntop(ai->ai_family, addr, s, 80);
-	PP_DEBUG("%s %s\n", msg, s);
-}
-
-static int pp_ctrl_init_client(struct ct_pingpong *ct)
-{
-	struct addrinfo *results;
-	struct addrinfo *rp;
-	int errno_save = 0;
-	int ret;
-
-	ret = pp_getaddrinfo(ct->opts.dst_addr, ct->opts.dst_port, &results);
-	if (ret)
-		return ret;
-
-	if (!results) {
-		PP_ERR("getaddrinfo returned NULL list");
-		return -EXIT_FAILURE;
-	}
-
-	for (rp = results; rp; rp = rp->ai_next) {
-		ct->ctrl_connfd = ofi_socket(rp->ai_family, rp->ai_socktype,
-					     rp->ai_protocol);
-		if (ct->ctrl_connfd == INVALID_SOCKET) {
-			errno_save = ofi_sockerr();
-			continue;
-		}
-
-		if (ct->opts.src_port != 0) {
-			if (pp_ipv6) {
-				struct sockaddr_in6 in6_addr = {0};
-
-				in6_addr.sin6_family = AF_INET6;
-				in6_addr.sin6_port = htons(ct->opts.src_port);
-				in6_addr.sin6_addr = in6addr_any;
-
-				ret =
-				    bind(ct->ctrl_connfd, (struct sockaddr *)&in6_addr,
-					 sizeof(in6_addr));
-			} else {
-				struct sockaddr_in in_addr = {0};
-
-				in_addr.sin_family = AF_INET;
-				in_addr.sin_port = htons(ct->opts.src_port);
-				in_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-				ret =
-				    bind(ct->ctrl_connfd, (struct sockaddr *)&in_addr,
-					 sizeof(in_addr));
-			}
-			if (ret == -1) {
-				errno_save = ofi_sockerr();
-				ofi_close_socket(ct->ctrl_connfd);
-				continue;
-			}
-		}
-
-		pp_print_addrinfo(rp, "CLIENT: connecting to");
-
-		ret = connect(ct->ctrl_connfd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
-		if (ret != -1)
-			break;
-
-		errno_save = ofi_sockerr();
-		ofi_close_socket(ct->ctrl_connfd);
-	}
-
-	if (!rp || ret == -1) {
-		ret = -errno_save;
-		ct->ctrl_connfd = -1;
-		PP_ERR("failed to connect: %s", strerror(errno_save));
-	} else {
-		PP_DEBUG("CLIENT: connected\n");
-	}
-
-	freeaddrinfo(results);
-
-	return ret;
-}
-
-static int pp_ctrl_init_server(struct ct_pingpong *ct)
-{
-	int optval = 1;
-	SOCKET listenfd;
-	int ret;
-
-	listenfd = ofi_socket(pp_ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
-	if (listenfd == INVALID_SOCKET) {
-		ret = -ofi_sockerr();
-		PP_PRINTERR("socket", ret);
-		return ret;
-	}
-
-	ret = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR,
-			 (const char *)&optval, sizeof(optval));
-	if (ret == -1) {
-		ret = -ofi_sockerr();
-		PP_PRINTERR("setsockopt(SO_REUSEADDR)", ret);
-		goto fail_close_socket;
-	}
-
-	if (pp_ipv6) {
-		struct sockaddr_in6 ctrl6_addr = {0};
-
-		ctrl6_addr.sin6_family = AF_INET6;
-		ctrl6_addr.sin6_port = htons(ct->opts.src_port);
-		ctrl6_addr.sin6_addr = in6addr_any;
-
-		ret = bind(listenfd, (struct sockaddr *)&ctrl6_addr,
-			   sizeof(ctrl6_addr));
-	} else {
-		struct sockaddr_in ctrl_addr = {0};
-
-		ctrl_addr.sin_family = AF_INET;
-		ctrl_addr.sin_port = htons(ct->opts.src_port);
-		ctrl_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-		ret = bind(listenfd, (struct sockaddr *)&ctrl_addr,
-			   sizeof(ctrl_addr));
-	}
-	if (ret == -1) {
-		ret = -ofi_sockerr();
-		PP_PRINTERR("bind", ret);
-		goto fail_close_socket;
-	}
-
-	ret = listen(listenfd, 10);
-	if (ret == -1) {
-		ret = -ofi_sockerr();
-		PP_PRINTERR("listen", ret);
-		goto fail_close_socket;
-	}
-
-	PP_DEBUG("SERVER: waiting for connection\n");
-
-	ct->ctrl_connfd = accept(listenfd, NULL, NULL);
-	if (ct->ctrl_connfd == -1) {
-		ret = -ofi_sockerr();
-		PP_PRINTERR("accept", ret);
-		goto fail_close_socket;
-	}
-
-	ofi_close_socket(listenfd);
-
-	PP_DEBUG("SERVER: connected\n");
-
-	return ret;
-
-fail_close_socket:
-	if (ct->ctrl_connfd != -1) {
-		ofi_close_socket(ct->ctrl_connfd);
-		ct->ctrl_connfd = -1;
-	}
-
-	if (listenfd != -1)
-		ofi_close_socket(listenfd);
-
-	return ret;
-}
-
-
-
-
-
-static int fio_init_server_ip(void)
-{
-	struct sockaddr *addr;
-	socklen_t socklen;
-	char buf[80];
-	const char *str;
-	int sk, opt;
-
-	if (use_ipv6)
-		sk = socket(AF_INET6, SOCK_STREAM, 0);
-	else
-		sk = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (sk < 0) {
-		log_err("fio: socket: %s\n", strerror(errno));
-		return -1;
-	}
-
-	opt = 1;
-	if (setsockopt(sk, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) < 0) {
-		log_err("fio: setsockopt(REUSEADDR): %s\n", strerror(errno));
-		close(sk);
-		return -1;
-	}
-#ifdef SO_REUSEPORT
-	/*
-	 * Not fatal if fails, so just ignore it if that happens
-	 */
-	if (setsockopt(sk, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt))) {
-	}
-#endif
-
-	if (use_ipv6) {
-		void *src = &saddr_in6.sin6_addr;
-
-		addr = (struct sockaddr *) &saddr_in6;
-		socklen = sizeof(saddr_in6);
-		saddr_in6.sin6_family = AF_INET6;
-		str = inet_ntop(AF_INET6, src, buf, sizeof(buf));
-	} else {
-		void *src = &saddr_in.sin_addr;
-
-		addr = (struct sockaddr *) &saddr_in;
-		socklen = sizeof(saddr_in);
-		saddr_in.sin_family = AF_INET;
-		str = inet_ntop(AF_INET, src, buf, sizeof(buf));
-	}
-
-	if (bind(sk, addr, socklen) < 0) {
-		log_err("fio: bind: %s\n", strerror(errno));
-		log_info("fio: failed with IPv%c %s\n", use_ipv6 ? '6' : '4', str);
-		close(sk);
-		return -1;
-	}
-
-	return sk;
-}
-
-static int fio_init_server_sock(void)
-{
-	struct sockaddr_un addr;
-	socklen_t len;
-	mode_t mode;
-	int sk;
-
-	sk = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (sk < 0) {
-		log_err("fio: socket: %s\n", strerror(errno));
-		return -1;
-	}
-
-	mode = umask(000);
-
-	addr.sun_family = AF_UNIX;
-	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", bind_sock);
-
-	len = sizeof(addr.sun_family) + strlen(bind_sock) + 1;
-
-	if (bind(sk, (struct sockaddr *) &addr, len) < 0) {
-		log_err("fio: bind: %s\n", strerror(errno));
-		close(sk);
-		return -1;
-	}
-
-	umask(mode);
-	return sk;
-}
-
-static int fio_init_server_connection(void)
-{
-	char bind_str[128];
-	int sk;
-
-	dprint(FD_NET, "starting server\n");
-
-	if (!bind_sock)
-		sk = fio_init_server_ip();
-	else
-		sk = fio_init_server_sock();
-
-	if (sk < 0)
-		return sk;
-
-	memset(bind_str, 0, sizeof(bind_str));
-
-	if (!bind_sock) {
-		char *p, port[16];
-		void *src;
-		int af;
-
-		if (use_ipv6) {
-			af = AF_INET6;
-			src = &saddr_in6.sin6_addr;
-		} else {
-			af = AF_INET;
-			src = &saddr_in.sin_addr;
-		}
-
-		p = (char *) inet_ntop(af, src, bind_str, sizeof(bind_str));
-
-		sprintf(port, ",%u", fio_net_port);
-		if (p)
-			strcat(p, port);
-		else
-			snprintf(bind_str, sizeof(bind_str), "%s", port);
-	} else
-		snprintf(bind_str, sizeof(bind_str), "%s", bind_sock);
-
-	log_info("fio: server listening on %s\n", bind_str);
-
-	if (listen(sk, 4) < 0) {
-		log_err("fio: listen: %s\n", strerror(errno));
-		close(sk);
-		return -1;
-	}
-
-	return sk;
-}
-
-int fio_server_parse_host(const char *host, int ipv6, struct in_addr *inp,
-			  struct in6_addr *inp6)
-
-{
-	int ret = 0;
-
-	if (ipv6)
-		ret = inet_pton(AF_INET6, host, inp6);
-	else
-		ret = inet_pton(AF_INET, host, inp);
-
-	if (ret != 1) {
-		struct addrinfo *res, hints = {
-			.ai_family = ipv6 ? AF_INET6 : AF_INET,
-			.ai_socktype = SOCK_STREAM,
-		};
-
-		ret = getaddrinfo(host, NULL, &hints, &res);
-		if (ret) {
-			log_err("fio: failed to resolve <%s> (%s)\n", host,
-					gai_strerror(ret));
-			return 1;
-		}
-
-		if (ipv6)
-			memcpy(inp6, &((struct sockaddr_in6 *) res->ai_addr)->sin6_addr, sizeof(*inp6));
-		else
-			memcpy(inp, &((struct sockaddr_in *) res->ai_addr)->sin_addr, sizeof(*inp));
-
-		ret = 1;
-		freeaddrinfo(res);
-	}
-
-	return !(ret == 1);
-}
-
-/*
- * Parse a host/ip/port string. Reads from 'str'.
+/***************************************************************************
  *
- * Outputs:
- *
- * For IPv4:
- *	*ptr is the host, *port is the port, inp is the destination.
- * For IPv6:
- *	*ptr is the host, *port is the port, inp6 is the dest, and *ipv6 is 1.
- * For local domain sockets:
- *	*ptr is the filename, *is_sock is 1.
- */
-int fio_server_parse_string(const char *str, char **ptr, bool *is_sock,
-			    int *port, struct in_addr *inp,
-			    struct in6_addr *inp6, int *ipv6)
+ ***************************************************************************/
+PRIVATE void print_addrinfo(char *bf, int bfsize, struct addrinfo *ai)
 {
-	const char *host = str;
-	char *portp;
-	int lport = 0;
+    void *addr;
 
-	*ptr = NULL;
-	*is_sock = false;
-	*port = fio_net_port;
-	*ipv6 = 0;
+    if (ai->ai_family == AF_INET6) {
+        addr = &((struct sockaddr_in6 *) ai->ai_addr)->sin6_addr;
+    } else {
+        addr = &((struct sockaddr_in *) ai->ai_addr)->sin_addr;
+    }
 
-	if (!strncmp(str, "sock:", 5)) {
-		*ptr = strdup(str + 5);
-		*is_sock = true;
-
-		return 0;
-	}
-
-	/*
-	 * Is it ip:<ip or host>:port
-	 */
-	if (!strncmp(host, "ip:", 3))
-		host += 3;
-	else if (!strncmp(host, "ip4:", 4))
-		host += 4;
-	else if (!strncmp(host, "ip6:", 4)) {
-		host += 4;
-		*ipv6 = 1;
-	} else if (host[0] == ':') {
-		/* String is :port */
-		host++;
-		lport = atoi(host);
-		if (!lport || lport > 65535) {
-			log_err("fio: bad server port %u\n", lport);
-			return 1;
-		}
-		/* no hostname given, we are done */
-		*port = lport;
-		return 0;
-	}
-
-	/*
-	 * If no port seen yet, check if there's a last ',' at the end
-	 */
-	if (!lport) {
-		portp = strchr(host, ',');
-		if (portp) {
-			*portp = '\0';
-			portp++;
-			lport = atoi(portp);
-			if (!lport || lport > 65535) {
-				log_err("fio: bad server port %u\n", lport);
-				return 1;
-			}
-		}
-	}
-
-	if (lport)
-		*port = lport;
-
-	if (!strlen(host))
-		return 0;
-
-	*ptr = strdup(host);
-
-	if (fio_server_parse_host(*ptr, *ipv6, inp, inp6)) {
-		free(*ptr);
-		*ptr = NULL;
-		return 1;
-	}
-
-	if (*port == 0)
-		*port = fio_net_port;
-
-	return 0;
+    inet_ntop(ai->ai_family, addr, bf, bfsize);
 }
-
-
-
-#endif
