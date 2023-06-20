@@ -17,58 +17,104 @@ extern "C"{
 #endif
 
 /***************************************************************
+ *              Constants
+ ***************************************************************/
+#define DEFAULT_ENTRIES 2024
+
+typedef enum  {
+    YEV_TIMER_TYPE        = 1,
+    YEV_READ_TYPE,
+    YEV_WRITE_TYPE,
+    YEV_CONNECT_TYPE,
+    YEV_ACCEPT_TYPE,
+} yev_type_t;
+
+typedef enum  {
+    YEV_STOPPING_FLAG           = 0x01,
+    YEV_STOPPED_FLAG            = 0x02,
+    YEV_TIMER_PERIODIC_FLAG     = 0x04,
+} yev_flag_t;
+
+/***************************************************************
  *              Structures
  ***************************************************************/
-typedef void * yev_loop_h;
-typedef void * yev_event_h;
+typedef struct yev_event_s yev_event_t;
+typedef struct yev_loop_s yev_loop_t;
+
 typedef int (*yev_callback_t)(
     hgobj gobj,
-    yev_event_h event,
-    gbuffer *gbuf,  // MUST be owned
+    yev_event_t *event,
+    // void *ptr ==>
+    //      (gbuffer *gbuf) in READ/WRITE events that must be owned or reused
+    //      (int *sock_conn_fd) in ACCEPT event
+    void *ptr,
     BOOL stopped    // True if the event has stopped
 );
+
+struct yev_event_s {
+    yev_loop_t *yev_loop;
+    uint8_t type;               // yev_type_t
+    uint8_t flag;               // yev_flag_t
+    int fd;
+    union {
+        uint64_t timer_bf;
+        gbuffer *gbuf;
+    } bf;
+    hgobj gobj;
+    yev_callback_t callback;
+    struct sockaddr *addr;
+    socklen_t addrlen;
+};
+
+struct yev_loop_s {
+    struct io_uring ring;
+    unsigned entries;
+    hgobj yuno;
+};
+
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_h *yev_loop);
-PUBLIC void yev_loop_destroy(yev_loop_h yev_loop);
-PUBLIC int yev_loop_run(yev_loop_h yev_loop);
+PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop);
+PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
+PUBLIC int yev_loop_run(yev_loop_t *yev_loop);
 
-PUBLIC yev_event_h yev_create_timer_event(yev_loop_h loop, yev_callback_t callback, hgobj gobj);
+PUBLIC yev_event_t *yev_create_timer_event(yev_loop_t *loop, yev_callback_t callback, hgobj gobj);
 PUBLIC void yev_timer_set(
-    yev_event_h yev_event,
+    yev_event_t *yev_event,
     time_t timeout_ms,
     BOOL periodic
 );
 
-PUBLIC int yev_start_event( // Don't use with timer event: use yev_timer_set
-    yev_event_h yev_event,
-    gbuffer *gbuf // Use with yev_create_read_event(), yev_create_write_event()
+PUBLIC int yev_start_event(         // Don't use with timer event: use yev_timer_set
+    yev_event_t *yev_event,
+    gbuffer *gbuf,                  // Used with yev_create_read_event(), yev_create_write_event()
+    const struct sockaddr *addr,    // Used with yev_create_connect_event(), yev_create_accept_event()
+    socklen_t addrlen
 );
-PUBLIC int yev_stop_event(yev_event_h yev_event);
-PUBLIC void yev_destroy_event(yev_event_h yev_event);
+PUBLIC int yev_stop_event(yev_event_t *yev_event);
+PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
-PUBLIC yev_event_h yev_create_read_event(
-    yev_loop_h loop,
+PUBLIC yev_event_t *yev_create_read_event(
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
 );
-PUBLIC yev_event_h yev_create_write_event(
-    yev_loop_h loop,
+PUBLIC yev_event_t *yev_create_write_event(
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
 );
-PUBLIC yev_event_h yev_create_accept_event(
-    yev_loop_h loop,
+PUBLIC yev_event_t *yev_create_connect_event(
+    yev_loop_t *loop,
     yev_callback_t callback,
-    hgobj gobj,
-    int fd
+    hgobj gobj
 );
-PUBLIC yev_event_h yev_create_connect_event(
-    yev_loop_h loop,
+PUBLIC yev_event_t *yev_create_accept_event(
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
