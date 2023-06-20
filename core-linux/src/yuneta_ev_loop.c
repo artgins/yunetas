@@ -877,12 +877,14 @@ PUBLIC int yev_setup_connect_event(
         ICASES("ws")
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
+            yev_event->flag |= YEV_IS_TCP;
             break;
 
         ICASES("udps")
         ICASES("udp")
-                hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
-                hints.ai_protocol = IPPROTO_UDP;
+            hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
+            hints.ai_protocol = IPPROTO_UDP;
+            yev_event->flag &= ~YEV_IS_TCP;
             break;
 
         DEFAULTS
@@ -926,6 +928,17 @@ PUBLIC int yev_setup_connect_event(
     for (rp = results; rp; rp = rp->ai_next) {
 		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 		if (fd == -1) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "socket() FAILED",
+                "url",          "%s", dst_url,
+                "host",         "%s", dst_host,
+                "port",         "%s", dst_port,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
 			continue;
 		}
 
@@ -1065,6 +1078,7 @@ PUBLIC int yev_setup_connect_event(
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *listen_url,
+    BOOL shared,
     BOOL exitOnError
 ) {
     hgobj gobj = yev_event->gobj;
@@ -1072,7 +1086,7 @@ PUBLIC int yev_setup_accept_event(
     char host[120];
     char port[10];
 
-    parse_url(
+    int ret = parse_url(
         gobj,
         listen_url,
         schema, sizeof(schema),
@@ -1082,9 +1096,20 @@ PUBLIC int yev_setup_accept_event(
         0, 0,
         FALSE
     );
+    if(ret < 0) {
+        // Error already logged
+        return -1;
+    }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
         yev_event->flag |= YEV_USE_SSL;
+    } else {
+        yev_event->flag &= ~YEV_USE_SSL;
     }
+
+    struct addrinfo hints = {
+        .ai_family = AF_UNSPEC,  /* Allow IPv4 or IPv6 */
+        .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
+    };
 
     SWITCHS(schema) { // WARNING Repeated
         ICASES("tcps")
@@ -1093,34 +1118,164 @@ PUBLIC int yev_setup_accept_event(
         ICASES("https")
         ICASES("wss")
         ICASES("ws")
+            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints.ai_protocol = IPPROTO_TCP;
+            yev_event->flag |= YEV_IS_TCP;
             break;
 
         ICASES("udps")
         ICASES("udp")
+            hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
+            hints.ai_protocol = IPPROTO_UDP;
+            yev_event->flag &= ~YEV_IS_TCP;
             break;
 
         DEFAULTS
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "schema NOT supported",
+                "msg",          "%s", "schema NOT supported, using tcp",
+                "url",          "%s", listen_url,
                 "schema",       "%s", schema,
                 NULL
             );
-            return -1;
+            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints.ai_protocol = IPPROTO_TCP;
+            break;
     } SWITCHS_END;
 
+    struct addrinfo *results;
+    struct addrinfo *rp;
+    ret = getaddrinfo(
+        host,
+        port,
+        &hints,
+        &results
+    );
+    if(ret != 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "getaddrinfo() FAILED",
+            "url",          "%s", listen_url,
+            "host",         "%s", host,
+            "port",         "%s", port,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        if(exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
+        }
+        return -1;
+    }
 
-//            if(gobj_read_bool_attr(gobj, "shared")) {
-//                // TODO FALTA CHEQUEAR si el S.O. lo soporta.
-//                int sfd;
-//                uv_fileno((const uv_handle_t *) &priv->uv_socket, &sfd);
-//                int optval = 1;
-//                if(setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))<0) {
+    int fd = -1;
+    for (rp = results; rp; rp = rp->ai_next) {
+		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (fd == -1) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "socket() FAILED",
+                "url",          "%s", listen_url,
+                "host",         "%s", host,
+                "port",         "%s", port,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+			continue;
+		}
 
-    // TODO
-    yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-    return 0;
+        ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
+        if (ret == -1) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "bind() FAILED",
+                "url",          "%s", listen_url,
+                "host",         "%s", host,
+                "port",         "%s", port,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+
+        char s[80] = {0};
+		print_addrinfo(s, sizeof(s), rp);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECTION,
+            "msg",          "%s", "addrinfo to listen",
+            "url",          "%s", listen_url,
+            "addrinfo",     "%s", s,
+            NULL
+        );
+
+        ret = 0;    // Got a addr
+        break;
+	}
+
+    if (!rp || fd == -1) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot get addr to connect",
+            "url",          "%s", listen_url,
+            "host",         "%s", host,
+            "port",         "%s", port,
+            NULL
+        );
+        ret = -1;
+    }
+
+    if(ret == 0) {
+        yev_event->src_addr = GBMEM_MALLOC(rp->ai_addrlen);
+        if(yev_event->dst_addr) {
+            memcpy(yev_event->src_addr, rp->ai_addr, rp->ai_addrlen);
+            yev_event->dst_addrlen = (socklen_t) rp->ai_addrlen;
+        } else {
+            close(fd);
+            fd = -1;
+            ret = -1;
+        }
+    }
+
+    freeaddrinfo(results);
+
+    if(ret == -1) {
+        if(exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
+        }
+        return ret;
+    }
+
+    if(hints.ai_protocol == IPPROTO_TCP) {
+        int on = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+        #ifdef TCP_KEEPIDLE
+        int delay = 60; /* seconds */
+        int intvl = 1;  /*  1 second; same as default on Win32 */
+        int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+        #endif
+
+        if(shared) {
+            setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
+        }
+    }
+
+    yev_event->fd = fd;
+
+    return ret;
 }
 
 /***************************************************************************

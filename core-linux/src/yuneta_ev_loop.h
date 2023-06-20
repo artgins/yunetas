@@ -30,11 +30,12 @@ typedef enum  {
     YEV_ACCEPT_TYPE,
 } yev_type_t;
 
-typedef enum  {
+typedef enum  { // WARNING 8 bits only
     YEV_STOPPING_FLAG           = 0x01,
     YEV_STOPPED_FLAG            = 0x02,
     YEV_TIMER_PERIODIC_FLAG     = 0x04,
     YEV_USE_SSL                 = 0x08,
+    YEV_IS_TCP                  = 0x10,
 } yev_flag_t;
 
 /***************************************************************
@@ -131,6 +132,7 @@ PUBLIC int yev_setup_connect_event(
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *listen_url,
+    BOOL shared,
     BOOL exitOnError
 );
 
