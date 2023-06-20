@@ -501,7 +501,6 @@ PUBLIC int yev_start_event(
         case YEV_CONNECT_TYPE:
             {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                yev_event->dst_addrlen = sizeof(*yev_event->dst_addr);
                 /*
                  *  Use the file descriptor fd to start connecting to the destination
                  *  described by the socket address at addr and of structure length addrlen.
@@ -519,8 +518,6 @@ PUBLIC int yev_start_event(
         case YEV_ACCEPT_TYPE:
             {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-
                 /*
                  *  Use the file descriptor fd to start accepting a connection request
                  *  described by the socket address at addr and of structure length addrlen
@@ -812,17 +809,6 @@ PUBLIC yev_event_t *yev_create_connect_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_setup_connect_event(
-    yev_event_t *yev_event,
-    const char *url
-) {
-    // TODO
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop_,
     yev_callback_t callback,
@@ -843,11 +829,24 @@ PUBLIC yev_event_t *yev_create_accept_event(
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int yev_setup_connect_event(
+    yev_event_t *yev_event,
+    const char *url
+) {
+    yev_event->dst_addrlen = sizeof(*yev_event->dst_addr);
+    // TODO
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *url
 ) {
     // TODO
+    yev_event->src_addrlen = sizeof(*yev_event->src_addr);
     return 0;
 }
 
