@@ -144,7 +144,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_loop_h yev_loop;
+    yev_loop_t *yev_loop;
 
     size_t t_flush;
     size_t t_stats;
