@@ -14,13 +14,13 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
+PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
+PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
 
 /***************************************************************
  *              Data
  ***************************************************************/
-int wait_time = 2;
-int times = 0;
+const char *server_url = "";
 
 /***************************************************************************
  *              Test
@@ -38,50 +38,121 @@ int do_test(void)
     );
 
     /*--------------------------------*
-     *      Create server
+     *      Setup server
      *--------------------------------*/
-    yev_event_t *yev_accept_event = yev_create_accept_event(
+    yev_event_t *yev_server_accept = yev_create_accept_event(
         yev_loop,
-        yev_callback,
+        yev_server_callback,
         NULL
     );
+    int fd_listen = yev_setup_accept_event(
+        yev_server_accept,
+        server_url,     // server_url
+        FALSE           // shared
+    );
+    if(fd_listen < 0) {
+        gobj_trace_msg(0, "Error setup listen on %s", server_url);
+        exit(0);
+    }
 
-    yev_setup_connect_event(
-        yev_accept_event,
-        "dst_url,
-        NULL    // src_url, only host:port
+    yev_event_t *yev_server_rx = yev_create_read_event(
+        yev_loop,
+        yev_server_callback,
+        NULL,
+        fd_listen
+    );
+    yev_event_t *yev_server_tx = yev_create_write_event(
+        yev_loop,
+        yev_server_callback,
+        NULL,
+        fd_listen
     );
 
-    yev_start_timer_event(yev_event, wait_time*1000, FALSE);
+    gbuffer *gbuf_server_rx = gbuffer_create(4*1024, 4*1024);
+    gbuffer *gbuf_server_tx = gbuffer_create(4*1024, 4*1024);
+    yev_start_event(yev_server_accept, NULL);
+    yev_start_event(yev_server_rx, gbuf_server_rx);
+    yev_start_event(yev_server_tx, gbuf_server_tx);
 
+    /*--------------------------------*
+     *      Setup client
+     *--------------------------------*/
+    yev_event_t *yev_client_connect = yev_create_connect_event(
+        yev_loop,
+        yev_client_callback,
+        NULL
+    );
+    int fd_connect = yev_setup_connect_event(
+        yev_client_connect,
+        server_url,     // client_url
+        NULL            // local bind
+    );
+    if(fd_connect < 0) {
+        gobj_trace_msg(0, "Error setup connect to %s", server_url);
+        exit(0);
+    }
+
+    yev_event_t *yev_client_rx = yev_create_read_event(
+        yev_loop,
+        yev_client_callback,
+        NULL,
+        fd_connect
+    );
+    yev_event_t *yev_client_tx = yev_create_write_event(
+        yev_loop,
+        yev_client_callback,
+        NULL,
+        fd_connect
+    );
+
+    gbuffer *gbuf_client_rx = gbuffer_create(4*1024, 4*1024);
+    gbuffer *gbuf_client_tx = gbuffer_create(4*1024, 4*1024);
+    yev_start_event(yev_client_connect, NULL);
+    yev_start_event(yev_client_rx, gbuf_client_rx);
+    yev_start_event(yev_client_tx, gbuf_client_tx);
+
+    /*--------------------------------*
+     *      Begin run loop
+     *--------------------------------*/
     yev_loop_run(yev_loop);
-    gobj_trace_msg(0, "Quiting of yev_loop_run()");
 
-    yev_destroy_event(yev_event);
+    /*--------------------------------*
+     *      Stop
+     *--------------------------------*/
+    yev_stop_event(yev_server_accept);
+    yev_stop_event(yev_server_rx);
+    yev_stop_event(yev_server_tx);
+
+    yev_stop_event(yev_client_connect);
+    yev_stop_event(yev_client_rx);
+    yev_stop_event(yev_client_tx);
+
+    yev_destroy_event(yev_server_accept);
+    yev_destroy_event(yev_server_rx);
+    yev_destroy_event(yev_server_tx);
+
+    yev_destroy_event(yev_client_connect);
+    yev_destroy_event(yev_client_rx);
+    yev_destroy_event(yev_client_tx);
+
     yev_loop_destroy(yev_loop);
 
     return 0;
 }
 
 /***************************************************************************
- *  Callback that will be executed when the timer period lapses.
- *  Posts the timer expiry event to the default event loop.
+ *
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
+PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
 {
-    if(stopped) {
-        gobj_trace_msg(0, "yev_start_timer_event STOPPED, stop loop");
-        yev_loop_stop(yev_event->yev_loop);
-    } else {
-        times++;
-        if(times < 3) {
-            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time", wait_time, times);
-            yev_start_timer_event(yev_event, wait_time*1000, FALSE);
-        } else {
-            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time, stopping", wait_time, times);
-            yev_stop_event(yev_event);
-        }
-    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
+{
     return 0;
 }
 

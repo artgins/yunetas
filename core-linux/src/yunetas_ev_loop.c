@@ -771,25 +771,6 @@ PUBLIC yev_event_t *yev_create_timer_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop,
-    yev_callback_t callback,
-    hgobj gobj
-) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
-    if(!yev_event) {
-        // Error already logged
-        return NULL;
-    }
-
-    yev_event->type = YEV_ACCEPT_TYPE;
-
-    return yev_event;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC yev_event_t *yev_create_connect_event(
     yev_loop_t *loop,
     yev_callback_t callback,
@@ -1029,23 +1010,46 @@ PUBLIC int yev_setup_connect_event(
 
     freeaddrinfo(results);
 
+    if(ret == -1) {
+        return ret;
+    }
+
     if(hints.ai_protocol == IPPROTO_TCP) {
         int on = 1;
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
         setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
-        #ifdef TCP_KEEPIDLE
+#ifdef TCP_KEEPIDLE
         int delay = 60; /* seconds */
         int intvl = 1;  /*  1 second; same as default on Win32 */
         int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
         setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
         setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
         setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
-        #endif
+#endif
     }
 
     yev_event->fd = fd;
 
-    return ret;
+    return fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_event_t *yev_create_accept_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj
+) {
+    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_ACCEPT_TYPE;
+
+    return yev_event;
 }
 
 /***************************************************************************
@@ -1054,8 +1058,7 @@ PUBLIC int yev_setup_connect_event(
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *listen_url,
-    BOOL shared,
-    BOOL exitOnError
+    BOOL shared
 ) {
     hgobj gobj = yev_event->gobj;
     char schema[16];
@@ -1140,9 +1143,6 @@ PUBLIC int yev_setup_accept_event(
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        if(exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        }
         return -1;
     }
 
@@ -1225,9 +1225,6 @@ PUBLIC int yev_setup_accept_event(
     freeaddrinfo(results);
 
     if(ret == -1) {
-        if(exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        }
         return ret;
     }
 
@@ -1251,7 +1248,7 @@ PUBLIC int yev_setup_accept_event(
 
     yev_event->fd = fd;
 
-    return ret;
+    return fd;
 }
 
 /***************************************************************************

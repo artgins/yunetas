@@ -114,18 +114,6 @@ PUBLIC yev_event_t *yev_create_timer_event(
     hgobj gobj
 );
 
-PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop,
-    yev_callback_t callback,
-    hgobj gobj
-);
-PUBLIC int yev_setup_accept_event(
-    yev_event_t *yev_event,
-    const char *listen_url,
-    BOOL shared,
-    BOOL exitOnError
-);
-
 PUBLIC yev_event_t *yev_create_connect_event(
     yev_loop_t *loop,
     yev_callback_t callback,
@@ -135,6 +123,17 @@ PUBLIC int yev_setup_connect_event(
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url     /* only host:port */
+);
+
+PUBLIC yev_event_t *yev_create_accept_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj
+);
+PUBLIC int yev_setup_accept_event(
+    yev_event_t *yev_event,
+    const char *listen_url,
+    BOOL shared
 );
 
 PUBLIC yev_event_t *yev_create_read_event(
