@@ -156,6 +156,7 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
     struct io_uring_sqe *sqe;
     sqe = io_uring_get_sqe(&yev_loop->ring);
+    io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
     io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
     io_uring_submit(&yev_loop->ring);
 
@@ -287,6 +288,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
                         !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
                     struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                    io_uring_sqe_set_data(sqe, yev_event);
                     yev_event->src_addrlen = sizeof(*yev_event->src_addr);
                     io_uring_prep_accept(
                         sqe,
@@ -295,7 +297,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         &yev_event->src_addrlen,
                         0
                     );
-                    io_uring_sqe_set_data(sqe, yev_event);
                     io_uring_submit(&yev_loop->ring);
                 }
             }
@@ -320,6 +321,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
                         !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
                     struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                    io_uring_sqe_set_data(sqe, yev_event);
                     io_uring_prep_read(
                         sqe,
                         yev_event->fd,
@@ -327,7 +329,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         sizeof(yev_event->timer_bf),
                         0
                     );
-                    io_uring_sqe_set_data(sqe, yev_event);
                     io_uring_submit(&yev_loop->ring);
                 }
             }
@@ -479,6 +480,7 @@ PUBLIC int yev_start_event(
                     break;
                 }
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_prep_read(
                     sqe,
                     yev_event->fd,
@@ -486,7 +488,6 @@ PUBLIC int yev_start_event(
                     gbuffer_freebytes(yev_event->gbuf),
                     0
                 );
-                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_submit(&yev_loop->ring);
             }
             break;
@@ -512,6 +513,7 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_prep_write(
                     sqe,
                     yev_event->fd,
@@ -519,13 +521,13 @@ PUBLIC int yev_start_event(
                     gbuffer_leftbytes(yev_event->gbuf),
                     0
                 );
-                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_submit(&yev_loop->ring);
             }
             break;
         case YEV_CONNECT_TYPE:
             {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
                 /*
                  *  Use the file descriptor fd to start connecting to the destination
                  *  described by the socket address at addr and of structure length addrlen.
@@ -536,13 +538,13 @@ PUBLIC int yev_start_event(
                     yev_event->dst_addr,
                     yev_event->dst_addrlen
                 );
-                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_submit(&yev_loop->ring);
             }
             break;
         case YEV_ACCEPT_TYPE:
             {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
                 /*
                  *  Use the file descriptor fd to start accepting a connection request
                  *  described by the socket address at addr and of structure length addrlen
@@ -554,7 +556,6 @@ PUBLIC int yev_start_event(
                     &yev_event->src_addrlen,
                     0
                 );
-                io_uring_sqe_set_data(sqe, yev_event);
                 io_uring_submit(&yev_loop->ring);
             }
             break;
@@ -598,6 +599,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
 
     yev_event->flag |= YEV_STOPPING_FLAG;
     sqe = io_uring_get_sqe(&yev_loop->ring);
+    io_uring_sqe_set_data(sqe, yev_event);
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 
@@ -717,6 +719,7 @@ PUBLIC void yev_timer_set(
 
     if(timeout_ms <= 0) {
         sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
+        io_uring_sqe_set_data(sqe, yev_event);
         io_uring_prep_cancel(sqe, yev_event, 0);
         io_uring_submit(&yev_event->yev_loop->ring);
         return;
@@ -739,8 +742,8 @@ PUBLIC void yev_timer_set(
     }
 
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
-    io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
+    io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 }
 

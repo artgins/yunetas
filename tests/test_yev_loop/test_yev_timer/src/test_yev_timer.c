@@ -35,9 +35,13 @@ int do_test(void)
      *      Create timer
      *--------------------------------*/
     yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
-    yev_timer_set(yev_event, 1*1000, FALSE);
 
-    yev_timer_set(yev_event, 0, 0);
+    int wait_time = 5;
+    printf("yev_timer_set %d seconds\n", wait_time);
+    yev_timer_set(yev_event, wait_time*1000, FALSE);
+
+    yev_loop_run(yev_loop);
+    printf("Quiting of yev_loop_run()\n");
 
     yev_destroy_event(yev_event);
     yev_loop_destroy(yev_loop);
@@ -49,11 +53,14 @@ int do_test(void)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped)
+PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
 {
     if(stopped) {
-        yev_loop_destroy(event->yev_loop);
+        printf("yev_timer_set STOPPED, stop loop\n");
+        yev_loop_stop(yev_event->yev_loop);
     } else {
+        printf("yev_timer_set 5 seconds DONE, stopping\n");
+        yev_timer_set(yev_event, 0, 0);
     }
     return 0;
 }
