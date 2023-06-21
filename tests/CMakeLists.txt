@@ -3,18 +3,12 @@
 ##############################################
 cmake_minimum_required(VERSION 3.16)
 include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
-project(yunetas C)
+project(tests C)
 
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(gobj)
-add_subdirectory(core-linux)
-add_subdirectory(core-esp32)
-add_subdirectory(c_prot)
-add_subdirectory(yunos)
-add_subdirectory(tests)
-
+add_subdirectory(test_yev_loop)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
