@@ -59,10 +59,8 @@ struct yev_event_s {
     uint8_t type;               // yev_type_t
     uint8_t flag;               // yev_flag_t
     int fd;
-    union {
-        uint64_t timer_bf;
-        gbuffer *gbuf;
-    } bf;
+    uint64_t timer_bf;
+    gbuffer *gbuf;
     hgobj gobj;
     yev_callback_t callback;
     struct sockaddr *dst_addr;
