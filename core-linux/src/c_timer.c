@@ -115,7 +115,7 @@ PRIVATE int mt_play(hgobj gobj)
     time_t msec = (time_t)gobj_read_integer_attr(gobj, "msec");
     BOOL periodic = gobj_read_bool_attr(gobj, "periodic");
 
-    yev_timer_set(priv->yev_event, msec, periodic);
+    yev_start_timer_event(priv->yev_event, msec, periodic);
 
     return 0;
 }
@@ -127,7 +127,7 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    yev_timer_set(priv->yev_event, 0, 0);
+    yev_start_timer_event(priv->yev_event, 0, 0);
 
     return 0;
 }

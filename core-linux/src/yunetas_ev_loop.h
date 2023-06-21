@@ -47,9 +47,11 @@ typedef struct yev_loop_s yev_loop_t;
 typedef int (*yev_callback_t)(
     hgobj gobj,
     yev_event_t *event,
-    // void *data is:
-    //      (gbuffer *gbuf) in READ/WRITE events that must be owned or reused
-    //      (int *sock_conn_fd) in ACCEPT event
+    /*
+        void *data is:
+             (gbuffer *gbuf) in READ/WRITE events that must be owned or reused
+             (int *sock_conn_fd) in ACCEPT event
+     */
     void *data,
     BOOL stopped    // True if the event has stopped
 );
@@ -82,22 +84,34 @@ struct yev_loop_s {
  ***************************************************************/
 PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop);
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
+
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop);
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
 
-PUBLIC yev_event_t *yev_create_timer_event(yev_loop_t *loop, yev_callback_t callback, hgobj gobj);
-PUBLIC void yev_timer_set(
+/*
+ *  Parameter `gbuf`: to use only with yev_create_read_event() and yev_create_write_event().
+ *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
+ *  Before start `connects` and `accepts` events, you need to configure them with
+ *      yev_setup_connect_event() and yev_setup_accept_event().
+ */
+PUBLIC int yev_start_event(
     yev_event_t *yev_event,
-    time_t timeout_ms,
-    BOOL periodic
-);
-
-PUBLIC int yev_start_event( // Don't use with timer event: use yev_timer_set
-    yev_event_t *yev_event,
-    gbuffer *gbuf           // Used with yev_create_read_event(), yev_create_write_event()
+    gbuffer *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
+
+PUBLIC yev_event_t *yev_create_timer_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj
+);
+
+PUBLIC int yev_start_timer_event(
+    yev_event_t *yev_event,
+    time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()
+    BOOL periodic
+);
 
 PUBLIC yev_event_t *yev_create_read_event(
     yev_loop_t *loop,
@@ -135,7 +149,6 @@ PUBLIC int yev_setup_accept_event(
     BOOL shared,
     BOOL exitOnError
 );
-
 
 #ifdef __cplusplus
 }

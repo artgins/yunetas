@@ -16,6 +16,12 @@
 PUBLIC void yuno_catch_signals(void);
 PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
 
+/***************************************************************
+ *              Data
+ ***************************************************************/
+int wait_time = 2;
+int times = 0;
+
 /***************************************************************************
  *              Test
  ***************************************************************************/
@@ -36,9 +42,8 @@ int do_test(void)
      *--------------------------------*/
     yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
-    int wait_time = 5;
-    gobj_trace_msg(0, "yev_timer_set %d seconds", wait_time);
-    yev_timer_set(yev_event, wait_time*1000, FALSE);
+    gobj_trace_msg(0, "yev_start_timer_event %d seconds", wait_time);
+    yev_start_timer_event(yev_event, wait_time*1000, FALSE);
 
     yev_loop_run(yev_loop);
     gobj_trace_msg(0, "Quiting of yev_loop_run()");
@@ -56,11 +61,17 @@ int do_test(void)
 PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
 {
     if(stopped) {
-        gobj_trace_msg(0, "yev_timer_set STOPPED, stop loop");
+        gobj_trace_msg(0, "yev_start_timer_event STOPPED, stop loop");
         yev_loop_stop(yev_event->yev_loop);
     } else {
-        gobj_trace_msg(0, "yev_timer_set 5 seconds DONE, stopping");
-        yev_timer_set(yev_event, 0, 0);
+        times++;
+        if(times < 3) {
+            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time", wait_time, times);
+            yev_start_timer_event(yev_event, wait_time*1000, FALSE);
+        } else {
+            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time, stopping", wait_time, times);
+            yev_stop_event(yev_event);
+        }
     }
     return 0;
 }

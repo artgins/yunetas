@@ -283,7 +283,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
                 /*
-                 *  Rearm accept if no stopped
+                 *  Rearm accept event if not stopped
                  */
                 if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
                         !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
@@ -316,7 +316,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
                 /*
-                 *  Rearm periodic timer if no stopped
+                 *  Rearm periodic timer event if not stopped
                  */
                 if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
                         !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
@@ -563,7 +563,7 @@ PUBLIC int yev_start_event(
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "use yev_timer_set() to start timer event",
+                "msg",          "%s", "use yev_start_timer_event() to start timer event",
                 NULL
             );
             return -1;
@@ -601,6 +601,47 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_sqe_set_data(sqe, yev_event);
     yev_event->flag |= YEV_STOPPING_FLAG;
     io_uring_prep_cancel(sqe, yev_event, 0);
+    io_uring_submit(&yev_event->yev_loop->ring);
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_start_timer_event(
+    yev_event_t *yev_event_,
+    time_t timeout_ms,
+    BOOL periodic
+) {
+    yev_event_t *yev_event = yev_event_;
+    struct io_uring_sqe *sqe;
+
+    if(timeout_ms <= 0) {
+        return yev_stop_event(yev_event);
+    }
+    struct timeval timeout = {
+        .tv_sec  = timeout_ms / 1000,
+        .tv_usec = (timeout_ms % 1000) * 1000,
+    };
+    struct itimerspec delta = {
+        .it_interval.tv_sec = periodic? timeout.tv_sec : 0,
+        .it_interval.tv_nsec = periodic? timeout.tv_usec*1000 : 0,
+        .it_value.tv_sec = timeout.tv_sec,
+        .it_value.tv_nsec = timeout.tv_usec * 1000,
+
+    };
+    timerfd_settime(yev_event->fd, 0, &delta, NULL);
+
+    if(periodic) {
+        yev_event->flag |= YEV_TIMER_PERIODIC_FLAG;
+    } else {
+        yev_event->flag &= ~YEV_TIMER_PERIODIC_FLAG;
+    }
+
+    sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
+    io_uring_sqe_set_data(sqe, (char *)yev_event);
+    io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 
     return 0;
@@ -673,84 +714,6 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_timer_event(yev_loop_t *loop_, yev_callback_t callback, hgobj gobj)
-{
-    yev_loop_t *yev_loop = loop_;
-
-    yev_event_t *yev_event = GBMEM_MALLOC(sizeof(yev_event_t));
-    if(!yev_event) {
-        gobj_log_critical(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "No memory for yev event",    // use the same string
-            NULL
-        );
-        return NULL;
-    }
-
-    yev_event->yev_loop = yev_loop;
-    yev_event->type = YEV_TIMER_TYPE;
-    yev_event->gobj = gobj;
-    yev_event->callback = callback;
-    yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
-    if(yev_event->fd < 0) {
-        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
-            NULL
-        );
-        return NULL;
-    }
-
-    return yev_event;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void yev_timer_set(
-    yev_event_t *yev_event_,
-    time_t timeout_ms,
-    BOOL periodic
-) {
-    yev_event_t *yev_event = yev_event_;
-    struct io_uring_sqe *sqe;
-
-    if(timeout_ms <= 0) {
-        sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
-        io_uring_sqe_set_data(sqe, yev_event);
-        yev_event->flag |= YEV_STOPPING_FLAG;
-        io_uring_prep_cancel(sqe, yev_event, 0);
-        io_uring_submit(&yev_event->yev_loop->ring);
-        return;
-    }
-    struct timeval timeout = {
-        .tv_sec  = timeout_ms / 1000,
-        .tv_usec = (timeout_ms % 1000) * 1000,
-    };
-    struct itimerspec delta = {
-        .it_interval.tv_sec = periodic? timeout.tv_sec : 0,
-        .it_interval.tv_nsec = periodic? timeout.tv_usec*1000 : 0,
-        .it_value.tv_sec = timeout.tv_sec,
-        .it_value.tv_nsec = timeout.tv_usec * 1000,
-
-    };
-    timerfd_settime(yev_event->fd, 0, &delta, NULL);
-
-    if(periodic) {
-        yev_event->flag |= YEV_TIMER_PERIODIC_FLAG;
-    }
-
-    sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
-    io_uring_sqe_set_data(sqe, (char *)yev_event);
-    io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
-    io_uring_submit(&yev_event->yev_loop->ring);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE yev_event_t *yev_create_event(
     yev_loop_t *yev_loop,
     yev_callback_t callback,
@@ -778,14 +741,43 @@ PRIVATE yev_event_t *yev_create_event(
 
 /***************************************************************************
  *
+ ***************************************************************************/
+PUBLIC yev_event_t *yev_create_timer_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj
+) {
+    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_TIMER_TYPE;
+    yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
+    if(yev_event->fd < 0) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
+            NULL
+        );
+        return NULL;
+    }
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
  *********** ****************************************************************/
 PUBLIC yev_event_t *yev_create_read_event(
-    yev_loop_t *loop_,
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, fd);
+    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -800,12 +792,12 @@ PUBLIC yev_event_t *yev_create_read_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_write_event(
-    yev_loop_t *loop_,
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, fd);
+    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -820,11 +812,11 @@ PUBLIC yev_event_t *yev_create_write_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_connect_event(
-    yev_loop_t *loop_,
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, -1);
+    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -839,11 +831,11 @@ PUBLIC yev_event_t *yev_create_connect_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop_,
+    yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop_, callback, gobj, -1);
+    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;

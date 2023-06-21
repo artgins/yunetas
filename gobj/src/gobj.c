@@ -6564,8 +6564,6 @@ PUBLIC void trace_vjson(
         json_object_set(jn_log, "data", jn_data);
         json_object_set_new(jn_log, "refcount", json_integer(jn_data->refcount));
         json_object_set_new(jn_log, "type", json_integer(jn_data->type));
-    } else {
-        json_object_set(jn_log, "data", json_string("NULL"));
     }
 
     char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
