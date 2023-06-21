@@ -12,7 +12,7 @@ include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/proje
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/main.c
+    src/test_yev_loop.c
 )
 SET (YUNO_HDRS
 )

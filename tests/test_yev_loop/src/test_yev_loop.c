@@ -1,14 +1,13 @@
-/***************************************************************************
- *                      Main
- ***************************************************************************/
+/****************************************************************************
+ *          test_yev_loop
+ *
+ *          Copyright (c) 2023 Niyamaka.
+ *          All Rights Reserved.
+ ****************************************************************************/
 #include <string.h>
 #include <gobj.h>
-#include <c_linux_yuno.h>
 #include <signal.h>
-#include <log_udp_handler.h>
-#include <gobj_environment.h>
 #include <stacktrace_with_bfd.h>
-
 
 PUBLIC void yuno_catch_signals(void);
 
