@@ -23,8 +23,8 @@ SET (YUNO_HDRS
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    /yuneta/development/outputs/lib/libyunetas-gobj.a
     /yuneta/development/outputs/lib/libyunetas-core-linux.a
+    /yuneta/development/outputs/lib/libyunetas-gobj.a
 
     /yuneta/development/outputs/lib/libjansson.a
     /yuneta/development/outputs/lib/liburing.a

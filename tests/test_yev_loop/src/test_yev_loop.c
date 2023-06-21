@@ -20,13 +20,14 @@ PUBLIC void yuno_catch_signals(void);
  ***************************************************************************/
 int do_test(void)
 {
+    yev_loop_t *yev_loop;
     /*
      *  Create the event loop
      */
     yev_loop_create(
         0,
-        (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
-        &priv->yev_loop
+        2024,
+        &yev_loop
     );
 
 
