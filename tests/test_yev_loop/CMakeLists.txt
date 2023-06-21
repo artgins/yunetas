@@ -8,6 +8,7 @@ project(test_yev_loop C)
 ##############################################
 #   Source
 ##############################################
+add_subdirectory(test_yev_ping_pong)
 add_subdirectory(test_yev_timer)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
