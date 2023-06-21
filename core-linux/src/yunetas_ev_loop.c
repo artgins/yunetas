@@ -597,9 +597,9 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             break;
     }
 
-    yev_event->flag |= YEV_STOPPING_FLAG;
     sqe = io_uring_get_sqe(&yev_loop->ring);
     io_uring_sqe_set_data(sqe, yev_event);
+    yev_event->flag |= YEV_STOPPING_FLAG;
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 
@@ -720,6 +720,7 @@ PUBLIC void yev_timer_set(
     if(timeout_ms <= 0) {
         sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
         io_uring_sqe_set_data(sqe, yev_event);
+        yev_event->flag |= YEV_STOPPING_FLAG;
         io_uring_prep_cancel(sqe, yev_event, 0);
         io_uring_submit(&yev_event->yev_loop->ring);
         return;

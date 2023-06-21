@@ -37,11 +37,11 @@ int do_test(void)
     yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
     int wait_time = 5;
-    printf("yev_timer_set %d seconds\n", wait_time);
+    gobj_trace_msg(0, "yev_timer_set %d seconds", wait_time);
     yev_timer_set(yev_event, wait_time*1000, FALSE);
 
     yev_loop_run(yev_loop);
-    printf("Quiting of yev_loop_run()\n");
+    gobj_trace_msg(0, "Quiting of yev_loop_run()");
 
     yev_destroy_event(yev_event);
     yev_loop_destroy(yev_loop);
@@ -56,10 +56,10 @@ int do_test(void)
 PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
 {
     if(stopped) {
-        printf("yev_timer_set STOPPED, stop loop\n");
+        gobj_trace_msg(0, "yev_timer_set STOPPED, stop loop");
         yev_loop_stop(yev_event->yev_loop);
     } else {
-        printf("yev_timer_set 5 seconds DONE, stopping\n");
+        gobj_trace_msg(0, "yev_timer_set 5 seconds DONE, stopping");
         yev_timer_set(yev_event, 0, 0);
     }
     return 0;
