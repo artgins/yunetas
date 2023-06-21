@@ -714,7 +714,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE yev_event_t *yev_create_event(
+PRIVATE yev_event_t *create_event(
     yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj,
@@ -747,7 +747,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
+    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -770,40 +770,19 @@ PUBLIC yev_event_t *yev_create_timer_event(
 
 /***************************************************************************
  *
- *********** ****************************************************************/
-PUBLIC yev_event_t *yev_create_read_event(
-    yev_loop_t *loop,
-    yev_callback_t callback,
-    hgobj gobj,
-    int fd
-) {
-    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, fd);
-    if(!yev_event) {
-        // Error already logged
-        return NULL;
-    }
-
-    yev_event->type = YEV_READ_TYPE;
-
-    return yev_event;
-}
-
-/***************************************************************************
- *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_write_event(
+PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop,
     yev_callback_t callback,
-    hgobj gobj,
-    int fd
+    hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, fd);
+    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
     }
 
-    yev_event->type = YEV_WRITE_TYPE;
+    yev_event->type = YEV_ACCEPT_TYPE;
 
     return yev_event;
 }
@@ -816,32 +795,13 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
+    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
     }
 
     yev_event->type = YEV_CONNECT_TYPE;
-
-    return yev_event;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop,
-    yev_callback_t callback,
-    hgobj gobj
-) {
-    yev_event_t *yev_event = yev_create_event(loop, callback, gobj, -1);
-    if(!yev_event) {
-        // Error already logged
-        return NULL;
-    }
-
-    yev_event->type = YEV_ACCEPT_TYPE;
 
     return yev_event;
 }
@@ -1292,6 +1252,46 @@ PUBLIC int yev_setup_accept_event(
     yev_event->fd = fd;
 
     return ret;
+}
+
+/***************************************************************************
+ *
+ *********** ****************************************************************/
+PUBLIC yev_event_t *yev_create_read_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd
+) {
+    yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_READ_TYPE;
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_event_t *yev_create_write_event(
+    yev_loop_t *loop,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd
+) {
+    yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_WRITE_TYPE;
+
+    return yev_event;
 }
 
 /***************************************************************************

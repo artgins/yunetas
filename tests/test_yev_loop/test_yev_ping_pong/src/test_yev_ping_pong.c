@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yev_loop
+ *          test_yev_ping_pong
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -27,10 +27,10 @@ int times = 0;
  ***************************************************************************/
 int do_test(void)
 {
-    yev_loop_t *yev_loop;
-    /*
+    /*--------------------------------*
      *  Create the event loop
-     */
+     *--------------------------------*/
+    yev_loop_t *yev_loop;
     yev_loop_create(
         0,
         2024,
@@ -38,11 +38,20 @@ int do_test(void)
     );
 
     /*--------------------------------*
-     *      Create timer
+     *      Create server
      *--------------------------------*/
-    yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
+    yev_event_t *yev_accept_event = yev_create_accept_event(
+        yev_loop,
+        yev_callback,
+        NULL
+    );
 
-    gobj_trace_msg(0, "yev_start_timer_event %d seconds", wait_time);
+    yev_setup_connect_event(
+        yev_accept_event,
+        "dst_url,
+        NULL    // src_url, only host:port
+    );
+
     yev_start_timer_event(yev_event, wait_time*1000, FALSE);
 
     yev_loop_run(yev_loop);

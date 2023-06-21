@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yev_loop
+ *          test_yev_timer
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -27,10 +27,10 @@ int times = 0;
  ***************************************************************************/
 int do_test(void)
 {
-    yev_loop_t *yev_loop;
-    /*
+    /*--------------------------------*
      *  Create the event loop
-     */
+     *--------------------------------*/
+    yev_loop_t *yev_loop;
     yev_loop_create(
         0,
         2024,
