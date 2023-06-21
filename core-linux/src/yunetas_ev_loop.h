@@ -75,6 +75,7 @@ struct yev_loop_s {
     struct io_uring ring;
     unsigned entries;
     hgobj yuno;
+    volatile int running;
 };
 
 
@@ -84,6 +85,7 @@ struct yev_loop_s {
 PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop);
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop);
+PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
 
 PUBLIC yev_event_t *yev_create_timer_event(yev_loop_t *loop, yev_callback_t callback, hgobj gobj);
 PUBLIC void yev_timer_set(

@@ -14,6 +14,7 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
+PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
 
 /***************************************************************************
  *              Test
@@ -30,7 +31,30 @@ int do_test(void)
         &yev_loop
     );
 
+    /*--------------------------------*
+     *      Create timer
+     *--------------------------------*/
+    yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
+    yev_timer_set(yev_event, 1*1000, FALSE);
 
+    yev_timer_set(yev_event, 0, 0);
+
+    yev_destroy_event(yev_event);
+    yev_loop_destroy(yev_loop);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Callback that will be executed when the timer period lapses.
+ *  Posts the timer expiry event to the default event loop.
+ ***************************************************************************/
+PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped)
+{
+    if(stopped) {
+        yev_loop_destroy(event->yev_loop);
+    } else {
+    }
     return 0;
 }
 

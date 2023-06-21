@@ -303,6 +303,7 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->gobj_timer);
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
+    yev_loop_stop(priv->yev_loop);
 
     return 0;
 }

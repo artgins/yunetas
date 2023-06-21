@@ -144,15 +144,24 @@ retry:
  ***************************************************************************/
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
-    if(1) {
-        struct io_uring_sqe *sqe;
-        sqe = io_uring_get_sqe(&yev_loop->ring);
-        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
-        io_uring_submit(&yev_loop->ring);
-    }
 
     io_uring_queue_exit(&yev_loop->ring);
     GBMEM_FREE(yev_loop)
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
+{
+    struct io_uring_sqe *sqe;
+    sqe = io_uring_get_sqe(&yev_loop->ring);
+    io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
+    io_uring_submit(&yev_loop->ring);
+
+    yev_loop->running = FALSE;
+
+    return 0;
 }
 
 /***************************************************************************
@@ -166,7 +175,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    while(gobj_is_running(yev_loop->yuno)) {
+    yev_loop->running = TRUE;
+    while(yev_loop->running) {
         int err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         if (err < 0) {
             if(err == -EINTR) {
@@ -198,8 +208,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_READ_TYPE failed",
-                            "errno",        "%d", cqe->res,
-                            "serrno",       "%s", strerror(cqe->res),
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -228,8 +238,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_WRITE_TYPE failed",
-                            "errno",        "%d", cqe->res,
-                            "serrno",       "%s", strerror(cqe->res),
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -258,8 +268,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                            "errno",        "%d", cqe->res,
-                            "serrno",       "%s", strerror(cqe->res),
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -280,10 +290,11 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_ACCEPT_TYPE failed",
-                            "errno",        "%d", cqe->res,
-                            "serrno",       "%s", strerror(cqe->res),
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
                             NULL
                         );
+                        // TODO listen failed?
                     }
                     int sock_conn_fd = cqe->res;
                     if(yev_event->callback) {
