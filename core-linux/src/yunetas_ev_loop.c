@@ -25,7 +25,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void print_addrinfo(char *bf, int bfsize, struct addrinfo *ai);
+PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
  *              Data
@@ -968,7 +968,7 @@ PUBLIC int yev_setup_connect_event(
 		}
 
         char s[80] = {0};
-		print_addrinfo(s, sizeof(s), rp);
+		print_addrinfo(gobj, s, sizeof(s), rp, atoi(dst_port));
 
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1182,7 +1182,7 @@ PUBLIC int yev_setup_accept_event(
         }
 
         char s[80] = {0};
-		print_addrinfo(s, sizeof(s), rp);
+		print_addrinfo(gobj, s, sizeof(s), rp, atoi(port));
 
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1294,10 +1294,19 @@ PUBLIC yev_event_t *yev_create_write_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void print_addrinfo(char *bf, int bfsize, struct addrinfo *ai)
+PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port)
 {
     void *addr;
 
+    if(bfsize < INET6_ADDRSTRLEN + 20) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "buffer to small",
+            NULL
+        );
+        return -1;
+    }
     if (ai->ai_family == AF_INET6) {
         addr = &((struct sockaddr_in6 *) ai->ai_addr)->sin6_addr;
     } else {
@@ -1305,4 +1314,10 @@ PRIVATE void print_addrinfo(char *bf, int bfsize, struct addrinfo *ai)
     }
 
     inet_ntop(ai->ai_family, addr, bf, bfsize);
+    size_t pos = strlen(bf);
+    if(pos < bfsize) {
+        snprintf(bf + pos, bfsize - pos, ":%d", port);
+    }
+
+    return 0;
 }

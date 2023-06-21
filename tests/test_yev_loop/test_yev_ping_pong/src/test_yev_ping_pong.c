@@ -72,7 +72,7 @@ int do_test(void)
     gbuffer *gbuf_server_tx = gbuffer_create(4*1024, 4*1024);
     yev_start_event(yev_server_accept, NULL);
     yev_start_event(yev_server_rx, gbuf_server_rx);
-    yev_start_event(yev_server_tx, gbuf_server_tx);
+//    yev_start_event(yev_server_tx, gbuf_server_tx);
 
     /*--------------------------------*
      *      Setup client
@@ -109,7 +109,7 @@ int do_test(void)
     gbuffer *gbuf_client_tx = gbuffer_create(4*1024, 4*1024);
     yev_start_event(yev_client_connect, NULL);
     yev_start_event(yev_client_rx, gbuf_client_rx);
-    yev_start_event(yev_client_tx, gbuf_client_tx);
+//    yev_start_event(yev_client_tx, gbuf_client_tx);
 
     /*--------------------------------*
      *      Begin run loop
