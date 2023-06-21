@@ -11,14 +11,15 @@ project(yunetas-core-linux C)
 set (SRCS
     src/c_linux_yuno.c
     src/c_timer.c
-    src/yuneta_environment.c
-    src/yuneta_ev_loop.c
+    src/yunetas_environment.c
+    src/yunetas_ev_loop.c
 )
 
 set (HDRS
     src/c_linux_yuno.h
     src/c_timer.h
-    src/yuneta_environment.h
+    src/yunetas_environment.h
+    src/yunetas_ev_loop.h
 )
 
 

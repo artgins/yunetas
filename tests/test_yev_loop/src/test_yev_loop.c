@@ -5,12 +5,37 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <gobj.h>
 #include <signal.h>
+#include <gobj.h>
 #include <stacktrace_with_bfd.h>
+#include <yunetas_ev_loop.h>
 
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
 
+/***************************************************************************
+ *              Test
+ ***************************************************************************/
+int do_test(void)
+{
+    /*
+     *  Create the event loop
+     */
+    yev_loop_create(
+        0,
+        (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
+        &priv->yev_loop
+    );
+
+
+    return 0;
+}
+
+/***************************************************************************
+ *              Main
+ ***************************************************************************/
 int main(int argc, char *argv[])
 {
     /*----------------------------------*
@@ -66,6 +91,11 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
+
+    /*--------------------------------*
+     *      Test
+     *--------------------------------*/
+    do_test();
 
     return gobj_get_exit_code();
 }

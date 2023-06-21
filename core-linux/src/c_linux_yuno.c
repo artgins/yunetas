@@ -15,8 +15,8 @@
 #include <string.h>
 #include <limits.h>
 #include <gobj_environment.h>
-#include "yuneta_ev_loop.h"
-#include "yuneta_environment.h"
+#include "yunetas_ev_loop.h"
+#include "yunetas_environment.h"
 #include "c_timer.h"
 #include "c_linux_yuno.h"
 

@@ -1,9 +1,9 @@
 /****************************************************************************
- *          yev_loop.h
+ *          yunetas_event_loop.h
  *
- *          Yuneta Event Loop
+ *          Yunetas Event Loop
  *
- *          Copyright (c) 2024 Niyamaka.
+ *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

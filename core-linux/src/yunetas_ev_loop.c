@@ -1,9 +1,9 @@
 /****************************************************************************
- *          yev_loop.c
+ *          yunetas_event_loop.c
  *
- *          Yuneta Event Loop
+ *          Yunetas Event Loop
  *
- *          Copyright (c) 2024 Niyamaka.
+ *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <liburing.h>
@@ -12,7 +12,7 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include "yuneta_ev_loop.h"
+#include "yunetas_ev_loop.h"
 
 /***************************************************************
  *              Constants
