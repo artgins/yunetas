@@ -98,7 +98,14 @@ PUBLIC int yev_start_event(
     yev_event_t *yev_event,
     gbuffer *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );
+PUBLIC int yev_start_timer_event(
+    yev_event_t *yev_event,
+    time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()
+    BOOL periodic
+);
+
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
+
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
 PUBLIC yev_event_t *yev_create_timer_event(
@@ -106,13 +113,6 @@ PUBLIC yev_event_t *yev_create_timer_event(
     yev_callback_t callback,
     hgobj gobj
 );
-
-PUBLIC int yev_start_timer_event(
-    yev_event_t *yev_event,
-    time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()
-    BOOL periodic
-);
-
 PUBLIC yev_event_t *yev_create_read_event(
     yev_loop_t *loop,
     yev_callback_t callback,
@@ -130,7 +130,6 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback,
     hgobj gobj
 );
-
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *loop,
     yev_callback_t callback,

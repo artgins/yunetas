@@ -575,40 +575,6 @@ PUBLIC int yev_start_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_t *yev_event)
-{
-    yev_loop_t *yev_loop = yev_event->yev_loop;
-    struct io_uring_sqe *sqe;
-
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-        case YEV_WRITE_TYPE:
-            GBUFFER_DECREF(yev_event->gbuf)
-            break;
-        case YEV_CONNECT_TYPE:
-            GBMEM_FREE(yev_event->dst_addr)
-            yev_event->dst_addrlen = 0;
-            break;
-        case YEV_ACCEPT_TYPE:
-            GBMEM_FREE(yev_event->src_addr)
-            yev_event->src_addrlen = 0;
-            break;
-        case YEV_TIMER_TYPE:
-            break;
-    }
-
-    sqe = io_uring_get_sqe(&yev_loop->ring);
-    io_uring_sqe_set_data(sqe, yev_event);
-    yev_event->flag |= YEV_STOPPING_FLAG;
-    io_uring_prep_cancel(sqe, yev_event, 0);
-    io_uring_submit(&yev_event->yev_loop->ring);
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event_,
     time_t timeout_ms,
@@ -642,6 +608,40 @@ PUBLIC int yev_start_timer_event(
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
+    io_uring_submit(&yev_event->yev_loop->ring);
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_stop_event(yev_event_t *yev_event)
+{
+    yev_loop_t *yev_loop = yev_event->yev_loop;
+    struct io_uring_sqe *sqe;
+
+    switch((yev_type_t)yev_event->type) {
+        case YEV_READ_TYPE:
+        case YEV_WRITE_TYPE:
+            GBUFFER_DECREF(yev_event->gbuf)
+            break;
+        case YEV_CONNECT_TYPE:
+            GBMEM_FREE(yev_event->dst_addr)
+            yev_event->dst_addrlen = 0;
+            break;
+        case YEV_ACCEPT_TYPE:
+            GBMEM_FREE(yev_event->src_addr)
+            yev_event->src_addrlen = 0;
+            break;
+        case YEV_TIMER_TYPE:
+            break;
+    }
+
+    sqe = io_uring_get_sqe(&yev_loop->ring);
+    io_uring_sqe_set_data(sqe, yev_event);
+    yev_event->flag |= YEV_STOPPING_FLAG;
+    io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 
     return 0;
