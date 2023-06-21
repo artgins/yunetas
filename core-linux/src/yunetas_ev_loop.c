@@ -1187,7 +1187,7 @@ PUBLIC int yev_setup_accept_event(
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECTION,
-            "msg",          "%s", "addrinfo to listen",
+            "msg",          "%s", "addrinfo on listen",
             "url",          "%s", listen_url,
             "addrinfo",     "%s", s,
             NULL
@@ -1212,9 +1212,9 @@ PUBLIC int yev_setup_accept_event(
 
     if(ret == 0) {
         yev_event->src_addr = GBMEM_MALLOC(rp->ai_addrlen);
-        if(yev_event->dst_addr) {
+        if(yev_event->src_addr) {
             memcpy(yev_event->src_addr, rp->ai_addr, rp->ai_addrlen);
-            yev_event->dst_addrlen = (socklen_t) rp->ai_addrlen;
+            yev_event->src_addrlen = (socklen_t) rp->ai_addrlen;
         } else {
             close(fd);
             fd = -1;

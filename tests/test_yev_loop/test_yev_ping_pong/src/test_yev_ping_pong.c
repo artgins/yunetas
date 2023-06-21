@@ -20,7 +20,7 @@ PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *event, void *data, BOOL
 /***************************************************************
  *              Data
  ***************************************************************/
-const char *server_url = "";
+const char *server_url = "tcp://localhost:2222";
 
 /***************************************************************************
  *              Test
