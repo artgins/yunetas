@@ -22,6 +22,7 @@
 /***************************************************************
  *              Structures
  ***************************************************************/
+int multishot = 0; // Available since kernel 5.19
 
 /***************************************************************
  *              Prototypes
@@ -244,7 +245,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                //if(cqe->flags & IORING_CQE_F_MORE) {
+                if(!multishot || cqe->flags & IORING_CQE_F_MORE) {
                     /*
                      *  Needs to rearm accept event if not stopped
                      */
@@ -253,16 +254,27 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                         io_uring_sqe_set_data(sqe, yev_event);
                         yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-                        io_uring_prep_accept(
-                            sqe,
-                            yev_event->fd,
-                            yev_event->src_addr,
-                            &yev_event->src_addrlen,
-                            0
-                        );
+                        if(multishot) {
+                            io_uring_prep_accept(
+                                sqe,
+                                yev_event->fd,
+                                NULL,
+                                NULL,
+                                0
+                            );
+
+                        } else {
+                            io_uring_prep_accept(
+                                sqe,
+                                yev_event->fd,
+                                yev_event->src_addr,
+                                &yev_event->src_addrlen,
+                                0
+                            );
+                        }
                         io_uring_submit(&yev_loop->ring);
                     }
-                //}
+                }
             }
             break;
 
@@ -543,14 +555,24 @@ PUBLIC int yev_start_event(
                  *  Use the file descriptor fd to start accepting a connection request
                  *  described by the socket address at addr and of structure length addrlen
                  */
-                //io_uring_prep_multishot_accept(
-                io_uring_prep_accept(
-                    sqe,
-                    yev_event->fd,
-                    yev_event->src_addr,
-                    &yev_event->src_addrlen,
-                    0
-                );
+                if(multishot) {
+                    io_uring_prep_multishot_accept(
+                        sqe,
+                        yev_event->fd,
+                        NULL,
+                        NULL,
+                        0
+                    );
+
+                } else {
+                    io_uring_prep_accept(
+                        sqe,
+                        yev_event->fd,
+                        yev_event->src_addr,
+                        &yev_event->src_addrlen,
+                        0
+                    );
+                }
                 io_uring_submit(&yev_loop->ring);
             }
             break;
