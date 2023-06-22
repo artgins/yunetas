@@ -26,7 +26,6 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE const char *yev_event_type_name(yev_event_t *yev_event);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
@@ -1344,7 +1343,7 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *yev_event_type_name(yev_event_t *yev_event)
+PUBLIC const char *yev_event_type_name(yev_event_t *yev_event)
 {
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:

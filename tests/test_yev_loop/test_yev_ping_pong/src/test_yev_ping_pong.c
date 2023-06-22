@@ -146,6 +146,10 @@ int do_test(void)
  ***************************************************************************/
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
+    hgobj gobj = yev_event->gobj;
+    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+
+    gobj_trace_msg(gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
     return 0;
 }
 
@@ -154,6 +158,10 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
  ***************************************************************************/
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
+    hgobj gobj = yev_event->gobj;
+    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+
+    gobj_trace_msg(gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
     return 0;
 }
 

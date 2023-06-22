@@ -148,6 +148,7 @@ PUBLIC yev_event_t *yev_create_write_event(
     int fd
 );
 
+PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
 
 #ifdef __cplusplus
 }
