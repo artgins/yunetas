@@ -6,9 +6,15 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+#include <stdio.h>
 #include <gobj.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
+
+/***************************************************************
+ *              Constants
+ ***************************************************************/
+#define BUFFER_SIZE (8*1024) // TODO si aumento se muere, el buffer transmitido es la mitad
 
 /***************************************************************
  *              Prototypes
@@ -23,17 +29,23 @@ PRIVATE int yev_client_callback(yev_event_t *event);
 yev_loop_t *yev_loop;
 const char *server_url = "tcp://localhost:2222";
 
-static gbuffer *gbuf_server_tx = 0;
-static yev_event_t *yev_server_tx = 0;
+static char PING[] = "PING\n";
 
-static gbuffer *gbuf_server_rx = 0;
-static yev_event_t *yev_server_rx = 0;
+gbuffer *gbuf_server_tx = 0;
+yev_event_t *yev_server_tx = 0;
 
-static gbuffer *gbuf_client_tx = 0;
-static yev_event_t *yev_client_tx = 0;
+gbuffer *gbuf_server_rx = 0;
+yev_event_t *yev_server_rx = 0;
 
-static gbuffer *gbuf_client_rx = 0;
-static yev_event_t *yev_client_rx = 0;
+gbuffer *gbuf_client_tx = 0;
+yev_event_t *yev_client_tx = 0;
+
+gbuffer *gbuf_client_rx = 0;
+yev_event_t *yev_client_rx = 0;
+
+uint64_t t;
+unsigned msgsec = 0;
+BOOL dump = FALSE;
 
 /***************************************************************************
  *              Test
@@ -93,6 +105,7 @@ int do_test(void)
     /*--------------------------------*
      *      Begin run loop
      *--------------------------------*/
+    t = start_msectimer(1000);
     yev_loop_run(yev_loop);
 
     /*--------------------------------*
@@ -127,24 +140,39 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
-    gobj_trace_msg(gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
-
+    if(dump) {
+        gobj_trace_msg(
+            gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        );
+    }
     int srv_cli_fd;
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
+                msgsec++;
+
+                if(test_msectimer(t)) {
+                    printf("Msg/sec %u\r", msgsec); fflush(stdout);
+                    msgsec = 0;
+                    t = start_msectimer(1000);
+                }
+
                 /*
                  *  Save received data to transmit: do echo
                  */
-                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
+                if(dump) {
+                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
+                }
                 gbuffer_reset_wr(gbuf_server_tx);
                 gbuffer_append_gbuf(gbuf_server_tx, yev_event->gbuf);
 
                 /*
                  *  Transmit
                  */
-                gobj_trace_dump_gbuf(gobj, gbuf_server_tx, "Server transmitting");
+                if(dump) {
+                    gobj_trace_dump_gbuf(gobj, gbuf_server_tx, "Server transmitting");
+                }
                 yev_start_event(yev_server_tx, gbuf_server_tx);
 
                 /*
@@ -169,7 +197,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 /*
                  *  Ready to receive
                  */
-                gbuf_server_rx = gbuffer_create(4*1024, 4*1024);
+                gbuf_server_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
                 yev_server_rx = yev_create_read_event(
                     yev_event->yev_loop,
                     yev_server_callback,
@@ -181,7 +209,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 /*
                  *  Read to Transmit
                  */
-                gbuf_server_tx = gbuffer_create(4*1024, 4*1024);
+                gbuf_server_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
                 yev_server_tx = yev_create_write_event(
                     yev_event->yev_loop,
                     yev_server_callback,
@@ -213,22 +241,29 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
-    gobj_trace_msg(gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
-
+    if(dump) {
+        gobj_trace_msg(
+            gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        );
+    }
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
                 /*
                  *  Save received data to transmit: do echo
                  */
-                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
+                if(dump) {
+                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
+                }
                 gbuffer_reset_wr(gbuf_client_tx);
                 gbuffer_append_gbuf(gbuf_client_tx, yev_event->gbuf);
 
                 /*
                  *  Transmit
                  */
-                gobj_trace_dump_gbuf(gobj, gbuf_client_tx, "Client transmitting");
+                if(dump) {
+                    gobj_trace_dump_gbuf(gobj, gbuf_client_tx, "Client transmitting");
+                }
                 yev_start_event(yev_client_tx, gbuf_client_tx);
 
                 /*
@@ -250,7 +285,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 /*
                  *  Ready to receive
                  */
-                gbuf_client_rx = gbuffer_create(4*1024, 4*1024);
+                gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
                 yev_client_rx = yev_create_read_event(
                     yev_event->yev_loop,
                     yev_client_callback,
@@ -262,8 +297,13 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 /*
                  *  Transmit
                  */
-                gbuf_client_tx = gbuffer_create(4*1024, 4*1024);
-                gbuffer_append_string(gbuf_client_tx, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+
+//                for(int i= 0; i<BUFFER_SIZE/2; i++) { // TODO quita el /2 para depurar el espacio en los gbuffer
+//                    gbuffer_append_char(gbuf_client_tx, 'A');
+//                }
+
+                gbuffer_append_string(gbuf_client_tx, PING);
 
                 yev_client_tx = yev_create_write_event(
                     yev_event->yev_loop,
@@ -275,7 +315,9 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 /*
                  *  Transmit
                  */
-                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                if(dump) {
+                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                }
                 yev_start_event(yev_client_tx, gbuf_client_tx);
             }
             break;
@@ -318,8 +360,8 @@ int main(int argc, char *argv[])
         free_func
     );
 
-    gobj_set_deep_tracing(2);           // TODO TEST
-    gobj_set_global_trace(0, TRUE);     // TODO TEST
+    //gobj_set_deep_tracing(2);           // TODO TEST
+    //gobj_set_global_trace(0, TRUE);     // TODO TEST
 
 #ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
@@ -340,8 +382,8 @@ int main(int argc, char *argv[])
         NULL, // global_stats_parser
         NULL, // global_authz_checker
         NULL, // global_authenticate_parser
-        8*1024L,    // max_block, largest memory block
-        100*1024L   // max_system_memory, maximum system memory
+        60*1024L,  // max_block, largest memory block
+        120*1024L   // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();
