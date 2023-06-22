@@ -23,6 +23,18 @@ PRIVATE int yev_client_callback(yev_event_t *event);
 yev_loop_t *yev_loop;
 const char *server_url = "tcp://localhost:2222";
 
+static gbuffer *gbuf_server_tx = 0;
+static yev_event_t *yev_server_tx = 0;
+
+static gbuffer *gbuf_server_rx = 0;
+static yev_event_t *yev_server_rx = 0;
+
+static gbuffer *gbuf_client_tx = 0;
+static yev_event_t *yev_client_tx = 0;
+
+static gbuffer *gbuf_client_rx = 0;
+static yev_event_t *yev_client_rx = 0;
+
 /***************************************************************************
  *              Test
  ***************************************************************************/
@@ -87,20 +99,20 @@ int do_test(void)
      *      Stop
      *--------------------------------*/
     yev_stop_event(yev_server_accept);
-//  TODO  yev_stop_event(yev_server_rx);
-//    yev_stop_event(yev_server_tx);
+    yev_stop_event(yev_server_rx);
+    yev_stop_event(yev_server_tx);
 
     yev_stop_event(yev_client_connect);
-//  TODO  yev_stop_event(yev_client_rx);
-//    yev_stop_event(yev_client_tx);
+    yev_stop_event(yev_client_rx);
+    yev_stop_event(yev_client_tx);
 
     yev_destroy_event(yev_server_accept);
-//  TODO  yev_destroy_event(yev_server_rx);
-//    yev_destroy_event(yev_server_tx);
+    yev_destroy_event(yev_server_rx);
+    yev_destroy_event(yev_server_tx);
 
     yev_destroy_event(yev_client_connect);
-//  TODO  yev_destroy_event(yev_client_rx);
-//    yev_destroy_event(yev_client_tx);
+    yev_destroy_event(yev_client_rx);
+    yev_destroy_event(yev_client_tx);
 
     yev_loop_destroy(yev_loop);
 
@@ -116,12 +128,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
     gobj_trace_msg(gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
-
-    static gbuffer *gbuf_server_tx = 0;
-    static yev_event_t *yev_server_tx = 0;
-
-    static gbuffer *gbuf_server_rx = 0;
-    static yev_event_t *yev_server_rx = 0;
 
     int srv_cli_fd;
 
@@ -208,12 +214,6 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
     gobj_trace_msg(gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
-
-    static gbuffer *gbuf_client_tx = 0;
-    static yev_event_t *yev_client_tx = 0;
-
-    static gbuffer *gbuf_client_rx = 0;
-    static yev_event_t *yev_client_rx = 0;
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:

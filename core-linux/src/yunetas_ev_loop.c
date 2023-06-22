@@ -676,7 +676,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
 
-    if(!(yev_event->flag & YEV_STOPPED_FLAG)) {
+    if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
