@@ -278,6 +278,11 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
                 int sock_conn_fd = cqe->res;
                 if(yev_event->flag & YEV_STOPPED_FLAG) {
+                    gobj_log_warning(yev_loop->yuno, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_CONNECTION,
+                        "msg",          "%s", "listen socket will be closed"
+                    );
                     close(yev_event->fd);
                     yev_event->fd = -1;
                 }
