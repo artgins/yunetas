@@ -250,6 +250,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         NULL
                     );
                 }
+                if(yev_event->flag & YEV_STOPPED_FLAG) {
+                    close(yev_event->fd);
+                    yev_event->fd = -1;
+                }
                 if(yev_event->callback) {
                     yev_event->callback(
                         yev_event->gobj,
@@ -273,6 +277,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
                 int sock_conn_fd = cqe->res;
+                if(yev_event->flag & YEV_STOPPED_FLAG) {
+                    close(yev_event->fd);
+                    yev_event->fd = -1;
+                }
                 if(yev_event->callback) {
                     yev_event->callback(
                         yev_event->gobj,
@@ -799,6 +807,7 @@ PUBLIC int yev_setup_connect_event(
     char schema[16];
     char dst_host[120];
     char dst_port[10];
+    char saddr[80];
 
     int ret = parse_url(
         gobj,
@@ -885,13 +894,13 @@ PUBLIC int yev_setup_connect_event(
     for (rp = results; rp; rp = rp->ai_next) {
 		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 		if (fd == -1) {
+            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "socket() FAILED",
                 "url",          "%s", dst_url,
-                "host",         "%s", dst_host,
-                "port",         "%s", dst_port,
+                "addrinfo",     "%s", saddr,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
@@ -948,13 +957,13 @@ PUBLIC int yev_setup_connect_event(
 
             ret = bind(fd, res->ai_addr, (socklen_t) res->ai_addrlen);
 			if (ret == -1) {
+                print_addrinfo(gobj, saddr, sizeof(saddr), res, atoi(src_port));
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "bind() FAILED",
                     "url",          "%s", src_url,
-                    "host",         "%s", src_host,
-                    "port",         "%s", src_port,
+                    "addrinfo",     "%s", saddr,
                     "errno",        "%d", errno,
                     "strerror",     "%s", strerror(errno),
                     NULL
@@ -967,15 +976,13 @@ PUBLIC int yev_setup_connect_event(
             }
 		}
 
-        char s[80] = {0};
-		print_addrinfo(gobj, s, sizeof(s), rp, atoi(dst_port));
-
+		print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECTION,
             "msg",          "%s", "addrinfo to connect",
             "url",          "%s", dst_url,
-            "addrinfo",     "%s", s,
+            "addrinfo",     "%s", saddr,
             NULL
         );
 
@@ -1065,6 +1072,7 @@ PUBLIC int yev_setup_accept_event(
     char schema[16];
     char host[120];
     char port[10];
+    char saddr[80];
 
     int ret = parse_url(
         gobj,
@@ -1154,13 +1162,13 @@ PUBLIC int yev_setup_accept_event(
     for (rp = results; rp; rp = rp->ai_next) {
 		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 		if (fd == -1) {
+            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "socket() FAILED",
                 "url",          "%s", listen_url,
-                "host",         "%s", host,
-                "port",         "%s", port,
+                "addrinfo",     "%s", saddr,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
@@ -1170,6 +1178,7 @@ PUBLIC int yev_setup_accept_event(
 
         if(hints.ai_protocol == IPPROTO_TCP) {
             int on = 1;
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
             if(shared) {
                 setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
             }
@@ -1177,13 +1186,13 @@ PUBLIC int yev_setup_accept_event(
 
         ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
         if (ret == -1) {
+            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "bind() FAILED",
                 "url",          "%s", listen_url,
-                "host",         "%s", host,
-                "port",         "%s", port,
+                "addrinfo",     "%s", saddr,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
@@ -1194,13 +1203,13 @@ PUBLIC int yev_setup_accept_event(
 
         ret = listen(fd, backlog);
         if(ret == -1) {
+            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "listen() FAILED",
                 "url",          "%s", listen_url,
-                "host",         "%s", host,
-                "port",         "%s", port,
+                "addrinfo",     "%s", saddr,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
@@ -1209,15 +1218,13 @@ PUBLIC int yev_setup_accept_event(
             continue;
         }
 
-        char s[80] = {0};
-		print_addrinfo(gobj, s, sizeof(s), rp, atoi(port));
-
+		print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECTION,
             "msg",          "%s", "addrinfo on listen",
             "url",          "%s", listen_url,
-            "addrinfo",     "%s", s,
+            "addrinfo",     "%s", saddr,
             NULL
         );
 
@@ -1229,7 +1236,7 @@ PUBLIC int yev_setup_accept_event(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot get addr to connect",
+            "msg",          "%s", "Cannot get addr to listen",
             "url",          "%s", listen_url,
             "host",         "%s", host,
             "port",         "%s", port,

@@ -93,6 +93,7 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
  *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
  *  Before start `connects` and `accepts` events, you need to configure them with
  *      yev_setup_connect_event() and yev_setup_accept_event().
+ *      These functions will create and configure a socket to listen or to connect
  */
 PUBLIC int yev_start_event(
     yev_event_t *yev_event,
@@ -104,6 +105,9 @@ PUBLIC int yev_start_timer_event(
     BOOL periodic
 );
 
+/*
+ *  In `connects` and `accepts` events, the socket will be closed.
+ */
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);

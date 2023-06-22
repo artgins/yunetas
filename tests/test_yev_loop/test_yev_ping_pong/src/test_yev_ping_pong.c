@@ -229,32 +229,7 @@ int main(int argc, char *argv[])
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
 {
-    static int tries = 0;
-
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-     */
-    hgobj gobj = gobj_yuno();
-
-    if(gobj) {
-        tries++;
-        gobj_set_yuno_must_die();
-        if(tries > 1) {
-            _exit(-1);
-        }
-    }
-}
-
-PRIVATE void debug_sighandler(int sig)
-{
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-     */
-    hgobj gobj = gobj_yuno();
-
-    if(gobj) {
-        gobj_set_deep_tracing(2);
-    }
+    _exit(0);
 }
 
 PUBLIC void yuno_catch_signals(void)
@@ -271,9 +246,4 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
-
-    sigIntHandler.sa_handler = debug_sighandler;
-    sigemptyset(&sigIntHandler.sa_mask);
-    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGUSR1, &sigIntHandler, NULL);
 }
