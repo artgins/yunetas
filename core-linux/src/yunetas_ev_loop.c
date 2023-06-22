@@ -192,11 +192,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(yev_event->flag & YEV_STOPPED_FLAG) {
-                    close(yev_event->fd);
-                    yev_event->fd = -1;
-                }
-
                 /*
                  *  Call callback
                  */
@@ -228,8 +223,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         "msgset",       "%s", MSGSET_CONNECTION,
                         "msg",          "%s", "listen socket will be closed"
                     );
-                    close(yev_event->fd);
-                    yev_event->fd = -1;
+                    if(yev_event->fd > 0) {
+                        close(yev_event->fd);
+                        yev_event->fd = -1;
+                    }
                 }
 
                 /*
