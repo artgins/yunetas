@@ -17,6 +17,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define DEFAULT_BACKLOG 512
 
 /***************************************************************
  *              Structures
@@ -74,34 +75,34 @@ retry:
         return -1;
     }
 
-    /* FAST_POOL is required for pre-posting receive buffers */
-    if (!(params_test.features & IORING_FEAT_FAST_POLL)) {
-        io_uring_queue_exit(&ring_test);
-        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Linux kernel without io_uring IORING_FEAT_FAST_POLL, cannot run yunetas",
-            NULL
-        );
-        return -1;
-    }
+//    /* FAST_POOL is required for pre-posting receive buffers */
+//    if (!(params_test.features & IORING_FEAT_FAST_POLL)) {
+//        io_uring_queue_exit(&ring_test);
+//        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//            "msg",          "%s", "Linux kernel without io_uring IORING_FEAT_FAST_POLL, cannot run yunetas",
+//            NULL
+//        );
+//        return -1;
+//    }
 
-    // check if buffer selection is supported
-    struct io_uring_probe *probe;
-    probe = io_uring_get_probe_ring(&ring_test);
-    if (!probe || !io_uring_opcode_supported(probe, IORING_OP_PROVIDE_BUFFERS)) {
-        io_uring_free_probe(probe); // DIE here
-        io_uring_queue_exit(&ring_test);
-        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Linux kernel without io_uring IORING_OP_PROVIDE_BUFFERS, cannot run yunetas",
-            NULL
-        );
-        return -1;
-    }
-    io_uring_free_probe(probe);
-    io_uring_queue_exit(&ring_test);
+//    // check if buffer selection is supported
+//    struct io_uring_probe *probe;
+//    probe = io_uring_get_probe_ring(&ring_test);
+//    if (!probe || !io_uring_opcode_supported(probe, IORING_OP_PROVIDE_BUFFERS)) {
+//        io_uring_free_probe(probe); // DIE here
+//        io_uring_queue_exit(&ring_test);
+//        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//            "msg",          "%s", "Linux kernel without io_uring IORING_OP_PROVIDE_BUFFERS, cannot run yunetas",
+//            NULL
+//        );
+//        return -1;
+//    }
+//    io_uring_free_probe(probe);
+//    io_uring_queue_exit(&ring_test);
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {
@@ -180,7 +181,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, 0,
+                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_READ_TYPE failed",
@@ -210,7 +211,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_WRITE_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, 0,
+                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_WRITE_TYPE failed",
@@ -240,7 +241,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, 0,
+                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_CONNECT_TYPE failed",
@@ -262,7 +263,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, 0,
+                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_ACCEPT_TYPE failed",
@@ -270,7 +271,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         "serrno",       "%s", strerror(-cqe->res),
                         NULL
                     );
-                    // TODO listen failed?
                 }
                 int sock_conn_fd = cqe->res;
                 if(yev_event->callback) {
@@ -359,7 +359,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                 // Ctrl+C cause this
                 continue;
             }
-            gobj_log_error(yev_loop->yuno, 0,
+            gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "io_uring_wait_cqe() FAILED",
@@ -756,7 +756,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
     yev_event->type = YEV_TIMER_TYPE;
     yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
     if(yev_event->fd < 0) {
-        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+        gobj_log_critical(gobj, LOG_OPT_ABORT,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
@@ -1058,6 +1058,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *listen_url,
+    int backlog,
     BOOL shared
 ) {
     hgobj gobj = yev_event->gobj;
@@ -1085,6 +1086,9 @@ PUBLIC int yev_setup_accept_event(
         yev_event->flag &= ~YEV_USE_SSL;
     }
 
+    if(backlog <= 0) {
+        backlog = DEFAULT_BACKLOG;
+    }
     struct addrinfo hints = {
         .ai_family = AF_UNSPEC,  /* Allow IPv4 or IPv6 */
         .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
@@ -1164,12 +1168,36 @@ PUBLIC int yev_setup_accept_event(
 			continue;
 		}
 
+        if(hints.ai_protocol == IPPROTO_TCP) {
+            int on = 1;
+            if(shared) {
+                setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
+            }
+        }
+
         ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
         if (ret == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "bind() FAILED",
+                "url",          "%s", listen_url,
+                "host",         "%s", host,
+                "port",         "%s", port,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+
+        ret = listen(fd, backlog);
+        if(ret == -1) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "listen() FAILED",
                 "url",          "%s", listen_url,
                 "host",         "%s", host,
                 "port",         "%s", port,
@@ -1226,24 +1254,6 @@ PUBLIC int yev_setup_accept_event(
 
     if(ret == -1) {
         return ret;
-    }
-
-    if(hints.ai_protocol == IPPROTO_TCP) {
-        int on = 1;
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
-        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
-        #ifdef TCP_KEEPIDLE
-        int delay = 60; /* seconds */
-        int intvl = 1;  /*  1 second; same as default on Win32 */
-        int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
-        #endif
-
-        if(shared) {
-            setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
-        }
     }
 
     yev_event->fd = fd;
