@@ -20,6 +20,7 @@ PRIVATE int yev_client_callback(yev_event_t *event);
 /***************************************************************
  *              Data
  ***************************************************************/
+yev_loop_t *yev_loop;
 const char *server_url = "tcp://localhost:2222";
 
 /***************************************************************************
@@ -30,7 +31,6 @@ int do_test(void)
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/
-    yev_loop_t *yev_loop;
     yev_loop_create(
         NULL,
         2024,
@@ -117,13 +117,13 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
     gobj_trace_msg(gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
 
-    gbuffer *gbuf_server_tx = 0;
-    yev_event_t *yev_server_tx = 0;
+    static gbuffer *gbuf_server_tx = 0;
+    static yev_event_t *yev_server_tx = 0;
 
-    gbuffer *gbuf_server_rx = 0;
-    yev_event_t *yev_server_rx = 0;
+    static gbuffer *gbuf_server_rx = 0;
+    static yev_event_t *yev_server_rx = 0;
 
-    int srv_cli_fd = -1;
+    int srv_cli_fd;
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:
@@ -138,8 +138,14 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 /*
                  *  Transmit
                  */
-                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server transmitting");
+                gobj_trace_dump_gbuf(gobj, gbuf_server_tx, "Server transmitting");
                 yev_start_event(yev_server_tx, gbuf_server_tx);
+
+                /*
+                 *  Re-arm read
+                 */
+                gbuffer_reset_rd(yev_event->gbuf);
+                yev_start_event(yev_server_rx, yev_event->gbuf);
             }
             break;
 
@@ -203,11 +209,11 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
     gobj_trace_msg(gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
 
-    gbuffer *gbuf_client_tx = 0;
-    yev_event_t *yev_client_tx = 0;
+    static gbuffer *gbuf_client_tx = 0;
+    static yev_event_t *yev_client_tx = 0;
 
-    gbuffer *gbuf_client_rx = 0;
-    yev_event_t *yev_client_rx = 0;
+    static gbuffer *gbuf_client_rx = 0;
+    static yev_event_t *yev_client_rx = 0;
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:
@@ -222,8 +228,14 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 /*
                  *  Transmit
                  */
-                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                gobj_trace_dump_gbuf(gobj, gbuf_client_tx, "Client transmitting");
                 yev_start_event(yev_client_tx, gbuf_client_tx);
+
+                /*
+                 *  Re-arm read
+                 */
+                gbuffer_reset_rd(yev_event->gbuf);
+                yev_start_event(yev_client_rx, yev_event->gbuf);
             }
             break;
 
@@ -353,7 +365,7 @@ int main(int argc, char *argv[])
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
 {
-    _exit(0);
+    yev_loop->running = 0;
 }
 
 PUBLIC void yuno_catch_signals(void)

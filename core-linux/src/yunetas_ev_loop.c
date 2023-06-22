@@ -426,6 +426,10 @@ PUBLIC int yev_start_event(
         return -1;
     }
 
+    if(gbuf) {
+        yev_event->gbuf = gbuf;
+    }
+
     /*-------------------------------*
      *      Re-start if stopped
      *-------------------------------*/
