@@ -53,6 +53,7 @@ typedef int (*yev_callback_t)(
              (int *sock_conn_fd) in ACCEPT event
      */
     void *data,
+    int result,
     BOOL stopped    // True if the event has stopped
 );
 

@@ -14,8 +14,8 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
-PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *event, void *data, BOOL stopped);
+PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *event, void *data, int result, BOOL stopped);
+PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *event, void *data, int result, BOOL stopped);
 
 /***************************************************************
  *              Data
@@ -144,7 +144,7 @@ int do_test(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
+PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *yev_event, void *data, int result, BOOL stopped)
 {
     return 0;
 }
@@ -152,7 +152,7 @@ PRIVATE int yev_server_callback(hgobj gobj, yev_event_t *yev_event, void *data, 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
+PRIVATE int yev_client_callback(hgobj gobj, yev_event_t *yev_event, void *data, int result, BOOL stopped)
 {
     return 0;
 }

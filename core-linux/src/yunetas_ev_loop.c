@@ -180,6 +180,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             {
+                gbuffer *gbuf = yev_event->gbuf;
+                yev_event->gbuf = 0;
+
                 if(cqe->res < 0) {
                     gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -189,27 +192,30 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         "serrno",       "%s", strerror(-cqe->res),
                         NULL
                     );
+                } else {
+                    gbuffer_set_wr(gbuf, cqe->res);     // Mark the written bytes of reading fd
                 }
+
                 /*
                  *  Call Callback
                  */
-                gbuffer *gbuf = yev_event->gbuf;
-                yev_event->gbuf = 0;
-
-                gbuffer_set_wr(gbuf, cqe->res);     // Mark the written bytes of reading fd
-
                 if(yev_event->callback) {
                     yev_event->callback(
                         yev_event->gobj,
                         yev_event,
                         gbuf, // give out, callback responsible to free or reuse
+                        cqe->res,
                         (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                     );
                 }
             }
             break;
+
         case YEV_WRITE_TYPE:
             {
+                gbuffer *gbuf = yev_event->gbuf;
+                yev_event->gbuf = 0;
+
                 if(cqe->res < 0) {
                     gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -219,25 +225,25 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         "serrno",       "%s", strerror(-cqe->res),
                         NULL
                     );
+                } else {
+                    gbuffer_get(gbuf, cqe->res);    // Pop the read bytes used to write fd
                 }
+
                 /*
                  *  Call Callback
                  */
-                gbuffer *gbuf = yev_event->gbuf;
-                yev_event->gbuf = 0;
-
-                gbuffer_get(gbuf, cqe->res);    // Pop the read bytes used to write fd
-
                 if(yev_event->callback) {
                     yev_event->callback(
                         yev_event->gobj,
                         yev_event,
                         gbuf, // give out, callback responsible to free or reuse
+                        cqe->res,
                         (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                     );
                 }
             }
             break;
+
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
@@ -259,11 +265,13 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         yev_event->gobj,
                         yev_event,
                         0,
+                        cqe->res,
                         (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                     );
                 }
             }
             break;
+
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
@@ -291,6 +299,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         yev_event->gobj,
                         yev_event,
                         &sock_conn_fd,
+                        cqe->res,
                         (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                     );
                 }
@@ -314,6 +323,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
             }
             break;
+
         case YEV_TIMER_TYPE:
             {
                 /*
@@ -324,6 +334,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         yev_event->gobj,
                         yev_event,
                         0,
+                        cqe->res,
                         (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE
                     );
                 }
@@ -394,7 +405,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_start_event(
     yev_event_t *yev_event_,
-    gbuffer *gbuf_  // Used with yev_create_read_event(), yev_create_write_event()
+    gbuffer *gbuf  // Used with yev_create_read_event(), yev_create_write_event()
 ) {
     yev_event_t *yev_event = yev_event_;
     hgobj gobj = yev_event->gobj;
@@ -433,7 +444,7 @@ PUBLIC int yev_start_event(
                     );
                     GBUFFER_DECREF(yev_event->gbuf)
                 }
-                yev_event->gbuf = gbuf_;
+                yev_event->gbuf = gbuf;
             }
             break;
 
