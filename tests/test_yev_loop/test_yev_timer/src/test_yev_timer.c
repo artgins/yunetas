@@ -14,7 +14,7 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *event, void *data, int result, BOOL stopped);
+PRIVATE int yev_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -58,18 +58,21 @@ int do_test(void)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, int result, BOOL stopped)
+PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    hgobj gobj = yev_event->gobj;
+    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+
     if(stopped) {
-        gobj_trace_msg(0, "yev_start_timer_event STOPPED, stop loop");
+        gobj_trace_msg(gobj, "yev_start_timer_event STOPPED, stop loop");
         yev_loop_stop(yev_event->yev_loop);
     } else {
         times++;
         if(times < 3) {
-            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time", wait_time, times);
+            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time", wait_time, times);
             yev_start_timer_event(yev_event, wait_time*1000, FALSE);
         } else {
-            gobj_trace_msg(0, "timer_event of %d seconds DONE %d time, stopping", wait_time, times);
+            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, stopping", wait_time, times);
             yev_stop_event(yev_event);
         }
     }

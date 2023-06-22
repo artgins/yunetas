@@ -45,16 +45,7 @@ typedef struct yev_event_s yev_event_t;
 typedef struct yev_loop_s yev_loop_t;
 
 typedef int (*yev_callback_t)(
-    hgobj gobj,
-    yev_event_t *event,
-    /*
-        void *data is:
-             (gbuffer *gbuf) in READ/WRITE events that must be owned or reused
-             (int *sock_conn_fd) in ACCEPT event
-     */
-    void *data,
-    int result,
-    BOOL stopped    // True if the event has stopped
+    yev_event_t *event
 );
 
 struct yev_event_s {
@@ -66,6 +57,7 @@ struct yev_event_s {
     gbuffer *gbuf;
     hgobj gobj;
     yev_callback_t callback;
+    int result;
     struct sockaddr *dst_addr;
     socklen_t dst_addrlen;
     struct sockaddr *src_addr;

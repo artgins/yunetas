@@ -19,7 +19,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -153,8 +153,10 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(hgobj gobj, yev_event_t *yev_event, void *data, BOOL stopped)
+PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    hgobj gobj = yev_event->gobj;
+    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(stopped) {
