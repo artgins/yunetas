@@ -26,6 +26,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE const char *yev_event_type_name(yev_event_t *yev_event);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
@@ -417,49 +418,27 @@ PUBLIC int yev_start_event(
     }
 
     /*-------------------------------*
-     *      Prepare data
-     *-------------------------------*/
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-        case YEV_WRITE_TYPE:
-            {
-                if(yev_event->gbuf) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "yev_event ALREADY using gbuffer",
-                        NULL
-                    );
-                    GBUFFER_DECREF(yev_event->gbuf)
-                }
-                yev_event->gbuf = gbuf;
-            }
-            break;
-
-        case YEV_CONNECT_TYPE:
-            {
-            }
-            break;
-        case YEV_ACCEPT_TYPE:
-            {
-            }
-            break;
-
-        case YEV_TIMER_TYPE:
-            break;
-    }
-
-    /*-------------------------------*
      *      Summit sqe
      *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             {
+                if(!(yev_event->flag & YEV_CONNECTED_FLAG)) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "No connected",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        NULL
+                    );
+                    return -1;
+                }
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "gbuffer NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -469,6 +448,7 @@ PUBLIC int yev_start_event(
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "gbuffer WITHOUT space to read",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -488,11 +468,22 @@ PUBLIC int yev_start_event(
             break;
         case YEV_WRITE_TYPE:
             {
+                if(!(yev_event->flag & YEV_CONNECTED_FLAG)) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "No connected",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        NULL
+                    );
+                    return -1;
+                }
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "gbuffer NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -502,6 +493,7 @@ PUBLIC int yev_start_event(
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "gbuffer WITHOUT data to write",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -526,6 +518,7 @@ PUBLIC int yev_start_event(
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "yev_event connect addr NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -553,6 +546,7 @@ PUBLIC int yev_start_event(
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "yev_event accept addr NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
                     return -1;
@@ -579,6 +573,7 @@ PUBLIC int yev_start_event(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "use yev_start_timer_event() to start timer event",
+                "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
             return -1;
@@ -685,6 +680,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "yev_event gbuffer NOT free",
+            "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
         GBUFFER_DECREF(yev_event->gbuf)
@@ -695,6 +691,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "yev_event src_addr NOT free",
+            "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
         GBMEM_FREE(yev_event->src_addr)
@@ -704,6 +701,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "yev_event dst_addr NOT free",
+            "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
         GBMEM_FREE(yev_event->dst_addr)
@@ -831,9 +829,9 @@ PUBLIC int yev_setup_connect_event(
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_USE_SSL;
+        yev_event->flag |= YEV_USE_SSL_FLAG;
     } else {
-        yev_event->flag &= ~YEV_USE_SSL;
+        yev_event->flag &= ~YEV_USE_SSL_FLAG;
     }
 
     struct addrinfo hints = {
@@ -850,14 +848,14 @@ PUBLIC int yev_setup_connect_event(
         ICASES("ws")
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_IS_TCP;
+            yev_event->flag |= YEV_IS_TCP_FLAG;
             break;
 
         ICASES("udps")
         ICASES("udp")
             hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_IS_TCP;
+            yev_event->flag &= ~YEV_IS_TCP_FLAG;
             break;
 
         DEFAULTS
@@ -1096,9 +1094,9 @@ PUBLIC int yev_setup_accept_event(
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_USE_SSL;
+        yev_event->flag |= YEV_USE_SSL_FLAG;
     } else {
-        yev_event->flag &= ~YEV_USE_SSL;
+        yev_event->flag &= ~YEV_USE_SSL_FLAG;
     }
 
     if(backlog <= 0) {
@@ -1118,14 +1116,14 @@ PUBLIC int yev_setup_accept_event(
         ICASES("ws")
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_IS_TCP;
+            yev_event->flag |= YEV_IS_TCP_FLAG;
             break;
 
         ICASES("udps")
         ICASES("udp")
             hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_IS_TCP;
+            yev_event->flag &= ~YEV_IS_TCP_FLAG;
             break;
 
         DEFAULTS
@@ -1344,4 +1342,24 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *yev_event_type_name(yev_event_t *yev_event)
+{
+    switch((yev_type_t)yev_event->type) {
+        case YEV_READ_TYPE:
+            return "YEV_READ_TYPE";
+        case YEV_WRITE_TYPE:
+            return "YEV_WRITE_TYPE";
+        case YEV_CONNECT_TYPE:
+            return "YEV_CONNECT_TYPE";
+        case YEV_ACCEPT_TYPE:
+            return "YEV_ACCEPT_TYPE";
+        case YEV_TIMER_TYPE:
+            return "YEV_TIMER_TYPE";
+    }
+    return "???";
 }
