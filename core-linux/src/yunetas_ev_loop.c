@@ -427,7 +427,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "No connected",
+                        "msg",          "%s", "Cannot start event: Not connected",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -437,7 +437,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "gbuffer NULL",
+                        "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -447,7 +447,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "gbuffer WITHOUT space to read",
+                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -472,7 +472,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "No connected",
+                        "msg",          "%s", "Cannot start event: No connected",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -482,7 +482,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "gbuffer NULL",
+                        "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -492,7 +492,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "gbuffer WITHOUT data to write",
+                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -517,7 +517,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "yev_event connect addr NULL",
+                        "msg",          "%s", "Cannot start event: connect addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -545,7 +545,7 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "yev_event accept addr NULL",
+                        "msg",          "%s", "Cannot start event: accept addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
                     );
@@ -572,7 +572,7 @@ PUBLIC int yev_start_event(
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "use yev_start_timer_event() to start timer event",
+                "msg",          "%s", "Cannot start event: use yev_start_timer_event() to start timer event",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
