@@ -32,7 +32,7 @@ int do_test(void)
      *--------------------------------*/
     yev_loop_t *yev_loop;
     yev_loop_create(
-        0,
+        NULL,
         2024,
         &yev_loop
     );
@@ -56,24 +56,7 @@ int do_test(void)
         exit(0);
     }
 
-    yev_event_t *yev_server_rx = yev_create_read_event(
-        yev_loop,
-        yev_server_callback,
-        NULL,
-        fd_listen
-    );
-    yev_event_t *yev_server_tx = yev_create_write_event(
-        yev_loop,
-        yev_server_callback,
-        NULL,
-        fd_listen
-    );
-
-    gbuffer *gbuf_server_rx = gbuffer_create(4*1024, 4*1024);
-    gbuffer *gbuf_server_tx = gbuffer_create(4*1024, 4*1024);
     yev_start_event(yev_server_accept, NULL);
-    yev_start_event(yev_server_rx, gbuf_server_rx);
-//    yev_start_event(yev_server_tx, gbuf_server_tx);
 
     /*--------------------------------*
      *      Setup client
@@ -93,24 +76,7 @@ int do_test(void)
         exit(0);
     }
 
-    yev_event_t *yev_client_rx = yev_create_read_event(
-        yev_loop,
-        yev_client_callback,
-        NULL,
-        fd_connect
-    );
-    yev_event_t *yev_client_tx = yev_create_write_event(
-        yev_loop,
-        yev_client_callback,
-        NULL,
-        fd_connect
-    );
-
-    gbuffer *gbuf_client_rx = gbuffer_create(4*1024, 4*1024);
-    gbuffer *gbuf_client_tx = gbuffer_create(4*1024, 4*1024);
     yev_start_event(yev_client_connect, NULL);
-    yev_start_event(yev_client_rx, gbuf_client_rx);
-//    yev_start_event(yev_client_tx, gbuf_client_tx);
 
     /*--------------------------------*
      *      Begin run loop
@@ -121,20 +87,20 @@ int do_test(void)
      *      Stop
      *--------------------------------*/
     yev_stop_event(yev_server_accept);
-    yev_stop_event(yev_server_rx);
-    yev_stop_event(yev_server_tx);
+//  TODO  yev_stop_event(yev_server_rx);
+//    yev_stop_event(yev_server_tx);
 
     yev_stop_event(yev_client_connect);
-    yev_stop_event(yev_client_rx);
-    yev_stop_event(yev_client_tx);
+//  TODO  yev_stop_event(yev_client_rx);
+//    yev_stop_event(yev_client_tx);
 
     yev_destroy_event(yev_server_accept);
-    yev_destroy_event(yev_server_rx);
-    yev_destroy_event(yev_server_tx);
+//  TODO  yev_destroy_event(yev_server_rx);
+//    yev_destroy_event(yev_server_tx);
 
     yev_destroy_event(yev_client_connect);
-    yev_destroy_event(yev_client_rx);
-    yev_destroy_event(yev_client_tx);
+//  TODO  yev_destroy_event(yev_client_rx);
+//    yev_destroy_event(yev_client_tx);
 
     yev_loop_destroy(yev_loop);
 
@@ -150,6 +116,80 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
     gobj_trace_msg(gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
+
+    gbuffer *gbuf_server_tx = 0;
+    yev_event_t *yev_server_tx = 0;
+
+    gbuffer *gbuf_server_rx = 0;
+    yev_event_t *yev_server_rx = 0;
+
+    int srv_cli_fd = -1;
+
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            {
+                /*
+                 *  Save received data to transmit: do echo
+                 */
+                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
+                gbuffer_reset_wr(gbuf_server_tx);
+                gbuffer_append_gbuf(gbuf_server_tx, yev_event->gbuf);
+
+                /*
+                 *  Transmit
+                 */
+                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server transmitting");
+                yev_start_event(yev_server_tx, gbuf_server_tx);
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                // Write ended
+            }
+            break;
+
+        case YEV_ACCEPT_TYPE:
+            {
+                // Create a srv_cli structure
+                srv_cli_fd = yev_event->result;
+
+                /*
+                 *  Ready to receive
+                 */
+                gbuf_server_rx = gbuffer_create(4*1024, 4*1024);
+                yev_server_rx = yev_create_read_event(
+                    yev_event->yev_loop,
+                    yev_server_callback,
+                    NULL,
+                    srv_cli_fd
+                );
+                yev_start_event(yev_server_rx, gbuf_server_rx);
+
+                /*
+                 *  Read to Transmit
+                 */
+                gbuf_server_tx = gbuffer_create(4*1024, 4*1024);
+                yev_server_tx = yev_create_write_event(
+                    yev_event->yev_loop,
+                    yev_server_callback,
+                    NULL,
+                    srv_cli_fd
+                );
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                NULL
+            );
+            break;
+    }
+
     return 0;
 }
 
@@ -162,6 +202,82 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
     gobj_trace_msg(gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped?", STOPPED":"");
+
+    gbuffer *gbuf_client_tx = 0;
+    yev_event_t *yev_client_tx = 0;
+
+    gbuffer *gbuf_client_rx = 0;
+    yev_event_t *yev_client_rx = 0;
+
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            {
+                /*
+                 *  Save received data to transmit: do echo
+                 */
+                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
+                gbuffer_reset_wr(gbuf_client_tx);
+                gbuffer_append_gbuf(gbuf_client_tx, yev_event->gbuf);
+
+                /*
+                 *  Transmit
+                 */
+                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                yev_start_event(yev_client_tx, gbuf_client_tx);
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                // Write ended
+            }
+            break;
+
+        case YEV_CONNECT_TYPE:
+            {
+                /*
+                 *  Ready to receive
+                 */
+                gbuf_client_rx = gbuffer_create(4*1024, 4*1024);
+                yev_client_rx = yev_create_read_event(
+                    yev_event->yev_loop,
+                    yev_client_callback,
+                    NULL,
+                    yev_event->fd
+                );
+                yev_start_event(yev_client_rx, gbuf_client_rx);
+
+                /*
+                 *  Transmit
+                 */
+                gbuf_client_tx = gbuffer_create(4*1024, 4*1024);
+                gbuffer_append_string(gbuf_client_tx, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+                yev_client_tx = yev_create_write_event(
+                    yev_event->yev_loop,
+                    yev_client_callback,
+                    NULL,
+                    yev_event->fd
+                );
+
+                /*
+                 *  Transmit
+                 */
+                gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                yev_start_event(yev_client_tx, gbuf_client_tx);
+            }
+            break;
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                NULL
+            );
+            break;
+    }
+
     return 0;
 }
 

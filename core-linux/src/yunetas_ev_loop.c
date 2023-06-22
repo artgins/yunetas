@@ -192,6 +192,12 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
                 /*
+                 *  In servers the cli_srv is always connected.
+                 *  In clients TODO reset flag when socket broken
+                 */
+                yev_event->flag |= YEV_CONNECTED_FLAG;
+
+                /*
                  *  Call callback
                  */
                 yev_event->result = cqe->res;
@@ -238,23 +244,25 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                /*
-                 *  Rearm accept event if not stopped
-                 */
-                if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
-                        !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
-                    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                    io_uring_sqe_set_data(sqe, yev_event);
-                    yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-                    io_uring_prep_accept(
-                        sqe,
-                        yev_event->fd,
-                        yev_event->src_addr,
-                        &yev_event->src_addrlen,
-                        0
-                    );
-                    io_uring_submit(&yev_loop->ring);
-                }
+                //if(cqe->flags & IORING_CQE_F_MORE) {
+                    /*
+                     *  Needs to rearm accept event if not stopped
+                     */
+                    if((yev_event->flag & YEV_TIMER_PERIODIC_FLAG) &&
+                            !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        yev_event->src_addrlen = sizeof(*yev_event->src_addr);
+                        io_uring_prep_accept(
+                            sqe,
+                            yev_event->fd,
+                            yev_event->src_addr,
+                            &yev_event->src_addrlen,
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                    }
+                //}
             }
             break;
 
@@ -419,16 +427,6 @@ PUBLIC int yev_start_event(
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(!(yev_event->flag & YEV_CONNECTED_FLAG)) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "Cannot start event: Not connected",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        NULL
-                    );
-                    return -1;
-                }
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -464,16 +462,6 @@ PUBLIC int yev_start_event(
             break;
         case YEV_WRITE_TYPE:
             {
-                if(!(yev_event->flag & YEV_CONNECTED_FLAG)) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "Cannot start event: No connected",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        NULL
-                    );
-                    return -1;
-                }
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -519,6 +507,7 @@ PUBLIC int yev_start_event(
                     );
                     return -1;
                 }
+                yev_event->flag &= ~YEV_CONNECTED_FLAG; // TODO check if again connected?
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 io_uring_sqe_set_data(sqe, yev_event);
@@ -554,6 +543,7 @@ PUBLIC int yev_start_event(
                  *  Use the file descriptor fd to start accepting a connection request
                  *  described by the socket address at addr and of structure length addrlen
                  */
+                //io_uring_prep_multishot_accept(
                 io_uring_prep_accept(
                     sqe,
                     yev_event->fd,
