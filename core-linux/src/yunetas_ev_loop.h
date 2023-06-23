@@ -55,7 +55,7 @@ struct yev_event_s {
     uint8_t flag;               // yev_flag_t
     int fd;
     uint64_t timer_bf;
-    gbuffer *gbuf;
+    gbuffer_t *gbuf;
     hgobj gobj;
     yev_callback_t callback;
     int result;
@@ -91,7 +91,7 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
  */
 PUBLIC int yev_start_event(
     yev_event_t *yev_event,
-    gbuffer *gbuf // only for yev_create_read_event() and yev_create_write_event()
+    gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,

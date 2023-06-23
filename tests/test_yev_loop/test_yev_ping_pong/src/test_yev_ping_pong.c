@@ -33,16 +33,16 @@ const char *server_url = "tcp://localhost:2222";
 static char PING[] = "PING\n";
 #endif
 
-gbuffer *gbuf_server_tx = 0;
+gbuffer_t *gbuf_server_tx = 0;
 yev_event_t *yev_server_tx = 0;
 
-gbuffer *gbuf_server_rx = 0;
+gbuffer_t *gbuf_server_rx = 0;
 yev_event_t *yev_server_rx = 0;
 
-gbuffer *gbuf_client_tx = 0;
+gbuffer_t *gbuf_client_tx = 0;
 yev_event_t *yev_client_tx = 0;
 
-gbuffer *gbuf_client_rx = 0;
+gbuffer_t *gbuf_client_rx = 0;
 yev_event_t *yev_client_rx = 0;
 
 uint64_t t;

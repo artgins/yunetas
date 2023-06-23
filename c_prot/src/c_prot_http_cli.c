@@ -190,7 +190,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Return 0 if no new request.
  *  Return 1 if new request available in `request`.
  ***************************************************************************/
-PRIVATE int parse_message(hgobj gobj, gbuffer *gbuf, GHTTP_PARSER *parser)
+PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 {
     size_t ln;
     while((ln=gbuffer_leftbytes(gbuf))>0) {
@@ -268,7 +268,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s <- %s",
@@ -337,7 +337,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             //         data += """&%s=%s""" % (k,v)
 
             size_t ln = kw_content_size(jn_data_);
-            gbuffer *gbuf = gbuffer_create(ln, ln);
+            gbuffer_t *gbuf = gbuffer_create(ln, ln);
             int more = 0;
             json_object_foreach(jn_data_, key, v) {
                 const char *value = json_string_value(v);
@@ -382,7 +382,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     size_t len = strlen(method) + strlen(resource) + kw_content_size(jn_headers) + content_length + 256;
-    gbuffer *gbuf = gbuffer_create(len, len);
+    gbuffer_t *gbuf = gbuffer_create(len, len);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

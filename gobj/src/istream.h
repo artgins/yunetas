@@ -60,8 +60,8 @@ PUBLIC int istream_read_until_delimiter(
 PUBLIC size_t istream_consume(istream istream, char *bf, size_t len);
 PUBLIC char *istream_cur_rd_pointer(istream istream);
 PUBLIC size_t istream_length(istream istream);
-PUBLIC gbuffer *istream_get_gbuffer(istream istream);
-PUBLIC gbuffer *istream_pop_gbuffer(istream istream);
+PUBLIC gbuffer_t *istream_get_gbuffer(istream istream);
+PUBLIC gbuffer_t *istream_pop_gbuffer(istream istream);
 PUBLIC int istream_new_gbuffer(istream istream, size_t data_size, size_t max_size);
 PUBLIC char *istream_extract_matched_data(istream istream, size_t *len);
 PUBLIC int istream_reset_wr(istream istream);

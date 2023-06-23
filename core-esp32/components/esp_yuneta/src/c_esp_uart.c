@@ -333,7 +333,7 @@ PRIVATE void rx_task(void *pv)
                         size_t len = 0;
                         uart_get_buffered_data_len(uart_number, &len);
                         if(len > 0) {
-                            gbuffer *gbuf = gbuffer_create(len, len);
+                            gbuffer_t *gbuf = gbuffer_create(len, len);
                             if(gbuf) {
                                 char *p = gbuffer_cur_wr_pointer(gbuf);
                                 uart_read_bytes(uart_number, p, len, 0);
@@ -445,7 +445,7 @@ PRIVATE void uart_tx_ev_loop_callback(
     hgobj gobj = event_handler_arg;
 
     int uart_number = (int) gobj_read_integer_attr(gobj, "uart_number");
-    gbuffer *gbuf = *((gbuffer **) event_data);
+    gbuffer_t *gbuf = *((gbuffer_t **) event_data);
 
     int trozo = 0;
     int len, wlen;
@@ -506,7 +506,7 @@ PRIVATE void uart_tx_ev_loop_callback(
 PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-        gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         gobj_trace_dump_gbuf(gobj, gbuf, "%s",
             gobj_short_name(gobj)
         );
@@ -520,7 +520,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -540,7 +540,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         event,
         0,
         &gbuf,
-        sizeof(gbuffer *),
+        sizeof(gbuffer_t *),
         2
     );
     if(err != ESP_OK) {

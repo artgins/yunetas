@@ -852,7 +852,7 @@ PRIVATE const char *modbus_exception_name(int exception_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_data(hgobj gobj, gbuffer *gbuf)
+PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 {
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s ==> %s",
@@ -945,7 +945,7 @@ PRIVATE uint16_t crc16_rx(FRAME_HEAD *frame, uint8_t *buffer, uint16_t buffer_le
  * (1)  ... Modbus TCP/IP Application Data Unit
  * (1') ... Modbus Protocol Data Unit
  ***************************************************************************/
-PRIVATE gbuffer *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave, json_t *jn_map)
+PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave, json_t *jn_map)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj); // WARNING must be used only for t_id
 
@@ -1025,7 +1025,7 @@ PRIVATE gbuffer *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave,
             return 0;
     }
 
-    gbuffer *gbuf = gbuffer_create(32, 32);
+    gbuffer_t *gbuf = gbuffer_create(32, 32);
 
     SWITCHS(priv->modbus_protocol) {
         CASES("TCP")
@@ -1102,7 +1102,7 @@ PRIVATE gbuffer *build_modbus_request_read_message(hgobj gobj, json_t *jn_slave,
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE gbuffer *build_modbus_request_write_message(hgobj gobj, json_t *jn_request)
+PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_request)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj); // WARNING must be used only for t_id
 
@@ -1191,7 +1191,7 @@ PRIVATE gbuffer *build_modbus_request_write_message(hgobj gobj, json_t *jn_reque
             return 0;
     }
 
-    gbuffer *gbuf = gbuffer_create(32, 32);
+    gbuffer_t *gbuf = gbuffer_create(32, 32);
 
     SWITCHS(priv->modbus_protocol) {
         CASES("TCP")
@@ -1705,7 +1705,7 @@ PRIVATE int poll_modbus(hgobj gobj)
         gobj_trace_json(gobj, priv->cur_map_, "polling");
     }
 
-    gbuffer *gbuf = build_modbus_request_read_message(gobj, priv->cur_slave_, priv->cur_map_);
+    gbuffer_t *gbuf = build_modbus_request_read_message(gobj, priv->cur_slave_, priv->cur_map_);
     send_data(gobj, gbuf);
 
     // Change state
@@ -1735,7 +1735,7 @@ PRIVATE BOOL send_request(hgobj gobj)
            gobj_read_str_attr(gobj_bottom_gobj(gobj), "rPort")
         );
     }
-    gbuffer *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
+    gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
     JSON_DECREF(jn_current_request);
     send_data(gobj, gbuf);
 
@@ -1876,7 +1876,7 @@ PRIVATE int frame_completed(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer *gbuf = istream_get_gbuffer(priv->istream_payload);
+    gbuffer_t *gbuf = istream_get_gbuffer(priv->istream_payload);
 
     SWITCHS(priv->modbus_protocol) {
         CASES("TCP")
@@ -2830,7 +2830,7 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         case FORMAT_STRING:
             {
                 int size = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
-                gbuffer *gbuf_string = gbuffer_create(size*2, size*2);
+                gbuffer_t *gbuf_string = gbuffer_create(size*2, size*2);
 
                 for(int i=0; i<size; i++) {
                     uint16_t *pv = 0;
@@ -3181,7 +3181,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------------*
      *   Recupera el frame
      *---------------------------------------------*/
-    gbuffer *gbuf = (gbuffer *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     /*---------------------------------------------*
      *

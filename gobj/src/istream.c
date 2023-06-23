@@ -17,7 +17,7 @@
  ***************************************************************************/
 typedef struct _ISTREAM {
     hgobj gobj;
-    gbuffer *gbuf;
+    gbuffer_t *gbuf;
     size_t data_size;
     size_t max_size;
     const char *event_name;
@@ -286,7 +286,7 @@ PUBLIC size_t istream_length(istream istream)
 /***************************************************************************
  *  Get current gbuffer
  ***************************************************************************/
-PUBLIC gbuffer *istream_get_gbuffer(istream istream)
+PUBLIC gbuffer_t *istream_get_gbuffer(istream istream)
 {
     ISTREAM *ist = istream;
     if(!ist) {
@@ -304,7 +304,7 @@ PUBLIC gbuffer *istream_get_gbuffer(istream istream)
 /***************************************************************************
  *  Pop current gbuffer
  ***************************************************************************/
-PUBLIC gbuffer *istream_pop_gbuffer(istream istream)
+PUBLIC gbuffer_t *istream_pop_gbuffer(istream istream)
 {
     ISTREAM *ist = istream;
     if(!ist) {
@@ -316,7 +316,7 @@ PUBLIC gbuffer *istream_pop_gbuffer(istream istream)
         );
         return 0;
     }
-    gbuffer *gbuf = ist->gbuf;
+    gbuffer_t *gbuf = ist->gbuf;
     ist->gbuf = 0;
     return gbuf;
 }

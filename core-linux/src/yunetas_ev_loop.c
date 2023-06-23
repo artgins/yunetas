@@ -381,7 +381,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_start_event(
     yev_event_t *yev_event_,
-    gbuffer *gbuf  // Used with yev_create_read_event(), yev_create_write_event()
+    gbuffer_t *gbuf  // Used with yev_create_read_event(), yev_create_write_event()
 ) {
     yev_event_t *yev_event = yev_event_;
     hgobj gobj = yev_event->gobj;
