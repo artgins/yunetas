@@ -58,7 +58,7 @@ struct yev_event_s {
     gbuffer_t *gbuf;
     hgobj gobj;
     yev_callback_t callback;
-    int result;
+    int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
     struct sockaddr *dst_addr;
     socklen_t dst_addrlen;
     struct sockaddr *src_addr;
@@ -149,6 +149,13 @@ PUBLIC yev_event_t *yev_create_write_event(
 );
 
 PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
+
+/*
+ *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
+ */
+PUBLIC int set_tcp_socket_options(int fd);
+PUBLIC BOOL is_tcp_socket(int fd);
+PUBLIC BOOL is_udp_socket(int fd);
 
 #ifdef __cplusplus
 }

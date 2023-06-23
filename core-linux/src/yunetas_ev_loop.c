@@ -144,6 +144,8 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
     yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
+    hgobj gobj = yev_event->gobj;
+
     if(yev_event->flag & YEV_STOPPING_FLAG) {
         yev_event->flag &= ~YEV_STOPPING_FLAG;
         yev_event->flag |= YEV_STOPPED_FLAG;
@@ -153,7 +155,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_CONNECT_TYPE failed",
@@ -184,7 +186,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_ACCEPT_TYPE failed",
@@ -195,7 +197,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
                 if(yev_event->flag & YEV_STOPPED_FLAG) {
-                    gobj_log_warning(yev_loop->yuno, 0,
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_CONNECTION,
                         "msg",          "%s", "listen socket will be closed"
@@ -209,7 +211,12 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res;
+                yev_event->result = cqe->res; // cli_srv socket
+                if(yev_event->result > 0) {
+                    if(is_tcp_socket(yev_event->result)) {
+                        set_tcp_socket_options(yev_event->result);
+                    }
+                }
                 if(yev_event->callback) {
                     yev_event->callback(
                         yev_event
@@ -252,7 +259,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_READ_TYPE failed",
@@ -279,7 +286,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_WRITE_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "YEV_WRITE_TYPE failed",
@@ -1012,17 +1019,7 @@ PUBLIC int yev_setup_connect_event(
     }
 
     if(hints.ai_protocol == IPPROTO_TCP) {
-        int on = 1;
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
-        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
-#ifdef TCP_KEEPIDLE
-        int delay = 60; /* seconds */
-        int intvl = 1;  /*  1 second; same as default on Win32 */
-        int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
-#endif
+        set_tcp_socket_options(fd);
     }
 
     yev_event->fd = fd;
@@ -1347,4 +1344,63 @@ PUBLIC const char *yev_event_type_name(yev_event_t *yev_event)
             return "YEV_TIMER_TYPE";
     }
     return "???";
+}
+
+/***************************************************************************
+ *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
+ ***************************************************************************/
+PUBLIC int set_tcp_socket_options(int fd)
+{
+    int ret = 0;
+    int on = 1;
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+    ret += setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+#ifdef TCP_KEEPIDLE
+    int delay = 60; /* seconds */
+    int intvl = 1;  /*  1 second; same as default on Win32 */
+    int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+#endif
+    struct linger lg;
+    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
+    lg.l_linger = 0;	/* timeout interval in seconds */
+    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
+
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL is_tcp_socket(int fd)
+{
+    int type;
+    socklen_t optionLen = sizeof(type);
+
+    if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
+        return FALSE;
+    }
+    if (type == SOCK_STREAM) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL is_udp_socket(int fd)
+{
+    int type;
+    socklen_t optionLen = sizeof(type);
+
+    if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
+        return FALSE;
+    }
+    if (type == SOCK_DGRAM) {
+        return TRUE;
+    }
+    return FALSE;
 }
