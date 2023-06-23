@@ -157,14 +157,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(1) { // TODO debug yev option
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "YEV_CONNECT_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                 }
 
                 /*
@@ -188,14 +190,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "YEV_ACCEPT_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(1) { // TODO debug yev option
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "YEV_ACCEPT_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                 }
 
                 if(yev_event->flag & YEV_STOPPED_FLAG) {
@@ -261,14 +265,17 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "YEV_READ_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(1) { // TODO debug yev option
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "YEV_READ_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
+                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
                     gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
                 }
@@ -288,14 +295,17 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_WRITE_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "YEV_WRITE_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(1) { // TODO debug yev option
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "YEV_WRITE_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
+                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
                     gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
                 }
@@ -625,6 +635,17 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
 
+    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
+        gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "yev_event ALREADY stopped",
+            "event_type",   "%s", yev_event_type_name(yev_event),
+            NULL
+        );
+        return -1;
+    }
+
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
@@ -643,6 +664,17 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     sqe = io_uring_get_sqe(&yev_loop->ring);
+    if(!sqe) {
+        gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "io_uring_get_sqe() FAILED",
+            "event_type",   "%s", yev_event_type_name(yev_event),
+            NULL
+        );
+        return -1;
+    }
+
     io_uring_sqe_set_data(sqe, yev_event);
     yev_event->flag |= YEV_STOPPING_FLAG;
     io_uring_prep_cancel(sqe, yev_event, 0);

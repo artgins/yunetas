@@ -15,6 +15,15 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+BOOL dump = FALSE;
+
+const char *server_url = "tcp://localhost:2222";
+//const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does
+
+int drop_in_seconds = 5;
+
+int who_drop = 0; // 0 client, 1 srv_cli, 2 server
+
 #define BUFFER_SIZE (1*1024) // TODO si aumento se muere, el buffer transmitido es la mitad
 
 /***************************************************************
@@ -28,8 +37,6 @@ PRIVATE int yev_client_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-const char *server_url = "tcp://localhost:2222";
-//const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does
 
 #ifdef LIKE_LIBUV_PING_PONG
 static char PING[] = "PING\n";
@@ -54,10 +61,7 @@ yev_event_t *yev_client_rx = 0;
 uint64_t t;
 uint64_t msg_per_second = 0;
 uint64_t bytes_per_second = 0;
-BOOL dump = FALSE;
 int seconds_count;
-int drop_in_seconds = 5;
-int who_drop = 0;
 
 /***************************************************************************
  *              Test
@@ -123,21 +127,21 @@ int do_test(void)
     /*--------------------------------*
      *      Stop
      *--------------------------------*/
-    yev_stop_event(yev_server_accept);
-    yev_stop_event(yev_server_rx);
-    yev_stop_event(yev_server_tx);
-
     yev_stop_event(yev_client_connect);
     yev_stop_event(yev_client_rx);
     yev_stop_event(yev_client_tx);
 
-    yev_destroy_event(yev_server_accept);
-    yev_destroy_event(yev_server_rx);
-    yev_destroy_event(yev_server_tx);
-
     yev_destroy_event(yev_client_connect);
     yev_destroy_event(yev_client_rx);
     yev_destroy_event(yev_client_tx);
+
+    yev_stop_event(yev_server_accept);
+    yev_stop_event(yev_server_rx);
+    yev_stop_event(yev_server_tx);
+
+    yev_destroy_event(yev_server_accept);
+    yev_destroy_event(yev_server_rx);
+    yev_destroy_event(yev_server_tx);
 
     yev_loop_destroy(yev_loop);
 
@@ -158,29 +162,37 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         );
     }
 
+
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    yev_loop_stop(yev_loop);
+                    break;
+                }
+
                 msg_per_second++;
                 bytes_per_second += gbuffer_leftbytes(yev_event->gbuf);
                 if(test_msectimer(t)) {
                     seconds_count++;
                     if(seconds_count && (seconds_count % drop_in_seconds)==0) {
-                        printf(Cursor_Down, 3);
-                        printf(Move_Horizontal, 1);
-                        switch(who_drop) {
-                            case 0:
-                                close(fd_connect);
-                                who_drop = 1;
-                                break;
-                            case 1:
-                                close(srv_cli_fd);
-                                who_drop = 2;
-                                break;
-                            case 2:
-                                close(fd_listen);
-                                who_drop = 0;
-                                break;
+                        if(who_drop) {
+                            printf(Cursor_Down, 3);
+                            printf(Move_Horizontal, 1);
+                            switch(who_drop) {
+                                case 1:
+                                    close(fd_connect);
+                                    break;
+                                case 2:
+                                    close(srv_cli_fd);
+                                    break;
+                                case 3:
+                                    close(fd_listen);
+                                    break;
+                            }
                         }
                     }
 
@@ -228,7 +240,13 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
         case YEV_WRITE_TYPE:
             {
-                // Write ended
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    yev_loop_stop(yev_loop);
+                    break;
+                }
             }
             break;
 
@@ -245,27 +263,36 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 /*
                  *  Ready to receive
                  */
-                gbuf_server_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                gbuffer_setlabel(gbuf_server_rx, "server-rx");
-                yev_server_rx = yev_create_read_event(
-                    yev_event->yev_loop,
-                    yev_server_callback,
-                    NULL,
-                    srv_cli_fd
-                );
-                yev_start_event(yev_server_rx, gbuf_server_rx);
+                if(!gbuf_server_rx) {
+                    gbuf_server_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                    gbuffer_setlabel(gbuf_server_rx, "server-rx");
+                }
+                if(!yev_server_rx) {
+                    yev_server_rx = yev_create_read_event(
+                        yev_event->yev_loop,
+                        yev_server_callback,
+                        NULL,
+                        srv_cli_fd
+                    );
+                }
 
                 /*
                  *  Read to Transmit
                  */
-                gbuf_server_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                gbuffer_setlabel(gbuf_server_tx, "server-tx");
-                yev_server_tx = yev_create_write_event(
-                    yev_event->yev_loop,
-                    yev_server_callback,
-                    NULL,
-                    srv_cli_fd
-                );
+                if(!gbuf_server_tx) {
+                    gbuf_server_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                    gbuffer_setlabel(gbuf_server_tx, "server-tx");
+                }
+                if(!yev_server_tx) {
+                    yev_server_tx = yev_create_write_event(
+                        yev_event->yev_loop,
+                        yev_server_callback,
+                        NULL,
+                        srv_cli_fd
+                    );
+                }
+
+                yev_start_event(yev_server_rx, gbuf_server_rx);
             }
             break;
 
@@ -299,6 +326,14 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    yev_loop_stop(yev_loop);
+                    break;
+                }
+
                 /*
                  *  Save received data to transmit: do echo
                  */
@@ -327,12 +362,27 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
         case YEV_WRITE_TYPE:
             {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    yev_loop_stop(yev_loop);
+                    break;
+                }
                 // Write ended
             }
             break;
 
         case YEV_CONNECT_TYPE:
             {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Error on connection
+                     */
+                    // TODO
+                    break;
+                }
+
                 char sockname[80], peername[80];
                 get_peername(peername, sizeof(peername), yev_event->fd);
                 get_sockname(sockname, sizeof(sockname), yev_event->fd);
@@ -341,36 +391,43 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 /*
                  *  Ready to receive
                  */
-                gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                gbuffer_setlabel(gbuf_client_rx, "client-rx");
-                yev_client_rx = yev_create_read_event(
-                    yev_event->yev_loop,
-                    yev_client_callback,
-                    NULL,
-                    yev_event->fd
-                );
+                if(!gbuf_client_rx) {
+                    gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                    gbuffer_setlabel(gbuf_client_rx, "client-rx");
+                }
+                if(!yev_client_rx) {
+                    yev_client_rx = yev_create_read_event(
+                        yev_event->yev_loop,
+                        yev_client_callback,
+                        NULL,
+                        yev_event->fd
+                    );
+                }
                 yev_start_event(yev_client_rx, gbuf_client_rx);
 
                 /*
                  *  Transmit
                  */
-                gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                gbuffer_setlabel(gbuf_client_tx, "client-tx");
-
-#ifdef LIKE_LIBUV_PING_PONG
-                gbuffer_append_string(gbuf_client_tx, PING);
-#else
-                for(int i= 0; i<BUFFER_SIZE; i++) {
-                    gbuffer_append_char(gbuf_client_tx, 'A');
+                if(!gbuf_client_tx) {
+                    gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                    gbuffer_setlabel(gbuf_client_tx, "client-tx");
+                    #ifdef LIKE_LIBUV_PING_PONG
+                    gbuffer_append_string(gbuf_client_tx, PING);
+                    #else
+                    for(int i= 0; i<BUFFER_SIZE; i++) {
+                        gbuffer_append_char(gbuf_client_tx, 'A');
+                    }
+                    #endif
                 }
-#endif
 
-                yev_client_tx = yev_create_write_event(
-                    yev_event->yev_loop,
-                    yev_client_callback,
-                    NULL,
-                    yev_event->fd
-                );
+                if(!yev_client_tx) {
+                    yev_client_tx = yev_create_write_event(
+                        yev_event->yev_loop,
+                        yev_client_callback,
+                        NULL,
+                        yev_event->fd
+                    );
+                }
 
                 /*
                  *  Transmit
