@@ -30,6 +30,7 @@ PRIVATE int print_peer_sock_name(const char *prefix, int fd);
  ***************************************************************/
 yev_loop_t *yev_loop;
 const char *server_url = "tcp://localhost:2222";
+//const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does
 
 #ifdef LIKE_LIBUV_PING_PONG
 static char PING[] = "PING\n";
