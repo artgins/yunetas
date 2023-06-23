@@ -34,6 +34,10 @@ const char *server_url = "tcp://localhost:2222";
 static char PING[] = "PING\n";
 #endif
 
+int fd_connect;
+int srv_cli_fd;
+int fd_listen;
+
 gbuffer_t *gbuf_server_tx = 0;
 yev_event_t *yev_server_tx = 0;
 
@@ -47,9 +51,12 @@ gbuffer_t *gbuf_client_rx = 0;
 yev_event_t *yev_client_rx = 0;
 
 uint64_t t;
-uint64_t msgsec = 0;
-uint64_t bytes = 0;
+uint64_t msg_per_second = 0;
+uint64_t bytes_per_second = 0;
 BOOL dump = FALSE;
+int seconds_count;
+int drop_in_seconds = 5;
+int who_drop = 0;
 
 /***************************************************************************
  *              Test
@@ -73,7 +80,7 @@ int do_test(void)
         yev_server_callback,
         NULL
     );
-    int fd_listen = yev_setup_accept_event(
+    fd_listen = yev_setup_accept_event(
         yev_server_accept,
         server_url,     // server_url,
         0,              // backlog, default 512
@@ -94,7 +101,7 @@ int do_test(void)
         yev_client_callback,
         NULL
     );
-    int fd_connect = yev_setup_connect_event(
+    fd_connect = yev_setup_connect_event(
         yev_client_connect,
         server_url,     // client_url
         NULL            // local bind
@@ -149,27 +156,46 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
         );
     }
-    int srv_cli_fd;
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
-                msgsec++;
-                bytes += gbuffer_leftbytes(yev_event->gbuf);
+                msg_per_second++;
+                bytes_per_second += gbuffer_leftbytes(yev_event->gbuf);
                 if(test_msectimer(t)) {
+                    seconds_count++;
+                    if(seconds_count && (seconds_count % drop_in_seconds)==0) {
+                        printf(Cursor_Down, 3);
+                        printf(Move_Horizontal, 1);
+                        switch(who_drop) {
+                            case 0:
+                                close(fd_connect);
+                                who_drop = 1;
+                                break;
+                            case 1:
+                                close(srv_cli_fd);
+                                who_drop = 2;
+                                break;
+                            case 2:
+                                close(fd_listen);
+                                who_drop = 0;
+                                break;
+                        }
+                    }
+
                     char nice[64];
-                    nice_size(nice, sizeof(nice), msgsec);
+                    nice_size(nice, sizeof(nice), msg_per_second);
                     printf("\n" Erase_Whole_Line Move_Horizontal, 1);
                     printf("Msg/sec    : %s\n", nice);
                     printf(Erase_Whole_Line Move_Horizontal, 1);
-                    nice_size(nice, sizeof(nice), bytes);
+                    nice_size(nice, sizeof(nice), bytes_per_second);
                     printf("Bytes/sec  : %s\n", nice);
                     printf(Cursor_Up, 3);
                     printf(Move_Horizontal, 1);
 
                     fflush(stdout);
-                    msgsec = 0;
-                    bytes = 0;
+                    msg_per_second = 0;
+                    bytes_per_second = 0;
                     t = start_msectimer(1000);
                 }
 
