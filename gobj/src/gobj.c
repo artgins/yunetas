@@ -6598,7 +6598,7 @@ PUBLIC void gobj_trace_json(
     trace_vjson(gobj, jn, "trace_json", fmt, ap);
     va_end(ap);
 
-    gbuffer *gbuf = (gbuffer *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
     if(gbuf) {
         gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
     }
@@ -7755,36 +7755,11 @@ PUBLIC size_t gobj_get_maximum_block(void)
 
 
 
-typedef struct gbuffer_s {
-    DL_ITEM_FIELDS
-
-    size_t refcount;            /* to delete by reference counter */
-
-    char *label;                /* like user_data */
-    size_t mark;                /* like user_data */
-
-    size_t data_size;           /* nº bytes allocated for data */
-    size_t max_memory_size;     /* maximum size in memory */
-
-    /*
-     *  Con tail controlo la entrada de bytes en el packet.
-     *  El número total de bytes en el packet será tail.
-     */
-    size_t tail;    /* write pointer */
-    size_t curp;    /* read pointer */
-
-    /*
-     *  Data dynamically allocated
-     *  In file_mode this buffer only is for read from file.
-     */
-    char *data;
-} gbuffer_t;
-
 /***************************************************************************
  *  Crea un gbuf de tamaño de datos 'data_size'
  *  Retorna NULL if error
  ***************************************************************************/
-PUBLIC gbuffer gbuffer_create(
+PUBLIC gbuffer_t *gbuffer_create(
     size_t data_size,
     size_t max_memory_size)
 {
@@ -7895,10 +7870,8 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
 /***************************************************************************
  *    Elimina paquete
  ***************************************************************************/
-PUBLIC void gbuffer_remove(gbuffer hgbuf)
+PUBLIC void gbuffer_remove(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(__trace_gobj_gbuffers__(0)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -7927,10 +7900,8 @@ PUBLIC void gbuffer_remove(gbuffer hgbuf)
 /***************************************************************************
  *    Incr ref
  ***************************************************************************/
-PUBLIC void gbuffer_incref(gbuffer hgbuf)
+PUBLIC void gbuffer_incref(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(!gbuf || gbuf->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -7946,10 +7917,8 @@ PUBLIC void gbuffer_incref(gbuffer hgbuf)
 /***************************************************************************
  *    Decr ref
  ***************************************************************************/
-PUBLIC void gbuffer_decref(gbuffer hgbuf)
+PUBLIC void gbuffer_decref(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(!gbuf || gbuf->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -7967,9 +7936,8 @@ PUBLIC void gbuffer_decref(gbuffer hgbuf)
 /***************************************************************************
  *    Devuelve puntero a la actual posición de salida de datos
  ***************************************************************************/
-PUBLIC void * gbuffer_cur_rd_pointer(gbuffer hgbuf)
+PUBLIC void * gbuffer_cur_rd_pointer(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     char *p;
 
     if(!gbuf) {
@@ -8007,19 +7975,16 @@ PRIVATE inline void * _gbuffer_cur_wr_pointer(gbuffer_t *gbuf)
 /***************************************************************************
  *    Reset current output pointer
  ***************************************************************************/
-PUBLIC void gbuffer_reset_rd(gbuffer hgbuf)
+PUBLIC void gbuffer_reset_rd(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     gbuf->curp = 0;
 }
 
 /***************************************************************************
  *  Set current output pointer
  ***************************************************************************/
-PUBLIC int gbuffer_set_rd_offset(gbuffer hgbuf, size_t position)
+PUBLIC int gbuffer_set_rd_offset(gbuffer_t *gbuf, size_t position)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(position >= gbuf->data_size) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -8049,10 +8014,8 @@ PUBLIC int gbuffer_set_rd_offset(gbuffer hgbuf, size_t position)
 /***************************************************************************
  *  Unget char
  ***************************************************************************/
-PUBLIC int gbuffer_ungetc(gbuffer hgbuf, char c)
+PUBLIC int gbuffer_ungetc(gbuffer_t *gbuf, char c)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(gbuf->curp > 0) {
         gbuf->curp--;
 
@@ -8065,10 +8028,8 @@ PUBLIC int gbuffer_ungetc(gbuffer hgbuf, char c)
 /***************************************************************************
  *  Get current output pointer
  ***************************************************************************/
-PUBLIC size_t gbuffer_get_rd_offset(gbuffer hgbuf)
+PUBLIC size_t gbuffer_get_rd_offset(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     return gbuf->curp;
 }
 
@@ -8077,10 +8038,8 @@ PUBLIC size_t gbuffer_get_rd_offset(gbuffer hgbuf)
  *    Devuelve al pointer al primer byte de los 'len' datos sacados.
  *    WARNING primero hay que asegurarse que existen 'len' bytes disponibles
  ***************************************************************************/
-PUBLIC void * gbuffer_get(gbuffer hgbuf, size_t len)
+PUBLIC void * gbuffer_get(gbuffer_t *gbuf, size_t len)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -8117,10 +8076,8 @@ PUBLIC void * gbuffer_get(gbuffer hgbuf, size_t len)
 /***************************************************************************
  *  pop one byte
  ***************************************************************************/
-PUBLIC char gbuffer_getchar(gbuffer hgbuf)
+PUBLIC char gbuffer_getchar(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     char *p = gbuffer_get(gbuf, 1);
     if(p)
         return *p;
@@ -8131,10 +8088,8 @@ PUBLIC char gbuffer_getchar(gbuffer hgbuf)
 /***************************************************************************
  *  return the chunk of data available
  ***************************************************************************/
-PUBLIC size_t gbuffer_chunk(gbuffer hgbuf)
+PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     size_t ln = gbuffer_leftbytes(gbuf);
     size_t chunk_size = MIN(gbuf->data_size, ln);
 
@@ -8144,10 +8099,8 @@ PUBLIC size_t gbuffer_chunk(gbuffer hgbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC char *gbuffer_getline(gbuffer hgbuf, char separator)
+PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(gbuffer_leftbytes(gbuf)<=0) {
         // No more chars
         return (char *)0;
@@ -8177,18 +8130,16 @@ PUBLIC char *gbuffer_getline(gbuffer hgbuf, char separator)
 /***************************************************************************
  *    Get current writing position
  ***************************************************************************/
-PUBLIC void *gbuffer_cur_wr_pointer(gbuffer hgbuf)
+PUBLIC void *gbuffer_cur_wr_pointer(gbuffer_t *gbuf)
 {
-    return _gbuffer_cur_wr_pointer(hgbuf);
+    return _gbuffer_cur_wr_pointer(gbuf);
 }
 
 /***************************************************************************
  *    Reset current input pointer
  ***************************************************************************/
-PUBLIC void gbuffer_reset_wr(gbuffer hgbuf)
+PUBLIC void gbuffer_reset_wr(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     gbuf->tail = 0;
     gbuf->curp = 0;
 
@@ -8204,10 +8155,8 @@ PUBLIC void gbuffer_reset_wr(gbuffer hgbuf)
  *  Set current input pointer
  *  Useful when using gbuf as write buffer
  ***************************************************************************/
-PUBLIC int gbuffer_set_wr(gbuffer hgbuf, size_t offset)
+PUBLIC int gbuffer_set_wr(gbuffer_t *gbuf, size_t offset)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(offset > gbuf->data_size) { // WARNING collateral damage? (original>=), version 3.4.3
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -8235,9 +8184,8 @@ PUBLIC int gbuffer_set_wr(gbuffer hgbuf, size_t offset)
  *   Append 'len' bytes
  *   Retorna bytes guardados
  ***************************************************************************/
-PUBLIC size_t gbuffer_append(gbuffer hgbuf, void *bf, size_t len)
+PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
 {
-    gbuffer_t *gbuf = hgbuf;
     char *p;
 
     if(!bf) {
@@ -8290,28 +8238,25 @@ PUBLIC size_t gbuffer_append(gbuffer hgbuf, void *bf, size_t len)
  *   Append 'len' bytes
  *   Retorna bytes guardados
  ***************************************************************************/
-PUBLIC size_t gbuffer_append_string(gbuffer hgbuf, const char *s)
+PUBLIC size_t gbuffer_append_string(gbuffer_t *gbuf, const char *s)
 {
-    return gbuffer_append(hgbuf, (void *)s, strlen(s));
+    return gbuffer_append(gbuf, (void *)s, strlen(s));
 }
 
 /***************************************************************************
  *   Append 'c'
  *   Retorna bytes guardados
  ***************************************************************************/
-PUBLIC size_t gbuffer_append_char(gbuffer hgbuf, char c)
+PUBLIC size_t gbuffer_append_char(gbuffer_t *gbuf, char c)
 {
-    return gbuffer_append(hgbuf, &c, 1);
+    return gbuffer_append(gbuf, &c, 1);
 }
 
 /***************************************************************************
  *   Append a gbuf to another gbuf. The two gbuf must exist.
  ***************************************************************************/
-PUBLIC int gbuffer_append_gbuf(gbuffer hdst, gbuffer hsrc)
+PUBLIC int gbuffer_append_gbuf(gbuffer_t *dst, gbuffer_t *src)
 {
-    gbuffer_t *src = hsrc;
-    gbuffer_t *dst = hdst;
-
     register char *p;
     size_t ln = gbuffer_leftbytes(src);
     size_t chunk_size = MIN(src->data_size, ln);
@@ -8347,13 +8292,13 @@ PUBLIC int gbuffer_append_gbuf(gbuffer hdst, gbuffer hsrc)
  *    Añade message with format al final del mensaje
  *    Return bytes written
  ***************************************************************************/
-PUBLIC int gbuffer_printf(gbuffer hgbuf, const char *format, ...)
+PUBLIC int gbuffer_printf(gbuffer_t *gbuf, const char *format, ...)
 {
     BOOL ret;
     va_list ap;
 
     va_start(ap, format);
-    ret = gbuffer_vprintf(hgbuf, format, ap);
+    ret = gbuffer_vprintf(gbuf, format, ap);
     va_end(ap);
     return ret;
 }
@@ -8363,9 +8308,8 @@ PUBLIC int gbuffer_printf(gbuffer hgbuf, const char *format, ...)
  *    Añade message with format al final del mensaje
  *    Return bytes written
  ***************************************************************************/
-PUBLIC int gbuffer_vprintf(gbuffer hgbuf, const char *format, va_list ap)
+PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
 {
-    gbuffer_t *gbuf = hgbuf;
     char *bf;
     size_t len;
     int written;
@@ -8444,9 +8388,8 @@ PUBLIC int gbuffer_vprintf(gbuffer hgbuf, const char *format, va_list ap)
 /***************************************************************************
  *  Return pointer to first position of data
  ***************************************************************************/
-PUBLIC void *gbuffer_head_pointer(gbuffer hgbuf)
+PUBLIC void *gbuffer_head_pointer(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     char *p;
 
     if(!gbuf) {
@@ -8465,7 +8408,7 @@ PUBLIC void *gbuffer_head_pointer(gbuffer hgbuf)
 /***************************************************************************
  *  Reset write/read pointers
  ***************************************************************************/
-PUBLIC void gbuffer_clear(gbuffer gbuf)
+PUBLIC void gbuffer_clear(gbuffer_t *gbuf)
 {
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -8483,10 +8426,8 @@ PUBLIC void gbuffer_clear(gbuffer gbuf)
 /***************************************************************************
  *    Devuelve los bytes que quedan en el packet por procesar
  ***************************************************************************/
-PUBLIC size_t gbuffer_leftbytes(gbuffer hgbuf)
+PUBLIC size_t gbuffer_leftbytes(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -8502,28 +8443,24 @@ PUBLIC size_t gbuffer_leftbytes(gbuffer hgbuf)
 /***************************************************************************
  *    Devuelve el número de bytes escritos
  ***************************************************************************/
-PUBLIC size_t gbuffer_totalbytes(gbuffer hgbuf)
+PUBLIC size_t gbuffer_totalbytes(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     return gbuf->tail;
 }
 
 /***************************************************************************
  *    Devuelve el espacio libre de bytes de datos
  ***************************************************************************/
-PUBLIC size_t gbuffer_freebytes(gbuffer hgbuf)
+PUBLIC size_t gbuffer_freebytes(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     return gbuf->data_size - gbuf->tail;
 }
 
 /***************************************************************************
  *    Set label
  ***************************************************************************/
-PUBLIC int gbuffer_setlabel(gbuffer hgbuf, const char *label)
+PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
 {
-    gbuffer_t *gbuf = hgbuf;
-
     if(gbuf->label) {
         sys_free_fn(gbuf->label);
         gbuf->label = 0;
@@ -8537,9 +8474,8 @@ PUBLIC int gbuffer_setlabel(gbuffer hgbuf, const char *label)
 /***************************************************************************
  *    Get label
  ***************************************************************************/
-PUBLIC char *gbuffer_getlabel(gbuffer hgbuf)
+PUBLIC char *gbuffer_getlabel(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     if(!gbuf) {
         return 0;
     }
@@ -8549,9 +8485,8 @@ PUBLIC char *gbuffer_getlabel(gbuffer hgbuf)
 /***************************************************************************
  *    Set mark
  ***************************************************************************/
-PUBLIC void gbuffer_setmark(gbuffer hgbuf, size_t mark)
+PUBLIC void gbuffer_setmark(gbuffer_t *gbuf, size_t mark)
 {
-    gbuffer_t *gbuf = hgbuf;
     if(gbuf) {
         gbuf->mark = mark;
     }
@@ -8560,9 +8495,8 @@ PUBLIC void gbuffer_setmark(gbuffer hgbuf, size_t mark)
 /***************************************************************************
  *    Get mark
  ***************************************************************************/
-PUBLIC size_t gbuffer_getmark(gbuffer hgbuf)
+PUBLIC size_t gbuffer_getmark(gbuffer_t *gbuf)
 {
-    gbuffer_t *gbuf = hgbuf;
     if(gbuf) {
         return gbuf->mark;
     }
@@ -8574,11 +8508,9 @@ PUBLIC size_t gbuffer_getmark(gbuffer hgbuf)
  ***************************************************************************/
 PUBLIC json_t *gbuffer_serialize(
     hgobj gobj,
-    gbuffer hgbuf  // not owned
+    gbuffer_t *gbuf  // not owned
 )
 {
-    gbuffer_t *gbuf = hgbuf;
-
     json_t *__gbuffer__ = json_object();
     char *label = gbuffer_getlabel(gbuf);
     json_t *jn_label = json_string(label?label:"");
@@ -8614,7 +8546,7 @@ PUBLIC json_t *gbuffer_serialize(
 /***************************************************************************
  *  Deserialize GBUFFER
  ***************************************************************************/
-PUBLIC gbuffer gbuffer_deserialize(
+PUBLIC gbuffer_t *gbuffer_deserialize(
     hgobj gobj,
     const json_t *jn  // not owned
 ) {
@@ -8927,7 +8859,7 @@ PRIVATE size_t b64_output_decode_len(size_t input_length)
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC gbuffer gbuffer_string_to_base64(const char *src, size_t len)
+PUBLIC gbuffer_t *gbuffer_string_to_base64(const char *src, size_t len)
 {
     size_t output_len = b64_output_encode_len(len);
 
@@ -8963,7 +8895,7 @@ PUBLIC gbuffer gbuffer_string_to_base64(const char *src, size_t len)
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC gbuffer gbuffer_base64_to_string(const char* base64, size_t base64_len)
+PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len)
 {
     size_t output_len = b64_output_decode_len(base64_len);
 
@@ -9002,12 +8934,11 @@ PUBLIC gbuffer gbuffer_base64_to_string(const char* base64, size_t base64_len)
  *****************************************************************/
 PUBLIC void gobj_trace_dump_gbuf(
     hgobj gobj,
-    gbuffer hgbuf,
+    gbuffer_t *gbuf,
     const char *fmt,
     ...
 )
 {
-    gbuffer_t *gbuf = hgbuf;
     if(!gbuf) {
         return;
     }
@@ -9038,12 +8969,11 @@ PUBLIC void gobj_trace_dump_gbuf(
  *****************************************************************/
 PUBLIC void gobj_trace_dump_full_gbuf(
     hgobj gobj,
-    gbuffer hgbuf,
+    gbuffer_t *gbuf,
     const char *fmt,
     ...
 )
 {
-    gbuffer_t *gbuf = hgbuf;
     if(!gbuf) {
         return;
     }

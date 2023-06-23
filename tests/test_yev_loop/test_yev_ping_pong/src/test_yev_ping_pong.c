@@ -14,7 +14,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define BUFFER_SIZE (8*1024) // TODO si aumento se muere, el buffer transmitido es la mitad
+#define BUFFER_SIZE (1*1024) // TODO si aumento se muere, el buffer transmitido es la mitad
 
 /***************************************************************
  *              Prototypes
@@ -29,7 +29,9 @@ PRIVATE int yev_client_callback(yev_event_t *event);
 yev_loop_t *yev_loop;
 const char *server_url = "tcp://localhost:2222";
 
+#ifdef LIKE_LIBUV_PING_PONG
 static char PING[] = "PING\n";
+#endif
 
 gbuffer *gbuf_server_tx = 0;
 yev_event_t *yev_server_tx = 0;
@@ -299,11 +301,13 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  */
                 gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
 
-//                for(int i= 0; i<BUFFER_SIZE/2; i++) { // TODO quita el /2 para depurar el espacio en los gbuffer
-//                    gbuffer_append_char(gbuf_client_tx, 'A');
-//                }
-
+#ifdef LIKE_LIBUV_PING_PONG
                 gbuffer_append_string(gbuf_client_tx, PING);
+#else
+                for(int i= 0; i<BUFFER_SIZE; i++) {
+                    gbuffer_append_char(gbuf_client_tx, 'A');
+                }
+#endif
 
                 yev_client_tx = yev_create_write_event(
                     yev_event->yev_loop,
@@ -360,8 +364,9 @@ int main(int argc, char *argv[])
         free_func
     );
 
-    //gobj_set_deep_tracing(2);           // TODO TEST
-    //gobj_set_global_trace(0, TRUE);     // TODO TEST
+    dump = TRUE;                        // TODO TEST
+    gobj_set_deep_tracing(2);           // TODO TEST
+    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
 #ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
