@@ -23,7 +23,6 @@
 PUBLIC void yuno_catch_signals(void);
 PRIVATE int yev_server_callback(yev_event_t *event);
 PRIVATE int yev_client_callback(yev_event_t *event);
-PRIVATE int print_peer_sock_name(const char *prefix, int fd);
 
 /***************************************************************
  *              Data
@@ -235,9 +234,13 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
         case YEV_ACCEPT_TYPE:
             {
-                // Create a srv_cli structure
+                // TODO Create a srv_cli structure
                 srv_cli_fd = yev_event->result;
-                print_peer_sock_name("ACCEPTED: ", srv_cli_fd);
+
+                char sockname[80], peername[80];
+                get_peername(peername, sizeof(peername), srv_cli_fd);
+                get_sockname(sockname, sizeof(sockname), srv_cli_fd);
+                printf("ACCEPTED  sockname %s <- peername %s \n", sockname, peername);
 
                 /*
                  *  Ready to receive
@@ -330,7 +333,10 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
         case YEV_CONNECT_TYPE:
             {
-                print_peer_sock_name("CONNECTED: ", yev_event->fd);
+                char sockname[80], peername[80];
+                get_peername(peername, sizeof(peername), yev_event->fd);
+                get_sockname(sockname, sizeof(sockname), yev_event->fd);
+                printf("CONNECTED sockname %s -> peername %s \n", sockname, peername);
 
                 /*
                  *  Ready to receive
@@ -480,55 +486,4 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
-}
-
-/***************************************************************************
- *      Signal handlers
- ***************************************************************************/
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-void printSocketAddress(const char *prefix, const char *prefix2, const struct sockaddr* sa) {
-    char ipAddress[INET6_ADDRSTRLEN];
-    unsigned short port;
-
-    if (sa->sa_family == AF_INET) {
-        struct sockaddr_in* sa_ipv4 = (struct sockaddr_in*)sa;
-        inet_ntop(AF_INET, &(sa_ipv4->sin_addr), ipAddress, INET6_ADDRSTRLEN);
-        port = ntohs(sa_ipv4->sin_port);
-    } else if (sa->sa_family == AF_INET6) {
-        struct sockaddr_in6* sa_ipv6 = (struct sockaddr_in6*)sa;
-        inet_ntop(AF_INET6, &(sa_ipv6->sin6_addr), ipAddress, INET6_ADDRSTRLEN);
-        port = ntohs(sa_ipv6->sin6_port);
-    } else {
-        printf("Unknown address family\n");
-        return;
-    }
-
-    printf("%s %s IP %s:%hu\n", prefix, prefix2, ipAddress, port);
-}
-
-PRIVATE int print_peer_sock_name(const char *prefix, int fd)
-{
-    struct sockaddr_storage localAddr, remoteAddr;
-    socklen_t addrLen = sizeof(struct sockaddr_storage);
-
-    // Get the local socket address
-    if (getsockname(fd, (struct sockaddr*)&localAddr, &addrLen) == -1) {
-        perror("getsockname");
-        return 1;
-    }
-
-    // Get the remote socket address
-    if (getpeername(fd, (struct sockaddr*)&remoteAddr, &addrLen) == -1) {
-        perror("getpeername");
-        return 1;
-    }
-
-    printSocketAddress(prefix, "Local", (struct sockaddr*)&localAddr);
-
-    printSocketAddress(prefix, "Remote", (struct sockaddr*)&remoteAddr);
-
-    return 0;
 }

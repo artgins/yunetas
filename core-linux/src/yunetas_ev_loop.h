@@ -156,6 +156,8 @@ PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
 PUBLIC int set_tcp_socket_options(int fd);
 PUBLIC BOOL is_tcp_socket(int fd);
 PUBLIC BOOL is_udp_socket(int fd);
+PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
+PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 
 #ifdef __cplusplus
 }

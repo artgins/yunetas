@@ -11,8 +11,10 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include "yunetas_ev_loop.h"
+
 
 /***************************************************************
  *              Constants
@@ -1403,4 +1405,67 @@ PUBLIC BOOL is_udp_socket(int fd)
         return TRUE;
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int printSocketAddress(char *bf, size_t bfsize, const struct sockaddr* sa)
+{
+    char ipAddress[INET6_ADDRSTRLEN];
+    unsigned short port;
+
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in* sa_ipv4 = (struct sockaddr_in*)sa;
+        inet_ntop(AF_INET, &(sa_ipv4->sin_addr), ipAddress, INET6_ADDRSTRLEN);
+        port = ntohs(sa_ipv4->sin_port);
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6* sa_ipv6 = (struct sockaddr_in6*)sa;
+        inet_ntop(AF_INET6, &(sa_ipv6->sin6_addr), ipAddress, INET6_ADDRSTRLEN);
+        port = ntohs(sa_ipv6->sin6_port);
+    } else {
+        *bf = 0;
+        return -1;
+    }
+
+    snprintf(bf, bfsize, "%s:%hu", ipAddress, port);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_peername(char *bf, size_t bfsize, int fd)
+{
+    struct sockaddr_storage remoteAddr;
+    socklen_t addrLen = sizeof(struct sockaddr_storage);
+
+    // Get the remote socket address
+    if (getpeername(fd, (struct sockaddr*)&remoteAddr, &addrLen) == -1) {
+        if(bf && bfsize) {
+            *bf = 0;
+        }
+        return -1;
+    }
+    printSocketAddress(bf, bfsize, (struct sockaddr*)&remoteAddr);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
+{
+    struct sockaddr_storage localAddr;
+    socklen_t addrLen = sizeof(struct sockaddr_storage);
+
+    // Get the local socket address
+    if (getsockname(fd, (struct sockaddr*)&localAddr, &addrLen) == -1) {
+        if(bf && bfsize) {
+            *bf = 0;
+        }
+        return -1;
+    }
+    printSocketAddress(bf, bfsize, (struct sockaddr*)&localAddr);
+    return 0;
 }
