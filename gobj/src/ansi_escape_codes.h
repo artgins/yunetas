@@ -86,9 +86,23 @@ extern "C"{
 #define On_ICyan "\033[0;106m"    // Cyan
 #define On_IWhite "\033[0;107m"   // White
 
-#define Erase_Whole_Line    "\033[2K"
-#define Move_Horizontal     "\033[%dG"
+#define Erase_Whole_Line    "\033[2K"       /* Cursor position does not change */
 #define Clear_Screen        "\033[2J"
+#define Clear_Full_Screen   "\033[3J"       /* Clear scrollback buffer too */
+
+#define Cursor_Up           "\033[%dA"      /* Moves the cursor n cells in the given direction  */
+#define Cursor_Down         "\033[%dB"      /* If the cursor is at the edge of the screen, has no effect */
+#define Cursor_Forward      "\033[%dC"
+#define Cursor_Back         "\033[%dD"
+
+#define Cursor_Next_Line    "\033[%dE"      /* Moves cursor to beginning of the line n lines down*/
+#define Cursor_Prev_Line    "\033[%dF"      /* Moves cursor to beginning of the line n lines up */
+
+#define Move_Horizontal     "\033[%dG"      /* Moves the cursor to column n, relative to 1 */
+#define Cursor_Position     "\033[%d;%dH"   /* Moves the cursor to row n, column m, 1-based */
+
+#define Scroll_Up       "\033[%dS"      /* Scroll whole page up n lines. New lines are added at the bottom. */
+#define Scroll_Down     "\033[%dT"      /* Scroll whole page down n lines. New lines are added at the top */
 
 #ifdef __cplusplus
 }

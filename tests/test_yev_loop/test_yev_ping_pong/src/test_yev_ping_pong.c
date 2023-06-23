@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <gobj.h>
+#include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
 
@@ -46,7 +47,8 @@ gbuffer_t *gbuf_client_rx = 0;
 yev_event_t *yev_client_rx = 0;
 
 uint64_t t;
-unsigned msgsec = 0;
+uint64_t msgsec = 0;
+uint64_t bytes = 0;
 BOOL dump = FALSE;
 
 /***************************************************************************
@@ -153,10 +155,21 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         case YEV_READ_TYPE:
             {
                 msgsec++;
-
+                bytes += gbuffer_leftbytes(yev_event->gbuf);
                 if(test_msectimer(t)) {
-                    printf("Msg/sec %u\r", msgsec); fflush(stdout);
+                    char nice[64];
+                    nice_size(nice, sizeof(nice), msgsec);
+                    printf("\n" Erase_Whole_Line Move_Horizontal, 1);
+                    printf("Msg/sec    : %s\n", nice);
+                    printf(Erase_Whole_Line Move_Horizontal, 1);
+                    nice_size(nice, sizeof(nice), bytes);
+                    printf("Bytes/sec  : %s\n", nice);
+                    printf(Cursor_Up, 3);
+                    printf(Move_Horizontal, 1);
+
+                    fflush(stdout);
                     msgsec = 0;
+                    bytes = 0;
                     t = start_msectimer(1000);
                 }
 
@@ -166,7 +179,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
                 }
-                gbuffer_reset_wr(gbuf_server_tx);
+                gbuffer_clear(gbuf_server_tx);
                 gbuffer_append_gbuf(gbuf_server_tx, yev_event->gbuf);
 
                 /*
@@ -178,9 +191,10 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 yev_start_event(yev_server_tx, gbuf_server_tx);
 
                 /*
+                 *  Clear buffer
                  *  Re-arm read
                  */
-                gbuffer_reset_rd(yev_event->gbuf);
+                gbuffer_clear(yev_event->gbuf);
                 yev_start_event(yev_server_rx, yev_event->gbuf);
             }
             break;
@@ -200,6 +214,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                  *  Ready to receive
                  */
                 gbuf_server_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                gbuffer_setlabel(gbuf_server_rx, "server-rx");
                 yev_server_rx = yev_create_read_event(
                     yev_event->yev_loop,
                     yev_server_callback,
@@ -212,6 +227,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                  *  Read to Transmit
                  */
                 gbuf_server_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                gbuffer_setlabel(gbuf_server_tx, "server-tx");
                 yev_server_tx = yev_create_write_event(
                     yev_event->yev_loop,
                     yev_server_callback,
@@ -257,7 +273,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
                 }
-                gbuffer_reset_wr(gbuf_client_tx);
+                gbuffer_clear(gbuf_client_tx);
                 gbuffer_append_gbuf(gbuf_client_tx, yev_event->gbuf);
 
                 /*
@@ -269,9 +285,10 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 yev_start_event(yev_client_tx, gbuf_client_tx);
 
                 /*
+                 *  Clear buffer
                  *  Re-arm read
                  */
-                gbuffer_reset_rd(yev_event->gbuf);
+                gbuffer_clear(yev_event->gbuf);
                 yev_start_event(yev_client_rx, yev_event->gbuf);
             }
             break;
@@ -288,6 +305,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Ready to receive
                  */
                 gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                gbuffer_setlabel(gbuf_client_rx, "client-rx");
                 yev_client_rx = yev_create_read_event(
                     yev_event->yev_loop,
                     yev_client_callback,
@@ -300,6 +318,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Transmit
                  */
                 gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                gbuffer_setlabel(gbuf_client_tx, "client-tx");
 
 #ifdef LIKE_LIBUV_PING_PONG
                 gbuffer_append_string(gbuf_client_tx, PING);
@@ -364,9 +383,9 @@ int main(int argc, char *argv[])
         free_func
     );
 
-    dump = TRUE;                        // TODO TEST
-    gobj_set_deep_tracing(2);           // TODO TEST
-    gobj_set_global_trace(0, TRUE);     // TODO TEST
+    //dump = TRUE;                        // TODO TEST
+    //gobj_set_deep_tracing(2);           // TODO TEST
+    //gobj_set_global_trace(0, TRUE);     // TODO TEST
 
 #ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
@@ -398,11 +417,12 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
-
     /*--------------------------------*
      *      Test
      *--------------------------------*/
     do_test();
+
+    printf(Cursor_Down "\n", 4);
 
     return gobj_get_exit_code();
 }

@@ -8461,6 +8461,15 @@ PUBLIC size_t gbuffer_freebytes(gbuffer_t *gbuf)
  ***************************************************************************/
 PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
 {
+    if(!gbuf) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gbuf is NULL",
+            NULL
+        );
+        return -1;
+    }
     if(gbuf->label) {
         sys_free_fn(gbuf->label);
         gbuf->label = 0;

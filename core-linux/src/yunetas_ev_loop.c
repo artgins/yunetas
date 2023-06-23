@@ -430,6 +430,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
                     );
                     return -1;
@@ -465,6 +466,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
                     );
                     return -1;
