@@ -50,7 +50,7 @@ PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop_)
     }
 
     struct io_uring_params params_test = {0};
-    // TODO use IORING_SETUP_SQPOLL when you know how to use
+    // TODO to use IORING_SETUP_SQPOLL when you know how to use
     // Info in https://unixism.net/loti/tutorial/sq_poll.html
     //params_test.flags |= IORING_SETUP_SQPOLL;
     //params_test.flags |= IORING_SETUP_COOP_TASKRUN;      // Available since 5.18
