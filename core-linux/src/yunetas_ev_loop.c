@@ -119,7 +119,6 @@ retry:
  ***************************************************************************/
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
-
     io_uring_queue_exit(&yev_loop->ring);
     GBMEM_FREE(yev_loop)
 }
