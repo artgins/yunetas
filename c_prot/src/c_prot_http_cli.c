@@ -15,6 +15,7 @@
   #include <c_esp_transport.h>
 #endif
 #include <kwid.h>
+#include <gbuffer.h>
 #include "c_prot_http_cli.h"
 
 /***************************************************************
@@ -33,9 +34,9 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
-SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
-SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "JWT"),
-SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
+SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
+SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
+SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "Set internally if schema is secure"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()

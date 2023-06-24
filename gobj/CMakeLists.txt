@@ -19,6 +19,7 @@ set (SRCS
     src/helpers.c
     src/kwid.c
     src/stacktrace_with_bfd.c
+    src/gbuffer.c
 )
 
 
@@ -34,6 +35,7 @@ set (HDRS
     src/helpers.h
     src/kwid.h
     src/stacktrace_with_bfd.h
+    src/gbuffer.h
 )
 
 ##############################################

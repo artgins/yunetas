@@ -15,6 +15,7 @@
   #include <driver/gpio.h>
 #endif
 #include <kwid.h>
+#include <gbuffer.h>
 #include "c_esp_uart.h"
 
 /***************************************************************

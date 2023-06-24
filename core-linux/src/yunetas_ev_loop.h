@@ -12,6 +12,7 @@
 #include <liburing.h>
 #include <gobj.h>
 #include <parse_url.h>
+#include <gbuffer.h>
 
 #ifdef __cplusplus
 extern "C"{

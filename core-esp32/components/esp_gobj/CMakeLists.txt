@@ -11,6 +11,7 @@ set(srcs
     src/parse_url.c
     src/helpers.c
     src/kwid.c
+    src/gbuffer.c
 )
 
 set(requires

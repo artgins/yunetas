@@ -9,6 +9,7 @@
 #pragma once
 
 #include "gobj.h"
+#include "gbuffer.h"
 
 #ifdef __cplusplus
 extern "C"{
