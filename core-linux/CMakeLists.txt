@@ -11,6 +11,8 @@ project(yunetas-core-linux C)
 set (SRCS
     src/c_linux_yuno.c
     src/c_timer.c
+    src/c_linux_transport.c
+    src/c_linux_uart.c
     src/yunetas_environment.c
     src/yunetas_ev_loop.c
 )
@@ -18,6 +20,8 @@ set (SRCS
 set (HDRS
     src/c_linux_yuno.h
     src/c_timer.h
+    src/c_linux_transport.h
+    src/c_linux_uart.h
     src/yunetas_environment.h
     src/yunetas_ev_loop.h
 )
