@@ -53,18 +53,21 @@ PRIVATE void transport_tx_ev_loop_callback(
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t tattr_desc[] = { // WARNING repeated in c_linux_transport/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
+SDATA (DTP_STRING,  "scheme",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
+SDATA (DTP_STRING,  "host",             SDF_RD,         "",         "host, decoded from url. Set internally"),
+SDATA (DTP_STRING,  "port",             SDF_RD,         "",         "port, decoded from url. Set internally"),
+SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
 SDATA (DTP_BOOLEAN, "character_device", SDF_RD,         "false",    "Char device (Ex: tty://dev/ttyUSB2)"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "Set internally if schema is secure"),
 
 SDATA (DTP_INTEGER, "timeout_waiting_connected", SDF_WR|SDF_PERSIST, "60000", "Timeout waiting connected in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
@@ -115,16 +118,15 @@ typedef struct _PRIVATE_DATA {
     transport_state_t transport_state;
     TaskHandle_t  rx_task_h;                // Task to read/connect
     esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
+    char buf_rx[1024];
 #endif
     volatile BOOL task_running;
     volatile int dynamic_read_timeout;
-    char buf_rx[1024];
     BOOL connected_published;
     BOOL use_ssl;
     char schema[16];
     char host[120];
     char port[10];
-    char path[32];
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -153,17 +155,17 @@ PRIVATE void mt_create(hgobj gobj)
         priv->schema, sizeof(priv->schema),
         priv->host, sizeof(priv->host),
         priv->port, sizeof(priv->port),
-        priv->path, sizeof(priv->path),
+        0, 0,
         0, 0,
         FALSE
     );
-    if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
-        priv->path[strlen(priv->path)-1] = 0;
-    }
     if(strlen(priv->schema) > 0 && priv->schema[strlen(priv->schema)-1]=='s') {
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     }
+    gobj_write_str_attr(gobj, "schema", priv->schema);
+    gobj_write_str_attr(gobj, "host", priv->host);
+    gobj_write_str_attr(gobj, "port", priv->port);
 
 #ifdef ESP_PLATFORM
     if(priv->use_ssl) {

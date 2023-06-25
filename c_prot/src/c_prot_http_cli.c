@@ -12,7 +12,10 @@
 #include <ghttp_parser.h>
 #include <parse_url.h>
 #ifdef ESP_PLATFORM
-  #include <c_esp_transport.h>
+    #include <c_esp_transport.h>
+#endif
+#ifdef __linux__
+    #include <c_linux_transport.h>
 #endif
 #include <kwid.h>
 #include <gbuffer.h>
@@ -37,7 +40,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
-SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "Set internally if schema is secure"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -61,13 +63,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     char p;
-    hgobj gobj_transport;
     GHTTP_PARSER *parsing_response;
-    BOOL use_ssl;
-    char schema[16];
-    char host[120];
-    char port[10];
-    char path[32];
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -89,39 +85,12 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-#ifdef ESP_PLATFORM
-    json_t *kw = json_pack("{s:s, s:s}",
-        "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-        "url", gobj_read_str_attr(gobj, "url")
-    );
-    priv->gobj_transport = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
-    gobj_set_bottom_gobj(gobj, priv->gobj_transport);
-#endif
-
     priv->parsing_response = ghttp_parser_create(
         gobj,
         HTTP_RESPONSE,
         EV_ON_MESSAGE,
         FALSE
     );
-
-    parse_url(
-        gobj,
-        gobj_read_str_attr(gobj, "url"),
-        priv->schema, sizeof(priv->schema),
-        priv->host, sizeof(priv->host),
-        priv->port, sizeof(priv->port),
-        priv->path, sizeof(priv->path),
-        0, 0,
-        FALSE
-    );
-    if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
-        priv->path[strlen(priv->path)-1] = 0;
-    }
-    if(strlen(priv->schema) > 0 && priv->schema[strlen(priv->schema)-1]=='s') {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-    }
 
     /*
      *  Child, default subscriber, the parent
@@ -145,10 +114,23 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    if(!bottom_gobj) {
+        json_t *kw = json_pack("{s:s, s:s}",
+            "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+            "url", gobj_read_str_attr(gobj, "url")
+        );
 
-    // TODO change gobj_transport to bottom_gobj
-    gobj_start(priv->gobj_transport);
+        #ifdef ESP_PLATFORM
+            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+        #endif
+        #ifdef __linux__
+            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
+        #endif
+        gobj_set_bottom_gobj(gobj, gobj_bottom);
+    }
+
+    gobj_start(gobj_bottom_gobj(gobj));
 
     return 0;
 }
@@ -161,7 +143,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ghttp_parser_reset(priv->parsing_response);
-    gobj_stop(priv->gobj_transport);
+    gobj_stop(gobj_bottom_gobj(gobj));
 
     return 0;
 }
@@ -292,7 +274,6 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *method = kw_get_str(gobj, kw, "method", "GET", 0);
     char *resource = gobj_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
     const char *query = kw_get_str(gobj, kw, "query", "", 0);
@@ -314,10 +295,12 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
     json_object_set_new(jn_headers, "Connection", json_string("keep-alive"));
     json_object_set_new(jn_headers, "Accept", json_string("*/*"));
-    if(atoi(priv->port) == 80 || atoi(priv->port) == 443) {
-        json_object_set_new(jn_headers, "Host", json_string(priv->host));
+    const char *host = gobj_read_str_attr(gobj_bottom_gobj(gobj), "host");
+    const char *port = gobj_read_str_attr(gobj_bottom_gobj(gobj), "port");
+    if(atoi(port) == 80 || atoi(port) == 443) {
+        json_object_set_new(jn_headers, "Host", json_string(host));
     } else {
-        json_object_set_new(jn_headers, "Host", json_sprintf("%s:%d", priv->host, atoi(priv->port)));
+        json_object_set_new(jn_headers, "Host", json_sprintf("%s:%d", host, atoi(port)));
     }
     if(jn_headers_) {
         json_object_update(jn_headers, jn_headers_);
