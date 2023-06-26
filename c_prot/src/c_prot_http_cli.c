@@ -10,7 +10,6 @@
 #include <string.h>
 #include <strings.h>
 #include <ghttp_parser.h>
-#include <parse_url.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>
 #endif
