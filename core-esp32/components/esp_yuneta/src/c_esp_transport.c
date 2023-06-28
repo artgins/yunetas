@@ -246,11 +246,13 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_reading(hgobj gobj, const char *name)
 {
 #ifdef ESP_PLATFORM
+#ifdef HACK_ESP
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(strcmp(name, "tx_queue_size")==0) {
         size_t numEvents = esp_event_queue_size(priv->tx_ev_loop_h);
         gobj_write_integer_attr(gobj, "tx_queue_size", (json_int_t)numEvents);
     }
+#endif
 #endif
     return 0;
 }

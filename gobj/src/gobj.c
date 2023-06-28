@@ -8,7 +8,6 @@
  ****************************************************************************/
 #include <time.h>
 #include <string.h>
-#include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -6598,9 +6597,11 @@ PUBLIC void gobj_trace_json(
     trace_vjson(gobj, jn, "trace_json", fmt, ap);
     va_end(ap);
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
-    if(gbuf) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+    if((gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
+        if(gbuf) {
+            gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
+        }
     }
 }
 
