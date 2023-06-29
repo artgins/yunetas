@@ -637,9 +637,11 @@ PRIVATE void udp_tx_ev_loop_callback(
     if(!uc->disabled) {
         if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
             ESP_LOGE("YUNETA", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
-            close(uc->_s);
-            uc->_s = 0;
-            uc->disabled = TRUE; // Wait to network on, yuno must re-open
+            if(errno != ENOMEM) {
+                close(uc->_s);
+                uc->_s = 0;
+                uc->disabled = TRUE; // Wait to network on, yuno must re-open
+            }
         }
     } else {
         ESP_LOGE("YUNETA", "%.*s", (int)len, bf);

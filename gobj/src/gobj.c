@@ -5369,6 +5369,9 @@ PUBLIC int gobj_set_gclass_trace(hgclass gclass_, const char *level, BOOL set)
     gclass_t *gclass = gclass_;
     uint32_t bitmask = 0;
 
+    if(!gclass) {
+        return gobj_set_global_trace(level, set);
+    }
     if(level == NULL) {
         bitmask = (uint32_t)-1;
     } else if(empty_string(level)) {
@@ -6022,6 +6025,12 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
             }
         }
     }
+
+#ifdef ESP_PLATFORM
+#include <esp_system.h>
+    size_t free_memory = esp_get_free_heap_size();
+    json_object_set_new(jn, "free_mem", json_integer((json_int_t)free_memory));
+#endif
 }
 
 /*****************************************************************
