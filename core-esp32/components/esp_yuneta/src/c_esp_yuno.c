@@ -164,10 +164,10 @@ PRIVATE void mt_create(hgobj gobj)
      *      Create own event loop
      *--------------------------------*/
     esp_event_loop_args_t loop_handle_args = {
-        .queue_size = 64,
+        .queue_size = 16,
         .task_name = "yuneta_loop", // task will be created
         .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 8*1024,
+        .task_stack_size = 8*1024,  // esp32 stack size
         .task_core_id = 1
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->ev_loop_post_messages));

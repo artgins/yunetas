@@ -107,10 +107,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create event loop to transmit
      *---------------------------------*/
     esp_event_loop_args_t loop_handle_args = {
-        .queue_size = 64,
-        .task_name = gobj_name(gobj), // task will be created
+        .queue_size = 8,
+        .task_name = "uart-tx-queue", // task will be created
         .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 8*1024,
+        .task_stack_size = 2*1024,  // esp32 stack size
         .task_core_id = tskNO_AFFINITY
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
@@ -203,8 +203,8 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->rx_task_h) {
         portBASE_TYPE ret = xTaskCreate(
             rx_task,
-            gobj_name(gobj),
-            8*1024,
+            "uart-rx-task",
+            2*1024, // esp32 stack size
             gobj,
             tskIDLE_PRIORITY,
             &priv->rx_task_h

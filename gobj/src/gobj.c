@@ -5994,6 +5994,12 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
         }
     }
 
+#ifdef ESP_PLATFORM
+#include <esp_system.h>
+    size_t free_memory = esp_get_free_heap_size();
+    json_object_set_new(jn, "free_mem", json_integer((json_int_t)free_memory));
+#endif
+
     if(!gobj || gobj->obflag & obflag_destroyed) {
         return;
     }
@@ -6025,12 +6031,6 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
             }
         }
     }
-
-#ifdef ESP_PLATFORM
-#include <esp_system.h>
-    size_t free_memory = esp_get_free_heap_size();
-    json_object_set_new(jn, "free_mem", json_integer((json_int_t)free_memory));
-#endif
 }
 
 /*****************************************************************

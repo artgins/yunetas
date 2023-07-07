@@ -198,10 +198,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create event loop to transmit
      *---------------------------------*/
     esp_event_loop_args_t loop_handle_args = {
-        .queue_size = 64,
-        .task_name = gobj_name(gobj), // task will be created
+        .queue_size = 8,
+        .task_name = "trans-tx-queue", // task will be created
         .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 4*1024,
+        .task_stack_size = 2*1024,  // esp32 stack size
         .task_core_id = tskNO_AFFINITY
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
@@ -332,8 +332,8 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->rx_task_h) {
         portBASE_TYPE ret = xTaskCreate(
             rx_task,
-            gobj_name(gobj),
-            8*1024,
+            "trans-rx-task",
+            4*1024, // esp32 stack size
             gobj,
             tskIDLE_PRIORITY,
             &priv->rx_task_h
@@ -472,6 +472,7 @@ PRIVATE void rx_task(void *pv)
 {
     hgobj gobj = pv;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int err;
 
     priv->transport_state = TASK_TRANSPORT_DISCONNECTED;
     priv->task_running = true;
@@ -495,17 +496,20 @@ PRIVATE void rx_task(void *pv)
                 break;
 
             case TASK_TRANSPORT_DISCONNECTED:
-                if (esp_transport_connect(
+                err = esp_transport_connect(
                     priv->transport,
                     priv->host,
                     atoi(priv->port),
                     (int)gobj_read_integer_attr(gobj, "timeout_waiting_connected")
-                ) < 0) {
+                );
+                if(err < 0) {
                     int actual_errno = esp_transport_get_errno(priv->transport);
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "esp_transport_connect() FAILED",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "err",          "%d", err,
                         "errno",        "%d", actual_errno,
                         "serrno",       "%s", strerror(actual_errno),
                         NULL
@@ -549,6 +553,8 @@ PRIVATE void rx_task(void *pv)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "esp_transport_read() FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "err",          "%d", read_len,
                             "errno",        "%d", actual_errno,
                             "serrno",       "%s", strerror(actual_errno),
                             NULL
@@ -627,6 +633,7 @@ PRIVATE void transport_tx_ev_loop_callback(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "esp_transport_write() FAILED",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "errno",        "%d", actual_errno,
                 "serrno",       "%s", strerror(actual_errno),
                 NULL

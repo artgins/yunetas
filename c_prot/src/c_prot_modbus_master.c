@@ -1513,6 +1513,13 @@ PRIVATE int build_slave_data(hgobj gobj)
         pslv++;
     }
 
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Data filled",
+        NULL
+    );
+
     return 0;
 }
 
