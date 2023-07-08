@@ -8,13 +8,14 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #ifdef ESP_PLATFORM
-  #include <esp_event.h>
-  #include <esp_netif.h>
-  #include <esp_mac.h>
-  #include <esp_log.h>
-  #include <esp_sntp.h>
-  #include <driver/gpio.h>
-  #include <rom/gpio.h>
+    #include <esp_event.h>
+    #include <esp_netif.h>
+    #include <esp_netif_sntp.h>
+    #include <esp_mac.h>
+    #include <esp_log.h>
+    #include <esp_sntp.h>
+    #include <driver/gpio.h>
+    #include <rom/gpio.h>
 #endif
 #include <time.h>
 #include <log_udp_handler.h>    // log upd is open when wifi/ethernet is connected
@@ -456,12 +457,10 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  Wait to have time to play the default service
      */
 #ifdef ESP_PLATFORM
-    sntp_servermode_dhcp(1);      // accept NTP offers from DHCP server, if any
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    sntp_setservername(0, "pool.ntp.org");
-    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
-    sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
-    sntp_init();
+    #define SNTP_TIME_SERVER "pool.ntp.org"
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(SNTP_TIME_SERVER);
+    config.sync_cb = time_sync_notification_cb;     // Note: This is only needed if we want
+    esp_netif_sntp_init(&config);
 
     /*
      *  Set upd handler
@@ -504,7 +503,7 @@ PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
 #ifdef ESP_PLATFORM
     gpio_set_level(OLIMEX_LED_PIN, 0); // TODO put in config
-    sntp_stop();
+    esp_netif_sntp_deinit();
 #endif
 
 //    esp_log_set_vprintf(vprintf); // TODO repon cuando funcione
