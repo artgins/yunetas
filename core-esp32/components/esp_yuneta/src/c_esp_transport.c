@@ -122,11 +122,8 @@ typedef struct _PRIVATE_DATA {
 #endif
     volatile BOOL task_running;
     volatile int dynamic_read_timeout;
-    BOOL connected_published;
+    BOOL inform_disconnection;
     BOOL use_ssl;
-    char schema[16];
-    char host[120];
-    char port[10];
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -149,23 +146,27 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    char schema[16];
+    char host[120];
+    char port[10];
+
     parse_url(
         gobj,
         gobj_read_str_attr(gobj, "url"),
-        priv->schema, sizeof(priv->schema),
-        priv->host, sizeof(priv->host),
-        priv->port, sizeof(priv->port),
+        schema, sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
         0, 0,
         0, 0,
         FALSE
     );
-    if(strlen(priv->schema) > 0 && priv->schema[strlen(priv->schema)-1]=='s') {
+    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     }
-    gobj_write_str_attr(gobj, "schema", priv->schema);
-    gobj_write_str_attr(gobj, "host", priv->host);
-    gobj_write_str_attr(gobj, "port", priv->port);
+    gobj_write_str_attr(gobj, "schema", schema);
+    gobj_write_str_attr(gobj, "host", host);
+    gobj_write_str_attr(gobj, "port", port);
 
 #ifdef ESP_PLATFORM
     if(priv->use_ssl) {
@@ -695,8 +696,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->connected_published) {
-        priv->connected_published = FALSE;
+    if(priv->inform_disconnection) {
+        priv->inform_disconnection = FALSE;
 
         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
             gobj_log_info(gobj, 0,
@@ -741,7 +742,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    priv->connected_published = TRUE;
+    priv->inform_disconnection = TRUE;
 
     json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
         "url",          gobj_read_str_attr(gobj, "url"),
