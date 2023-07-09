@@ -154,7 +154,8 @@ PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
 /*
  *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
  */
-PUBLIC int set_tcp_socket_options(int fd);
+PUBLIC int set_tcp_socket_options(int fd); // Set internally in tcp sockets (client and clisrv)
+
 PUBLIC BOOL is_tcp_socket(int fd);
 PUBLIC BOOL is_udp_socket(int fd);
 PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
