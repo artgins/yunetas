@@ -12,6 +12,7 @@ set (SRCS
     # Protocols
     src/c_prot_http_cli.c
     src/c_prot_modbus_master.c
+    src/c_ievent_cli.c
 )
 
 
@@ -19,6 +20,7 @@ set (HDRS
     # Protocols
     src/c_prot_http_cli.h
     src/c_prot_modbus_master.h
+    src/c_ievent_cli.h
 )
 
 

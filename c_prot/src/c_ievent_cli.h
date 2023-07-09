@@ -2,14 +2,21 @@
  *          C_IEVENT_CLI.H
  *          Ievent_cli GClass.
  *
- *          Protocol http as client
+ *          Inter-event client protocol
  *
- *          Copyright (c) 2017-2023 Niyamaka.
+ *          Copyright (c) 2016-2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
 #include <gobj.h>
+
+// TODO check these includes
+//#include "yuneta_version.h"
+//#include "msglog_yuneta.h"
+//#include "c_iogate.h"
+//#include "c_timer.h"
+
 
 #ifdef __cplusplus
 extern "C"{
@@ -21,7 +28,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_PROT_HTTP_CL);
+GOBJ_DECLARE_GCLASS(C_IEVENT_CLI);
 
 /*------------------------*
  *      States

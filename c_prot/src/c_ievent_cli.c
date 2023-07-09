@@ -2,9 +2,9 @@
  *          c_ievent_cli.c
  *          Ievent_cli GClass.
  *
- *          Protocol http as client
+ *          Inter-event client protocol
  *
- *          Copyright (c) 2017-2023 Niyamaka.
+ *          Copyright (c) 2016-2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
@@ -457,7 +457,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_PROT_HTTP_CL);
+GOBJ_DEFINE_GCLASS(C_IEVENT_CLI);
 
 /*------------------------*
  *      States
@@ -538,5 +538,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_ievent_cli(void)
 {
-    return create_gclass(C_PROT_HTTP_CL);
+    return create_gclass(C_IEVENT_CLI);
 }
