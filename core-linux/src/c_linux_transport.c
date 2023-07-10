@@ -18,13 +18,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-typedef enum {
-    TASK_TRANSPORT_STOPPED = 0,
-    TASK_TRANSPORT_DISCONNECTED,
-    TASK_TRANSPORT_CONNECTED,
-    TASK_TRANSPORT_WAIT_RECONNECT,
-} transport_state_t;
-
 #define BUFFER_SIZE (4*1024)    // TODO move to configuration
 
 /***************************************************************
@@ -99,16 +92,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-//    PUBLIC void *yuno_event_loop(void)
-
-#ifdef ESP_PLATFORM
-    esp_transport_handle_t transport;
-    esp_transport_keep_alive_t keep_alive_cfg;
-    transport_state_t transport_state;
-    TaskHandle_t  rx_task_h;                // Task to read/connect
-    esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
-#endif
-
     yev_event_t *yev_client_connect;    // Used in not __clisrv__
 
     gbuffer_t *gbuf_client_tx;
@@ -183,7 +166,7 @@ PRIVATE void mt_create(hgobj gobj)
             priv->yev_client_connect = yev_create_connect_event(
                 yuno_event_loop(),
                 yev_client_callback,
-                NULL
+                gobj
             );
             int fd = yev_setup_connect_event(
                 priv->yev_client_connect,
@@ -252,7 +235,7 @@ PRIVATE int mt_start(hgobj gobj)
              */
             // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
             // TODO set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
-            gobj_change_state(gobj, "ST_WAIT_CONNECTED");
+            gobj_change_state(gobj, ST_WAIT_CONNECTED);
             yev_start_event(priv->yev_client_connect, NULL);
         }
     }
@@ -356,7 +339,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
             yev_client_callback,
-            NULL,
+            gobj,
             fd
         );
     }
@@ -563,213 +546,6 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-#ifdef ESP_PLATFORM
-PRIVATE void rx_task(void *pv)
-{
-    hgobj gobj = pv;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->transport_state = TASK_TRANSPORT_DISCONNECTED;
-    priv->task_running = true;
-    while(priv->task_running) {
-//        gobj_log_warning(gobj, 0,
-//            "msgset",       "%s", MSGSET_INFO,
-//            "msg",          "%s", "Transport Task LOOP",
-//            "task state",   "%s", transport_state_name(priv->transport_state),
-//            "gobj state",   "%s", gobj_current_state(gobj),
-//            NULL
-//        );
-        switch(priv->transport_state) {
-            case TASK_TRANSPORT_STOPPED:
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "wrong TRANSPORT_STOPPED state",
-                    NULL
-                );
-                esp_abort_connection(gobj);
-                break;
-
-            case TASK_TRANSPORT_DISCONNECTED:
-                if (esp_transport_connect(
-                    priv->transport,
-                    priv->host,
-                    atoi(priv->port),
-                    (int)gobj_read_integer_attr(gobj, "timeout_waiting_connected")
-                ) < 0) {
-                    int actual_errno = esp_transport_get_errno(priv->transport);
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "esp_transport_connect() FAILED",
-                        "errno",        "%d", actual_errno,
-                        "serrno",       "%s", strerror(actual_errno),
-                        NULL
-                    );
-                    esp_abort_connection(gobj);
-                    gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
-                    break;
-                }
-
-                int s = esp_transport_get_socket(priv->transport);
-                struct sockaddr_in addr;
-                socklen_t addrlen = sizeof(addr);
-                char temp[64];
-                if(getpeername(s, (struct sockaddr *)&addr, &addrlen)==0) {
-                    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                    gobj_write_str_attr(gobj, "peername", temp);
-                }
-                if(getsockname(s, (struct sockaddr *)&addr, &addrlen)==0) {
-                    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                    gobj_write_str_attr(gobj, "sockname", temp);
-                }
-
-                priv->transport_state = TASK_TRANSPORT_CONNECTED;
-                gobj_post_event(gobj, EV_CONNECTED, 0, gobj);
-                break;
-
-            case TASK_TRANSPORT_CONNECTED:
-                {
-                    /*-----------------------------*
-                     *      Try to Read
-                     *-----------------------------*/
-                    int read_len = esp_transport_read(
-                        priv->transport,
-                        priv->buf_rx,
-                        (int)sizeof(priv->buf_rx),
-                        priv->dynamic_read_timeout // read_poll_timeout_ms
-                    );
-                    if(read_len < 0) {
-                        int actual_errno = esp_transport_get_errno(priv->transport);
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                            "msg",          "%s", "esp_transport_read() FAILED",
-                            "errno",        "%d", actual_errno,
-                            "serrno",       "%s", strerror(actual_errno),
-                            NULL
-                        );
-                        priv->dynamic_read_timeout = 20;
-                        esp_abort_connection(gobj);
-                        gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
-                        break;
-                    } else if(read_len == 0) {
-                        priv->dynamic_read_timeout = 20;
-                    } else {
-                        priv->dynamic_read_timeout = 0;
-                        gbuffer_t *gbuf = gbuffer_create(read_len, read_len);
-                        gbuffer_append(gbuf, priv->buf_rx, read_len);
-
-                        json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)gbuf
-                        );
-                        gobj_post_event(gobj, EV_RX_DATA, kw, gobj);
-                    }
-                }
-                break;
-
-            case TASK_TRANSPORT_WAIT_RECONNECT:
-                vTaskDelay(gobj_read_integer_attr(gobj, "timeout_between_connections")/portTICK_PERIOD_MS);
-                priv->transport_state = TASK_TRANSPORT_DISCONNECTED;
-                break;
-        }
-    }
-
-    esp_transport_close(priv->transport);
-    gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
-
-    priv->transport_state = TASK_TRANSPORT_STOPPED;
-    gobj_post_event(gobj, EV_STOPPED, 0, gobj);
-
-    priv->rx_task_h = NULL;
-    vTaskDelete(NULL);
-}
-
-/***************************************************************************
- *  Two types of data can be passed in to the event handler:
- *      - the handler specific data
- *      - the event-specific data.
- *
- *  - The handler specific data (handler_args) is a pointer to the original data,
- *  therefore, the user should ensure that the memory location it points to
- *  is still valid when the handler executes.
- *
- *  - The event-specific data (event_data) is a pointer to a deep copy of the original data,
- *  and is managed automatically.
-***************************************************************************/
-PRIVATE void transport_tx_ev_loop_callback(
-    void *event_handler_arg,
-    esp_event_base_t base,
-    int32_t id,
-    void *event_data
-) {
-    /*
-     *  Manage tx_ev_loop_h
-     */
-    hgobj gobj = event_handler_arg;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = *((gbuffer_t **) event_data);
-
-    int trozo = 0;
-    int len, wlen;
-    char *bf;
-    while((len = (int)gbuffer_leftbytes(gbuf))) {
-        bf = gbuffer_cur_rd_pointer(gbuf);
-        wlen = esp_transport_write(priv->transport, bf, len, 2*1000);
-        if (wlen < 0) {
-            int actual_errno = esp_transport_get_errno(priv->transport);
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "esp_transport_write() FAILED",
-                "errno",        "%d", actual_errno,
-                "serrno",       "%s", strerror(actual_errno),
-                NULL
-            );
-            esp_transport_close(priv->transport);
-            break;
-
-        } else if (wlen == 0) {
-            // Timeout
-            int actual_errno = esp_transport_get_errno(priv->transport);
-            if(actual_errno != 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "esp_transport_write() return 0",
-                    "errno",        "%d", actual_errno,
-                    "serrno",       "%s", strerror(actual_errno),
-                    NULL
-                );
-                esp_transport_close(priv->transport); // TODO ??? se ha cerrado el socket o tx buffer lleno?
-            }
-            break;
-        }
-
-        if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-            gobj_trace_dump(gobj, bf, wlen, "%s: (trozo %d) %s%s%s",
-                gobj_short_name(gobj),
-                ++trozo,
-                gobj_read_str_attr(gobj, "sockname"),
-                " -> ",
-                gobj_read_str_attr(gobj, "peername")
-            );
-        }
-
-        /*
-         *  Pop sent data
-         */
-        gbuffer_get(gbuf, wlen);
-    }
-
-    GBUFFER_DECREF(gbuf)
-}
-#endif
-
 
 
 
@@ -883,7 +659,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //                    yev_client_tx = yev_create_write_event(
 //                        yev_event->yev_loop,
 //                        yev_client_callback,
-//                        NULL,
+//                        gobj,
 //                        yev_event->fd
 //                    );
 //                }
@@ -919,7 +695,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_periodic_timeout_off(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_periodic_timeout_disconn(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
     return 0;
@@ -944,6 +720,16 @@ PRIVATE int ac_periodic_timeout_stopped(hgobj gobj, gobj_event_t event, json_t *
     JSON_DECREF(kw)
     return 0;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_periodic_timeout_wait_c(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(kw)
+    return 0;
+}
+
 
 /***************************************************************************
  *
@@ -1009,12 +795,21 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Define States
      *----------------------------------------*/
+    ev_action_t st_stopped[] = {
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_stopped,0},
+        {0,0,0}
+    };
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
-        {EV_DISCONNECTED,       ac_disconnected,            0},
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_off,    0},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_disconn,0},
         {EV_DROP,               ac_drop,                    0},
         {EV_STOPPED,            ac_stopped,                 ST_STOPPED},
+        {0,0,0}
+    };
+    ev_action_t st_wait_connected[] = {
+        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
+        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
     ev_action_t st_connected[] = {
@@ -1024,16 +819,28 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DROP,               ac_drop,                    ST_DISCONNECTED},
         {0,0,0}
     };
-    ev_action_t st_stopped[] = {
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_stopped,0},
+    ev_action_t st_wait_disconnected[] = {
         {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
+        {EV_DROP,               ac_drop,                    0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_stopped[] = {
+        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
+        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
+        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_DISCONNECTED,       st_disconnected},
-        {ST_CONNECTED,          st_connected},
         {ST_STOPPED,            st_stopped},
+        {ST_DISCONNECTED,       st_disconnected},
+        {ST_WAIT_CONNECTED,     st_wait_connected},
+        {ST_CONNECTED,          st_connected},
+        {ST_WAIT_DISCONNECTED,  st_wait_disconnected},
+        {ST_WAIT_STOPPED,       st_wait_stopped},
         {0, 0}
     };
 
@@ -1089,7 +896,7 @@ PUBLIC int accept_connection(
     hgobj clisrv,
     void *uv_server_socket)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(clisrv);
+//    PRIVATE_DATA *priv = gobj_priv_data(clisrv);
 
     if(!gobj_is_running(clisrv)) {
 // TODO       if(gobj_trace_level(clisrv) & TRACE_UV) {
