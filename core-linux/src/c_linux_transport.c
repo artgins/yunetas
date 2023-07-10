@@ -239,7 +239,6 @@ PRIVATE int mt_start(hgobj gobj)
              * pure tcp client: try to connect
              */
             // HACK el start de tcp0 lo hace el timer
-            gobj_start(priv->gobj_timer);
             if(!gobj_read_bool_attr(gobj, "manual")) {
                 set_timeout(priv->gobj_timer, 100);
             }
@@ -337,6 +336,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->gobj_timer);
+
     INCR_ATTR_INTEGER(connxs)
 
     priv->inform_disconnection = TRUE;
@@ -399,7 +400,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 
     clear_timeout(priv->gobj_timer);
 
-    // gobj_change_state(gobj, ST_STOPPED); TODO ???
     gobj_change_state(gobj, ST_DISCONNECTED);
 
     /*
@@ -427,10 +427,15 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     gobj_write_str_attr(gobj, "peername", "");
     gobj_write_str_attr(gobj, "sockname", "");
 
-    if(gobj_is_volatil(gobj)) {
-        gobj_destroy(gobj);
+    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
+        // TODO to stop
     } else {
-        gobj_publish_event(gobj, EV_STOPPED, 0); // TODO ???
+        if(gobj_is_running(gobj)) {
+            set_timeout(
+                priv->gobj_timer,
+                gobj_read_integer_attr(gobj, "timeout_between_connections")
+            );
+        }
     }
 }
 

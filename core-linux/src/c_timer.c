@@ -100,8 +100,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->yev_event) {
-        yev_destroy_event(priv->yev_event);
-        priv->yev_event = NULL;
+        yev_stop_event(priv->yev_event);
     }
     return 0;
 }
@@ -138,6 +137,12 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_event) {
+        yev_destroy_event(priv->yev_event);
+        priv->yev_event = NULL;
+    }
 }
 
 
@@ -161,7 +166,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(stopped) {
-        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        if(!gobj_is_running(gobj)) {
+            gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        }
     } else {
         if(priv->periodic) {
             gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);

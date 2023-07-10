@@ -597,7 +597,10 @@ PUBLIC int yev_start_timer_event(
     struct io_uring_sqe *sqe;
 
     if(timeout_ms <= 0) {
-        return yev_stop_event(yev_event);
+        if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            yev_stop_event(yev_event);
+        }
+        return 0;
     }
     struct timeval timeout = {
         .tv_sec  = timeout_ms / 1000,
