@@ -291,7 +291,7 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    if(empty_string(priv->host)) {
+    if(empty_string(gobj_read_str_attr(gobj, "host"))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -302,7 +302,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(!gobj_read_bool_attr(gobj, "character_device")) {
-        if(empty_string(priv->port)) {
+        if(empty_string(gobj_read_str_attr(gobj, "port"))) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,

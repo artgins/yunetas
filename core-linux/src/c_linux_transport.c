@@ -12,6 +12,7 @@
 #include <parse_url.h>
 #include <kwid.h>
 #include <gbuffer.h>
+#include <yunetas_ev_loop.h>
 #include "c_linux_transport.h"
 
 /***************************************************************
@@ -24,9 +25,14 @@ typedef enum {
     TASK_TRANSPORT_WAIT_RECONNECT,
 } transport_state_t;
 
+#define BUFFER_SIZE (4*1024)    // TODO move to configuration
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE void set_connected(hgobj gobj, int fd);
+PRIVATE void set_disconnected(hgobj gobj, const char *cause);
+PRIVATE int yev_client_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -93,6 +99,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
+//    PUBLIC void *yuno_event_loop(void)
+
 #ifdef ESP_PLATFORM
     esp_transport_handle_t transport;
     esp_transport_keep_alive_t keep_alive_cfg;
@@ -100,13 +108,17 @@ typedef struct _PRIVATE_DATA {
     TaskHandle_t  rx_task_h;                // Task to read/connect
     esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
 #endif
-    volatile BOOL task_running;
-    volatile int dynamic_read_timeout;
-    BOOL connected_published;
+
+    yev_event_t *yev_client_connect;    // Used in not __clisrv__
+
+    gbuffer_t *gbuf_client_tx;
+    yev_event_t *yev_client_tx;
+
+    gbuffer_t *gbuf_client_rx;
+    yev_event_t *yev_client_rx;
+
+    BOOL inform_disconnection;
     BOOL use_ssl;
-    char schema[16];
-    char host[120];
-    char port[10];
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -129,72 +141,62 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    char schema[16];
+    char host[120];
+    char port[10];
+
     parse_url(
         gobj,
         gobj_read_str_attr(gobj, "url"),
-        priv->schema, sizeof(priv->schema),
-        priv->host, sizeof(priv->host),
-        priv->port, sizeof(priv->port),
+        schema, sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
         0, 0,
         0, 0,
         FALSE
     );
-    if(strlen(priv->schema) > 0 && priv->schema[strlen(priv->schema)-1]=='s') {
+    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     }
-    gobj_write_str_attr(gobj, "schema", priv->schema);
-    gobj_write_str_attr(gobj, "host", priv->host);
-    gobj_write_str_attr(gobj, "port", priv->port);
+    gobj_write_str_attr(gobj, "schema", schema);
+    gobj_write_str_attr(gobj, "host", host);
+    gobj_write_str_attr(gobj, "port", port);
 
-#ifdef ESP_PLATFORM
     if(priv->use_ssl) {
-        priv->transport = esp_transport_ssl_init();
-        //esp_transport_tcp_set_interface_name(priv->ssl, if_name);
+//        priv->transport = esp_transport_ssl_init();
 
-        const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
-        if(!empty_string(cert_pem)) {
-            esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
-        }
-        if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
-            esp_transport_ssl_skip_common_name_check(priv->transport);
-        }
+// TODO       const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
+//        if(!empty_string(cert_pem)) {
+//            esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
+//        }
+//        if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
+//            esp_transport_ssl_skip_common_name_check(priv->transport);
+//        }
     } else {
-        priv->transport = esp_transport_tcp_init();
-        //esp_transport_tcp_set_interface_name(priv->tcp, if_name);
+//        priv->transport = esp_transport_tcp_init();
     }
 
-    int keep_alive = (int)gobj_read_integer_attr(gobj, "keep_alive");
-    if(keep_alive > 0) {
-        memset(&priv->keep_alive_cfg, 0, sizeof(priv->keep_alive_cfg));
-        priv->keep_alive_cfg.keep_alive_enable = true;
-        priv->keep_alive_cfg.keep_alive_idle = 5;
-        priv->keep_alive_cfg.keep_alive_interval = 5;
-        priv->keep_alive_cfg.keep_alive_count = 3;
-        esp_transport_tcp_set_keep_alive(priv->transport, &priv->keep_alive_cfg);
+    if(!gobj_read_bool_attr(gobj, "character_device")) {
+        if (!gobj_read_bool_attr(gobj, "__clisrv__")) {
+            const char *url = gobj_read_str_attr(gobj, "url");
+            priv->yev_client_connect = yev_create_connect_event(
+                yuno_event_loop(),
+                yev_client_callback,
+                NULL
+            );
+            int fd = yev_setup_connect_event(
+                priv->yev_client_connect,
+                url,    // client_url
+                NULL    // local bind
+            );
+            if (fd < 0) {
+                // TODO exit???
+                gobj_trace_msg(gobj, "Error setup connect to %s", gobj_read_str_attr(gobj, "url"));
+                exit(0);
+            }
+        }
     }
-
-    /*---------------------------------*
-     *  Create event loop to transmit
-     *---------------------------------*/
-    esp_event_loop_args_t loop_handle_args = {
-        .queue_size = 64,
-        .task_name = gobj_name(gobj), // task will be created
-        .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 4*1024,
-        .task_core_id = tskNO_AFFINITY
-    };
-    ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        priv->tx_ev_loop_h,         // event loop handle
-        ESP_EVENT_ANY_BASE,         // event base
-        ESP_EVENT_ANY_ID,           // event id
-        transport_tx_ev_loop_callback,        // event handler
-        gobj,                       // event_handler_arg
-        NULL                        // event handler instance, useful to unregister callback
-    ));
-#endif
 
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, NULL, gobj);
 
@@ -221,73 +223,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 }
 
 /***************************************************************************
- *      Framework Method reading
- ***************************************************************************/
-PRIVATE int mt_reading(hgobj gobj, const char *name)
-{
-#ifdef ESP_PLATFORM
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(strcmp(name, "tx_queue_size")==0) {
-        size_t numEvents = esp_event_queue_size(priv->tx_ev_loop_h);
-        gobj_write_integer_attr(gobj, "tx_queue_size", (json_int_t)numEvents);
-    }
-#endif
-    return 0;
-}
-
-#ifdef HACK_ESP
-/*
- *  Add this function to esp_event.c
- *  and the prototype to esp_event.h
- *      size_t esp_event_queue_size(esp_event_loop_handle_t event_loop); // GMS
- */
-size_t esp_event_queue_size(esp_event_loop_handle_t event_loop) // GMS
-{
-    esp_event_loop_instance_t *loop = (esp_event_loop_instance_t *) event_loop;
-    if(!loop->queue) {
-        return 0;
-    }
-    return uxQueueMessagesWaiting(loop->queue);
-}
-#endif
-
-/***************************************************************************
  *      Framework Method
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->task_running) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "gobj asked to start task, but task was already started",
-            NULL
-        );
-        return -1;
-    }
-
-    if(empty_string(priv->host)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Cannot start transport, NO host defined",
-            NULL
-        );
-        return -1;
-    }
-
-    if(!gobj_read_bool_attr(gobj, "character_device")) {
-        if(empty_string(priv->port)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot start transport, NO port defined",
-                NULL
-            );
-        }
-    }
 
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
@@ -304,45 +244,18 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     gobj_reset_volatil_attrs(gobj);
-    priv->dynamic_read_timeout = 100;
 
-#ifdef ESP_PLATFORM
-    if(!priv->rx_task_h) {
-        portBASE_TYPE ret = xTaskCreate(
-            rx_task,
-            gobj_name(gobj),
-            8*1024,
-            gobj,
-            tskIDLE_PRIORITY,
-            &priv->rx_task_h
-        );
-        if(ret != pdPASS) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot create Transport Task",
-                NULL
-            );
+    if(!gobj_read_bool_attr(gobj, "character_device")) {
+        if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+            /*
+             * pure tcp client: try to connect
+             */
+            // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
+            // TODO set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
+            gobj_change_state(gobj, "ST_WAIT_CONNECTED");
+            yev_start_event(priv->yev_client_connect, NULL);
         }
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Transport Task Already exists",
-            NULL
-        );
     }
-
-#endif
-
-//    if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
-//        /*
-//         * pure tcp client: try to connect
-//         */
-//        // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
-//        set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
-//        gobj_change_state(gobj, "ST_WAIT_CONNECTED");
-//    }
 
     return 0;
 }
@@ -352,32 +265,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->task_running) {
-        /* A running client cannot be stopped from the MQTT task/event handler */
-        TaskHandle_t running_task = xTaskGetCurrentTaskHandle();
-        if(running_task == priv->rx_task_h) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "gobj cannot be stopped from ESP task",
-                NULL
-            );
-            //return -1;
-        }
-        priv->task_running = FALSE;
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "gobj asked to stop task, but task was not started",
-            NULL
-        );
-        //return -1;
-    }
-#endif
+    EXEC_AND_RESET(yev_stop_event, priv->yev_client_connect);
+    EXEC_AND_RESET(yev_stop_event, priv->yev_client_rx);
+    EXEC_AND_RESET(yev_stop_event, priv->yev_client_tx);
 
     return 0;
 }
@@ -387,16 +279,14 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(esp_transport_destroy, priv->transport)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx);
 
-    if(priv->tx_ev_loop_h) {
-        esp_event_loop_delete(priv->tx_ev_loop_h);
-        priv->tx_ev_loop_h = 0;
-    }
-#endif
+    GBUFFER_DECREF(priv->gbuf_client_rx)
+    GBUFFER_DECREF(priv->gbuf_client_tx)
 }
 
 
@@ -412,35 +302,266 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-#ifdef ESP_PLATFORM
-//PRIVATE const char *transport_state_name(transport_state_t transport_state)
-//{
-//    switch(transport_state) {
-//        case TASK_TRANSPORT_STOPPED:
-//            return "TASK_TRANSPORT_STOPPED";
-//        case TASK_TRANSPORT_DISCONNECTED:
-//            return "TASK_TRANSPORT_DISCONNECTED";
-//        case TASK_TRANSPORT_CONNECTED:
-//            return "TASK_TRANSPORT_CONNECTED";
-//        case TASK_TRANSPORT_WAIT_RECONNECT:
-//            return "TASK_TRANSPORT_WAIT_RECONNECT";
-//    }
-//    return "???";
-//}
-#endif
+PRIVATE int get_peer_and_sock_name(hgobj gobj, int fd)
+{
+    char temp[60];
+
+    get_peername(temp, sizeof(temp), fd);
+    gobj_write_str_attr(gobj, "peername", temp);
+
+    get_sockname(temp, sizeof(temp), fd);
+    gobj_write_str_attr(gobj, "sockname", temp);
+
+    return 0;
+}
 
 /***************************************************************************
  *
  ***************************************************************************/
-#ifdef ESP_PLATFORM
-PRIVATE void esp_abort_connection(hgobj gobj)
+PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    esp_transport_close(priv->transport);
-    priv->transport_state = TASK_TRANSPORT_WAIT_RECONNECT;
+    INCR_ATTR_INTEGER(connxs)
+
+    priv->inform_disconnection = TRUE;
+
+    get_peer_and_sock_name(gobj, fd);
+    /*
+     *  Info of "connected"
+     */
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECTION,
+            "msg",          "%s", "Connected",
+            "msg2",         "%s", "Connected🔵",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+            NULL
+        );
+    }
+
+    gobj_change_state(gobj, ST_CONNECTED);
+
+    /*
+     *  Ready to receive
+     */
+    if(!priv->gbuf_client_rx) {
+        priv->gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+        gbuffer_setlabel(priv->gbuf_client_rx, "transport-rx");
+    }
+    if(!priv->yev_client_rx) {
+        priv->yev_client_rx = yev_create_read_event(
+            yuno_event_loop(),
+            yev_client_callback,
+            NULL,
+            fd
+        );
+    }
+    yev_start_event(priv->yev_client_rx, priv->gbuf_client_rx);
+
+    // TODO try_write_all(gobj, FALSE);
+
+    /*
+     *  Publish
+     */
+    json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
+        "url",          gobj_read_str_attr(gobj, "url"),
+        "peername",     gobj_read_str_attr(gobj, "peername"),
+        "sockname",     gobj_read_str_attr(gobj, "sockname")
+    );
+    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 }
-#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void set_disconnected(hgobj gobj, const char *cause)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // gobj_change_state(gobj, ST_STOPPED); TODO ???
+    gobj_change_state(gobj, ST_DISCONNECTED);
+
+    /*
+     *  Info of "disconnected"
+     */
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECTION,
+            "msg",          "%s", "Disconnected",
+            "msg2",         "%s", "Disconnected🔴",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+            "cause",        "%s", cause,
+            NULL
+        );
+    }
+
+    if(priv->inform_disconnection) {
+        priv->inform_disconnection = FALSE;
+        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+    }
+
+    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
+        gobj_write_str_attr(gobj, "peername", "");
+    } else {
+        gobj_write_str_attr(gobj, "sockname", "");
+    }
+
+    if(gobj_is_volatil(gobj)) {
+        gobj_destroy(gobj);
+    } else {
+        gobj_publish_event(gobj, EV_STOPPED, 0); // TODO ???
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_client_callback(yev_event_t *yev_event)
+{
+    hgobj gobj = yev_event->gobj;
+    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        gobj_trace_msg(
+            gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        );
+    }
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECTION,
+                            "msg",          "%s", "read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            NULL
+                        );
+                    }
+                    gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                    set_disconnected(gobj, ""); // TODO set cause
+
+// TODO ???                   gobj_change_state(gobj, "ST_WAIT_DISCONNECTED"); // seems like already disconnected
+//                    if(gobj_is_running(gobj)) {
+//                        gobj_stop(gobj); // auto-stop
+//                    }
+                    break;
+                }
+
+                if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
+                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                        gobj_short_name(gobj),
+                        gobj_read_str_attr(gobj, "sockname"),
+                        " <- ",
+                        gobj_read_str_attr(gobj, "peername")
+                    );
+                }
+                GBUFFER_INCREF(yev_event->gbuf)
+                json_t *kw = json_pack("{s:I}",
+                    "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+                );
+                gobj_publish_event(gobj, EV_RX_DATA, kw);
+
+                /*
+                 *  Clear buffer
+                 *  Re-arm read
+                 */
+                gbuffer_clear(yev_event->gbuf);
+                yev_start_event(yev_event, yev_event->gbuf);
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECTION,
+                            "msg",          "%s", "read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            NULL
+                        );
+                    }
+                    gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                    set_disconnected(gobj, ""); // TODO set cause
+
+//                    if(gobj_is_running(gobj)) { // TODO ???
+//                        gobj_change_state(gobj, "ST_WAIT_DISCONNECTED"); // seems like already disconnected
+//                        gobj_stop(gobj); // auto-stop
+//                    }
+
+                    break;
+                }
+
+                // Write ended
+                // try_write_all(gobj, TRUE); TODO ???
+            }
+            break;
+
+        case YEV_CONNECT_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Error on connection
+                     */
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "connect FAILED",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "errno",        "%d", -yev_event->result,
+                        "strerror",     "%s", strerror(-yev_event->result),
+                        NULL
+                    );
+
+//                    if(gobj_is_running(gobj)) { // TODO ???
+//                        gobj_stop(gobj); // auto-stop
+//                    }
+                    break;
+                }
+
+                set_connected(gobj, yev_event->fd);
+            }
+            break;
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                NULL
+            );
+            break;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -666,8 +787,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->connected_published) {
-        priv->connected_published = FALSE;
+    if(priv->inform_disconnection) {
+        priv->inform_disconnection = FALSE;
 
         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
             gobj_log_info(gobj, 0,
@@ -712,7 +833,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    priv->connected_published = TRUE;
+    priv->inform_disconnection = TRUE;
 
     json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
         "url",          gobj_read_str_attr(gobj, "url"),
@@ -723,24 +844,6 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 
     JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
-            gobj_short_name(gobj),
-            gobj_read_str_attr(gobj, "sockname"),
-            " <- ",
-            gobj_read_str_attr(gobj, "peername")
-        );
-    }
-    gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
     return 0;
 }
 
@@ -761,30 +864,37 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-#ifdef ESP_PLATFORM
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    esp_err_t err = esp_event_post_to(
-        priv->tx_ev_loop_h,
-        event,
-        0,
-        &gbuf,
-        sizeof(gbuffer_t *),
-        2
-    );
-    if(err != ESP_OK) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "esp_event_post_to(Transport TX) FAILED",
-            "esp_error",    "%s", esp_err_to_name(err),
-            NULL
-        );
-        GBUFFER_DECREF(gbuf)
-        KW_DECREF(kw)
-        return -1;
-    }
-#endif
+//                /*
+//                 *  Transmit
+//                 */
+//                if(!gbuf_client_tx) {
+//                    gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+//                    gbuffer_setlabel(gbuf_client_tx, "client-tx");
+//                    #ifdef LIKE_LIBUV_PING_PONG
+//                    gbuffer_append_string(gbuf_client_tx, PING);
+//                    #else
+//                    for(int i= 0; i<BUFFER_SIZE; i++) {
+//                        gbuffer_append_char(gbuf_client_tx, 'A');
+//                    }
+//                    #endif
+//                }
+//
+//                if(!yev_client_tx) {
+//                    yev_client_tx = yev_create_write_event(
+//                        yev_event->yev_loop,
+//                        yev_client_callback,
+//                        NULL,
+//                        yev_event->fd
+//                    );
+//                }
+//
+//                /*
+//                 *  Transmit
+//                 */
+//                if(dump) {
+//                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+//                }
+//                yev_start_event(yev_client_tx, gbuf_client_tx);
 
     KW_DECREF(kw)
     return 0;
@@ -862,7 +972,6 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_writing = mt_writing,
-    .mt_reading = mt_reading,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
@@ -909,7 +1018,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_connected[] = {
-        {EV_RX_DATA,            ac_rx_data,                 0},
         {EV_TX_DATA,            ac_tx_data,                 0},
         {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
         {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_on,     0},
@@ -970,4 +1078,53 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 PUBLIC int register_c_linux_transport(void)
 {
     return create_gclass(C_LINUX_TRANSPORT);
+}
+
+/*----------------------------------------------------------------------*
+ *      New client of server connected.
+ *      Called from TODO on_connection_cb() of c_tcp_s0.c
+ *      If return -1 the clisrv gobj is destroyed by c_tcp_s0
+ *----------------------------------------------------------------------*/
+PUBLIC int accept_connection(
+    hgobj clisrv,
+    void *uv_server_socket)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(clisrv);
+
+    if(!gobj_is_running(clisrv)) {
+// TODO       if(gobj_trace_level(clisrv) & TRACE_UV) {
+//            trace_msg(">>> tcp not_accept p=%p", &priv->uv_socket);
+//        }
+//        uv_not_accept((uv_stream_t *)uv_server_socket);
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(clisrv),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+//            "msg",          "%s", "TCP Gobj must be RUNNING",
+//            NULL
+//        );
+        return -1;
+    }
+
+    /*-------------------------------------*
+     *      Accept connection
+     *-------------------------------------*/
+    if(gobj_trace_level(clisrv) & TRACE_UV) {
+        // TODO trace_msg(">>> tcp accept p=%p", &priv->uv_socket);
+    }
+// TODO   int err = uv_accept((uv_stream_t *)uv_server_socket, (uv_stream_t*)&priv->uv_socket);
+//    if (err != 0) {
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(clisrv),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//            "msg",          "%s", "uv_accept FAILED",
+//            "uv_error",     "%s", uv_err_name(err),
+//            NULL
+//        );
+//        return -1;
+//    }
+//    set_connected(clisrv);
+
+    return 0;
 }
