@@ -1386,7 +1386,10 @@ PUBLIC int set_tcp_socket_options(int fd)
 {
     int ret = 0;
     int on = 1;
+
+    // Always sent as soon as possible, even if there is only a small amount of data.
     ret += setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+
     ret += setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
 #ifdef TCP_KEEPIDLE
     int delay = 60; /* seconds */
@@ -1398,7 +1401,7 @@ PUBLIC int set_tcp_socket_options(int fd)
 #endif
     struct linger lg;
     lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
-    lg.l_linger = 0;	/* timeout interval in seconds */
+    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
     ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
 
     return ret;

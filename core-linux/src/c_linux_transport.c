@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <c_timer.h>
 #include <c_linux_yuno.h>
 #include <parse_url.h>
 #include <kwid.h>
@@ -92,6 +93,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
+    hgobj gobj_timer;
     yev_event_t *yev_client_connect;    // Used in not __clisrv__
 
     gbuffer_t *gbuf_client_tx;
@@ -100,6 +102,7 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *gbuf_client_rx;
     yev_event_t *yev_client_rx;
 
+    int timeout_inactivity;
     BOOL inform_disconnection;
     BOOL use_ssl;
 } PRIVATE_DATA;
@@ -123,6 +126,8 @@ PRIVATE hgclass gclass = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     char schema[16];
     char host[120];
@@ -181,8 +186,6 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
-    gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, NULL, gobj);
-
     /*
      *  Child, default subscriber, the parent
      */
@@ -192,7 +195,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
-    //SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
+    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -200,9 +203,9 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    //IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
-    //END_EQ_SET_PRIV()
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -211,6 +214,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_timer);
 
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
@@ -233,10 +238,11 @@ PRIVATE int mt_start(hgobj gobj)
             /*
              * pure tcp client: try to connect
              */
-            // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
-            // TODO set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
-            gobj_change_state(gobj, ST_WAIT_CONNECTED);
-            yev_start_event(priv->yev_client_connect, NULL);
+            // HACK el start de tcp0 lo hace el timer
+            gobj_start(priv->gobj_timer);
+            if(!gobj_read_bool_attr(gobj, "manual")) {
+                set_timeout(priv->gobj_timer, 100);
+            }
         }
     }
 
@@ -250,9 +256,35 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(yev_stop_event, priv->yev_client_connect);
-    EXEC_AND_RESET(yev_stop_event, priv->yev_client_rx);
-    EXEC_AND_RESET(yev_stop_event, priv->yev_client_tx);
+    clear_timeout(priv->gobj_timer);
+    gobj_stop(priv->gobj_timer);
+
+    BOOL change_to_wait_stopped = FALSE;
+
+    if(priv->yev_client_rx) {
+        if(!(priv->yev_client_rx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            change_to_wait_stopped = TRUE;
+            yev_stop_event(priv->yev_client_rx);
+        }
+    }
+    if(priv->yev_client_tx) {
+        if(!(priv->yev_client_tx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            change_to_wait_stopped = TRUE;
+            yev_stop_event(priv->yev_client_tx);
+        }
+    }
+    if(priv->yev_client_connect) {
+        if(!(priv->yev_client_connect->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            change_to_wait_stopped = TRUE;
+            yev_stop_event(priv->yev_client_connect);
+        }
+    }
+
+    if(change_to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        gobj_change_state(gobj, ST_STOPPED);
+    }
 
     return 0;
 }
@@ -308,8 +340,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     INCR_ATTR_INTEGER(connxs)
 
     priv->inform_disconnection = TRUE;
-
     get_peer_and_sock_name(gobj, fd);
+
     /*
      *  Info of "connected"
      */
@@ -325,8 +357,6 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             NULL
         );
     }
-
-    gobj_change_state(gobj, ST_CONNECTED);
 
     /*
      *  Ready to receive
@@ -344,6 +374,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         );
     }
     yev_start_event(priv->yev_client_rx, priv->gbuf_client_rx);
+
+    gobj_change_state(gobj, ST_CONNECTED);
 
     // TODO try_write_all(gobj, FALSE);
 
@@ -365,36 +397,35 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->gobj_timer);
+
     // gobj_change_state(gobj, ST_STOPPED); TODO ???
     gobj_change_state(gobj, ST_DISCONNECTED);
 
     /*
      *  Info of "disconnected"
      */
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECTION,
-            "msg",          "%s", "Disconnected",
-            "msg2",         "%s", "Disconnected🔴",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-            "cause",        "%s", cause,
-            NULL
-        );
-    }
-
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
+
+        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECTION,
+                "msg",          "%s", "Disconnected",
+                "msg2",         "%s", "Disconnected🔴",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                NULL
+            );
+        }
+
         gobj_publish_event(gobj, EV_DISCONNECTED, 0);
     }
 
-    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
-        gobj_write_str_attr(gobj, "peername", "");
-    } else {
-        gobj_write_str_attr(gobj, "sockname", "");
-    }
+    gobj_write_str_attr(gobj, "peername", "");
+    gobj_write_str_attr(gobj, "sockname", "");
 
     if(gobj_is_volatil(gobj)) {
         gobj_destroy(gobj);
@@ -437,12 +468,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         );
                     }
                     gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
-                    set_disconnected(gobj, ""); // TODO set cause
-
-// TODO ???                   gobj_change_state(gobj, "ST_WAIT_DISCONNECTED"); // seems like already disconnected
-//                    if(gobj_is_running(gobj)) {
-//                        gobj_stop(gobj); // auto-stop
-//                    }
+                    set_disconnected(gobj, strerror(-yev_event->result));
                     break;
                 }
 
@@ -489,13 +515,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         );
                     }
                     gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
-                    set_disconnected(gobj, ""); // TODO set cause
-
-//                    if(gobj_is_running(gobj)) { // TODO ???
-//                        gobj_change_state(gobj, "ST_WAIT_DISCONNECTED"); // seems like already disconnected
-//                        gobj_stop(gobj); // auto-stop
-//                    }
-
+                    set_disconnected(gobj, strerror(-yev_event->result));
                     break;
                 }
 
@@ -519,10 +539,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         "strerror",     "%s", strerror(-yev_event->result),
                         NULL
                     );
-
-//                    if(gobj_is_running(gobj)) { // TODO ???
-//                        gobj_stop(gobj); // auto-stop
-//                    }
+                    set_disconnected(gobj, strerror(-yev_event->result));
                     break;
                 }
 
@@ -557,69 +574,58 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
 
 /***************************************************************************
- *
+ *  Timeout to start connection
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->inform_disconnection) {
-        priv->inform_disconnection = FALSE;
-
-        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_CONNECTION,
-                "msg",          "%s", "Disconnected",
-                "msg2",         "%s", "Disconnected🔴",
-                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-                "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-                NULL
-            );
+    if(!gobj_read_bool_attr(gobj, "manual")) {
+        if (priv->timeout_inactivity > 0) {
+            // don't connect until arrives data to transmit
+            if (gobj_read_integer_attr(gobj, "connxs") > 0) {
+            } else {
+                // But connect once time at least.
+                gobj_send_event(gobj, EV_CONNECT, 0, gobj);
+            }
+        } else {
+            gobj_send_event(gobj, EV_CONNECT, 0, gobj);
         }
-
-        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
     }
 
-    JSON_DECREF(kw)
+    JSON_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    INCR_ATTR_INTEGER(connxs)
-    // gobj_write_integer_attr(gobj, "connxs", gobj_read_integer_attr(gobj, "connxs") + 1);
+    // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
+    set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
+    gobj_change_state(gobj, ST_WAIT_CONNECTED);
+    yev_start_event(priv->yev_client_connect, NULL);
 
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECTION,
-            "msg",          "%s", "Connected",
-            "msg2",         "%s", "Connected🔵",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-            NULL
-        );
-    }
+    JSON_DECREF(kw);
+    return 0;
+}
 
-    priv->inform_disconnection = TRUE;
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
-        "url",          gobj_read_str_attr(gobj, "url"),
-        "peername",     gobj_read_str_attr(gobj, "peername"),
-        "sockname",     gobj_read_str_attr(gobj, "sockname")
+    set_timeout(
+        priv->gobj_timer,
+        gobj_read_integer_attr(gobj, "timeout_between_connections")
     );
 
-    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
-
-    JSON_DECREF(kw)
+    JSON_DECREF(kw);
     return 0;
 }
 
@@ -681,62 +687,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-
-#ifdef ESP_PLATFORM
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    esp_transport_close(priv->transport);
-#endif
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_periodic_timeout_disconn(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_periodic_timeout_on(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_periodic_timeout_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_periodic_timeout_wait_c(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    JSON_DECREF(kw)
-    return 0;
-}
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    gobj_publish_event(gobj, EV_STOPPED, 0);
+    // TODO
 
     JSON_DECREF(kw)
     return 0;
@@ -796,41 +747,27 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_stopped[] = {
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_stopped,0},
         {0,0,0}
     };
     ev_action_t st_disconnected[] = {
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_disconn,0},
-        {EV_DROP,               ac_drop,                    0},
-        {EV_STOPPED,            ac_stopped,                 ST_STOPPED},
+        {EV_CONNECT,            ac_connect,                 0},
+        {EV_TIMEOUT,            ac_timeout_disconnected,    0},  // send EV_CONNECT
         {0,0,0}
     };
     ev_action_t st_wait_connected[] = {
-        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
-        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
+        {EV_TIMEOUT,            ac_timeout_wait_connected,  ST_DISCONNECTED},
         {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
     ev_action_t st_connected[] = {
         {EV_TX_DATA,            ac_tx_data,                 0},
-        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_on,     0},
-        {EV_DROP,               ac_drop,                    ST_DISCONNECTED},
+        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
     ev_action_t st_wait_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
-        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
-        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {
-        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
-        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC,   ac_periodic_timeout_wait_c, 0},
-        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
 
