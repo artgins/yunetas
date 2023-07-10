@@ -95,11 +95,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     yev_event_t *yev_client_connect;    // Used in not __clisrv__
-
-    gbuffer_t *gbuf_client_tx;
     yev_event_t *yev_client_tx;
-
-    gbuffer_t *gbuf_client_rx;
     yev_event_t *yev_client_rx;
 
     int timeout_inactivity;
@@ -298,9 +294,6 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx);
-
-    GBUFFER_DECREF(priv->gbuf_client_rx)
-    GBUFFER_DECREF(priv->gbuf_client_tx)
 }
 
 
@@ -362,10 +355,6 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Ready to receive
      */
-    if(!priv->gbuf_client_rx) {
-        priv->gbuf_client_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-        gbuffer_setlabel(priv->gbuf_client_rx, "transport-rx");
-    }
     if(!priv->yev_client_rx) {
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
@@ -373,8 +362,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             gobj,
             fd
         );
+        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(BUFFER_SIZE, BUFFER_SIZE));
     }
-    yev_start_event(priv->yev_client_rx, priv->gbuf_client_rx);
+    yev_start_event(priv->yev_client_rx, 0);
 
     gobj_change_state(gobj, ST_CONNECTED);
 

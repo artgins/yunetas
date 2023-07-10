@@ -416,6 +416,9 @@ PUBLIC int yev_start_event(
     }
 
     if(gbuf) {
+        if(yev_event->gbuf) {
+            GBUFFER_DECREF(yev_event->gbuf)
+        }
         yev_event->gbuf = gbuf;
     }
 
@@ -582,6 +585,20 @@ PUBLIC int yev_start_event(
             return -1;
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_set_gbuffer(
+    yev_event_t *yev_event,
+    gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
+) {
+    if(yev_event->gbuf) {
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
+    yev_event->gbuf = gbuf;
     return 0;
 }
 

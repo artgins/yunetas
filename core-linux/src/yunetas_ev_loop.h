@@ -94,6 +94,10 @@ PUBLIC int yev_start_event(
     yev_event_t *yev_event,
     gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );
+PUBLIC int yev_set_gbuffer(
+    yev_event_t *yev_event,
+    gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
+);
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,
     time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()

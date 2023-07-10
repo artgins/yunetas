@@ -100,7 +100,9 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->yev_event) {
-        yev_stop_event(priv->yev_event);
+        if(!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            yev_stop_event(priv->yev_event);
+        }
     }
     return 0;
 }
