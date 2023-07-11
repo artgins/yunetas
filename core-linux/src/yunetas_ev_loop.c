@@ -174,7 +174,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥💥 ⏪ process_cqe",
+                "msg",          "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -447,7 +447,7 @@ PUBLIC int yev_start_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥💥 ⏩ yev_start_event",
+                "msg",          "%s", "💥💥⏩ yev_start_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -717,7 +717,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟥 yev_stop_event",
+                "msg",          "%s", "💥🟥 yev_stop_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -792,7 +792,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟥🟥 yev_destroy_event",
+                "msg",          "%s", "💥🟥🟥 yev_destroy_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -926,7 +926,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦 yev_create_timer_event",
+                "msg",          "%s", "💥🟦 yev_create_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -965,7 +965,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦 yev_create_connect_event",
+                "msg",          "%s", "💥🟦 yev_create_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1220,7 +1220,7 @@ PUBLIC int yev_setup_connect_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦🟦 yev_setup_connect_event",
+                "msg",          "%s", "💥🟦🟦 yev_setup_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1259,7 +1259,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦 yev_create_accept_event",
+                "msg",          "%s", "💥🟦 yev_create_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1488,7 +1488,7 @@ PUBLIC int yev_setup_accept_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦🟦 yev_setup_accept_event",
+                "msg",          "%s", "💥🟦🟦 yev_setup_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1528,7 +1528,7 @@ PUBLIC yev_event_t *yev_create_read_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦 yev_create_read_event",
+                "msg",          "%s", "💥🟦 yev_create_read_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1568,7 +1568,7 @@ PUBLIC yev_event_t *yev_create_write_event(
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "💥 🟦 yev_create_write_event",
+                "msg",          "%s", "💥🟦 yev_create_write_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
