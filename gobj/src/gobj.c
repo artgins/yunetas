@@ -96,6 +96,12 @@ typedef struct state_s {
     dl_list_t dl_actions;
 } state_t;
 
+typedef struct event_s {
+    DL_ITEM_FIELDS
+
+    event_type_t event_type;
+} event_t;
+
 typedef enum { // WARNING add new values to opt2json()
     obflag_destroying       = 0x0001,
     obflag_destroyed        = 0x0002,
@@ -109,6 +115,7 @@ typedef struct gclass_s {
 
     char *gclass_name;
     dl_list_t dl_states;            // FSM
+    dl_list_t dl_events;            // FSM
     const GMETHODS *gmt;            // Global methods
     const LMETHOD *lmt;
 
@@ -211,7 +218,7 @@ GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
 /****************************************************************
  *         Data
  ****************************************************************/
-PRIVATE const char *event_flag_names[] = {
+PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     "EVF_NO_WARN_SUBS",
     "EVF_OUTPUT_EVENT",
     "EVF_SYSTEM_EVENT",
@@ -221,7 +228,7 @@ PRIVATE const char *event_flag_names[] = {
 /*
  *  System (gobj) output events
  */
-PRIVATE event_type_t *event_types;
+PRIVATE dl_list_t dl_global_event_types;
 
 /***************************************************************
  *              Prototypes
@@ -286,6 +293,10 @@ PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event);
 PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
+PRIVATE int add_event_type(
+    dl_list_t *dl,
+    event_type_t *event_type_
+);
 
 /***************************************************************
  *              Data
@@ -472,11 +483,20 @@ PUBLIC int gobj_start_up(
     }
 #endif
 
+    /*----------------------------------------*
+     *          Build Global Events
+     *----------------------------------------*/
     event_type_t event_types_[] = {
-        {EV_STATE_CHANGED,     EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_STATE_CHANGED,     EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {0, 0}
     };
-    event_types = event_types_;
+    dl_init(&dl_global_event_types);
+
+    event_type_t *event_types = event_types_;
+    while(event_types && event_types->event) {
+        add_event_type(&dl_global_event_types, event_types);
+        event_types++;
+    }
 
     dl_init(&dl_gclass);
     dl_init(&dl_log_handlers);
@@ -564,6 +584,12 @@ PUBLIC void gobj_end(void)
     }
 
     dl_flush(&dl_gclass, gclass_unregister);
+
+    event_type_t *event_type;
+    while((event_type = dl_first(&dl_global_event_types))) {
+        dl_delete(&dl_global_event_types, event_type, 0);
+        sys_free_fn(event_type);
+    }
 
     JSON_DECREF(jn_services)
 
@@ -701,6 +727,14 @@ PUBLIC hgclass gclass_create(
     while(state->state_name) {
         gclass_add_state_with_action_list(gclass, state->state_name, state->state);
         state++;
+    }
+
+    /*----------------------------------------*
+     *          Build Events
+     *----------------------------------------*/
+    while(event_types && event_types->event) {
+        add_event_type(&gclass->dl_events, event_types);
+        event_types++;
     }
 
     /*----------------------------------------*
@@ -936,8 +970,39 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         sys_free_fn(state);
     }
 
+    event_type_t *event_type;
+    while((event_type = dl_first(&gclass->dl_events))) {
+        dl_delete(&gclass->dl_events, event_type, 0);
+        sys_free_fn(event_type);
+    }
+
     sys_free_fn(gclass->gclass_name);
     sys_free_fn(gclass);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int add_event_type(
+    dl_list_t *dl,
+    event_type_t *event_type_
+) {
+    event_t *event = sys_malloc_fn(sizeof(*event));
+    if(event == NULL) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "No memory",
+            "size",         "%d", (int)sizeof(*event),
+            NULL
+        );
+        return -1;
+    }
+
+    event->event_type.event = event_type_->event;
+    event->event_type.event_flag = event_type_->event_flag;
+
+    return dl_add(dl, event);
 }
 
 
@@ -4219,6 +4284,49 @@ PUBLIC BOOL gobj_has_input_event(hgobj gobj_, gobj_event_t event)
     return FALSE;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag_t event_flag)
+{
+    if(gobj_ == NULL) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL",
+            "event",        "%s", event,
+            NULL
+        );
+        return FALSE;
+    }
+    gobj_t *gobj = (gobj_t *)gobj_;
+
+    event_t *event_ = dl_first(&gobj->gclass->dl_events);
+    while(event_) {
+        if(event_->event_type.event && event_->event_type.event == event) {
+            if(event_flag && (event_->event_type.event_flag & event_flag)) {
+                return &event_->event_type;
+            }
+        }
+        event_ = dl_next(event_);
+    }
+
+    /*
+     *  Check global (gobj) output events
+     */
+    event_ = dl_first(&dl_global_event_types);
+    while(event_) {
+        if(event_->event_type.event && event_->event_type.event == event) {
+            if(event_flag && (event_->event_type.event_flag & event_flag)) {
+                return &event_->event_type;
+            }
+        }
+        event_ = dl_next(event_);
+    }
+
+    return NULL;
+}
+
 
 
 
@@ -4536,6 +4644,27 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         );
         JSON_DECREF(kw)
         return 0;
+    }
+
+    /*--------------------------------------------------------------*
+     *  Event must be in output event list
+     *  You can avoid this with gcflag_no_check_output_events flag
+     *--------------------------------------------------------------*/
+    if(!empty_string(event)) {
+        event_type_t *ev = gobj_event_type(publisher, event, EVF_OUTPUT_EVENT|EVF_SYSTEM_EVENT);
+        if(!ev) {
+            if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
+                gobj_log_error(publisher, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "event NOT in output event list",
+                    "event",        "%s", event,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return 0;
+            }
+        }
     }
 
     /*-------------------------------------------------*
@@ -4972,10 +5101,10 @@ PUBLIC int gobj_publish_event(
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
-    const EVENT *ev = gobj_output_event(publisher, event);
+    event_type_t *ev = gobj_event_type(publisher, event, EVF_OUTPUT_EVENT|EVF_SYSTEM_EVENT);
     if(!ev) {
-        if(!(publisher->gclass->gcflag & gcflag_no_check_output_events)) {
-            gobj_log_error(gobj, 0,
+        if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
+            gobj_log_error(publisher, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "event NOT in output event list",
@@ -5168,18 +5297,16 @@ PUBLIC int gobj_publish_event(
     }
 
     if(!sent_count) {
-        if(!ev || !(ev->flag & EVF_NO_WARN_SUBS)) {
-            if(event != EV_STATE_CHANGED) {
-                gobj_log_warning(publisher, 0,
-                    "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "Publish event WITHOUT subscribers",
-                    "event",        "%s", event,
-                    NULL
-                );
-                if(__trace_gobj_ev_kw__(publisher)) {
-                    if(json_object_size(kw)) {
-                        gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
-                    }
+        if(!ev || !(ev->event_flag & EVF_NO_WARN_SUBS)) {
+            gobj_log_warning(publisher, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Publish event WITHOUT subscribers",
+                "event",        "%s", event,
+                NULL
+            );
+            if(__trace_gobj_ev_kw__(publisher)) {
+                if(json_object_size(kw)) {
+                    gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
                 }
             }
         }

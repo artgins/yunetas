@@ -879,9 +879,11 @@ typedef struct {
 } authz_level_t;
 
 typedef enum { // HACK strict ascendant value!, strings in s_gcflag (TODO)
-    gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start.
-    gcflag_required_start_to_play   = 0x0002,   // Don't to play if no start done.
-    gcflag_singleton                = 0x0004,   // Can only have one instance
+    gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start. TODO do same with stop
+    gcflag_no_check_output_events   = 0x0002,   // When publishing don't check events in output_event_list.
+    gcflag_ignore_unknown_attrs     = 0x0004,   // When creating a gobj, ignore not existing attrs
+    gcflag_required_start_to_play   = 0x0008,   // Don't to play if no start done.
+    gcflag_singleton                = 0x0010,   // Can only have one instance
 } gclass_flag_t;
 
 typedef enum { // HACK strict ascendant value!, strings in s_gobj_flag (TODO)
@@ -1038,7 +1040,6 @@ PUBLIC int gclass_add_state_with_action_list(
     gobj_state_t state_name,
     ev_action_t *ev_action_list
 );
-
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 PUBLIC void gclass_unregister(hgclass hgclass);
 
@@ -1272,6 +1273,7 @@ PUBLIC BOOL gobj_change_state(
 );
 PUBLIC gobj_state_t gobj_current_state(hgobj gobj);
 PUBLIC BOOL gobj_has_input_event(hgobj gobj, gobj_event_t event);
+PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag_t event_flag);
 
 /*--------------------------------------------*
  *          Publication/Subscriptions
