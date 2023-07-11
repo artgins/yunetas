@@ -11,6 +11,7 @@
 #include <time.h>
 #include <liburing.h>
 #include <gobj.h>
+#include <helpers.h>
 #include <parse_url.h>
 #include <gbuffer.h>
 
@@ -31,7 +32,7 @@ typedef enum  {
     YEV_ACCEPT_TYPE,
 } yev_type_t;
 
-typedef enum  { // WARNING 8 bits only
+typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_STOPPING_FLAG           = 0x01,
     YEV_STOPPED_FLAG            = 0x02,
     YEV_TIMER_PERIODIC_FLAG     = 0x04,

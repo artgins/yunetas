@@ -499,3 +499,20 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 
     return bf;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *bits2str(
+    const char **string_table,
+    int bits
+) {
+    json_t *jn_list = json_array();
+    for(int i=0; string_table[i]!=NULL && i<(int)sizeof(i); i++) {
+        int bitmask = 1 << i;
+        if (bits & bitmask) {
+            json_array_append_new(jn_list, json_string(string_table[i]));
+        }
+    }
+    return jn_list;
+}

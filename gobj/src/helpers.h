@@ -96,6 +96,10 @@ PUBLIC json_t *create_json_record(
     const json_desc_t *json_desc
 );
 
+PUBLIC json_t *bits2str(
+    const char **string_table,
+    int bits
+);
 
 #ifdef __cplusplus
 }

@@ -274,12 +274,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0}
     };
 
+    event_type_t event_types[] = {
+        {EV_TIMEOUT,            EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT},
+        {0, 0}
+    };
+
     /*----------------------------------------*
      *          Create the gclass
      *----------------------------------------*/
     gclass = gclass_create(
         gclass_name,
-        0,  // event_types
+        event_types,
         states,
         &gmt,
         0,  // lmt,

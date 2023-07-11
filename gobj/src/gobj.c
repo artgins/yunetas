@@ -208,6 +208,21 @@ GOBJ_DEFINE_STATE(ST_SESSION);
 GOBJ_DEFINE_STATE(ST_IDLE);
 GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
 
+/****************************************************************
+ *         Data
+ ****************************************************************/
+PRIVATE const char *event_flag_names[] = {
+    "EVF_NO_WARN_SUBS",
+    "EVF_OUTPUT_EVENT",
+    "EVF_SYSTEM_EVENT",
+    0
+};
+
+/*
+ *  System (gobj) output events
+ */
+PRIVATE event_type_t *event_types;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -333,6 +348,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"states",          "Trace change of states"},
     {"periodic_timer",  "Trace periodic timers"},
     {"gbuffers",        "Trace gbuffers"},
+    {"timer",           "Trace timers"},
     {0, 0},
 };
 
@@ -348,6 +364,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 #define __trace_gobj_periodic_timer__(gobj) (gobj_trace_level(gobj) & TRACE_PERIODIC_TIMER)
 
 PRIVATE uint32_t __global_trace_level__ = 0;
+PRIVATE uint32_t __global_trace_no_level__ = 0;
 PRIVATE volatile uint32_t __deep_trace__ = 0;
 
 PRIVATE dl_list_t dl_log_handlers;
@@ -454,6 +471,12 @@ PUBLIC int gobj_start_up(
         change_char(sys.machine, '_', '-');
     }
 #endif
+
+    event_type_t event_types_[] = {
+        {EV_STATE_CHANGED,     EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {0, 0}
+    };
+    event_types = event_types_;
 
     dl_init(&dl_gclass);
     dl_init(&dl_log_handlers);
@@ -4945,6 +4968,25 @@ PUBLIC int gobj_publish_event(
         return 0;
     }
 
+    /*--------------------------------------------------------------*
+     *  Event must be in output event list
+     *  You can avoid this with gcflag_no_check_output_events flag
+     *--------------------------------------------------------------*/
+    const EVENT *ev = gobj_output_event(publisher, event);
+    if(!ev) {
+        if(!(publisher->gclass->gcflag & gcflag_no_check_output_events)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "event NOT in output event list",
+                "event",        "%s", event,
+                NULL
+            );
+            KW_DECREF(kw)
+            return 0;
+        }
+    }
+
     BOOL tracea = is_machine_tracing(publisher, event) &&
         !is_machine_not_tracing(publisher) &&
         __trace_gobj_subscriptions__(publisher);
@@ -5126,17 +5168,18 @@ PUBLIC int gobj_publish_event(
     }
 
     if(!sent_count) {
-        // TODO if(!ev || !(ev->flag & EVF_NO_WARN_SUBS)) {
-        if(event != EV_STATE_CHANGED) {
-            gobj_log_warning(publisher, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Publish event WITHOUT subscribers",
-                "event",        "%s", event,
-                NULL
-            );
-            if(__trace_gobj_ev_kw__(publisher)) {
-                if(json_object_size(kw)) {
-                    gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+        if(!ev || !(ev->flag & EVF_NO_WARN_SUBS)) {
+            if(event != EV_STATE_CHANGED) {
+                gobj_log_warning(publisher, 0,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Publish event WITHOUT subscribers",
+                    "event",        "%s", event,
+                    NULL
+                );
+                if(__trace_gobj_ev_kw__(publisher)) {
+                    if(json_object_size(kw)) {
+                        gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+                    }
                 }
             }
         }
@@ -5200,14 +5243,18 @@ PUBLIC uint32_t gobj_trace_level(hgobj gobj_)
 /****************************************************************************
  *  Return gobj no trace level
  ****************************************************************************/
-PUBLIC uint32_t gobj_no_trace_level(hgobj gobj_)
+PUBLIC uint32_t gobj_trace_no_level(hgobj gobj_)
 {
     gobj_t * gobj = gobj_;
-    if(!gobj || !gobj->gclass) {
-        return 0;
-    }
-    uint32_t bitmask = gobj->no_trace_level | gobj->gclass->no_trace_level;
 
+    uint32_t bitmask = __global_trace_no_level__;
+
+    if(gobj) {
+        bitmask |= gobj->no_trace_level;
+        if (gobj->gclass) {
+            bitmask |= gobj->gclass->no_trace_level;
+        }
+    }
     return bitmask;
 }
 
@@ -5470,6 +5517,50 @@ PUBLIC int gobj_set_global_trace(const char *level, BOOL set)
          *  Reset
          */
         __global_trace_level__ &= ~bitmask;
+    }
+    return 0;
+}
+
+/****************************************************************************
+ *  Set or Reset global no trace level
+ ****************************************************************************/
+PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)
+{
+    uint32_t bitmask = 0;
+
+    if(empty_string(level)) {
+        bitmask = TRACE_GLOBAL_LEVEL;
+    } else {
+        if(isdigit(*((unsigned char *)level))) {
+            bitmask = (uint32_t)atoi(level);
+        }
+        if(!bitmask) {
+            bitmask = level2bit(s_global_trace_level, 0, level);
+            if(!bitmask) {
+                if(__initialized__) {
+                    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "global trace level NOT FOUND",
+                        "level",        "%s", level,
+                        NULL
+                    );
+                }
+                return -1;
+            }
+        }
+    }
+
+    if(set) {
+        /*
+         *  Set
+         */
+        __global_trace_no_level__ |= bitmask;
+    } else {
+        /*
+         *  Reset
+         */
+        __global_trace_no_level__ &= ~bitmask;
     }
     return 0;
 }

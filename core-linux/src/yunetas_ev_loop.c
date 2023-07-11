@@ -35,6 +35,16 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  *              Data
  ***************************************************************/
 
+PRIVATE const char *yev_flag_s[] = {
+    "YEV_STOPPING_FLAG",
+    "YEV_STOPPED_FLAG",
+    "YEV_TIMER_PERIODIC_FLAG",
+    "YEV_USE_SSL_FLAG",
+    "YEV_IS_TCP_FLAG",
+    "YEV_CONNECTED_FLAG",
+    0
+};
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -150,6 +160,27 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     if(yev_event->flag & YEV_STOPPING_FLAG) {
         yev_event->flag &= ~YEV_STOPPING_FLAG;
         yev_event->flag |= YEV_STOPPED_FLAG;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE) {
+                uint32_t no_level = gobj_trace_no_level(gobj);
+                if(no_level & (TRACE_PERIODIC_TIMER|TRACE_TIMER)) {
+                    break;
+                }
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥💥 ⏪ process_cqe",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
     }
 
     switch((yev_type_t)yev_event->type) {
@@ -405,6 +436,26 @@ PUBLIC int yev_start_event(
     hgobj gobj = yev_event->gobj;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+                    (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥💥 ⏩ yev_start_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     if(yev_event->flag & YEV_STOPPING_FLAG) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -652,7 +703,28 @@ PUBLIC int yev_start_timer_event(
 PUBLIC int yev_stop_event(yev_event_t *yev_event)
 {
     yev_loop_t *yev_loop = yev_event->yev_loop;
+    hgobj gobj = yev_event->gobj;
     struct io_uring_sqe *sqe;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟥 yev_stop_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
 
     if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
         gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
@@ -708,6 +780,26 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
 PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟥🟥 yev_destroy_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
 
     if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -823,6 +915,26 @@ PUBLIC yev_event_t *yev_create_timer_event(
         return NULL;
     }
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦 yev_create_timer_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     return yev_event;
 }
 
@@ -841,6 +953,26 @@ PUBLIC yev_event_t *yev_create_connect_event(
     }
 
     yev_event->type = YEV_CONNECT_TYPE;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦 yev_create_connect_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
 
     return yev_event;
 }
@@ -1077,6 +1209,26 @@ PUBLIC int yev_setup_connect_event(
 
     yev_event->fd = fd;
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦🟦 yev_setup_connect_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     return fd;
 }
 
@@ -1095,6 +1247,26 @@ PUBLIC yev_event_t *yev_create_accept_event(
     }
 
     yev_event->type = YEV_ACCEPT_TYPE;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦 yev_create_accept_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
 
     return yev_event;
 }
@@ -1305,6 +1477,26 @@ PUBLIC int yev_setup_accept_event(
 
     yev_event->fd = fd;
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦🟦 yev_setup_accept_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     return fd;
 }
 
@@ -1325,6 +1517,26 @@ PUBLIC yev_event_t *yev_create_read_event(
 
     yev_event->type = YEV_READ_TYPE;
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦 yev_create_read_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     return yev_event;
 }
 
@@ -1344,6 +1556,26 @@ PUBLIC yev_event_t *yev_create_write_event(
     }
 
     yev_event->type = YEV_WRITE_TYPE;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "💥 🟦 yev_create_write_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
 
     return yev_event;
 }

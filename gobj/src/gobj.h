@@ -192,31 +192,31 @@ static inline BOOL empty_json(const json_t *jn)
  *  Msgid's
  */
 // Error's MSGSETs
-#define MSGSET_PARAMETER_ERROR       "Parameter Error"
-#define MSGSET_MEMORY_ERROR          "No memory"
-#define MSGSET_INTERNAL_ERROR        "Internal Error"
-#define MSGSET_SYSTEM_ERROR          "OS Error"
-#define MSGSET_JSON_ERROR            "Jansson Error"
-#define MSGSET_LIBUV_ERROR           "Libuv Error"
-#define MSGSET_OAUTH_ERROR           "OAuth Error"
-#define MSGSET_TRANGER_ERROR         "Tranger Error"
-#define MSGSET_TREEDB_ERROR          "TreeDb Error"
-#define MSGSET_MSG2DB_ERROR          "Msg2Db Error"
-#define MSGSET_QUEUE_ALARM           "Queue Alarm"
-#define MSGSET_REGISTER_ERROR        "Register error"
-#define MSGSET_OPERATIONAL_ERROR     "Operational error"
-#define MSGSET_SMACHINE_ERROR        "SMachine error"
-#define MSGSET_PROTOCOL_ERROR        "Protocol error"
+#define MSGSET_PARAMETER_ERROR          "Parameter Error"
+#define MSGSET_MEMORY_ERROR             "No memory"
+#define MSGSET_INTERNAL_ERROR           "Internal Error"
+#define MSGSET_SYSTEM_ERROR             "OS Error"
+#define MSGSET_JSON_ERROR               "Jansson Error"
+#define MSGSET_LIBUV_ERROR              "Libuv Error"
+#define MSGSET_OAUTH_ERROR              "OAuth Error"
+#define MSGSET_TRANGER_ERROR            "Tranger Error"
+#define MSGSET_TREEDB_ERROR             "TreeDb Error"
+#define MSGSET_MSG2DB_ERROR             "Msg2Db Error"
+#define MSGSET_QUEUE_ALARM              "Queue Alarm"
+#define MSGSET_REGISTER_ERROR           "Register error"
+#define MSGSET_OPERATIONAL_ERROR        "Operational error"
+#define MSGSET_SMACHINE_ERROR           "SMachine error"
+#define MSGSET_PROTOCOL_ERROR           "Protocol error"
 
 // Info/Debug MSGSETs
-#define MSGSET_STATISTICS             "Statistics"
-#define MSGSET_STARTUP                "Startup"
-#define MSGSET_INFO                   "Info"
-#define MSGSET_CONNECTION             "Connection"
-#define MSGSET_DEBUG                  "Debug"
-#define MSGSET_PROTOCOL               "Protocol"
-#define MSGSET_GBUFFERS               "GBuffers"
-
+#define MSGSET_STATISTICS               "Statistics"
+#define MSGSET_STARTUP                  "Startup"
+#define MSGSET_INFO                     "Info"
+#define MSGSET_CONNECTION               "Connection"
+#define MSGSET_DEBUG                    "Debug"
+#define MSGSET_PROTOCOL                 "Protocol"
+#define MSGSET_GBUFFERS                 "GBuffers"
+#define MSGSET_YEV_LOOP                 "Yev_loop"
 /*
  *  Options for handlers
  */
@@ -1389,6 +1389,7 @@ enum { /* String table in s_global_trace_level */
     TRACE_STATES            = 0x04000000,
     TRACE_PERIODIC_TIMER    = 0x08000000,
     TRACE_GBUFFERS          = 0x10000000,
+    TRACE_TIMER             = 0x20000000,
 };
 #define TRACE_USER_LEVEL    0x0000FFFF
 #define TRACE_GLOBAL_LEVEL  0xFFFF0000
@@ -1409,10 +1410,12 @@ enum { /* String table in s_global_trace_level */
  *      "authzs"
  *      "states"
  *      "periodic_timer"
+ *      "gbuffers"
+ *      "timer"
  */
 
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
-PUBLIC uint32_t gobj_no_trace_level(hgobj gobj);
+PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
 
 /*
  *  Set trace levels and no-set trace levels, in gclass and gobj
@@ -1426,6 +1429,7 @@ PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set);
 PUBLIC int gobj_set_deep_tracing(int level); /* 1 all but considering __gobj_no_trace_level__, > 1 all */
 PUBLIC int gobj_get_deep_tracing(void);
 PUBLIC int gobj_set_global_trace(const char *level, BOOL set); // If level is empty, set all global traces
+PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set); // If level is empty, set all global traces
 
 /*
  *  With these trace filter functions you can trace the levels of a gclass

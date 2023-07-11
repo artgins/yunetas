@@ -162,7 +162,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         );
     }
 
-
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
