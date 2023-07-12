@@ -167,11 +167,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(stopped) {
-        if(!gobj_is_running(gobj)) {
-            gobj_send_event(gobj, EV_STOPPED, 0, gobj);
-        }
-    } else {
+    if(!stopped) {
         if(priv->periodic) {
             gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
         } else {

@@ -204,8 +204,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    if(1) { // TODO debug yev option
-                        gobj_log_error(gobj, 0,
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_CONNECT_TYPE failed",
@@ -234,8 +234,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
-                    if(1) { // TODO debug yev option
-                        gobj_log_error(gobj, 0,
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_ACCEPT_TYPE failed",
@@ -310,8 +310,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res < 0) {
-                    if(1) { // TODO debug yev option
-                        gobj_log_error(gobj, 0,
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_READ_TYPE failed",
@@ -342,8 +342,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_WRITE_TYPE:
             {
                 if(cqe->res < 0) {
-                    if(1) { // TODO debug yev option
-                        gobj_log_error(gobj, 0,
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                             "msg",          "%s", "YEV_WRITE_TYPE failed",

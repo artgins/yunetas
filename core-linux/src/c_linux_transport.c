@@ -461,17 +461,19 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                          *  Disconnected
                          */
                         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-                            gobj_log_info(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECTION,
-                                "msg",          "%s", "read FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                NULL
-                            );
+                            if(yev_event->result != -ECANCELED) {
+                                gobj_log_info(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_CONNECTION,
+                                    "msg",          "%s", "read FAILED",
+                                    "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                    "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                    "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                    "errno",        "%d", -yev_event->result,
+                                    "strerror",     "%s", strerror(-yev_event->result),
+                                    NULL
+                                );
+                            }
                         }
                         gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
                         set_disconnected(gobj, strerror(-yev_event->result));
@@ -510,17 +512,19 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                          *  Disconnected
                          */
                         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-                            gobj_log_info(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECTION,
-                                "msg",          "%s", "write FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                NULL
-                            );
+                            if(yev_event->result != -ECANCELED) {
+                                gobj_log_info(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_CONNECTION,
+                                    "msg",          "%s", "write FAILED",
+                                    "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                    "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                    "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                    "errno",        "%d", -yev_event->result,
+                                    "strerror",     "%s", strerror(-yev_event->result),
+                                    NULL
+                                );
+                            }
                         }
                         gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
                         set_disconnected(gobj, strerror(-yev_event->result));
@@ -540,15 +544,19 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         /*
                          *  Error on connection
                          */
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                            "msg",          "%s", "connect FAILED",
-                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
-                            NULL
-                        );
+                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                            if(yev_event->result != -ECANCELED) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                                    "msg",          "%s", "connect FAILED",
+                                    "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                    "errno",        "%d", -yev_event->result,
+                                    "strerror",     "%s", strerror(-yev_event->result),
+                                    NULL
+                                );
+                            }
+                        }
                         set_disconnected(gobj, strerror(-yev_event->result));
                         break;
                     }

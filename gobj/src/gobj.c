@@ -4073,11 +4073,13 @@ PUBLIC int gobj_send_event(
         }
 
         if(tracea) {
-            trace_machine("📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛EVENT NOT DEFINED📛📛",
+            trace_machine("📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR EVENT NOT DEFINED📛📛, from(%s%s^%s)",
                         (!dst->running)?"!!":"",
                 gobj_gclass_name(dst), gobj_name(dst),
                 state->state_name,
-                event?event:""
+                event?event:"",
+                (src && !src->running)?"!!":"",
+                gobj_gclass_name(src), gobj_name(src)
             );
         } else {
             gobj_log_error(dst, 0,
