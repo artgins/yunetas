@@ -164,6 +164,12 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
     yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
+    if(!yev_event) {
+        // HACK CQE event without data is loop ending
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
+        return cqe->res;
+    }
     hgobj gobj = yev_event->gobj;
 
     if(yev_event->flag & YEV_STOPPING_FLAG) {
@@ -444,6 +450,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         );
     }
 
+    cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         process_cqe(yev_loop, cqe);
     }
