@@ -60,8 +60,10 @@ struct yev_event_s {
     gbuffer_t *gbuf;
     hgobj gobj;
     yev_callback_t callback;
+
     int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
-    struct sockaddr *dst_addr;
+
+    struct sockaddr *dst_addr; // TODO eso solo le hace falta al connect y accept type
     socklen_t dst_addrlen;
     struct sockaddr *src_addr;
     socklen_t src_addrlen;
@@ -95,7 +97,7 @@ PUBLIC int yev_start_event(
     yev_event_t *yev_event,
     gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );
-PUBLIC int yev_set_gbuffer(
+PUBLIC int yev_set_gbuffer( // WARNING if there is previous gbuffer it will be free
     yev_event_t *yev_event,
     gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
 );

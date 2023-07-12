@@ -19,7 +19,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define BUFFER_SIZE (4*1024)    // TODO move to configuration
 
 /***************************************************************
  *              Prototypes
@@ -50,6 +49,7 @@ SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-al
 SDATA (DTP_BOOLEAN, "character_device", SDF_RD,         "false",    "Char device (Ex: tty://dev/ttyUSB2)"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
 
+SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_waiting_connected", SDF_WR|SDF_PERSIST, "60000", "Timeout waiting connected in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in miliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
@@ -356,13 +356,14 @@ PRIVATE void set_connected(hgobj gobj, int fd)
      *  Ready to receive
      */
     if(!priv->yev_client_rx) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
             yev_client_callback,
             gobj,
             fd
         );
-        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(BUFFER_SIZE, BUFFER_SIZE));
+        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
     }
     yev_start_event(priv->yev_client_rx, 0);
 
@@ -475,7 +476,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                                 );
                             }
                         }
-                        gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                        gbuffer_clear(yev_event->gbuf);
                         set_disconnected(gobj, strerror(-yev_event->result));
                         break;
                     }
@@ -526,7 +527,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                                 );
                             }
                         }
-                        gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                        gbuffer_clear(yev_event->gbuf);
                         set_disconnected(gobj, strerror(-yev_event->result));
                         break;
                     }
@@ -652,6 +653,8 @@ PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw,
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -664,37 +667,16 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-//                /*
-//                 *  Transmit
-//                 */
-//                if(!gbuf_client_tx) {
-//                    gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-//                    gbuffer_setlabel(gbuf_client_tx, "client-tx");
-//                    #ifdef LIKE_LIBUV_PING_PONG
-//                    gbuffer_append_string(gbuf_client_tx, PING);
-//                    #else
-//                    for(int i= 0; i<BUFFER_SIZE; i++) {
-//                        gbuffer_append_char(gbuf_client_tx, 'A');
-//                    }
-//                    #endif
-//                }
-//
-//                if(!yev_client_tx) {
-//                    yev_client_tx = yev_create_write_event(
-//                        yev_event->yev_loop,
-//                        yev_client_callback,
-//                        gobj,
-//                        yev_event->fd
-//                    );
-//                }
-//
-//                /*
-//                 *  Transmit
-//                 */
-//                if(dump) {
-//                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
-//                }
-//                yev_start_event(yev_client_tx, gbuf_client_tx);
+    /*
+     *  Transmit
+     */
+    yev_event_t *yev_client_tx = yev_create_write_event(
+        yuno_event_loop(),
+        yev_client_callback,
+        gobj,
+        priv->yev_client_connect->fd // TODO y los de accept?
+    );
+    yev_start_event(yev_client_tx, gbuf);
 
     KW_DECREF(kw)
     return 0;

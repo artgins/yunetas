@@ -201,14 +201,14 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
     switch((yev_type_t)yev_event->type) {
-        case YEV_CONNECT_TYPE:
+        case YEV_READ_TYPE:
             {
                 if(cqe->res < 0) {
                     if(gobj_trace_level(gobj) & TRACE_UV) {
                         gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                            "msg",          "%s", "YEV_CONNECT_TYPE failed",
+                            "msg",          "%s", "YEV_READ_TYPE failed",
                             "errno",        "%d", -cqe->res,
                             "serrno",       "%s", strerror(-cqe->res),
                             NULL
@@ -216,7 +216,41 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
-                    yev_event->flag |= YEV_CONNECTED_FLAG;
+                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
+                        gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
+                    }
+                }
+
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe->res;
+                if(yev_event->callback) {
+                    yev_event->callback(
+                        yev_event
+                    );
+                }
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                if(cqe->res < 0) {
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "YEV_WRITE_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
+                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
+                } else {
+                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
+                        gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
+                    }
                 }
 
                 /*
@@ -307,14 +341,14 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_READ_TYPE:
+        case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
                     if(gobj_trace_level(gobj) & TRACE_UV) {
                         gobj_log_warning(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                            "msg",          "%s", "YEV_READ_TYPE failed",
+                            "msg",          "%s", "YEV_CONNECT_TYPE failed",
                             "errno",        "%d", -cqe->res,
                             "serrno",       "%s", strerror(-cqe->res),
                             NULL
@@ -322,41 +356,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
-                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
-                        gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
-                    }
-                }
-
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe->res;
-                if(yev_event->callback) {
-                    yev_event->callback(
-                        yev_event
-                    );
-                }
-            }
-            break;
-
-        case YEV_WRITE_TYPE:
-            {
-                if(cqe->res < 0) {
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        gobj_log_warning(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                            "msg",          "%s", "YEV_WRITE_TYPE failed",
-                            "errno",        "%d", -cqe->res,
-                            "serrno",       "%s", strerror(-cqe->res),
-                            NULL
-                        );
-                    }
-                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
-                } else {
-                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
-                        gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
-                    }
+                    yev_event->flag |= YEV_CONNECTED_FLAG;
                 }
 
                 /*
