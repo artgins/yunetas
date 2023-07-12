@@ -34,7 +34,6 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
 /***************************************************************
  *              Data
  ***************************************************************/
-
 PRIVATE const char *yev_flag_s[] = {
     "YEV_STOPPING_FLAG",
     "YEV_STOPPED_FLAG",
@@ -138,6 +137,16 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
+    hgobj gobj = yev_loop->yuno;
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "💥🟥🟥🟥🟥 yev_loop_stop",
+            NULL
+        );
+    }
+
     struct io_uring_sqe *sqe;
     sqe = io_uring_get_sqe(&yev_loop->ring);
     io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
@@ -170,13 +179,15 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     break;
                 }
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
+                "errno",        "%d", -cqe->res,
+                "serrno",       "%s", strerror(-cqe->res),
                 NULL
             );
             json_decref(jn_flags);
@@ -197,13 +208,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             NULL
                         );
                     }
+                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
+                } else {
+                    yev_event->flag |= YEV_CONNECTED_FLAG;
                 }
-
-                /*
-                 *  In servers the cli_srv is always connected.
-                 *  In clients TODO reset flag when socket broken
-                 */
-                yev_event->flag |= YEV_CONNECTED_FLAG;
 
                 /*
                  *  Call callback
@@ -249,8 +257,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res; // cli_srv socket
                 if(yev_event->result > 0) {
-                    if(is_tcp_socket(yev_event->result)) {
-                        set_tcp_socket_options(yev_event->result);
+                    if(!(yev_event->flag & YEV_STOPPED_FLAG)) {
+                        if (is_tcp_socket(yev_event->result)) {
+                            set_tcp_socket_options(yev_event->result);
+                        }
                     }
                 }
                 if(yev_event->callback) {
@@ -263,8 +273,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     /*
                      *  Needs to rearm accept event if not stopped
                      */
-                    if((yev_event->flag & YEV_TIMER_PERIODIC_FLAG) &&
-                            !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
+                    if(!(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                         io_uring_sqe_set_data(sqe, yev_event);
                         yev_event->src_addrlen = sizeof(*yev_event->src_addr);
@@ -307,7 +316,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
-                    gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
+                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
+                        gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
+                    }
                 }
 
                 /*
@@ -337,7 +348,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
-                    gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
+                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
+                        gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
+                    }
                 }
 
                 /*
@@ -422,6 +435,27 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         process_cqe(yev_loop, cqe);
     }
 
+    if(gobj_trace_level(yev_loop->yuno) & TRACE_UV) {
+        gobj_log_info(yev_loop->yuno, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "💥🟩 exiting",
+            NULL
+        );
+    }
+
+    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+        process_cqe(yev_loop, cqe);
+    }
+
+    if(gobj_trace_level(yev_loop->yuno) & TRACE_UV) {
+        gobj_log_info(yev_loop->yuno, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "💥🟩🟩 exited",
+            NULL
+        );
+    }
     return 0;
 }
 
@@ -436,6 +470,16 @@ PUBLIC int yev_start_event(
     hgobj gobj = yev_event->gobj;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
+    if(!yev_loop->running) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "yev_loop NOT RUNNING",
+            NULL
+        );
+        return -1;
+    }
+
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
@@ -443,7 +487,7 @@ PUBLIC int yev_start_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -456,7 +500,7 @@ PUBLIC int yev_start_event(
         } while(0);
     }
 
-    if(yev_event->flag & YEV_STOPPING_FLAG) {
+    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -713,7 +757,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -788,7 +832,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -922,7 +966,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -961,7 +1005,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1216,7 +1260,7 @@ PUBLIC int yev_setup_connect_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1255,7 +1299,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1484,7 +1528,7 @@ PUBLIC int yev_setup_accept_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1524,7 +1568,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1564,7 +1608,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 ) {
                 break;
             }
-            json_t *jn_flags = bits2str(yev_flag_s, (int)yev_event->flag);
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1754,4 +1798,12 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
     }
     printSocketAddress(bf, bfsize, (struct sockaddr*)&localAddr);
     return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const char **yev_flag_strings(void)
+{
+    return yev_flag_s;
 }

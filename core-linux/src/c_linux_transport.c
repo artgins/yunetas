@@ -390,7 +390,9 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 
     clear_timeout(priv->gobj_timer);
 
-    gobj_change_state(gobj, ST_DISCONNECTED);
+    if(gobj_is_running(gobj)) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+    }
 
     /*
      *  Info of "disconnected"
@@ -438,107 +440,120 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(
-            gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "flag",         "%j", jn_flags,
+            "stopped",      "%s", stopped?"yes":"no",
+            NULL
         );
+        json_decref(jn_flags);
     }
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Disconnected
-                     */
-                    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-                        gobj_log_info(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_CONNECTION,
-                            "msg",          "%s", "read FAILED",
-                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
-                            NULL
+                if(!stopped) {
+                    if(yev_event->result < 0) {
+                        /*
+                         *  Disconnected
+                         */
+                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                            gobj_log_info(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_CONNECTION,
+                                "msg",          "%s", "read FAILED",
+                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "errno",        "%d", -yev_event->result,
+                                "strerror",     "%s", strerror(-yev_event->result),
+                                NULL
+                            );
+                        }
+                        gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                        set_disconnected(gobj, strerror(-yev_event->result));
+                        break;
+                    }
+
+                    if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
+                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                            gobj_short_name(gobj),
+                            gobj_read_str_attr(gobj, "sockname"),
+                            " <- ",
+                            gobj_read_str_attr(gobj, "peername")
                         );
                     }
-                    gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
-                    set_disconnected(gobj, strerror(-yev_event->result));
-                    break;
-                }
-
-                if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
-                        gobj_short_name(gobj),
-                        gobj_read_str_attr(gobj, "sockname"),
-                        " <- ",
-                        gobj_read_str_attr(gobj, "peername")
+                    GBUFFER_INCREF(yev_event->gbuf)
+                    json_t *kw = json_pack("{s:I}",
+                        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
                     );
-                }
-                GBUFFER_INCREF(yev_event->gbuf)
-                json_t *kw = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-                );
-                gobj_publish_event(gobj, EV_RX_DATA, kw);
+                    gobj_publish_event(gobj, EV_RX_DATA, kw);
 
-                /*
-                 *  Clear buffer
-                 *  Re-arm read
-                 */
-                gbuffer_clear(yev_event->gbuf);
-                yev_start_event(yev_event, yev_event->gbuf);
+                    /*
+                     *  Clear buffer
+                     *  Re-arm read
+                     */
+                    gbuffer_clear(yev_event->gbuf);
+                    yev_start_event(yev_event, yev_event->gbuf);
+                }
             }
             break;
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Disconnected
-                     */
-                    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-                        gobj_log_info(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_CONNECTION,
-                            "msg",          "%s", "read FAILED",
-                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
-                            NULL
-                        );
+                if(!stopped) {
+                    if(yev_event->result < 0) {
+                        /*
+                         *  Disconnected
+                         */
+                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                            gobj_log_info(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_CONNECTION,
+                                "msg",          "%s", "write FAILED",
+                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "errno",        "%d", -yev_event->result,
+                                "strerror",     "%s", strerror(-yev_event->result),
+                                NULL
+                            );
+                        }
+                        gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
+                        set_disconnected(gobj, strerror(-yev_event->result));
+                        break;
                     }
-                    gbuffer_clear(yev_event->gbuf); // TODO check if rx gbuf? clear tx gbuf too?
-                    set_disconnected(gobj, strerror(-yev_event->result));
-                    break;
-                }
 
-                // Write ended
-                // try_write_all(gobj, TRUE); TODO ???
+                    // Write ended
+                    // try_write_all(gobj, TRUE); TODO ???
+                }
             }
             break;
 
         case YEV_CONNECT_TYPE:
             {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Error on connection
-                     */
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "connect FAILED",
-                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                        "errno",        "%d", -yev_event->result,
-                        "strerror",     "%s", strerror(-yev_event->result),
-                        NULL
-                    );
-                    set_disconnected(gobj, strerror(-yev_event->result));
-                    break;
+                if(!stopped) {
+                    if(yev_event->result < 0) {
+                        /*
+                         *  Error on connection
+                         */
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                            "msg",          "%s", "connect FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            NULL
+                        );
+                        set_disconnected(gobj, strerror(-yev_event->result));
+                        break;
+                    }
+                    set_connected(gobj, yev_event->fd);
                 }
-
-                set_connected(gobj, yev_event->fd);
             }
             break;
         default:

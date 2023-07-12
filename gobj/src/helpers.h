@@ -98,7 +98,7 @@ PUBLIC json_t *create_json_record(
 
 PUBLIC json_t *bits2str(
     const char **string_table,
-    int bits
+    uint64_t bits
 );
 
 #ifdef __cplusplus
