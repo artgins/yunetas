@@ -94,12 +94,11 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
  *      These functions will create and configure a socket to listen or to connect
  */
 PUBLIC int yev_start_event(
-    yev_event_t *yev_event,
-    gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
+    yev_event_t *yev_event
 );
-PUBLIC int yev_set_gbuffer( // WARNING if there is previous gbuffer it will be free
+PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
-    gbuffer_t *gbuf // only for yev_create_read_event() and yev_create_write_event()
+    gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
 );
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,

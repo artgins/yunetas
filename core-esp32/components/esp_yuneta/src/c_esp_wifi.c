@@ -367,7 +367,7 @@ PRIVATE int start_smartconfig(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "DO start_smartconfig",
         NULL
     );
@@ -416,7 +416,7 @@ PRIVATE int connect_station(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "DO connect_station",
         NULL
     );
@@ -514,7 +514,7 @@ PRIVATE void get_rssi(hgobj gobj)
     esp_wifi_sta_get_ap_info(&ap_info);
 
     gobj_log_info(gobj, 0,
-        "msgset",   "%s", MSGSET_CONNECTION,
+        "msgset",   "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",      "%s", "RSSI",
         "rssi",     "%d", (int) ap_info.rssi,
         NULL
@@ -562,7 +562,7 @@ PRIVATE int ac_wifi_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_wifi_stop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "wifi_stop",
         NULL
     );
@@ -590,7 +590,7 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     int rssi = (int)kw_get_int(gobj, kw, "rssi", 0, 0);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "wifi_disconnected",
         "ssid",         "%s", kw_get_str(gobj, kw, "ssid", "", 0),
         "reason",       "%d", reason,
@@ -614,7 +614,7 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: // password incorrect
         case WIFI_REASON_HANDSHAKE_TIMEOUT:
             gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_CONNECTION,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "wifi_disconnected by WRONG PASSWORD",
                 "ssid",         "%s", kw_get_str(gobj, kw, "ssid", "", 0),
                 "reason",       "%d", reason,
@@ -657,7 +657,7 @@ PRIVATE int ac_wifi_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "scan done",
         NULL
     );
@@ -682,7 +682,7 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "smartconfig done, save",
         NULL
     );
@@ -787,7 +787,7 @@ PRIVATE int ac_wifi_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "wifi connected",
         NULL
     );
@@ -806,7 +806,7 @@ PRIVATE int ac_wifi_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECTION,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "got ip",
         NULL
     );

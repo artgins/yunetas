@@ -702,7 +702,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_CONNECTION,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected",
                 "msg2",         "%s", "Disconnected🔴",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -732,7 +732,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECTION,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Connected",
             "msg2",         "%s", "Connected🔵",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),

@@ -96,7 +96,7 @@ int do_test(void)
         exit(0);
     }
 
-    yev_start_event(yev_server_accept, NULL);
+    yev_start_event(yev_server_accept);
 
     /*--------------------------------*
      *      Setup client
@@ -116,7 +116,7 @@ int do_test(void)
         exit(0);
     }
 
-    yev_start_event(yev_client_connect, NULL);
+    yev_start_event(yev_client_connect);
 
     /*--------------------------------*
      *      Begin run loop
@@ -226,14 +226,16 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, gbuf_server_tx, "Server transmitting");
                 }
-                yev_start_event(yev_server_tx, gbuf_server_tx);
+                yev_set_gbuffer(yev_server_tx, gbuf_server_tx);
+                yev_start_event(yev_server_tx);
 
                 /*
                  *  Clear buffer
                  *  Re-arm read
                  */
                 gbuffer_clear(yev_event->gbuf);
-                yev_start_event(yev_server_rx, yev_event->gbuf);
+                yev_set_gbuffer(yev_server_rx, yev_event->gbuf);
+                yev_start_event(yev_server_rx);
             }
             break;
 
@@ -290,8 +292,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                         srv_cli_fd
                     );
                 }
-
-                yev_start_event(yev_server_rx, gbuf_server_rx);
+                yev_set_gbuffer(yev_server_rx, gbuf_server_rx);
+                yev_start_event(yev_server_rx);
             }
             break;
 
@@ -348,14 +350,15 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, gbuf_client_tx, "Client transmitting");
                 }
-                yev_start_event(yev_client_tx, gbuf_client_tx);
+                yev_set_gbuffer(yev_client_tx, gbuf_client_tx);
+                yev_start_event(yev_client_tx);
 
                 /*
                  *  Clear buffer
                  *  Re-arm read
                  */
                 gbuffer_clear(yev_event->gbuf);
-                yev_start_event(yev_client_rx, yev_event->gbuf);
+                yev_start_event(yev_client_rx);
             }
             break;
 
@@ -402,7 +405,8 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         yev_event->fd
                     );
                 }
-                yev_start_event(yev_client_rx, gbuf_client_rx);
+                yev_set_gbuffer(yev_client_rx, gbuf_client_rx);
+                yev_start_event(yev_client_rx);
 
                 /*
                  *  Transmit
@@ -434,7 +438,8 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
                 }
-                yev_start_event(yev_client_tx, gbuf_client_tx);
+                yev_set_gbuffer(yev_client_tx, gbuf_client_tx);
+                yev_start_event(yev_client_tx);
             }
             break;
         default:

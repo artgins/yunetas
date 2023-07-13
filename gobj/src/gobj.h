@@ -212,7 +212,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_STATISTICS               "Statistics"
 #define MSGSET_STARTUP                  "Startup"
 #define MSGSET_INFO                     "Info"
-#define MSGSET_CONNECTION               "Connection"
+#define MSGSET_CONNECT_DISCONNECT       "Connect Disconnect"
 #define MSGSET_DEBUG                    "Debug"
 #define MSGSET_PROTOCOL                 "Protocol"
 #define MSGSET_GBUFFERS                 "GBuffers"

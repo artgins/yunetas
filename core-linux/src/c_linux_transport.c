@@ -342,7 +342,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECTION,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Connected",
             "msg2",         "%s", "Connected🔵",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -365,7 +365,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         );
         yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
     }
-    yev_start_event(priv->yev_client_rx, 0);
+    yev_start_event(priv->yev_client_rx);
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -404,7 +404,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_CONNECTION,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected",
                 "msg2",         "%s", "Disconnected🔴",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -465,7 +465,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                             if(yev_event->result != -ECANCELED) {
                                 gobj_log_info(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_CONNECTION,
+                                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                                     "msg",          "%s", "read FAILED",
                                     "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                     "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
@@ -500,7 +500,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  Re-arm read
                      */
                     gbuffer_clear(yev_event->gbuf);
-                    yev_start_event(yev_event, yev_event->gbuf);
+                    yev_start_event(yev_event);
                 }
             }
             break;
@@ -516,7 +516,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                             if(yev_event->result != -ECANCELED) {
                                 gobj_log_info(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_CONNECTION,
+                                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                                     "msg",          "%s", "write FAILED",
                                     "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                     "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
@@ -626,7 +626,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
     set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
     gobj_change_state(gobj, ST_WAIT_CONNECTED);
-    yev_start_event(priv->yev_client_connect, NULL);
+    yev_start_event(priv->yev_client_connect);
 
     JSON_DECREF(kw);
     return 0;
@@ -676,7 +676,11 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         priv->yev_client_connect->fd // TODO y los de accept?
     );
-    yev_start_event(yev_client_tx, gbuf);
+    yev_set_gbuffer(
+        yev_client_tx,
+        gbuf
+    );
+    yev_start_event(yev_client_tx);
 
     KW_DECREF(kw)
     return 0;
