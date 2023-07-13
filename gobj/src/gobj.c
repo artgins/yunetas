@@ -289,7 +289,7 @@ PUBLIC void trace_vjson(
     va_list ap
 );
 PRIVATE char *tab(char *bf, int bflen);
-PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event);
+PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj);
 PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
@@ -3441,7 +3441,7 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
         return 0;
     }
 
-    if(is_machine_tracing(gobj, NULL)) {
+    if(is_machine_tracing(gobj)) {
         trace_machine("🔽 set_bottom_gobj('%s') = '%s'",
             gobj_short_name(gobj),
             bottom_gobj?gobj_short_name(bottom_gobj):""
@@ -4045,7 +4045,7 @@ PUBLIC int gobj_send_event(
     /*----------------------------------*
      *  Find the event/action in state
      *----------------------------------*/
-    BOOL tracea = is_machine_tracing(dst,event) && !is_machine_not_tracing(src);
+    BOOL tracea = is_machine_tracing(dst) && !is_machine_not_tracing(dst) && !is_machine_not_tracing(src);
     __inside__ ++;
 
     event_action_t *event_action = find_event_action(state, event);
@@ -4211,7 +4211,7 @@ PUBLIC BOOL gobj_change_state(
     gobj->last_state = gobj->current_state;
     gobj->current_state = new_state;
 
-    BOOL tracea = is_machine_tracing(gobj, NULL);
+    BOOL tracea = is_machine_tracing(gobj);
     BOOL tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
     if(tracea || tracea_states) {
         trace_machine("🔀🔀 mach(%s%s^%s), st(%s%s%s)",
@@ -5118,9 +5118,8 @@ PUBLIC int gobj_publish_event(
         }
     }
 
-    BOOL tracea = is_machine_tracing(publisher, event) &&
-        !is_machine_not_tracing(publisher) &&
-        __trace_gobj_subscriptions__(publisher);
+    BOOL tracea = __trace_gobj_subscriptions__(publisher) ||
+        (is_machine_tracing(publisher) && !is_machine_not_tracing(publisher));
     if(tracea) {
         trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
             (!publisher->running)?"!!":"",
@@ -5944,7 +5943,7 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
 /***************************************************************************
  *  Must trace?
  ***************************************************************************/
-PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
+PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj)
 {
     if(__deep_trace__) {
         return TRUE;
@@ -5955,12 +5954,6 @@ PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
     uint32_t trace = __global_trace_level__ & TRACE_MACHINE ||
         gobj->trace_level & TRACE_MACHINE ||
         gobj->gclass->trace_level & TRACE_MACHINE;
-
-    if(event == EV_TIMEOUT_PERIODIC) {
-        if(!(__global_trace_level__ & TRACE_PERIODIC_TIMER)) {
-            trace = 0;
-        }
-    }
 
     return trace?TRUE:FALSE;
 }
