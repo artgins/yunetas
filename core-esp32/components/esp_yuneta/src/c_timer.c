@@ -378,9 +378,12 @@ PUBLIC int register_c_timer(void)
 /***************************************************************************
  *  Set timeout
  ***************************************************************************/
-PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
+PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
-    if(gobj_get_deep_tracing()>1) {
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
         trace_machine("⏲ ✅ set_timeout %ld: %s",
             (long)msec,
             gobj_full_name(gobj)
@@ -399,9 +402,12 @@ PUBLIC void IRAM_ATTR set_timeout(hgobj gobj, json_int_t msec)
 /***************************************************************************
  *  Set periodic timeout
  ***************************************************************************/
-PUBLIC void IRAM_ATTR set_timeout_periodic(hgobj gobj, json_int_t msec)
+PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
-    if(gobj_get_deep_tracing()>1) {
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
         trace_machine("⏲ ⏲ ✅ set_timeout_periodic %ld: %s",
             (long)msec,
             gobj_full_name(gobj)

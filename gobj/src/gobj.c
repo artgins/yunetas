@@ -5982,6 +5982,43 @@ PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj)
     return no_trace?TRUE:FALSE;
 }
 
+/***************************************************************************
+ *  Must trace?
+ ***************************************************************************/
+PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
+{
+    if(__deep_trace__) {
+        return TRUE;
+    }
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        return FALSE;
+    }
+    uint32_t trace = __global_trace_level__ & level ||
+        gobj->trace_level & level ||
+        gobj->gclass->trace_level & level;
+
+    return trace?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *  Must no trace?
+ ***************************************************************************/
+PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
+{
+    if(__deep_trace__ > 1) {
+        return FALSE;
+    }
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        return TRUE;
+    }
+    uint32_t no_trace = gobj->no_trace_level & level ||
+        gobj->gclass->no_trace_level & level;
+
+    return no_trace?TRUE:FALSE;
+}
+
 /****************************************************************************
  *  Indent, return spaces multiple of depth level gobj.
  *  With this, we can see the trace messages indenting according

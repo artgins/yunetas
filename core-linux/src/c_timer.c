@@ -108,33 +108,6 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
- *      Framework Method
- ***************************************************************************/
-PRIVATE int mt_play(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    time_t msec = (time_t)gobj_read_integer_attr(gobj, "msec");
-    BOOL periodic = gobj_read_bool_attr(gobj, "periodic");
-
-    yev_start_timer_event(priv->yev_event, msec, periodic);
-
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method
- ***************************************************************************/
-PRIVATE int mt_pause(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    yev_start_timer_event(priv->yev_event, 0, 0);
-
-    return 0;
-}
-
-/***************************************************************************
  *      Framework Method destroy
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
@@ -167,7 +140,18 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!stopped) {
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
+        trace_machine("⏰⏰ ✅✅ timeout got: %s, result %d, publish: %s",
+            gobj_full_name(gobj),
+            yev_event->result,
+            (!stopped && yev_event->result > 0)? "Yes":"No"
+        );
+    }
+
+    if(yev_event->result > 0) {
         if(priv->periodic) {
             gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
         } else {
@@ -221,8 +205,6 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
-    .mt_play = mt_play,
-    .mt_pause = mt_pause,
 };
 
 /*------------------------*
@@ -323,20 +305,21 @@ PUBLIC int register_c_timer(void)
  ***************************************************************************/
 PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
-    if(gobj_get_deep_tracing()>1) {
-        trace_machine("⏲ ✅ set_timeout %ld: %s",
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
+        trace_machine("⏰⏰ 🟦 set_timeout %ld: %s",
             (long)msec,
             gobj_full_name(gobj)
         );
     }
 
-    if(gobj_is_playing(gobj)) { // clear_timeout(gobj);
-        gobj_pause(gobj);
-    }
-
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", FALSE);
-    gobj_play(gobj);
+    yev_start_timer_event(priv->yev_event, msec, FALSE);
 }
 
 /***************************************************************************
@@ -344,20 +327,21 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
-    if(gobj_get_deep_tracing()>1) {
-        trace_machine("⏲ ⏲ ✅ set_timeout_periodic %ld: %s",
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
+        trace_machine("⏰⏰ 🟦🟦 set_timeout_periodic %ld: %s",
             (long)msec,
             gobj_full_name(gobj)
         );
     }
 
-    if(gobj_is_playing(gobj)) { // clear_timeout(gobj);
-        gobj_pause(gobj);
-    }
-
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", TRUE);
-    gobj_play(gobj);
+
+    yev_start_timer_event(priv->yev_event, msec, TRUE);
 }
 
 /***************************************************************************
@@ -365,13 +349,18 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void clear_timeout(hgobj gobj)
 {
-    if(gobj_get_deep_tracing()>1) {
-        trace_machine("⏲ ❎ clear_timeout: %s",
-            gobj_full_name(gobj)
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+
+    if(tracea) {
+        trace_machine("⏰⏰ ❎ clear_timeout: %s, exec: %s",
+            gobj_full_name(gobj),
+            (!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)))? "Yes":"No"
         );
     }
 
-    if(gobj_is_playing(gobj)) {
-        gobj_pause(gobj);
+    if(!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+        yev_stop_event(priv->yev_event);
     }
 }

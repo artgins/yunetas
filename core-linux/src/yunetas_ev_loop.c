@@ -176,11 +176,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
     hgobj gobj = yev_event->gobj;
 
-    if(yev_event->flag & YEV_STOPPING_FLAG) {
-        yev_event->flag &= ~YEV_STOPPING_FLAG;
-        yev_event->flag |= YEV_STOPPED_FLAG;
-    }
-
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE) {
@@ -208,12 +203,18 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         } while(0);
     }
 
+    if(yev_event->flag & YEV_STOPPING_FLAG) {
+        yev_event->flag &= ~YEV_STOPPING_FLAG;
+        yev_event->flag |= YEV_STOPPED_FLAG;
+    }
+
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             {
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
                         cqe->res = -errno;
+                        errno = 0;  // reset the error
                         /*
                          *  Behaviour seen in YEV_READ_TYPE type when socket has broken:
                          *      - cqe->res = 0
@@ -256,6 +257,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
                         cqe->res = -errno;
+                        errno = 0;  // reset the error
                         /*
                          *  Behaviour seen in YEV_WRITE_TYPE type when socket has broken:
                          *
@@ -508,6 +510,13 @@ PUBLIC int yev_start_event(
     hgobj gobj = yev_event->gobj;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
+    /*-------------------------------*
+     *      Re-start if stopped
+     *-------------------------------*/
+    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
+        yev_event->flag &= ~(YEV_STOPPING_FLAG|YEV_STOPPED_FLAG);
+    }
+
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
@@ -537,13 +546,6 @@ PUBLIC int yev_start_event(
             NULL
         );
         return -1;
-    }
-
-    /*-------------------------------*
-     *      Re-start if stopped
-     *-------------------------------*/
-    if(yev_event->flag & YEV_STOPPED_FLAG) {
-        yev_event->flag &= ~YEV_STOPPED_FLAG;
     }
 
     /*-------------------------------*
@@ -753,6 +755,7 @@ PUBLIC int yev_start_timer_event(
     BOOL periodic
 ) {
     yev_event_t *yev_event = yev_event_;
+    hgobj gobj = yev_event->gobj;
     struct io_uring_sqe *sqe;
 
     if(timeout_ms <= 0) {
@@ -761,6 +764,35 @@ PUBLIC int yev_start_timer_event(
         }
         return 0;
     }
+
+    /*-------------------------------*
+     *      Re-start if stopped
+     *-------------------------------*/
+    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
+        yev_event->flag &= ~(YEV_STOPPING_FLAG|YEV_STOPPED_FLAG);
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
+               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                ) {
+                break;
+            }
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "yev_stop_event",
+                "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
+    }
+
     struct timeval timeout = {
         .tv_sec  = timeout_ms / 1000,
         .tv_usec = (timeout_ms % 1000) * 1000,
@@ -809,7 +841,9 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_stop_event",
-                "msg2",         "%s", "💥🟥 yev_stop_event",
+                "msg2",         "%s", (yev_type_t)yev_event->type == YEV_TIMER_TYPE?
+                                        "💥🟥⏰⏰ yev_stop_event":
+                                        "💥🟥 yev_stop_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL
@@ -1021,7 +1055,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_create_timer_event",
-                "msg2",         "%s", "💥🟦 yev_create_timer_event",
+                "msg2",         "%s", "💥🟦 ⏰⏰ yev_create_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
                 NULL

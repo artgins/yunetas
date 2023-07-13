@@ -1418,6 +1418,8 @@ enum { /* String table in s_global_trace_level */
 
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
 PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
+PUBLIC BOOL is_level_tracing(hgobj gobj, uint32_t level);
+PUBLIC BOOL is_level_not_tracing(hgobj gobj, uint32_t level);
 
 /*
  *  Set trace levels and no-set trace levels, in gclass and gobj
