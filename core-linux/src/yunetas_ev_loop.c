@@ -211,7 +211,17 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(cqe->res < 0) {
+                if(cqe->res <= 0) {
+                    if(cqe->res == 0) {
+                        cqe->res = -errno;
+                        /*
+                         *  Behaviour seen in YEV_READ_TYPE type when socket has broken:
+                         *      - cqe->res = 0
+                         *      - errno = ENOENT (No such file or directory)
+                         *
+                         *      Repeated forever
+                         */
+                    }
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -225,8 +235,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
                         gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
                     }
-                } else {
-                    gobj_trace_msg(0, "YEV_READ_TYPE cqe->res 0 %d %s", errno, strerror(errno));
                 }
 
                 /*
@@ -245,7 +253,21 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_WRITE_TYPE:
             {
-                if(cqe->res < 0) {
+                if(cqe->res <= 0) {
+                    if(cqe->res == 0) {
+                        cqe->res = -errno;
+                        /*
+                         *  Behaviour seen in YEV_WRITE_TYPE type when socket has broken:
+                         *
+                         *  First time:
+                         *      - cqe->res = len written
+                         *      - errno = ENOENT (No such file or directory)
+                         *
+                         *  Next times:
+                         *      - cqe->res = -EPIPE (EPIPE Broken pipe)
+                         *      - errno = ENOENT (No such file or directory)
+                         */
+                    }
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -259,8 +281,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
                         gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
                     }
-                } else {
-                    gobj_trace_msg(0, "YEV_WRITE_TYPE cqe->res 0 %d %s", errno, strerror(errno));
                 }
 
                 /*
