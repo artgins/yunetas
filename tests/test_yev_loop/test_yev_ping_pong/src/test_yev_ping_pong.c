@@ -324,6 +324,12 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
         );
     }
+
+    if(!yev_event->yev_loop->running) {
+        yev_loop_stop(yev_event->yev_loop);
+        return 0;
+    }
+
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
@@ -530,7 +536,12 @@ int main(int argc, char *argv[])
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
 {
+    static int times = 0;
+    times++;
     yev_loop->running = 0;
+    if(times > 1) {
+        exit(-1);
+    }
 }
 
 PUBLIC void yuno_catch_signals(void)

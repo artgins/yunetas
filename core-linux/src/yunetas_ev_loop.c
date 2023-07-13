@@ -137,24 +137,27 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
-    hgobj gobj = yev_loop->yuno;
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_loop_stop",
-            "msg2",         "%s", "💥🟥🟥🟥🟥 yev_loop_stop",
-            NULL
-        );
+    if(!yev_loop->stopping) {
+        yev_loop->stopping = TRUE;
+        hgobj gobj = yev_loop->yuno;
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "yev_loop_stop",
+                "msg2",         "%s", "💥🟥🟥🟥🟥 yev_loop_stop",
+                NULL
+            );
+        }
+
+        struct io_uring_sqe *sqe;
+        sqe = io_uring_get_sqe(&yev_loop->ring);
+        io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
+        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
+        io_uring_submit(&yev_loop->ring);
+
+        yev_loop->running = FALSE;
     }
-
-    struct io_uring_sqe *sqe;
-    sqe = io_uring_get_sqe(&yev_loop->ring);
-    io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
-    io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
-    io_uring_submit(&yev_loop->ring);
-
-    yev_loop->running = FALSE;
 
     return 0;
 }
@@ -454,6 +457,10 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         );
     }
 
+    if(!yev_loop->stopping) {
+        yev_loop_stop(yev_loop);
+    }
+
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         process_cqe(yev_loop, cqe);
@@ -480,16 +487,6 @@ PUBLIC int yev_start_event(
     yev_event_t *yev_event = yev_event_;
     hgobj gobj = yev_event->gobj;
     yev_loop_t *yev_loop = yev_event->yev_loop;
-
-    if(!yev_loop->running) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "yev_loop NOT RUNNING",
-            NULL
-        );
-        return -1;
-    }
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {

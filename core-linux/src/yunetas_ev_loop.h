@@ -74,6 +74,7 @@ struct yev_loop_s {
     unsigned entries;
     hgobj yuno;
     volatile int running;
+    volatile int stopping;
 };
 
 
