@@ -214,8 +214,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
-                        cqe->res = -errno;
-                        errno = 0;  // reset the error
+                        cqe->res = -EPIPE; // close by peer
                         /*
                          *  Behaviour seen in YEV_READ_TYPE type when socket has broken:
                          *      - cqe->res = 0
@@ -223,7 +222,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *
                          *      Repeated forever
                          */
+                    } else {
+                        // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
+
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -233,6 +235,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         NULL
                     );
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
+
                 } else if(cqe->res > 0) {
                     if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
                         gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
@@ -242,13 +245,11 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                if(cqe->res > 0) {
-                    yev_event->result = cqe->res;
-                    if (yev_event->callback) {
-                        yev_event->callback(
-                            yev_event
-                        );
-                    }
+                yev_event->result = cqe->res;
+                if (yev_event->callback) {
+                    yev_event->callback(
+                        yev_event
+                    );
                 }
             }
             break;
@@ -257,8 +258,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
-                        cqe->res = -errno;
-                        errno = 0;  // reset the error
+                        cqe->res = -EPIPE; // close by peer
                         /*
                          *  Behaviour seen in YEV_WRITE_TYPE type when socket has broken:
                          *
@@ -270,7 +270,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *      - cqe->res = -EPIPE (EPIPE Broken pipe)
                          *      - errno = ENOENT (No such file or directory)
                          */
+                    } else {
+                        // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
+
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -280,6 +283,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         NULL
                     );
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
+
                 } else if(cqe->res > 0) {
                     if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
                         gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
