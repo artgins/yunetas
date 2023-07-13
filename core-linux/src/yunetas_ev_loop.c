@@ -191,6 +191,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "process_cqe",
                 "msg2",         "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 "cqe->res",     "%d", (int)cqe->res,
                 "res",          "%d", (cqe->res<0)? -cqe->res:0,
@@ -532,6 +533,7 @@ PUBLIC int yev_start_event(
                 "msg2",         "%s", "💥💥⏩ yev_start_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "flag",         "%j", jn_flags,
+                "fd",           "%d", yev_event->fd,
                 NULL
             );
             json_decref(jn_flags);

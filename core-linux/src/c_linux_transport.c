@@ -163,22 +163,11 @@ PRIVATE void mt_create(hgobj gobj)
 
     if(!gobj_read_bool_attr(gobj, "character_device")) {
         if (!gobj_read_bool_attr(gobj, "__clisrv__")) {
-            const char *url = gobj_read_str_attr(gobj, "url");
             priv->yev_client_connect = yev_create_connect_event(
                 yuno_event_loop(),
                 yev_client_callback,
                 gobj
             );
-            int fd = yev_setup_connect_event(
-                priv->yev_client_connect,
-                url,    // client_url
-                NULL    // local bind
-            );
-            if (fd < 0) {
-                // TODO exit???
-                gobj_trace_msg(gobj, "Error setup connect to %s", gobj_read_str_attr(gobj, "url"));
-                exit(0);
-            }
         }
     }
 
@@ -423,6 +412,8 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         // TODO to stop
     } else {
         if(gobj_is_running(gobj)) {
+            close(priv->yev_client_connect->fd);
+            priv->yev_client_connect->fd = -1;
             yev_stop_event(priv->yev_client_connect);
             set_timeout(
                 priv->gobj_timer,
@@ -622,6 +613,13 @@ PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, h
 PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *url = gobj_read_str_attr(gobj, "url");
+    yev_setup_connect_event(
+        priv->yev_client_connect,
+        url,    // client_url
+        NULL    // local bind
+    );
 
     // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
     set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
