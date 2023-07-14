@@ -222,8 +222,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *
                          *      Repeated forever
                          */
-                    } else {
-                        // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
 
                     gobj_log_warning(gobj, 0,
@@ -258,7 +256,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
-                        cqe->res = -EPIPE; // close by peer
+                        // TODO check massive writes
                         /*
                          *  Behaviour seen in YEV_WRITE_TYPE type when socket has broken:
                          *
