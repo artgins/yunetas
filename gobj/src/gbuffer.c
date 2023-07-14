@@ -70,7 +70,7 @@ PUBLIC gbuffer_t *gbuffer_create(
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
-            "msg",          "%s", "Creating gbuffer",
+            "msg",          "%s", "🚛🟦 Creating gbuffer",
             "pointer",      "%p", gbuf,
             "data_size",    "%d", (int)data_size,
             NULL);
@@ -120,7 +120,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
         gobj_log_debug(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
-            "msg",          "%s", "Realloc gbuffer",
+            "msg",          "%s", "🚛🟦🟦Realloc gbuffer",
             "pointer",      "%p", gbuf,
             "more",         "%d", (int)more,
             NULL
@@ -138,7 +138,7 @@ PUBLIC void gbuffer_remove(gbuffer_t *gbuf)
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
-            "msg",          "%s", "Deleting gbuffer",
+            "msg",          "%s", "🚛🟥 Deleting gbuffer",
             "pointer",      "%p", gbuf,
             NULL
         );

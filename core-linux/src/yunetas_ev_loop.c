@@ -196,8 +196,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "cqe->res",     "%d", (int)cqe->res,
                 "res",          "%d", (cqe->res<0)? -cqe->res:0,
                 "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
                 NULL
             );
             json_decref(jn_flags);
@@ -218,7 +216,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Behaviour seen in YEV_READ_TYPE type when socket has broken:
                          *      - cqe->res = 0
-                         *      - errno = ENOENT (No such file or directory)
                          *
                          *      Repeated forever
                          */
@@ -229,8 +226,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_READ_TYPE failed",
-                            "errno",        "%d", -cqe->res,
-                            "serrno",       "%s", strerror(-cqe->res),
+                            "res",          "%d", -cqe->res,
+                            "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -264,11 +261,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *
                          *  First time:
                          *      - cqe->res = len written
-                         *      - errno = ENOENT (No such file or directory)
                          *
                          *  Next times:
                          *      - cqe->res = -EPIPE (EPIPE Broken pipe)
-                         *      - errno = ENOENT (No such file or directory)
                          */
                     } else {
                         // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
@@ -279,8 +274,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_WRITE_TYPE failed",
-                            "errno",        "%d", -cqe->res,
-                            "serrno",       "%s", strerror(-cqe->res),
+                            "res",          "%d", -cqe->res,
+                            "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -312,8 +307,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_ACCEPT_TYPE failed",
-                            "errno",        "%d", -cqe->res,
-                            "serrno",       "%s", strerror(-cqe->res),
+                            "res",          "%d", -cqe->res,
+                            "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -388,8 +383,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                            "errno",        "%d", -cqe->res,
-                            "serrno",       "%s", strerror(-cqe->res),
+                            "res",          "%d", -cqe->res,
+                            "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
                     }
@@ -470,8 +465,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "io_uring_wait_cqe() FAILED",
-                "errno",        "%d", -err,
-                "serrno",       "%s", strerror(-err),
+                "err",          "%d", -err,
+                "serr",         "%s", strerror(-err),
                 NULL
             );
             break;
