@@ -20,7 +20,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_timer_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -88,7 +88,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
-    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_callback, gobj);
+    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_timer_callback, gobj);
     return 0;
 }
 
@@ -134,7 +134,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_timer_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
@@ -144,9 +144,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ ✅✅ timeout got: %s, result %d, publish: %s",
+        trace_machine("⏰⏰ ✅✅ timeout got: %s, result %d, fd: %d, publish: %s",
             gobj_full_name(gobj),
             yev_event->result,
+            yev_event->fd,
             (!stopped && yev_event->result > 0)? "Yes":"No"
         );
     }
@@ -159,11 +160,12 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         }
     } else {
         if(!stopped) {
-            gobj_log_error(0, 0,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Timer result UNKNOWN",
                 "result",       "%d", yev_event->result,
+                "fd",           "%d", yev_event->fd,
                 NULL
             );
         }
@@ -321,8 +323,9 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ 🟦 set_timeout %ld: %s",
+        trace_machine("⏰⏰ 🟦 set_timeout t: %ld, fd: %d, %s",
             (long)msec,
+            priv->yev_event->fd,
             gobj_full_name(gobj)
         );
     }
@@ -342,8 +345,9 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ 🟦🟦 set_timeout_periodic %ld: %s",
+        trace_machine("⏰⏰ 🟦🟦 set_timeout_periodic t: %ld, fd: %d, %s",
             (long)msec,
+            priv->yev_event->fd,
             gobj_full_name(gobj)
         );
     }
@@ -364,8 +368,9 @@ PUBLIC void clear_timeout(hgobj gobj)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ ❎ clear_timeout: %s, exec: %s",
+        trace_machine("⏰⏰ ❎ clear_timeout: %s, fd: %d, exec: %s",
             gobj_full_name(gobj),
+            priv->yev_event->fd,
             (!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)))? "Yes":"No"
         );
     }

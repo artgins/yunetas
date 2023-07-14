@@ -226,7 +226,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_READ_TYPE failed",
-                            "res",          "%d", -cqe->res,
+                            "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
@@ -274,7 +274,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_WRITE_TYPE failed",
-                            "res",          "%d", -cqe->res,
+                            "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
@@ -307,7 +307,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_ACCEPT_TYPE failed",
-                            "res",          "%d", -cqe->res,
+                            "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
@@ -383,7 +383,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                            "res",          "%d", -cqe->res,
+                            "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
                             NULL
                         );
@@ -410,6 +410,23 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
+                if(cqe->res < 0) {
+                    if(!((yev_event->flag & YEV_STOPPED_FLAG) && cqe->res == -ECANCELED)) {
+                        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "YEV_TIMER_TYPE failed",
+                            "fd",           "%d", yev_event->fd,
+                            "flag",         "%j", jn_flags,
+                            "res",          "%d", cqe->res,
+                            "sres",         "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                        json_decref(jn_flags);
+                    }
+                }
+
                 yev_event->result = cqe->res;
                 if(yev_event->callback) {
                     yev_event->callback(
@@ -537,6 +554,7 @@ PUBLIC int yev_start_event(
                 "msg",          "%s", "yev_start_event",
                 "msg2",         "%s", "💥💥⏩ yev_start_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 "fd",           "%d", yev_event->fd,
                 NULL
@@ -822,6 +840,7 @@ PUBLIC int yev_start_timer_event(
                 "msg",          "%s", "yev_stop_event",
                 "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -881,6 +900,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                                         "💥🟥⏰⏰ yev_stop_event":
                                         "💥🟥 yev_stop_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -958,6 +978,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
                 "msg",          "%s", "yev_destroy_event",
                 "msg2",         "%s", "💥🟥🟥 yev_destroy_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1081,11 +1102,6 @@ PUBLIC yev_event_t *yev_create_timer_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
-                ) {
-                break;
-            }
             json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1093,6 +1109,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
                 "msg",          "%s", "yev_create_timer_event",
                 "msg2",         "%s", "💥🟦 ⏰⏰ yev_create_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1133,6 +1150,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
                 "msg",          "%s", "yev_create_connect_event",
                 "msg2",         "%s", "💥🟦 yev_create_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1152,6 +1170,19 @@ PUBLIC int yev_setup_connect_event(
     const char *src_url
 ) {
     hgobj gobj = yev_event->gobj;
+
+    if(yev_event->fd >= 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "fd ALREADY set",
+            "url",          "%s", dst_url,
+            "fd",           "%d", yev_event->fd,
+            NULL
+        );
+        return -1;
+    };
+
     char schema[16];
     char dst_host[120];
     char dst_port[10];
@@ -1332,6 +1363,7 @@ PUBLIC int yev_setup_connect_event(
                 "msg",          "%s", "addrinfo to connect",
                 "url",          "%s", dst_url,
                 "addrinfo",     "%s", saddr,
+                "fd",           "%d", fd,
                 NULL
             );
         }
@@ -1391,6 +1423,7 @@ PUBLIC int yev_setup_connect_event(
                 "msg",          "%s", "yev_setup_connect_event",
                 "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1431,6 +1464,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
                 "msg",          "%s", "yev_create_accept_event",
                 "msg2",         "%s", "💥🟦 yev_create_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1451,6 +1485,19 @@ PUBLIC int yev_setup_accept_event(
     BOOL shared
 ) {
     hgobj gobj = yev_event->gobj;
+
+    if(yev_event->fd >= 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "fd ALREADY set",
+            "url",          "%s", listen_url,
+            "fd",           "%d", yev_event->fd,
+            NULL
+        );
+        return -1;
+    };
+
     char schema[16];
     char host[120];
     char port[10];
@@ -1607,6 +1654,7 @@ PUBLIC int yev_setup_accept_event(
             "msg",          "%s", "addrinfo on listen",
             "url",          "%s", listen_url,
             "addrinfo",     "%s", saddr,
+            "fd",           "%d", fd,
             NULL
         );
 
@@ -1661,6 +1709,7 @@ PUBLIC int yev_setup_accept_event(
                 "msg",          "%s", "yev_setup_accept_event",
                 "msg2",         "%s", "💥🟦🟦 yev_setup_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1702,6 +1751,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 "msg",          "%s", "yev_create_read_event",
                 "msg2",         "%s", "💥🟦 yev_create_read_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1743,6 +1793,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 "msg",          "%s", "yev_create_write_event",
                 "msg2",         "%s", "💥🟦 yev_create_write_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", fd,
                 "flag",         "%j", jn_flags,
                 NULL
             );

@@ -25,7 +25,7 @@
  ***************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
-PRIVATE int yev_client_callback(yev_event_t *event);
+PRIVATE int yev_transport_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -161,7 +161,7 @@ PRIVATE void mt_create(hgobj gobj)
         if (!gobj_read_bool_attr(gobj, "__clisrv__")) {
             priv->yev_client_connect = yev_create_connect_event(
                 yuno_event_loop(),
-                yev_client_callback,
+                yev_transport_callback,
                 gobj
             );
         }
@@ -337,7 +337,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
-            yev_client_callback,
+            yev_transport_callback,
             gobj,
             fd
         );
@@ -410,6 +410,17 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         // TODO to stop
     } else {
         if(priv->yev_client_connect->fd > 0) {
+            if(gobj_trace_level(gobj) & TRACE_UV) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "close socket",
+                    "msg2",         "%s", "💥🟥 close socket",
+                    "fd",           "%d", priv->yev_client_connect->fd ,
+                    NULL
+                );
+            }
+
             close(priv->yev_client_connect->fd);
             priv->yev_client_connect->fd = -1;
         }
@@ -428,7 +439,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_client_callback(yev_event_t *yev_event)
+PRIVATE int yev_transport_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
@@ -685,7 +696,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     yev_event_t *yev_client_tx = yev_create_write_event(
         yuno_event_loop(),
-        yev_client_callback,
+        yev_transport_callback,
         gobj,
         priv->yev_client_connect->fd
     );
