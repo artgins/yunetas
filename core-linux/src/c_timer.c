@@ -157,6 +157,16 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         } else {
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
+    } else {
+        if(yev_event->result != 0 && yev_event->result != -ECANCELED) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "Timer result UNKNOWN",
+                "result",       "%d", yev_event->result,
+                NULL
+            );
+        }
     }
     return 0;
 }
@@ -235,7 +245,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL
-       );
+        );
         return -1;
     }
 

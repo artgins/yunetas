@@ -438,6 +438,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
+            "result",       "%d", yev_event->result,
             "flag",         "%j", jn_flags,
             "stopped",      "%s", stopped?"yes":"no",
             NULL

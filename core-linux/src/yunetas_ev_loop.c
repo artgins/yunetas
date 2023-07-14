@@ -462,7 +462,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
             }
             gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "io_uring_wait_cqe() FAILED",
                 "errno",        "%d", -err,
                 "serrno",       "%s", strerror(-err),
@@ -547,7 +547,7 @@ PUBLIC int yev_start_event(
     if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event STOPPING",
             NULL
         );
@@ -563,7 +563,7 @@ PUBLIC int yev_start_event(
                 if(yev_event->fd <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd not set",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -573,7 +573,7 @@ PUBLIC int yev_start_event(
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -583,7 +583,7 @@ PUBLIC int yev_start_event(
                 if(gbuffer_freebytes(yev_event->gbuf)==0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
@@ -609,7 +609,7 @@ PUBLIC int yev_start_event(
                 if(yev_event->fd <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd not set",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -619,7 +619,7 @@ PUBLIC int yev_start_event(
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -629,7 +629,7 @@ PUBLIC int yev_start_event(
                 if(gbuffer_leftbytes(yev_event->gbuf)==0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
@@ -655,7 +655,7 @@ PUBLIC int yev_start_event(
                 if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: connect addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -684,7 +684,7 @@ PUBLIC int yev_start_event(
                 if(!yev_event->src_addr || yev_event->src_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: accept addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         NULL
@@ -722,7 +722,7 @@ PUBLIC int yev_start_event(
         case YEV_TIMER_TYPE:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Cannot start event: use yev_start_timer_event() to start timer event",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
@@ -861,7 +861,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
         gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event ALREADY stopped",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
@@ -891,7 +891,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     if(!sqe) {
         gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "io_uring_get_sqe() FAILED",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
@@ -938,7 +938,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "event not stopped",
             NULL
         );
@@ -949,7 +949,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     if(yev_event->gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event gbuffer NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
@@ -960,7 +960,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     if(yev_event->src_addr) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event src_addr NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
@@ -970,7 +970,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     if(yev_event->dst_addr) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event dst_addr NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
@@ -1174,7 +1174,7 @@ PUBLIC int yev_setup_connect_event(
         DEFAULTS
             gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "schema NOT supported, using tcp",
                 "url",          "%s", dst_url,
                 "schema",       "%s", schema,
@@ -1196,7 +1196,7 @@ PUBLIC int yev_setup_connect_event(
     if(ret != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "getaddrinfo() FAILED",
             "url",          "%s", dst_url,
             "host",         "%s", dst_host,
@@ -1215,7 +1215,7 @@ PUBLIC int yev_setup_connect_event(
             print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "socket() FAILED",
                 "url",          "%s", dst_url,
                 "addrinfo",     "%s", saddr,
@@ -1260,7 +1260,7 @@ PUBLIC int yev_setup_connect_event(
             if(ret != 0) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
                     "msg",          "%s", "getaddrinfo() src_url FAILED",
                     "url",          "%s", src_url,
                     "host",         "%s", src_host,
@@ -1278,7 +1278,7 @@ PUBLIC int yev_setup_connect_event(
                 print_addrinfo(gobj, saddr, sizeof(saddr), res, atoi(src_port));
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
                     "msg",          "%s", "bind() FAILED",
                     "url",          "%s", src_url,
                     "addrinfo",     "%s", saddr,
@@ -1311,7 +1311,7 @@ PUBLIC int yev_setup_connect_event(
     if (!rp || fd == -1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "Cannot get addr to connect",
             "url",          "%s", dst_url,
             "host",         "%s", dst_host,
@@ -1474,7 +1474,7 @@ PUBLIC int yev_setup_accept_event(
         DEFAULTS
             gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "schema NOT supported, using tcp",
                 "url",          "%s", listen_url,
                 "schema",       "%s", schema,
@@ -1496,7 +1496,7 @@ PUBLIC int yev_setup_accept_event(
     if(ret != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "getaddrinfo() FAILED",
             "url",          "%s", listen_url,
             "host",         "%s", host,
@@ -1515,7 +1515,7 @@ PUBLIC int yev_setup_accept_event(
             print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "socket() FAILED",
                 "url",          "%s", listen_url,
                 "addrinfo",     "%s", saddr,
@@ -1539,7 +1539,7 @@ PUBLIC int yev_setup_accept_event(
             print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "bind() FAILED",
                 "url",          "%s", listen_url,
                 "addrinfo",     "%s", saddr,
@@ -1556,7 +1556,7 @@ PUBLIC int yev_setup_accept_event(
             print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "listen() FAILED",
                 "url",          "%s", listen_url,
                 "addrinfo",     "%s", saddr,
@@ -1585,7 +1585,7 @@ PUBLIC int yev_setup_accept_event(
     if (!rp || fd == -1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "Cannot get addr to listen",
             "url",          "%s", listen_url,
             "host",         "%s", host,
@@ -1731,7 +1731,7 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
     if(bfsize < INET6_ADDRSTRLEN + 20) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "buffer to small",
             NULL
         );
