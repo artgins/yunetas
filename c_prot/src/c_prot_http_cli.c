@@ -494,6 +494,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_connected[] = {
         {EV_RX_DATA,            ac_rx_data,         0},
         {EV_SEND_MESSAGE,       ac_send_message,    0},
+        {EV_TX_READY,           0,                  0},
         {EV_DISCONNECTED,       ac_disconnected,    ST_DISCONNECTED},
         {EV_DROP,               ac_drop,            0},
         {0,0,0}

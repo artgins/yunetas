@@ -761,6 +761,18 @@ PUBLIC int yev_set_gbuffer(
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int yev_set_fd(
+    yev_event_t *yev_event,
+    int fd // only for yev_create_read_event() and yev_create_write_event()
+) {
+    yev_event->fd = fd;
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event_,
     time_t timeout_ms,
