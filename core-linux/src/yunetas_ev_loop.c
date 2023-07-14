@@ -224,14 +224,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          */
                     }
 
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "YEV_READ_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "YEV_READ_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
 
                 } else if(cqe->res > 0) {
@@ -272,14 +274,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
 
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "YEV_WRITE_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "YEV_WRITE_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
 
                 } else if(cqe->res > 0) {
@@ -303,14 +307,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_ACCEPT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "YEV_ACCEPT_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "YEV_ACCEPT_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                 }
 
                 if(yev_event->flag & YEV_STOPPED_FLAG) {
@@ -377,14 +383,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                        "errno",        "%d", -cqe->res,
-                        "serrno",       "%s", strerror(-cqe->res),
-                        NULL
-                    );
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "YEV_CONNECT_TYPE failed",
+                            "errno",        "%d", -cqe->res,
+                            "serrno",       "%s", strerror(-cqe->res),
+                            NULL
+                        );
+                    }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
                     yev_event->flag |= YEV_CONNECTED_FLAG;
@@ -1292,15 +1300,17 @@ PUBLIC int yev_setup_connect_event(
             }
 		}
 
-		print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "addrinfo to connect",
-            "url",          "%s", dst_url,
-            "addrinfo",     "%s", saddr,
-            NULL
-        );
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "addrinfo to connect",
+                "url",          "%s", dst_url,
+                "addrinfo",     "%s", saddr,
+                NULL
+            );
+        }
 
         ret = 0;    // Got a addr
         break;

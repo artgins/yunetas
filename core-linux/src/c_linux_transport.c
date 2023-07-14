@@ -322,6 +322,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     INCR_ATTR_INTEGER(connxs)
 
     priv->inform_disconnection = TRUE;
+    gobj_change_state(gobj, ST_CONNECTED);
     get_peer_and_sock_name(gobj, fd);
 
     /*
@@ -354,8 +355,6 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
     }
     yev_start_event(priv->yev_client_rx);
-
-    gobj_change_state(gobj, ST_CONNECTED);
 
     // TODO try_write_all(gobj, FALSE);
 
@@ -395,6 +394,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected",
                 "msg2",         "%s", "Disconnected🔴",
+                "cause",        "%s", cause?cause:"",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -453,7 +453,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         /*
                          *  Disconnected
                          */
-                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                        if(gobj_trace_level(gobj) & TRACE_UV) {
                             if(yev_event->result != -ECANCELED) {
                                 gobj_log_info(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -504,7 +504,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         /*
                          *  Disconnected
                          */
-                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                        if(gobj_trace_level(gobj) & TRACE_UV) {
                             if(yev_event->result != -ECANCELED) {
                                 gobj_log_info(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -537,7 +537,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         /*
                          *  Error on connection
                          */
-                        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+                        if(gobj_trace_level(gobj) & TRACE_UV) {
                             if(yev_event->result != -ECANCELED) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,

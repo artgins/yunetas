@@ -201,7 +201,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     gobj_log_warning(0, 0,
         "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "start_time",
+        "msg",          "%s", "yuno start time",
         "t",            "%lld", (long long int)now,
         "start_date",   "%s", bfdate,
         NULL
