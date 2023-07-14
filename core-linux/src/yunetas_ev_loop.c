@@ -768,6 +768,23 @@ PUBLIC int yev_set_fd(
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int yev_set_flag(
+    yev_event_t *yev_event,
+    yev_flag_t flag,
+    BOOL set
+) {
+    if(set) {
+        yev_event->flag |= flag;
+    } else {
+        yev_event->flag &= ~flag;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event_,
     time_t timeout_ms,

@@ -26,7 +26,7 @@ extern "C"{
 typedef struct gbuffer_s {
     DL_ITEM_FIELDS
 
-        size_t refcount;            /* to delete by reference counter */
+    size_t refcount;            /* to delete by reference counter */
 
     char *label;                /* like user_data */
     size_t mark;                /* like user_data */

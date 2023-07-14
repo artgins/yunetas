@@ -95,11 +95,9 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     yev_event_t *yev_client_connect;    // Used in not __clisrv__
-    yev_event_t *yev_client_tx;
     yev_event_t *yev_client_rx;
-
     int timeout_inactivity;
-    BOOL inform_disconnection;
+    char inform_disconnection;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -248,12 +246,6 @@ PRIVATE int mt_stop(hgobj gobj)
             yev_stop_event(priv->yev_client_rx);
         }
     }
-    if(priv->yev_client_tx) {
-        if(!(priv->yev_client_tx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
-            change_to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_tx);
-        }
-    }
     if(priv->yev_client_connect) {
         if(!(priv->yev_client_connect->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
             change_to_wait_stopped = TRUE;
@@ -279,7 +271,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx);
 }
 
 
@@ -356,12 +347,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     if(priv->yev_client_rx) {
         yev_set_fd(priv->yev_client_rx, fd);
     }
-    if(priv->yev_client_tx) {
-        yev_set_fd(priv->yev_client_tx, fd);
-    }
     yev_start_event(priv->yev_client_rx);
-
-    // TODO try_write_all(gobj, FALSE);
 
     /*
      *  Publish
@@ -417,12 +403,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         yev_set_fd(priv->yev_client_rx, -1);
         if(!(priv->yev_client_rx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
             yev_stop_event(priv->yev_client_rx);
-        }
-    }
-    if(priv->yev_client_tx) {
-        yev_set_fd(priv->yev_client_tx, -1);
-        if(!(priv->yev_client_tx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
-            yev_stop_event(priv->yev_client_tx);
         }
     }
 
@@ -539,15 +519,20 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                                 );
                             }
                         }
-                        gbuffer_clear(yev_event->gbuf);
+                        GBUFFER_DECREF(yev_event->gbuf)
                         set_disconnected(gobj, strerror(-yev_event->result));
                         break;
                     }
 
-                    gbuffer_clear(yev_event->gbuf);
-                    gobj_publish_event(gobj, EV_TX_READY, NULL);
-                    // Write ended
-                    // try_write_all(gobj, TRUE); TODO ???
+                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                    yev_stop_event(yev_event);
+                    if(yev_event->flag & YEV_WANT_TX_READY) {
+                        json_t *kw_tx_ready = json_object();
+                        json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                    }
+                } else {
+                    yev_destroy_event(yev_event);
                 }
             }
             break;
@@ -680,6 +665,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -695,17 +681,17 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *  Transmit
      */
-int x; // TODO queue or alone txs?
     yev_event_t *yev_client_tx = yev_create_write_event(
         yuno_event_loop(),
         yev_client_callback,
         gobj,
-        priv->yev_client_connect->fd // TODO y los de accept?
+        priv->yev_client_connect->fd
     );
     yev_set_gbuffer(
         yev_client_tx,
         gbuf
     );
+    yev_set_flag(yev_client_tx, YEV_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_client_tx);
 
     KW_DECREF(kw)

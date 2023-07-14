@@ -39,6 +39,7 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_USE_SSL_FLAG            = 0x08,
     YEV_IS_TCP_FLAG             = 0x10,
     YEV_CONNECTED_FLAG          = 0x20,
+    YEV_WANT_TX_READY           = 0x40,
 } yev_flag_t;
 
 /***************************************************************
@@ -104,6 +105,11 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 PUBLIC int yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     int fd
+);
+PUBLIC int yev_set_flag(
+    yev_event_t *yev_event,
+    yev_flag_t flag,
+    BOOL set
 );
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,
