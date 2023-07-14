@@ -414,7 +414,9 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
             priv->yev_client_connect->fd = -1;
         }
         if(gobj_is_running(gobj)) {
-            yev_stop_event(priv->yev_client_connect);
+            if(!(priv->yev_client_connect->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+                yev_stop_event(priv->yev_client_connect);
+            }
             set_timeout(
                 priv->gobj_timer,
                 gobj_read_integer_attr(gobj, "timeout_between_connections")
