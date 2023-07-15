@@ -13,7 +13,7 @@
 #include <parse_url.h>
 #include <kwid.h>
 #include <gbuffer.h>
-#include <yunetas_ev_loop.h>
+#include "yunetas_ev_loop.h"
 #include "c_linux_transport.h"
 
 /***************************************************************
@@ -241,13 +241,13 @@ PRIVATE int mt_stop(hgobj gobj)
     BOOL change_to_wait_stopped = FALSE;
 
     if(priv->yev_client_rx) {
-        if(!(priv->yev_client_rx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+        if(!(priv->yev_client_rx->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
             change_to_wait_stopped = TRUE;
             yev_stop_event(priv->yev_client_rx);
         }
     }
     if(priv->yev_client_connect) {
-        if(!(priv->yev_client_connect->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+        if(!(priv->yev_client_connect->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
             change_to_wait_stopped = TRUE;
             yev_stop_event(priv->yev_client_connect);
         }
@@ -411,11 +411,11 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         priv->yev_client_connect->fd = -1;
     }
 
-    yev_set_flag(priv->yev_client_connect, YEV_CONNECTED_FLAG, FALSE);
+    yev_set_flag(priv->yev_client_connect, YEV_FLAG_CONNECTED, FALSE);
 
     if(priv->yev_client_rx) {
         yev_set_fd(priv->yev_client_rx, -1);
-        if(!(priv->yev_client_rx->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+        if(!(priv->yev_client_rx->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
             yev_stop_event(priv->yev_client_rx);
         }
     }
@@ -424,7 +424,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         // TODO to stop
     } else {
         if(gobj_is_running(gobj)) {
-            if(!(priv->yev_client_connect->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+            if(!(priv->yev_client_connect->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
                 yev_stop_event(priv->yev_client_connect);
             }
             set_timeout(
@@ -452,7 +452,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 PRIVATE int yev_transport_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
@@ -475,7 +475,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_READ_TYPE:
             {
                 if(!stopped) {
-                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+                    yev_set_flag(yev_event, YEV_FLAG_STOPPED, TRUE);
 
                     if(yev_event->result < 0) {
                         /*
@@ -528,7 +528,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_WRITE_TYPE:
             {
                 if(!stopped) {
-                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+                    yev_set_flag(yev_event, YEV_FLAG_STOPPED, TRUE);
 
                     if(yev_event->result < 0) {
                         /*
@@ -554,7 +554,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
 
                     } else {
                         json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                        if(yev_event->flag & YEV_WANT_TX_READY) {
+                        if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
                             json_t *kw_tx_ready = json_object();
                             json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
                             gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
@@ -571,7 +571,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_CONNECT_TYPE:
             {
                 if(!stopped) {
-                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+                    yev_set_flag(yev_event, YEV_FLAG_STOPPED, TRUE);
 
                     if(yev_event->result < 0) {
                         /*
@@ -723,7 +723,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         yev_client_tx,
         gbuf
     );
-    yev_set_flag(yev_client_tx, YEV_WANT_TX_READY, want_tx_ready);
+    yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_client_tx);
 
     KW_DECREF(kw)

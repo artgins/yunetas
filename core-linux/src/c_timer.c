@@ -103,7 +103,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->yev_event) {
-        if(!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+        if(!(priv->yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
             yev_stop_event(priv->yev_event);
         }
     }
@@ -160,44 +160,19 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
             "msec",         "%ld", (long)priv->msec,
-            "publish",      "%s", (!stopped && yev_event->result > 0)? "Yes":"No",
+            "publish",      "%s", (yev_event->result > 0)? "Yes":"No",
             NULL
         );
         json_decref(jn_flags);
     }
 
-    if(!stopped) {
-        yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
-
-        if(yev_event->result > 0) {
-            if(priv->periodic) {
-                gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
-            } else {
-                gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
-            }
+    if(yev_event->result > 0) {
+        if(priv->periodic) {
+            gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
+        } else {
+            gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
     }
-
-        if(stopped && (yev_event->result == -ECANCELED || yev_event->result == 0)) {
-            ; // these are valid found cases
-        } else {
-            json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "Timer result UNKNOWN",
-                "type",         "%s", yev_event_type_name(yev_event),
-                "fd",           "%d", yev_event->fd,
-                "result",       "%d", yev_event->result,
-                "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-                "p",            "%p", yev_event,
-                "flag",         "%j", jn_flags,
-                "periodic",     "%d", priv->periodic?1:0,
-                "msec",         "%ld", (long)priv->msec,
-                NULL
-            );
-            json_decref(jn_flags);
-        }
 
     return 0;
 }
@@ -430,13 +405,13 @@ PUBLIC void clear_timeout(hgobj gobj)
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
             "msec",         "%ld", (long)priv->msec,
-            "exec stop ev", "%s", (!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)))? "Yes":"No",
+            "exec stop ev", "%s", (!(priv->yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED)))? "Yes":"No",
             NULL
         );
         json_decref(jn_flags);
     }
 
-    if(!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+    if(!(priv->yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
         yev_stop_event(priv->yev_event);
     }
 }

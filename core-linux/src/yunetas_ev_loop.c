@@ -35,12 +35,12 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  *              Data
  ***************************************************************/
 PRIVATE const char *yev_flag_s[] = {
-    "YEV_STOPPING_FLAG",
-    "YEV_STOPPED_FLAG",
-    "YEV_TIMER_PERIODIC_FLAG",
-    "YEV_USE_SSL_FLAG",
-    "YEV_IS_TCP_FLAG",
-    "YEV_CONNECTED_FLAG",
+    "YEV_FLAG_STOPPING",
+    "YEV_FLAG_STOPPED",
+    "YEV_FLAG_TIMER_PERIODIC",
+    "YEV_FLAG_USE_SSL",
+    "YEV_FLAG_IS_TCP",
+    "YEV_FLAG_CONNECTED",
     0
 };
 
@@ -59,11 +59,8 @@ PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop_)
     }
 
     struct io_uring_params params_test = {0};
-    // TODO to use IORING_SETUP_SQPOLL when you know how to use
-    // Info in https://unixism.net/loti/tutorial/sq_poll.html
-    //params_test.flags |= IORING_SETUP_SQPOLL;
-    //params_test.flags |= IORING_SETUP_COOP_TASKRUN;      // Available since 5.18
-    //params_test.flags |= IORING_SETUP_SINGLE_ISSUER;     // Available since 6.0
+    //params_test.flags |= IORING_SETUP_COOP_TASKRUN; // Available since 5.18
+    //params_test.flags |= IORING_SETUP_SINGLE_ISSUER; // Available since 6.0
 retry:
     err = io_uring_queue_init_params(entries, &ring_test, &params_test);
     if(err) {
@@ -202,9 +199,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         } while(0);
     }
 
-    if(yev_event->flag & YEV_STOPPING_FLAG) {
-        yev_event->flag &= ~YEV_STOPPING_FLAG;
-        yev_event->flag |= YEV_STOPPED_FLAG;
+    if(yev_event->flag & YEV_FLAG_STOPPING) {
+        yev_event->flag &= ~YEV_FLAG_STOPPING;
+        yev_event->flag |= YEV_FLAG_STOPPED;
     }
 
     switch((yev_type_t)yev_event->type) {
@@ -220,10 +217,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          *      Repeated forever
                          */
                     }
-                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
+                    yev_event->flag &= ~YEV_FLAG_CONNECTED;
 
                 } else if(cqe->res > 0) {
-                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG gbuf could be null
+                    if(yev_event->gbuf) { // with YEV_FLAG_STOPPED gbuf could be null
                         gbuffer_set_wr(yev_event->gbuf, cqe->res);     // Mark the written bytes of reading fd
                     }
                 }
@@ -257,10 +254,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     } else {
                         // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
-                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
+                    yev_event->flag &= ~YEV_FLAG_CONNECTED;
 
                 } else if(cqe->res > 0) {
-                    if(yev_event->gbuf) { // with YEV_STOPPED_FLAG could be null
+                    if(yev_event->gbuf) { // with YEV_FLAG_STOPPED could be null
                         gbuffer_get(yev_event->gbuf, cqe->res);    // Pop the read bytes used to write fd
                     }
                 }
@@ -294,7 +291,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                 }
 
-                if(yev_event->flag & YEV_STOPPED_FLAG) {
+                if(yev_event->flag & YEV_FLAG_STOPPED) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -314,7 +311,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res; // cli_srv socket
                 if(yev_event->result > 0) {
-                    if(!(yev_event->flag & YEV_STOPPED_FLAG)) {
+                    if(!(yev_event->flag & YEV_FLAG_STOPPED)) {
                         if (is_tcp_socket(yev_event->result)) {
                             set_tcp_socket_options(yev_event->result);
                         }
@@ -330,7 +327,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     /*
                      *  Needs to rearm accept event if not stopped
                      */
-                    if(!(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
+                    if(!(yev_event->flag & (YEV_FLAG_STOPPED|YEV_FLAG_STOPPING))) {
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                         io_uring_sqe_set_data(sqe, yev_event);
                         yev_event->src_addrlen = sizeof(*yev_event->src_addr);
@@ -361,9 +358,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    yev_event->flag &= ~YEV_CONNECTED_FLAG;
+                    yev_event->flag &= ~YEV_FLAG_CONNECTED;
                 } else {
-                    yev_event->flag |= YEV_CONNECTED_FLAG;
+                    yev_event->flag |= YEV_FLAG_CONNECTED;
                 }
 
                 /*
@@ -393,8 +390,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Rearm periodic timer event if not stopped
                  */
-                if(yev_event->flag & YEV_TIMER_PERIODIC_FLAG &&
-                        !(yev_event->flag & (YEV_STOPPED_FLAG|YEV_STOPPING_FLAG))) {
+                if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC &&
+                        !(yev_event->flag & (YEV_FLAG_STOPPED|YEV_FLAG_STOPPING))) {
                     struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                     io_uring_sqe_set_data(sqe, yev_event);
                     io_uring_prep_read(
@@ -492,8 +489,8 @@ PUBLIC int yev_start_event(
     /*-------------------------------*
      *      Re-start if stopped
      *-------------------------------*/
-    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
-        yev_event->flag &= ~(YEV_STOPPING_FLAG|YEV_STOPPED_FLAG);
+    if(yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED)) {
+        yev_event->flag &= ~(YEV_FLAG_STOPPING|YEV_FLAG_STOPPED);
     }
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -520,7 +517,7 @@ PUBLIC int yev_start_event(
         } while(0);
     }
 
-    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
+    if(yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -646,7 +643,7 @@ PUBLIC int yev_start_event(
                     );
                     return -1;
                 }
-                yev_event->flag &= ~YEV_CONNECTED_FLAG; // TODO check if again connected?
+                yev_event->flag &= ~YEV_FLAG_CONNECTED; // TODO check if again connected?
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 io_uring_sqe_set_data(sqe, yev_event);
@@ -741,35 +738,6 @@ PUBLIC int yev_set_gbuffer(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_set_fd(
-    yev_event_t *yev_event,
-    int fd // only for yev_create_read_event() and yev_create_write_event()
-) {
-    yev_event->fd = fd;
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int yev_set_flag(
-    yev_event_t *yev_event,
-    yev_flag_t flag,
-    BOOL set
-) {
-    if(set) {
-        yev_event->flag |= flag;
-    } else {
-        yev_event->flag &= ~flag;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event_,
     time_t timeout_ms,
@@ -794,8 +762,8 @@ PUBLIC int yev_start_timer_event(
     /*-------------------------------*
      *      Re-start if stopped
      *-------------------------------*/
-    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
-        yev_event->flag &= ~(YEV_STOPPING_FLAG|YEV_STOPPED_FLAG);
+    if(yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED)) {
+        yev_event->flag &= ~(YEV_FLAG_STOPPING|YEV_FLAG_STOPPED);
     }
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -835,9 +803,9 @@ PUBLIC int yev_start_timer_event(
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
 
     if(periodic) {
-        yev_event->flag |= YEV_TIMER_PERIODIC_FLAG;
+        yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
     } else {
-        yev_event->flag &= ~YEV_TIMER_PERIODIC_FLAG;
+        yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
     }
 
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
@@ -882,7 +850,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
         } while(0);
     }
 
-    if(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)) {
+    if(yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED)) {
         gobj_log_error(yev_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -926,7 +894,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     io_uring_sqe_set_data(sqe, yev_event);
-    yev_event->flag |= YEV_STOPPING_FLAG;
+    yev_event->flag |= YEV_FLAG_STOPPING;
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
 
@@ -963,7 +931,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         } while(0);
     }
 
-    if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
+    if(!(yev_event->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1187,9 +1155,9 @@ PUBLIC int yev_setup_connect_event(
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_USE_SSL_FLAG;
+        yev_event->flag |= YEV_FLAG_USE_SSL;
     } else {
-        yev_event->flag &= ~YEV_USE_SSL_FLAG;
+        yev_event->flag &= ~YEV_FLAG_USE_SSL;
     }
 
     struct addrinfo hints = {
@@ -1206,14 +1174,14 @@ PUBLIC int yev_setup_connect_event(
         ICASES("ws")
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_IS_TCP_FLAG;
+            yev_event->flag |= YEV_FLAG_IS_TCP;
             break;
 
         ICASES("udps")
         ICASES("udp")
             hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_IS_TCP_FLAG;
+            yev_event->flag &= ~YEV_FLAG_IS_TCP;
             break;
 
         DEFAULTS
@@ -1506,9 +1474,9 @@ PUBLIC int yev_setup_accept_event(
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_USE_SSL_FLAG;
+        yev_event->flag |= YEV_FLAG_USE_SSL;
     } else {
-        yev_event->flag &= ~YEV_USE_SSL_FLAG;
+        yev_event->flag &= ~YEV_FLAG_USE_SSL;
     }
 
     if(backlog <= 0) {
@@ -1528,14 +1496,14 @@ PUBLIC int yev_setup_accept_event(
         ICASES("ws")
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_IS_TCP_FLAG;
+            yev_event->flag |= YEV_FLAG_IS_TCP;
             break;
 
         ICASES("udps")
         ICASES("udp")
             hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_IS_TCP_FLAG;
+            yev_event->flag &= ~YEV_FLAG_IS_TCP;
             break;
 
         DEFAULTS

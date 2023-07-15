@@ -33,13 +33,13 @@ typedef enum  {
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
-    YEV_STOPPING_FLAG           = 0x01,
-    YEV_STOPPED_FLAG            = 0x02,
-    YEV_TIMER_PERIODIC_FLAG     = 0x04,
-    YEV_USE_SSL_FLAG            = 0x08,
-    YEV_IS_TCP_FLAG             = 0x10,
-    YEV_CONNECTED_FLAG          = 0x20,
-    YEV_WANT_TX_READY           = 0x40,
+    YEV_FLAG_STOPPING           = 0x01,
+    YEV_FLAG_STOPPED            = 0x02,
+    YEV_FLAG_TIMER_PERIODIC     = 0x04,
+    YEV_FLAG_USE_SSL            = 0x08,
+    YEV_FLAG_IS_TCP             = 0x10,
+    YEV_FLAG_CONNECTED          = 0x20,
+    YEV_FLAG_WANT_TX_READY      = 0x40,
 } yev_flag_t;
 
 /***************************************************************
@@ -102,15 +102,23 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
 );
-PUBLIC int yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
+static inline void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     int fd
-);
-PUBLIC int yev_set_flag(
+) {
+    yev_event->fd = fd;
+}
+static inline void yev_set_flag(
     yev_event_t *yev_event,
     yev_flag_t flag,
     BOOL set
-);
+){
+    if(set) {
+        yev_event->flag |= flag;
+    } else {
+        yev_event->flag &= ~flag;
+    }
+}
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,
     time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()

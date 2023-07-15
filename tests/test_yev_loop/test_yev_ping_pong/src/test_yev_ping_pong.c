@@ -154,7 +154,7 @@ int do_test(void)
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(dump) {
         gobj_trace_msg(
@@ -317,7 +317,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(dump) {
         gobj_trace_msg(

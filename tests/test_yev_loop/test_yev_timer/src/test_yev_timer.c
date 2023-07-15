@@ -61,7 +61,7 @@ int do_test(void)
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
     times++;
 
     if(stopped) {
