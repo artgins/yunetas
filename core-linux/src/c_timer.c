@@ -167,28 +167,6 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         json_decref(jn_flags);
     }
 
-int x;
-// TODO               if(cqe->res <= 0) {
-//                    if(!((yev_event->flag & YEV_STOPPED_FLAG) && (cqe->res == -ECANCELED || cqe->res == 0))) {
-//                        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
-//                        gobj_log_error(gobj, 0,
-//                            "function",     "%s", __FUNCTION__,
-//                            "msgset",       "%s", MSGSET_YEV_LOOP,
-//                            "msg",          "%s", "YEV_TIMER_TYPE failed",
-//                            "fd",           "%d", yev_event->fd,
-//                            "p",            "%p", yev_event,
-//                            "flag",         "%j", jn_flags,
-//                            "res",          "%d", cqe->res,
-//                            "sres",         "%s", strerror(-cqe->res),
-//                            NULL
-//                        );
-//                        json_decref(jn_flags);
-//                    }
-//                }
-//
-
-
-
     if(yev_event->result > 0) {
         if(priv->periodic) {
             gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
@@ -196,13 +174,16 @@ int x;
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
     } else {
-        if(stopped) {
-            gobj_write_integer_attr(gobj, "msec", -1);
+        gobj_write_integer_attr(gobj, "msec", -1);
+
+        if(stopped &&
+                (yev_event->result == -ECANCELED || yev_event->result == -ENOENT || yev_event->result == 0)) {
+            ; // these are valid found cases
         } else {
             json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "Timer result UNKNOWN",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,

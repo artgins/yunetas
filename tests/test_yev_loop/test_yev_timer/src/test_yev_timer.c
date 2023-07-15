@@ -19,6 +19,7 @@ PRIVATE int yev_callback(yev_event_t *event);
 /***************************************************************
  *              Data
  ***************************************************************/
+yev_loop_t *yev_loop;
 int wait_time = 2;
 int times = 0;
 
@@ -30,7 +31,6 @@ int do_test(void)
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/
-    yev_loop_t *yev_loop;
     yev_loop_create(
         0,
         2024,
@@ -62,17 +62,22 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
+    times++;
 
     if(stopped) {
-        gobj_trace_msg(gobj, "yev_start_timer_event STOPPED, stop loop");
-        yev_loop_stop(yev_event->yev_loop);
+        if(times < 6) {
+            gobj_trace_msg(gobj, "STOPPED, RESTART yev_start_timer_event %d seconds %d time", wait_time, times);
+            yev_start_timer_event(yev_event, wait_time*1000, FALSE);
+        } else {
+            gobj_trace_msg(gobj, "yev_start_timer_event STOPPED, stop LOOP");
+            yev_loop_stop(yev_event->yev_loop);
+        }
     } else {
-        times++;
         if(times < 3) {
             gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time", wait_time, times);
             yev_start_timer_event(yev_event, wait_time*1000, FALSE);
         } else {
-            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, stopping", wait_time, times);
+            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, STOPPING", wait_time, times);
             yev_stop_event(yev_event);
         }
     }
@@ -104,8 +109,8 @@ int main(int argc, char *argv[])
         free_func
     );
 
-    gobj_set_deep_tracing(2);           // TODO TEST
-    gobj_set_global_trace(0, TRUE);     // TODO TEST
+//    gobj_set_deep_tracing(2);           // TODO TEST
+//    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
 #ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
@@ -151,31 +156,11 @@ int main(int argc, char *argv[])
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
 {
-    static int tries = 0;
-
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-     */
-    hgobj gobj = gobj_yuno();
-
-    if(gobj) {
-        tries++;
-        gobj_set_yuno_must_die();
-        if(tries > 1) {
-            _exit(-1);
-        }
-    }
-}
-
-PRIVATE void debug_sighandler(int sig)
-{
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-     */
-    hgobj gobj = gobj_yuno();
-
-    if(gobj) {
-        gobj_set_deep_tracing(2);
+    static int times = 0;
+    times++;
+    yev_loop->running = 0;
+    if(times > 1) {
+        exit(-1);
     }
 }
 
@@ -193,9 +178,4 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
-
-    sigIntHandler.sa_handler = debug_sighandler;
-    sigemptyset(&sigIntHandler.sa_mask);
-    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGUSR1, &sigIntHandler, NULL);
 }

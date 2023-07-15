@@ -780,9 +780,14 @@ PUBLIC int yev_start_timer_event(
     struct io_uring_sqe *sqe;
 
     if(timeout_ms <= 0) {
-        if(!(yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {
-            yev_stop_event(yev_event);
-        }
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "Cannot start timer event: time negative",
+            "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
+            NULL
+        );
         return 0;
     }
 
