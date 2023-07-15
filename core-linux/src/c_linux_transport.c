@@ -241,13 +241,13 @@ PRIVATE int mt_stop(hgobj gobj)
     BOOL change_to_wait_stopped = FALSE;
 
     if(priv->yev_client_rx) {
-        if(!(priv->yev_client_rx->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
+        if(priv->yev_client_rx->flag & (YEV_FLAG_IN_RING)) {
             change_to_wait_stopped = TRUE;
             yev_stop_event(priv->yev_client_rx);
         }
     }
     if(priv->yev_client_connect) {
-        if(!(priv->yev_client_connect->flag & (YEV_FLAG_STOPPING|YEV_FLAG_STOPPED))) {
+        if(priv->yev_client_connect->flag & (YEV_FLAG_IN_RING)) {
             change_to_wait_stopped = TRUE;
             yev_stop_event(priv->yev_client_connect);
         }
@@ -452,7 +452,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 PRIVATE int yev_transport_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
@@ -465,7 +464,6 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
-            "stopped",      "%s", stopped?"yes":"no",
             "p",            "%p", yev_event,
             NULL
         );

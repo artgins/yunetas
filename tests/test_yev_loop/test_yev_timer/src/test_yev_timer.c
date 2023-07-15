@@ -20,7 +20,7 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-int wait_time = 2;
+int wait_time = 1;
 int times = 0;
 
 /***************************************************************************
@@ -61,25 +61,14 @@ int do_test(void)
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
     times++;
 
-    if(stopped) {
-        if(times < 6) {
-            gobj_trace_msg(gobj, "STOPPED, RESTART yev_start_timer_event %d seconds %d time", wait_time, times);
-            yev_start_timer_event(yev_event, wait_time*1000, FALSE);
-        } else {
-            gobj_trace_msg(gobj, "yev_start_timer_event STOPPED, stop LOOP");
-            yev_loop_stop(yev_event->yev_loop);
-        }
+    if(times < 3) {
+        gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time", wait_time, times);
+        yev_start_timer_event(yev_event, wait_time*1000, FALSE);
     } else {
-        if(times < 3) {
-            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time", wait_time, times);
-            yev_start_timer_event(yev_event, wait_time*1000, FALSE);
-        } else {
-            gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, STOPPING", wait_time, times);
-            yev_stop_event(yev_event);
-        }
+        gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, STOPPING", wait_time, times);
+        yev_stop_event(yev_event);
     }
     return 0;
 }

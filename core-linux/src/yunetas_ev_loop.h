@@ -33,13 +33,12 @@ typedef enum  {
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
-    YEV_FLAG_STOPPING           = 0x01,
-    YEV_FLAG_STOPPED            = 0x02,
-    YEV_FLAG_TIMER_PERIODIC     = 0x04,
-    YEV_FLAG_USE_SSL            = 0x08,
-    YEV_FLAG_IS_TCP             = 0x10,
-    YEV_FLAG_CONNECTED          = 0x20,
-    YEV_FLAG_WANT_TX_READY      = 0x40,
+    YEV_FLAG_IN_RING            = 0x01,
+    YEV_FLAG_TIMER_PERIODIC     = 0x02,
+    YEV_FLAG_USE_SSL            = 0x04,
+    YEV_FLAG_IS_TCP             = 0x08,
+    YEV_FLAG_CONNECTED          = 0x10,     // user
+    YEV_FLAG_WANT_TX_READY      = 0x20,     // user
 } yev_flag_t;
 
 /***************************************************************
@@ -95,19 +94,26 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
  *      yev_setup_connect_event() and yev_setup_accept_event().
  *      These functions will create and configure a socket to listen or to connect
  */
-PUBLIC int yev_start_event(
-    yev_event_t *yev_event
-);
-PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
+static inline void yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
-);
+) {
+    if(gbuf == yev_event->gbuf) {
+        return;
+    }
+    if(yev_event->gbuf) {
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
+    yev_event->gbuf = gbuf;
+}
+
 static inline void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     int fd
 ) {
     yev_event->fd = fd;
 }
+
 static inline void yev_set_flag(
     yev_event_t *yev_event,
     yev_flag_t flag,
@@ -119,6 +125,10 @@ static inline void yev_set_flag(
         yev_event->flag &= ~flag;
     }
 }
+
+PUBLIC int yev_start_event(
+    yev_event_t *yev_event
+);
 PUBLIC int yev_start_timer_event(
     yev_event_t *yev_event,
     time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()
