@@ -40,8 +40,9 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    BOOL periodic;
     yev_event_t *yev_event;
+    BOOL periodic;
+    json_int_t msec;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -65,6 +66,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     SET_PRIV(periodic,          gobj_read_bool_attr)
+    SET_PRIV(msec,              gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -75,6 +77,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -140,16 +143,27 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
     BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ ✅✅ timeout got: %s, result %d, fd: %d, publish: %s",
-            gobj_full_name(gobj),
-            yev_event->result,
-            yev_event->fd,
-            (!stopped && yev_event->result > 0)? "Yes":"No"
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "timeout got",
+            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "result",       "%d", yev_event->result,
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            "periodic",     "%d", priv->periodic?1:0,
+            "msec",         "%ld", (long)priv->msec,
+            "publish",      "%s", (!stopped && yev_event->result > 0)? "Yes":"No",
+            NULL
         );
+        json_decref(jn_flags);
     }
 
     if(yev_event->result > 0) {
@@ -159,15 +173,25 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
     } else {
-        if(!stopped) {
+        if(stopped) {
+            gobj_write_integer_attr(gobj, "msec", -1);
+        } else {
+            json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Timer result UNKNOWN",
-                "result",       "%d", yev_event->result,
+                "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "result",       "%d", yev_event->result,
+                "sres",         "%s", strerror(-yev_event->result),
+                "p",            "%p", yev_event,
+                "flag",         "%j", jn_flags,
+                "periodic",     "%d", priv->periodic?1:0,
+                "msec",         "%ld", (long)priv->msec,
                 NULL
             );
+            json_decref(jn_flags);
         }
     }
     return 0;
@@ -319,19 +343,30 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
-    if(tracea) {
-        trace_machine("⏰⏰ 🟦 set_timeout t: %ld, fd: %d, %s",
-            (long)msec,
-            priv->yev_event->fd,
-            gobj_full_name(gobj)
-        );
-    }
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", FALSE);
+
+    if(tracea) {
+        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "set_timeout",
+            "msg2",         "%s", "⏰⏰ 🟦 set_timeout",
+            "type",         "%s", yev_event_type_name(priv->yev_event),
+            "fd",           "%d", priv->yev_event->fd,
+            "p",            "%p", priv->yev_event,
+            "flag",         "%j", jn_flags,
+            "periodic",     "%d", priv->periodic?1:0,
+            "msec",         "%ld", (long)priv->msec,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
     yev_start_timer_event(priv->yev_event, msec, FALSE);
 }
 
@@ -341,19 +376,29 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = TRACE_PERIODIC_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
-    if(tracea) {
-        trace_machine("⏰⏰ 🟦🟦 set_timeout_periodic t: %ld, fd: %d, %s",
-            (long)msec,
-            priv->yev_event->fd,
-            gobj_full_name(gobj)
-        );
-    }
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", TRUE);
+
+    if(tracea) {
+        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "set_timeout_periodic",
+            "msg2",         "%s", "⏰⏰ 🟦🟦 set_timeout_periodic",
+            "type",         "%s", yev_event_type_name(priv->yev_event),
+            "fd",           "%d", priv->yev_event->fd,
+            "p",            "%p", priv->yev_event,
+            "flag",         "%j", jn_flags,
+            "periodic",     "%d", priv->periodic?1:0,
+            "msec",         "%ld", (long)priv->msec,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
 
     yev_start_timer_event(priv->yev_event, msec, TRUE);
 }
@@ -364,15 +409,26 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 PUBLIC void clear_timeout(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        trace_machine("⏰⏰ ❎ clear_timeout: %s, fd: %d, exec: %s",
-            gobj_full_name(gobj),
-            priv->yev_event->fd,
-            (!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)))? "Yes":"No"
+        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "clear_timeout",
+            "msg2",         "%s", "⏰⏰ ❎ clear_timeout",
+            "type",         "%s", yev_event_type_name(priv->yev_event),
+            "fd",           "%d", priv->yev_event->fd,
+            "p",            "%p", priv->yev_event,
+            "flag",         "%j", jn_flags,
+            "periodic",     "%d", priv->periodic?1:0,
+            "msec",         "%ld", (long)priv->msec,
+            "exec stop ev", "%s", (!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG)))? "Yes":"No",
+            NULL
         );
+        json_decref(jn_flags);
     }
 
     if(!(priv->yev_event->flag & (YEV_STOPPING_FLAG|YEV_STOPPED_FLAG))) {

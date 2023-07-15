@@ -191,6 +191,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "process_cqe",
                 "msg2",         "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 "cqe->res",     "%d", (int)cqe->res,
@@ -212,24 +213,13 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cqe->res <= 0) {
                     if(cqe->res == 0) {
-                        cqe->res = -EPIPE; // close by peer
+                        cqe->res = -EPIPE; // force EPIPE, close by peer
                         /*
                          *  Behaviour seen in YEV_READ_TYPE type when socket has broken:
                          *      - cqe->res = 0
                          *
                          *      Repeated forever
                          */
-                    }
-
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        gobj_log_warning(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_YEV_LOOP,
-                            "msg",          "%s", "YEV_READ_TYPE failed",
-                            "res",          "%d", cqe->res,
-                            "sres",         "%s", strerror(-cqe->res),
-                            NULL
-                        );
                     }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
 
@@ -268,17 +258,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     } else {
                         // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                     }
-
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        gobj_log_warning(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_YEV_LOOP,
-                            "msg",          "%s", "YEV_WRITE_TYPE failed",
-                            "res",          "%d", cqe->res,
-                            "sres",         "%s", strerror(-cqe->res),
-                            NULL
-                        );
-                    }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
 
                 } else if(cqe->res > 0) {
@@ -307,6 +286,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_ACCEPT_TYPE failed",
+                            "fd",           "%d", yev_event->fd,
+                            "p",            "%p", yev_event,
                             "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
                             NULL
@@ -318,7 +299,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "listen socket will be closed"
+                        "msg",          "%s", "listen socket will be closed",
+                        "fd",           "%d", yev_event->fd,
+                        "p",            "%p", yev_event,
+                        NULL
                     );
                     if(yev_event->fd > 0) {
                         close(yev_event->fd);
@@ -378,16 +362,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        gobj_log_warning(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_YEV_LOOP,
-                            "msg",          "%s", "YEV_CONNECT_TYPE failed",
-                            "res",          "%d", cqe->res,
-                            "sres",         "%s", strerror(-cqe->res),
-                            NULL
-                        );
-                    }
                     yev_event->flag &= ~YEV_CONNECTED_FLAG;
                 } else {
                     yev_event->flag |= YEV_CONNECTED_FLAG;
@@ -410,14 +384,15 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                if(cqe->res < 0) {
-                    if(!((yev_event->flag & YEV_STOPPED_FLAG) && cqe->res == -ECANCELED)) {
+                if(cqe->res <= 0) {
+                    if(!((yev_event->flag & YEV_STOPPED_FLAG) && (cqe->res == -ECANCELED || cqe->res == 0))) {
                         json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_YEV_LOOP,
                             "msg",          "%s", "YEV_TIMER_TYPE failed",
                             "fd",           "%d", yev_event->fd,
+                            "p",            "%p", yev_event,
                             "flag",         "%j", jn_flags,
                             "res",          "%d", cqe->res,
                             "sres",         "%s", strerror(-cqe->res),
@@ -555,6 +530,7 @@ PUBLIC int yev_start_event(
                 "msg2",         "%s", "💥💥⏩ yev_start_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 "fd",           "%d", yev_event->fd,
                 NULL
@@ -568,6 +544,7 @@ PUBLIC int yev_start_event(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event STOPPING",
+            "p",            "%p", yev_event,
             NULL
         );
         return -1;
@@ -583,8 +560,9 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: fd not set",
+                        "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -595,6 +573,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -605,6 +584,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
                     );
@@ -629,8 +609,9 @@ PUBLIC int yev_start_event(
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: fd not set",
+                        "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -641,6 +622,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -651,6 +633,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
                     );
@@ -677,6 +660,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: connect addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -706,6 +690,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: accept addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "p",            "%p", yev_event,
                         NULL
                     );
                     return -1;
@@ -744,6 +729,7 @@ PUBLIC int yev_start_event(
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Cannot start event: use yev_start_timer_event() to start timer event",
                 "event_type",   "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
                 NULL
             );
             return -1;
@@ -841,6 +827,7 @@ PUBLIC int yev_start_timer_event(
                 "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -901,6 +888,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                                         "💥🟥 yev_stop_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -914,6 +902,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event ALREADY stopped",
             "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
             NULL
         );
         return -1;
@@ -944,6 +933,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "io_uring_get_sqe() FAILED",
             "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
             NULL
         );
         return -1;
@@ -979,6 +969,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
                 "msg2",         "%s", "💥🟥🟥 yev_destroy_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -991,6 +982,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "event not stopped",
+            "p",            "%p", yev_event,
             NULL
         );
         yev_event->callback = NULL;
@@ -1003,6 +995,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event gbuffer NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
             NULL
         );
         GBUFFER_DECREF(yev_event->gbuf)
@@ -1014,6 +1007,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event src_addr NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
             NULL
         );
         GBMEM_FREE(yev_event->src_addr)
@@ -1024,6 +1018,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event dst_addr NOT free",
             "event_type",   "%s", yev_event_type_name(yev_event),
+            "p",            "%p", yev_event,
             NULL
         );
         GBMEM_FREE(yev_event->dst_addr)
@@ -1091,7 +1086,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
     yev_event->type = YEV_TIMER_TYPE;
     yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
     if(yev_event->fd < 0) {
-        gobj_log_critical(gobj, LOG_OPT_ABORT,
+        gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
@@ -1110,6 +1105,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
                 "msg2",         "%s", "💥🟦 ⏰⏰ yev_create_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1151,6 +1147,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
                 "msg2",         "%s", "💥🟦 yev_create_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1178,6 +1175,7 @@ PUBLIC int yev_setup_connect_event(
             "msg",          "%s", "fd ALREADY set",
             "url",          "%s", dst_url,
             "fd",           "%d", yev_event->fd,
+            "p",            "%p", yev_event,
             NULL
         );
         return -1;
@@ -1364,6 +1362,7 @@ PUBLIC int yev_setup_connect_event(
                 "url",          "%s", dst_url,
                 "addrinfo",     "%s", saddr,
                 "fd",           "%d", fd,
+                "p",            "%p", yev_event,
                 NULL
             );
         }
@@ -1424,6 +1423,7 @@ PUBLIC int yev_setup_connect_event(
                 "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1465,6 +1465,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
                 "msg2",         "%s", "💥🟦 yev_create_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1493,6 +1494,7 @@ PUBLIC int yev_setup_accept_event(
             "msg",          "%s", "fd ALREADY set",
             "url",          "%s", listen_url,
             "fd",           "%d", yev_event->fd,
+            "p",            "%p", yev_event,
             NULL
         );
         return -1;
@@ -1710,6 +1712,7 @@ PUBLIC int yev_setup_accept_event(
                 "msg2",         "%s", "💥🟦🟦 yev_setup_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1752,6 +1755,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 "msg2",         "%s", "💥🟦 yev_create_read_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1794,6 +1798,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 "msg2",         "%s", "💥🟦 yev_create_write_event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
+                "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
                 NULL
             );
