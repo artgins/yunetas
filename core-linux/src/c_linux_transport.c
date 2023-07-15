@@ -458,7 +458,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
             "msg2",         "%s", "💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "result",       "%d", yev_event->result,
-            "sres",         "%s", strerror(-yev_event->result),
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
             "stopped",      "%s", stopped?"yes":"no",
             "p",            "%p", yev_event,

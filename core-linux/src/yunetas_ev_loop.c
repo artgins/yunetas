@@ -180,7 +180,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE) {
                 uint32_t no_level = gobj_trace_no_level(gobj);
-                if(no_level & (TRACE_PERIODIC_TIMER|TRACE_TIMER)) {
+                if(no_level & (TRACE_TIMER)) {
                     break;
                 }
             }
@@ -195,7 +195,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
                 "cqe->res",     "%d", (int)cqe->res,
-                "res",          "%d", (cqe->res<0)? -cqe->res:0,
                 "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                 NULL
             );
@@ -384,24 +383,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                if(cqe->res <= 0) {
-                    if(!((yev_event->flag & YEV_STOPPED_FLAG) && (cqe->res == -ECANCELED || cqe->res == 0))) {
-                        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_YEV_LOOP,
-                            "msg",          "%s", "YEV_TIMER_TYPE failed",
-                            "fd",           "%d", yev_event->fd,
-                            "p",            "%p", yev_event,
-                            "flag",         "%j", jn_flags,
-                            "res",          "%d", cqe->res,
-                            "sres",         "%s", strerror(-cqe->res),
-                            NULL
-                        );
-                        json_decref(jn_flags);
-                    }
-                }
-
                 yev_event->result = cqe->res;
                 if(yev_event->callback) {
                     yev_event->callback(
@@ -518,7 +499,7 @@ PUBLIC int yev_start_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-                    (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+                    (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -815,7 +796,7 @@ PUBLIC int yev_start_timer_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -874,7 +855,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -957,7 +938,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1135,7 +1116,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1411,7 +1392,7 @@ PUBLIC int yev_setup_connect_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1453,7 +1434,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1700,7 +1681,7 @@ PUBLIC int yev_setup_accept_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1743,7 +1724,7 @@ PUBLIC yev_event_t *yev_create_read_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
@@ -1786,7 +1767,7 @@ PUBLIC yev_event_t *yev_create_write_event(
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             if((yev_type_t)yev_event->type == YEV_TIMER_TYPE &&
-               (gobj_trace_no_level(gobj) & (TRACE_PERIODIC_TIMER|TRACE_TIMER))
+               (gobj_trace_no_level(gobj) & (TRACE_TIMER))
                 ) {
                 break;
             }
