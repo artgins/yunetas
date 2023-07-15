@@ -133,35 +133,6 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
-{
-    if(!yev_loop->stopping) {
-        yev_loop->stopping = TRUE;
-        hgobj gobj = yev_loop->yuno;
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "yev_loop_stop",
-                "msg2",         "%s", "💥🟥🟥🟥🟥 yev_loop_stop",
-                NULL
-            );
-        }
-
-        struct io_uring_sqe *sqe;
-        sqe = io_uring_get_sqe(&yev_loop->ring);
-        io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
-        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
-        io_uring_submit(&yev_loop->ring);
-        yev_loop->running = FALSE;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 {
     struct io_uring_cqe *cqe;
@@ -219,6 +190,49 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
             NULL
         );
     }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
+{
+    struct io_uring_cqe *cqe;
+
+    cqe = 0;
+    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+        process_cqe(yev_loop, cqe);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
+{
+    if(!yev_loop->stopping) {
+        yev_loop->stopping = TRUE;
+        hgobj gobj = yev_loop->yuno;
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "yev_loop_stop",
+                "msg2",         "%s", "💥🟥🟥🟥🟥 yev_loop_stop",
+                NULL
+            );
+        }
+
+        struct io_uring_sqe *sqe;
+        sqe = io_uring_get_sqe(&yev_loop->ring);
+        io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
+        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
+        io_uring_submit(&yev_loop->ring);
+        yev_loop->running = FALSE;
+    }
+
     return 0;
 }
 
@@ -768,6 +782,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event NOT in RING",
+            "type",         "%s", yev_event_type_name(yev_event),
             "p",            "%p", yev_event,
             NULL
         );

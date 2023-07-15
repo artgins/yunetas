@@ -123,26 +123,11 @@ int do_test(void)
      *--------------------------------*/
     t = start_msectimer(1000);
     yev_loop_run(yev_loop);
+    yev_loop_run_once(yev_loop);
 
     /*--------------------------------*
      *      Stop
      *--------------------------------*/
-    yev_stop_event(yev_client_connect);
-    yev_stop_event(yev_client_rx);
-    yev_stop_event(yev_client_tx);
-
-    yev_destroy_event(yev_client_connect);
-    yev_destroy_event(yev_client_rx);
-    yev_destroy_event(yev_client_tx);
-
-    yev_stop_event(yev_server_accept);
-    yev_stop_event(yev_server_rx);
-    yev_stop_event(yev_server_tx);
-
-    yev_destroy_event(yev_server_accept);
-    yev_destroy_event(yev_server_rx);
-    yev_destroy_event(yev_server_tx);
-
     yev_loop_destroy(yev_loop);
 
     return 0;
@@ -154,12 +139,22 @@ int do_test(void)
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(dump) {
-        gobj_trace_msg(
-            gobj, "yev server callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "💥 yev server callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            NULL
         );
+        json_decref(jn_flags);
     }
 
     switch(yev_event->type) {
@@ -317,12 +312,22 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_FLAG_STOPPED)?TRUE:FALSE;
 
     if(dump) {
-        gobj_trace_msg(
-            gobj, "yev client callback %s%s", yev_event_type_name(yev_event), stopped ? ", STOPPED" : ""
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "💥 yev client callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            NULL
         );
+        json_decref(jn_flags);
     }
 
     if(!yev_event->yev_loop->running) {

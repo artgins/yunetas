@@ -20,7 +20,7 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-int wait_time = 1;
+int wait_time = 2;
 int times = 0;
 
 /***************************************************************************
@@ -68,7 +68,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         yev_start_timer_event(yev_event, wait_time*1000, FALSE);
     } else {
         gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, STOPPING", wait_time, times);
-        yev_stop_event(yev_event);
+        yev_loop_stop(yev_loop);
     }
     return 0;
 }
