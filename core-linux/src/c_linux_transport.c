@@ -331,19 +331,24 @@ PRIVATE void set_connected(hgobj gobj, int fd)
      *  Ready to receive
      */
     if(!priv->yev_client_rx) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
             yev_transport_callback,
             gobj,
             fd
         );
-        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
     }
 
     if(priv->yev_client_rx) {
         yev_set_fd(priv->yev_client_rx, fd);
     }
+    if(!priv->yev_client_rx->gbuf) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
+    } else {
+        gbuffer_clear(priv->yev_client_rx->gbuf);
+    }
+
     yev_start_event(priv->yev_client_rx);
 
     priv->inform_disconnection = TRUE;
@@ -470,6 +475,8 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_READ_TYPE:
             {
                 if(!stopped) {
+                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+
                     if(yev_event->result < 0) {
                         /*
                          *  Disconnected
@@ -491,29 +498,29 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                             }
                         }
                         set_disconnected(gobj, strerror(-yev_event->result));
-                        break;
-                    }
 
-                    if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
-                            gobj_short_name(gobj),
-                            gobj_read_str_attr(gobj, "sockname"),
-                            " <- ",
-                            gobj_read_str_attr(gobj, "peername")
+                    } else {
+                        if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
+                            gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                                gobj_short_name(gobj),
+                                gobj_read_str_attr(gobj, "sockname"),
+                                " <- ",
+                                gobj_read_str_attr(gobj, "peername")
+                            );
+                        }
+                        GBUFFER_INCREF(yev_event->gbuf)
+                        json_t *kw = json_pack("{s:I}",
+                            "gbuffer", (json_int_t)(size_t)yev_event->gbuf
                         );
-                    }
-                    GBUFFER_INCREF(yev_event->gbuf)
-                    json_t *kw = json_pack("{s:I}",
-                        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-                    );
-                    gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        gobj_publish_event(gobj, EV_RX_DATA, kw);
 
-                    /*
-                     *  Clear buffer
-                     *  Re-arm read
-                     */
-                    gbuffer_clear(yev_event->gbuf);
-                    yev_start_event(yev_event);
+                        /*
+                         *  Clear buffer
+                         *  Re-arm read
+                         */
+                        gbuffer_clear(yev_event->gbuf);
+                        yev_start_event(yev_event);
+                    }
                 }
             }
             break;
@@ -521,6 +528,8 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_WRITE_TYPE:
             {
                 if(!stopped) {
+                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+
                     if(yev_event->result < 0) {
                         /*
                          *  Disconnected
@@ -541,18 +550,18 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                                 );
                             }
                         }
-                        yev_stop_event(yev_event);
                         set_disconnected(gobj, strerror(-yev_event->result));
-                        break;
-                    }
 
-                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                    yev_stop_event(yev_event);
-                    if(yev_event->flag & YEV_WANT_TX_READY) {
-                        json_t *kw_tx_ready = json_object();
-                        json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                    } else {
+                        json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                        if(yev_event->flag & YEV_WANT_TX_READY) {
+                            json_t *kw_tx_ready = json_object();
+                            json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                        }
                     }
+                    yev_destroy_event(yev_event);
+
                 } else {
                     yev_destroy_event(yev_event);
                 }
@@ -562,6 +571,8 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
         case YEV_CONNECT_TYPE:
             {
                 if(!stopped) {
+                    yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
+
                     if(yev_event->result < 0) {
                         /*
                          *  Error on connection
@@ -581,13 +592,9 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                             }
                         }
                         set_disconnected(gobj, strerror(-yev_event->result));
-                        break;
+                    } else {
+                        set_connected(gobj, yev_event->fd);
                     }
-                    set_connected(gobj, yev_event->fd);
-
-                } else {
-                    // Stopped, from EV_DROP, TODO falta probar
-                    set_disconnected(gobj, "stopped");
                 }
             }
             break;

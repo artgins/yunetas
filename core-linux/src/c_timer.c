@@ -140,7 +140,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE int yev_timer_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
-    BOOL stopped = (yev_event->flag & YEV_STOPPED_FLAG)?TRUE:FALSE;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
@@ -167,17 +166,19 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         json_decref(jn_flags);
     }
 
-    if(yev_event->result > 0) {
-        if(priv->periodic) {
-            gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
-        } else {
-            gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
-        }
-    } else {
-        gobj_write_integer_attr(gobj, "msec", -1);
+    if(!stopped) {
+        yev_set_flag(yev_event, YEV_STOPPED_FLAG, TRUE);
 
-        if(stopped &&
-                (yev_event->result == -ECANCELED || yev_event->result == -ENOENT || yev_event->result == 0)) {
+        if(yev_event->result > 0) {
+            if(priv->periodic) {
+                gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
+            } else {
+                gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
+            }
+        }
+    }
+
+        if(stopped && (yev_event->result == -ECANCELED || yev_event->result == 0)) {
             ; // these are valid found cases
         } else {
             json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
@@ -197,7 +198,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             );
             json_decref(jn_flags);
         }
-    }
+
     return 0;
 }
 
