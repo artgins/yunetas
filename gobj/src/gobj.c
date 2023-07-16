@@ -4074,25 +4074,26 @@ PUBLIC int gobj_send_event(
         }
 
         if(tracea) {
-            trace_machine("📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR EVENT NOT DEFINED📛📛, from(%s%s^%s)",
-                        (!dst->running)?"!!":"",
+            trace_machine(
+                "📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR Event NOT DEFINED in state📛📛, from(%s%s^%s)",
+                (!dst->running)?"!!":"",
                 gobj_gclass_name(dst), gobj_name(dst),
                 state->state_name,
                 event?event:"",
                 (src && !src->running)?"!!":"",
                 gobj_gclass_name(src), gobj_name(src)
             );
-        } else {
-            gobj_log_error(dst, 0,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Event NOT DEFINED in state",
-                "gclass_name",  "%s", dst->gclass->gclass_name,
-                "state_name",   "%s", state->state_name,
-                "event",        "%s", event,
-                "src",          "%s", gobj_short_name(src),
-                NULL
-            );
         }
+        gobj_log_error(dst, LOG_OPT_TRACE_STACK,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Event NOT DEFINED in state",
+            "msg2",          "%s", "📛📛 Event NOT DEFINED in state 📛📛",
+            "gclass_name",  "%s", dst->gclass->gclass_name,
+            "state_name",   "%s", state->state_name,
+            "event",        "%s", event,
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
 
         __inside__ --;
 

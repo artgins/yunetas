@@ -98,7 +98,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->yev_event) {
+    if(yev_event_in_ring(priv->yev_event) && !yev_event_cancelling(priv->yev_event)) {
         yev_stop_event(priv->yev_event);
     }
     return 0;
@@ -424,5 +424,7 @@ PUBLIC void clear_timeout(hgobj gobj)
         json_decref(jn_flags);
     }
 
-    yev_stop_event(priv->yev_event);
+    if(yev_event_in_ring(priv->yev_event)) {
+        yev_stop_event(priv->yev_event);
+    }
 }
