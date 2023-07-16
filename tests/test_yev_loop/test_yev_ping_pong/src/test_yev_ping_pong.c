@@ -16,6 +16,7 @@
  *              Constants
  ***************************************************************/
 BOOL dump = FALSE;
+int time2exit = 10;
 
 const char *server_url = "tcp://localhost:2222";
 //const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does
@@ -118,18 +119,34 @@ int do_test(void)
 
     yev_start_event(yev_client_connect);
 
-    printf("\n----------------> Quit in 10 seconds <-----------------\n\n");
+    printf("\n----------------> Quit in %d seconds <-----------------\n\n", time2exit);
 
     /*--------------------------------*
      *      Begin run loop
      *--------------------------------*/
     t = start_msectimer(1000);
     yev_loop_run(yev_loop);
-    yev_loop_run_once(yev_loop);
 
     /*--------------------------------*
      *      Stop
      *--------------------------------*/
+    yev_stop_event(yev_server_tx);
+    yev_stop_event(yev_server_rx);
+    yev_stop_event(yev_client_tx);
+    yev_stop_event(yev_client_rx);
+    yev_stop_event(yev_server_accept);
+    yev_stop_event(yev_client_connect);
+
+    yev_loop_run_once(yev_loop);
+
+    yev_destroy_event(yev_server_tx);
+    yev_destroy_event(yev_server_rx);
+    yev_destroy_event(yev_client_tx);
+    yev_destroy_event(yev_client_rx);
+    yev_destroy_event(yev_server_accept);
+    yev_destroy_event(yev_client_connect);
+
+    yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
     return 0;
@@ -157,6 +174,10 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             NULL
         );
         json_decref(jn_flags);
+    }
+
+    if(!yev_loop->running) {
+        return 0;
     }
 
     switch(yev_event->type) {
@@ -568,5 +589,5 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
 
-    alarm(10);
+    alarm(time2exit);
 }

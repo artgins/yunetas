@@ -777,18 +777,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
         } while(0);
     }
 
-    if(!(yev_event->flag & (YEV_FLAG_IN_RING))) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event NOT in RING",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "p",            "%p", yev_event,
-            NULL
-        );
-        return -1;
-    }
-
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
@@ -805,6 +793,30 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             break;
         case YEV_TIMER_TYPE:
             break;
+    }
+
+    if(!(yev_event->flag & (YEV_FLAG_IN_RING))) {
+        return 0;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        do {
+            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "Cancel event",
+                "msg2",         "%s", (yev_type_t)yev_event->type == YEV_TIMER_TYPE?
+                                        "💥🟥🟥⏰⏰ Cancel event":
+                                        "💥🟥🟥 Cancel event",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
+                "p",            "%p", yev_event,
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        } while(0);
     }
 
     sqe = io_uring_get_sqe(&yev_loop->ring);
