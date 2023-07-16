@@ -167,7 +167,12 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
     } else {
-        if(yev_event->result !=0 && yev_event->result != -ECANCELED) {
+        if(yev_event->result ==0 ||
+                yev_event->result == -ECANCELED ||
+                (yev_event->result == -ENOENT && !yev_event->yev_loop->running)
+        ) {
+            // Cases seen valids
+        } else {
             json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,

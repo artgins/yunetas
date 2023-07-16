@@ -173,6 +173,11 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         );
     }
 
+    cqe = 0;
+    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+        process_cqe(yev_loop, cqe);
+    }
+
     if(!yev_loop->stopping) {
         yev_loop_stop(yev_loop);
     }
@@ -253,12 +258,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            if((yev_type_t)yev_event->type == YEV_TIMER_TYPE) {
-                uint32_t no_level = gobj_trace_no_level(gobj);
-                if(no_level & (TRACE_PERIODIC_TIMER)) {
-                    break;
-                }
-            }
             json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -266,6 +265,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "process_cqe",
                 "msg2",         "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "loop_running", "%d", yev_loop->running?1:0,
+                "loop_stopping","%d", yev_loop->stopping?1:0,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
@@ -278,7 +279,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
     yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);
-    if(yev_event_cancelling(yev_event)) {
+    if(cqe->res == -ECANCELED && yev_event_cancelling(yev_event)) {
         yev_set_flag(yev_event, YEV_FLAG_CANCELLING, FALSE);
     }
 
@@ -725,6 +726,12 @@ PUBLIC int yev_start_timer_event(
         return 0;
     }
 
+    if(periodic) {
+        yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
+    } else {
+        yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
+    }
+
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
@@ -766,12 +773,6 @@ PUBLIC int yev_start_timer_event(
 
     };
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
-
-    if(periodic) {
-        yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
-    } else {
-        yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
-    }
 
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
