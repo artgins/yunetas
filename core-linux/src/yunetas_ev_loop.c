@@ -830,7 +830,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_sqe_set_data(sqe, yev_event);
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);   // HACK once in cancel it let more submits?
+    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
 
     return 0;
 }

@@ -109,9 +109,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
         }
         if(times_periodic == 4) {
-            gobj_trace_msg(0, "cancel and re-start time-periodic %d seconds", 1);
+            gobj_trace_msg(0, "return no-realm and re-start time-periodic %d seconds", 1);
             yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
-            return -1; // On return -1 the timer will be not rearm
+            return -1; // On return -1 the timer will be not rearmed
         }
         if(times_once > 5) {
             printf("got timer-periodic, STOP timer ONCE\n");
