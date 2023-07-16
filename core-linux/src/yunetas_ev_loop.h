@@ -127,6 +127,16 @@ static inline void yev_set_flag(
     }
 }
 
+static inline BOOL yev_event_in_ring(
+    yev_event_t *yev_event
+){
+    if(yev_event->flag & YEV_FLAG_IN_RING) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
 PUBLIC int yev_start_event(
     yev_event_t *yev_event
 );

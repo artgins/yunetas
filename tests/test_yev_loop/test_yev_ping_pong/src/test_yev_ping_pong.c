@@ -533,6 +533,8 @@ int main(int argc, char *argv[])
 
     printf(Cursor_Down "\n", 4);
 
+    gobj_end();
+
     return gobj_get_exit_code();
 }
 

@@ -20,7 +20,9 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-int wait_time = 2;
+yev_event_t *yev_event_once;
+yev_event_t *yev_event_periodic;
+int wait_time = 1;
 int times = 0;
 
 /***************************************************************************
@@ -40,15 +42,23 @@ int do_test(void)
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
-    yev_event_t *yev_event = yev_create_timer_event(yev_loop, yev_callback, NULL);
+    yev_event_once = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
-    gobj_trace_msg(0, "yev_start_timer_event %d seconds", wait_time);
-    yev_start_timer_event(yev_event, wait_time*1000, FALSE);
+    yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback, NULL);
+
+    gobj_trace_msg(0, "start time-once %d seconds", wait_time);
+    yev_start_timer_event(yev_event_once, wait_time*1000, FALSE);
+
+    gobj_trace_msg(0, "start time-periodic %d seconds", 1);
+    yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
 
     yev_loop_run(yev_loop);
-    gobj_trace_msg(0, "Quiting of yev_loop_run()");
+    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
-    yev_destroy_event(yev_event);
+    yev_loop_run_once(yev_loop);
+
+    yev_destroy_event(yev_event_once);
+    yev_destroy_event(yev_event_periodic);
     yev_loop_destroy(yev_loop);
 
     return 0;
@@ -60,15 +70,26 @@ int do_test(void)
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    hgobj gobj = yev_event->gobj;
-    times++;
+    if(yev_event->result < 0) {
+        // cancel timer-once and stop loop, next cancels ignored
+        if(yev_loop->running) {
+            yev_stop_event(yev_event_periodic);
+            yev_loop_stop(yev_loop);
+        }
+        return 0;
+    }
 
-    if(times < 3) {
-        gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time", wait_time, times);
-        yev_start_timer_event(yev_event, wait_time*1000, FALSE);
+    if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
+        if(times > 2) {
+            printf("got timer-periodic, stop timer once\n");
+            if(yev_event_in_ring(yev_event_once)) {
+                yev_stop_event(yev_event_once);
+            }
+        }
     } else {
-        gobj_trace_msg(gobj, "timer_event of %d seconds DONE %d time, STOPPING", wait_time, times);
-        yev_loop_stop(yev_loop);
+        times++;
+        printf("got timer-once %d, set in %d seconds\n", times, (int)wait_time*times);
+        yev_start_timer_event(yev_event, times*wait_time*1000, FALSE);
     }
     return 0;
 }
@@ -136,6 +157,8 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     do_test();
+
+    gobj_end();
 
     return gobj_get_exit_code();
 }

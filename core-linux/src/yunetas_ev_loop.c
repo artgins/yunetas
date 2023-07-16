@@ -36,12 +36,12 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  *              Data
  ***************************************************************/
 PRIVATE const char *yev_flag_s[] = {
-    "YEV_FLAG_STOPPING",
-    "YEV_FLAG_STOPPED",
+    "YEV_FLAG_IN_RING",
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_SSL",
     "YEV_FLAG_IS_TCP",
     "YEV_FLAG_CONNECTED",
+    "YEV_FLAG_WANT_TX_READY",
     0
 };
 
@@ -841,13 +841,20 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     }
 
     if(yev_event->flag & (YEV_FLAG_IN_RING)) {
+        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "event not stopped",
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev_event ALREADY in RING",
+            "msg2",         "%s", "💥🟥 yev_event ALREADY in RING",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
             NULL
         );
+        json_decref(jn_flags);
+
         yev_event->callback = NULL;
         yev_stop_event(yev_event);
     }
