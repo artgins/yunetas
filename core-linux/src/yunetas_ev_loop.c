@@ -352,14 +352,16 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         set_tcp_socket_options(yev_event->result);
                     }
                 }
+
+                int ret = 0;
                 if(yev_event->callback) {
-                    yev_event->callback(
+                    ret = yev_event->callback(
                         yev_event
                     );
                 }
 
-                if(yev_loop->running) {
-                    if (cqe->res > 0) {
+                if(ret == 0 && yev_loop->running && cqe->res > 0) {
+                    if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
                          *  Rearm accept event
                          */
@@ -406,14 +408,15 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  *  Call callback
                  */
                 yev_event->result = cqe->res;
+                int ret = 0;
                 if(yev_event->callback) {
-                    yev_event->callback(
+                    ret = yev_event->callback(
                         yev_event
                     );
                 }
 
-                if(yev_loop->running) {
-                    if(cqe->res > 0 && (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
+                if(ret == 0 && yev_loop->running && cqe->res > 0 && (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
+                    if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
                          *  Rearm periodic timer event
                          */
@@ -827,7 +830,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_sqe_set_data(sqe, yev_event);
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);
+    yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);   // HACK once in cancel it let more submits?
 
     return 0;
 }

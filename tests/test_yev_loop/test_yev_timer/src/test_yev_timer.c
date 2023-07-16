@@ -94,7 +94,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         }
         // cancel timer-once and stop loop, next cancels ignored
         if(yev_loop->running) {
-            if(yev_event->result == -ECANCELED) {
+            if(!(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) && yev_event->result == -ECANCELED) {
                 yev_stop_event(yev_event_periodic);
                 yev_loop_stop(yev_loop);
             }
@@ -105,10 +105,15 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
         times_periodic++;
         if(times_periodic == 2) {
-            gobj_trace_msg(0, "re-start time-periodic %d seconds", 1);
+            gobj_trace_msg(0, "re-start time-periodic %d seconds, will provoke -11 error", 1);
             yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
         }
-        if(times_once > 3) {
+        if(times_periodic == 4) {
+            gobj_trace_msg(0, "cancel and re-start time-periodic %d seconds", 1);
+            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
+            return -1; // On return -1 the timer will be not rearm
+        }
+        if(times_once > 5) {
             printf("got timer-periodic, STOP timer ONCE\n");
             if(yev_event_in_ring(yev_event_once)) {
                 yev_stop_event(yev_event_once);
