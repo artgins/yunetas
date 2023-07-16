@@ -34,12 +34,11 @@ typedef enum  {
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_IN_RING            = 0x01,
-    YEV_FLAG_CANCELLING         = 0x02,
-    YEV_FLAG_TIMER_PERIODIC     = 0x04,
-    YEV_FLAG_USE_SSL            = 0x08,
-    YEV_FLAG_IS_TCP             = 0x10,
-    YEV_FLAG_CONNECTED          = 0x20,     // user
-    YEV_FLAG_WANT_TX_READY      = 0x40,     // user
+    YEV_FLAG_TIMER_PERIODIC     = 0x02,
+    YEV_FLAG_USE_SSL            = 0x04,
+    YEV_FLAG_IS_TCP             = 0x08,
+    YEV_FLAG_CONNECTED          = 0x10,     // user
+    YEV_FLAG_WANT_TX_READY      = 0x20,     // user
 } yev_flag_t;
 
 /***************************************************************
@@ -132,16 +131,6 @@ static inline BOOL yev_event_in_ring(
     yev_event_t *yev_event
 ){
     if(yev_event->flag & YEV_FLAG_IN_RING) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-static inline BOOL yev_event_cancelling(
-    yev_event_t *yev_event
-){
-    if(yev_event->flag & YEV_FLAG_CANCELLING) {
         return TRUE;
     } else {
         return FALSE;
