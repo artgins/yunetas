@@ -647,7 +647,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
-    set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
+//    set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
     gobj_change_state(gobj, ST_WAIT_CONNECTED);
     yev_start_event(priv->yev_client_connect);
 
@@ -660,13 +660,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    set_disconnected(gobj, "timeout connection");
-    set_timeout(
-        priv->gobj_timer,
-        gobj_read_integer_attr(gobj, "timeout_between_connections")
-    );
+    set_disconnected(gobj, "timeout connection");  // this set timeout
 
     JSON_DECREF(kw);
     return 0;
