@@ -99,9 +99,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->yev_event) {
-        if(priv->yev_event->flag & (YEV_FLAG_IN_RING)) {
-            yev_stop_event(priv->yev_event);
-        }
+        yev_stop_event(priv->yev_event);
     }
     return 0;
 }
@@ -169,17 +167,23 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
     } else {
-        //if(yev_event->result !=0 && yev_event->result != -ECANCELED) {
-        if(yev_event->result != -ECANCELED) {
-            gobj_log_error(gobj, 0,
+        if(yev_event->result !=0 && yev_event->result != -ECANCELED) {
+            json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "timer FAILED",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
                 "errno",        "%d", -yev_event->result,
                 "strerror",     "%s", strerror(-yev_event->result),
                 "p",            "%p", yev_event,
+                "flag",         "%j", jn_flags,
+                "periodic",     "%d", priv->periodic?1:0,
+                "msec",         "%ld", (long)priv->msec,
                 NULL
             );
+            json_decref(jn_flags);
         }
     }
 
@@ -414,13 +418,11 @@ PUBLIC void clear_timeout(hgobj gobj)
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
             "msec",         "%ld", (long)priv->msec,
-            "exec stop ev", "%s", (priv->yev_event->flag & (YEV_FLAG_IN_RING))? "Yes":"No",
+            "exec stop ev", "%s", yev_event_in_ring(priv->yev_event)? "Yes":"No",
             NULL
         );
         json_decref(jn_flags);
     }
 
-    if(priv->yev_event->flag & (YEV_FLAG_IN_RING)) {
-        yev_stop_event(priv->yev_event);
-    }
+    yev_stop_event(priv->yev_event);
 }

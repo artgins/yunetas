@@ -358,22 +358,24 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(cqe->res > 0) {
-                    /*
-                     *  Rearm accept event
-                     */
-                    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                    io_uring_sqe_set_data(sqe, yev_event);
-                    yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-                    io_uring_prep_accept(
-                        sqe,
-                        yev_event->fd,
-                        yev_event->src_addr,
-                        &yev_event->src_addrlen,
-                        0
-                    );
-                    io_uring_submit(&yev_loop->ring);
-                    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                if(yev_loop->running) {
+                    if (cqe->res > 0) {
+                        /*
+                         *  Rearm accept event
+                         */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        yev_event->src_addrlen = sizeof(*yev_event->src_addr);
+                        io_uring_prep_accept(
+                            sqe,
+                            yev_event->fd,
+                            yev_event->src_addr,
+                            &yev_event->src_addrlen,
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                    }
                 }
             }
             break;
@@ -410,21 +412,23 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(cqe->res > 0 && (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
-                    /*
-                     *  Rearm periodic timer event
-                     */
-                    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                    io_uring_sqe_set_data(sqe, yev_event);
-                    io_uring_prep_read(
-                        sqe,
-                        yev_event->fd,
-                        &yev_event->timer_bf,
-                        sizeof(yev_event->timer_bf),
-                        0
-                    );
-                    io_uring_submit(&yev_loop->ring);
-                    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                if(yev_loop->running) {
+                    if(cqe->res > 0 && (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
+                        /*
+                         *  Rearm periodic timer event
+                         */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        io_uring_prep_read(
+                            sqe,
+                            yev_event->fd,
+                            &yev_event->timer_bf,
+                            sizeof(yev_event->timer_bf),
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                    }
                 }
             }
             break;
@@ -465,7 +469,7 @@ PUBLIC int yev_start_event(
         } while(0);
     }
 
-    if(yev_event->flag & (YEV_FLAG_IN_RING)) {
+    if(yev_event_in_ring(yev_event)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -709,7 +713,7 @@ PUBLIC int yev_start_timer_event(
         } while(0);
     }
 
-    if(yev_event->flag & (YEV_FLAG_IN_RING)) {
+    if(yev_event_in_ring(yev_event)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -795,7 +799,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             break;
     }
 
-    if(!(yev_event->flag & (YEV_FLAG_IN_RING))) {
+    if(!(yev_event_in_ring(yev_event))) {
         return 0;
     }
 
@@ -823,6 +827,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_sqe_set_data(sqe, yev_event);
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
+    yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);
 
     return 0;
 }
@@ -852,7 +857,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         } while(0);
     }
 
-    if(yev_event->flag & (YEV_FLAG_IN_RING)) {
+    if(yev_event_in_ring(yev_event)) {
         json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

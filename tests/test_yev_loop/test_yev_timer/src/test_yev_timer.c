@@ -23,7 +23,8 @@ yev_loop_t *yev_loop;
 yev_event_t *yev_event_once;
 yev_event_t *yev_event_periodic;
 int wait_time = 1;
-int times = 0;
+int times_once = 0;
+int times_periodic = 0;
 
 /***************************************************************************
  *              Test
@@ -71,25 +72,52 @@ int do_test(void)
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     if(yev_event->result < 0) {
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "timeout got",
+            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
+            NULL
+        );
+        json_decref(jn_flags);
+
+        if(yev_event->result == -EAGAIN) {
+            return 0;
+        }
         // cancel timer-once and stop loop, next cancels ignored
         if(yev_loop->running) {
-            yev_stop_event(yev_event_periodic);
-            yev_loop_stop(yev_loop);
+            if(yev_event->result == -ECANCELED) {
+                yev_stop_event(yev_event_periodic);
+                yev_loop_stop(yev_loop);
+            }
         }
         return 0;
     }
 
     if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
-        if(times > 2) {
-            printf("got timer-periodic, stop timer once\n");
+        times_periodic++;
+        if(times_periodic == 2) {
+            gobj_trace_msg(0, "re-start time-periodic %d seconds", 1);
+            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
+        }
+        if(times_once > 3) {
+            printf("got timer-periodic, STOP timer ONCE\n");
             if(yev_event_in_ring(yev_event_once)) {
                 yev_stop_event(yev_event_once);
             }
         }
     } else {
-        times++;
-        printf("got timer-once %d, set in %d seconds\n", times, (int)wait_time*times);
-        yev_start_timer_event(yev_event, times*wait_time*1000, FALSE);
+        times_once++;
+        printf("got timer-once %d, set in %d seconds\n", times_once, (int)wait_time*times_once);
+        yev_start_timer_event(yev_event, times_once*wait_time*1000, FALSE);
     }
     return 0;
 }
@@ -168,10 +196,10 @@ int main(int argc, char *argv[])
  ***************************************************************************/
 PRIVATE void quit_sighandler(int sig)
 {
-    static int times = 0;
-    times++;
+    static int times_once = 0;
+    times_once++;
     yev_loop->running = 0;
-    if(times > 1) {
+    if(times_once > 1) {
         exit(-1);
     }
 }

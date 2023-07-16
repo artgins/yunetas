@@ -241,16 +241,16 @@ PRIVATE int mt_stop(hgobj gobj)
     BOOL change_to_wait_stopped = FALSE;
 
     if(priv->yev_client_rx) {
-        if(priv->yev_client_rx->flag & (YEV_FLAG_IN_RING)) {
+        if(yev_event_in_ring(priv->yev_client_rx)) {
             change_to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_rx);
         }
+        yev_stop_event(priv->yev_client_rx);
     }
     if(priv->yev_client_connect) {
-        if(priv->yev_client_connect->flag & (YEV_FLAG_IN_RING)) {
+        if(yev_event_in_ring(priv->yev_client_connect)) {
             change_to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_connect);
         }
+        yev_stop_event(priv->yev_client_connect);
     }
 
     if(change_to_wait_stopped) {
@@ -389,7 +389,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         );
     }
 
-    clear_timeout(priv->gobj_timer);
     if(gobj_is_running(gobj)) {
         gobj_change_state(gobj, ST_DISCONNECTED);
     }
@@ -415,15 +414,11 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 
     if(priv->yev_client_rx) {
         yev_set_fd(priv->yev_client_rx, -1);
-        if(priv->yev_client_rx->flag & (YEV_FLAG_IN_RING)) {
-            yev_stop_event(priv->yev_client_rx);
-        }
+        yev_stop_event(priv->yev_client_rx);
     }
 
     if(priv->yev_client_connect) {
-        if (priv->yev_client_connect->flag & (YEV_FLAG_IN_RING)) {
-            yev_stop_event(priv->yev_client_connect);
-        }
+        yev_stop_event(priv->yev_client_connect);
     }
 
     if(gobj_read_bool_attr(gobj, "__clisrv__")) {
