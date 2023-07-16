@@ -595,7 +595,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
             break;
     }
 
-    return 0;
+    return gobj_is_running(gobj)?0:-1;
 }
 
 

@@ -187,7 +187,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         }
     }
 
-    return 0;
+    return gobj_is_running(gobj)?0:-1;
 }
 
 
