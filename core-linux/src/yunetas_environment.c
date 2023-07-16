@@ -104,7 +104,7 @@ PUBLIC char *yuneta_realm_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain);
+    build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain, NULL);
 
     if(create) {
         if(access(bf, 0)!=0) {
@@ -134,7 +134,7 @@ PUBLIC char *yuneta_realm_file(
         return 0;
     }
 
-    build_path(bf, bfsize, realm_path, filename);
+    build_path(bf, bfsize, realm_path, filename, NULL);
 
     return bf;
 }
@@ -162,7 +162,7 @@ PUBLIC char *yuneta_log_file(
         return 0;
     }
 
-    build_path(bf, bfsize, log_path, filename);
+    build_path(bf, bfsize, log_path, filename, NULL);
 
     return bf;
 }
@@ -190,7 +190,7 @@ PUBLIC char *yuneta_bin_file(
         return 0;
     }
 
-    build_path(bf, bfsize, log_path, filename);
+    build_path(bf, bfsize, log_path, filename, NULL);
 
     return bf;
 }
@@ -211,7 +211,7 @@ PUBLIC char *yuneta_store_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir);
+    build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir, NULL);
 
     if(create) {
         if(access(bf, 0)!=0) {
@@ -242,7 +242,7 @@ PUBLIC char *yuneta_store_file(
         return 0;
     }
 
-    build_path(bf, bfsize, store_path, filename);
+    build_path(bf, bfsize, store_path, filename, NULL);
 
     return bf;
 }
@@ -265,7 +265,7 @@ PUBLIC char *yuneta_realm_store_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, dir);
+    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, dir, NULL);
 
     if(create) {
         if(access(bf, 0)!=0) {

@@ -118,6 +118,8 @@ int do_test(void)
 
     yev_start_event(yev_client_connect);
 
+    printf("\n----------------> Quit in 10 seconds <-----------------\n\n");
+
     /*--------------------------------*
      *      Begin run loop
      *--------------------------------*/
@@ -565,4 +567,6 @@ PUBLIC void yuno_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    alarm(10);
 }

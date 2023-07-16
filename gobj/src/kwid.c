@@ -66,7 +66,7 @@ PUBLIC json_t *load_json_from_file(
      *  Full path
      */
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(access(full_path, 0)!=0) {
         return 0;

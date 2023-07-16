@@ -193,7 +193,7 @@ PUBLIC BOOL is_directory(const char *path)
 PUBLIC BOOL file_exists(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(is_regular_file(full_path)) {
         return TRUE;
@@ -208,7 +208,7 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename)
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, subdir);
+    build_path(full_path, sizeof(full_path), directory, subdir, NULL);
 
     if(is_directory(full_path)) {
         return TRUE;
@@ -223,7 +223,7 @@ PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 PUBLIC int file_remove(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(!is_regular_file(full_path)) {
         return -1;
