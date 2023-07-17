@@ -166,7 +166,7 @@ PRIVATE int mt_start(hgobj gobj)
         .source_clk = UART_SCLK_DEFAULT,
     };
 
-    int intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+    int intr_alloc_flags = 0; // ESP_INTR_FLAG_IRAM;
 
     uart_driver_delete(uart_number);
 
@@ -629,6 +629,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TX_DATA,        0},
         {EV_RX_DATA,        EVF_OUTPUT_EVENT},
+        {EV_CONNECTED,      EVF_OUTPUT_EVENT},
+        {EV_DISCONNECTED,   EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

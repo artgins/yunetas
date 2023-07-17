@@ -499,8 +499,8 @@ PRIVATE void rx_task(void *pv)
             case TASK_TRANSPORT_DISCONNECTED:
                 err = esp_transport_connect(
                     priv->transport,
-                    priv->host,
-                    atoi(priv->port),
+                    gobj_read_str_attr(gobj, "host"),
+                    atoi(gobj_read_str_attr(gobj, "port")),
                     (int)gobj_read_integer_attr(gobj, "timeout_waiting_connected")
                 );
                 if(err < 0) {
