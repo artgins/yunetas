@@ -9,14 +9,7 @@ project(yunos C)
 #   Source
 ##############################################
 add_subdirectory(test_frigo)
-
-#add_subdirectory(watchfs)
-#add_subdirectory(emailsender)
-#add_subdirectory(logcenter)
-#add_subdirectory(emu_device)
-#add_subdirectory(controlcenter)
-#add_subdirectory(sgateway)
-#add_subdirectory(dba_postgres)
+add_subdirectory(test_esteriliz)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #

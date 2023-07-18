@@ -629,6 +629,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TX_DATA,        0},
         {EV_RX_DATA,        EVF_OUTPUT_EVENT},
+        {EV_CONNECTED,      EVF_OUTPUT_EVENT},
+        {EV_DISCONNECTED,   EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

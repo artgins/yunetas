@@ -46,7 +46,6 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server 
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
-SDATA (DTP_BOOLEAN, "character_device", SDF_RD,         "false",    "Char device (Ex: tty://dev/ttyUSB2)"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
@@ -157,14 +156,12 @@ PRIVATE void mt_create(hgobj gobj)
 //        priv->transport = esp_transport_tcp_init();
     }
 
-    if(!gobj_read_bool_attr(gobj, "character_device")) {
-        if (!gobj_read_bool_attr(gobj, "__clisrv__")) {
-            priv->yev_client_connect = yev_create_connect_event(
-                yuno_event_loop(),
-                yev_transport_callback,
-                gobj
-            );
-        }
+    if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+        priv->yev_client_connect = yev_create_connect_event(
+            yuno_event_loop(),
+            yev_transport_callback,
+            gobj
+        );
     }
 
     /*
@@ -214,15 +211,13 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_reset_volatil_attrs(gobj);
 
-    if(!gobj_read_bool_attr(gobj, "character_device")) {
-        if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
-            /*
-             * pure tcp client: try to connect
-             */
-            // HACK el start de tcp0 lo hace el timer
-            if(!gobj_read_bool_attr(gobj, "manual")) {
-                set_timeout(priv->gobj_timer, 100);
-            }
+    if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+        /*
+         * pure tcp client: try to connect
+         */
+        // HACK el start de tcp0 lo hace el timer
+        if(!gobj_read_bool_attr(gobj, "manual")) {
+            set_timeout(priv->gobj_timer, 100);
         }
     }
 
