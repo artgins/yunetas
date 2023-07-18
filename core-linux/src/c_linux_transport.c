@@ -638,8 +638,10 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
         NULL    // local bind
     );
 
-    // HACK firstly set timeout, EV_CONNECTED can be received inside gobj_start()
-//    set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
+    //  HACK cannot use timeout to connect,
+    //      it can't be clear instantly on connection (you must wait CANCEL)
+    //      it supposed that connect-event always return (with successful or error)
+    //set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
     gobj_change_state(gobj, ST_WAIT_CONNECTED);
     yev_start_event(priv->yev_client_connect);
 
