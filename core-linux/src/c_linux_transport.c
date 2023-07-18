@@ -654,7 +654,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    set_disconnected(gobj, "timeout connection");  // this set timeout
+    set_disconnected(gobj, "timeout connection");  // this re-set timeout
 
     JSON_DECREF(kw);
     return 0;
