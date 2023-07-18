@@ -591,6 +591,12 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+        if(gobj_is_running(gobj)) {
+            set_timeout(
+                priv->gobj_timer,
+                gobj_read_integer_attr(gobj, "timeout_between_connections")
+            );
+        }
         return;
     }
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
@@ -756,32 +762,6 @@ PRIVATE int yev_tty_callback(yev_event_t *yev_event)
             }
             break;
 
-        case YEV_CONNECT_TYPE:
-            {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Error on connection
-                     */
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        if(yev_event->result != -ECANCELED) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                                "msg",          "%s", "connect FAILED",
-                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
-                    }
-                    set_disconnected(gobj, strerror(-yev_event->result));
-                } else {
-                    set_connected(gobj, yev_event->fd);
-                }
-            }
-            break;
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,

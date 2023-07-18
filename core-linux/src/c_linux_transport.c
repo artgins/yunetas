@@ -373,6 +373,12 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+        if(gobj_is_running(gobj)) {
+            set_timeout(
+                priv->gobj_timer,
+                gobj_read_integer_attr(gobj, "timeout_between_connections")
+            );
+        }
         return;
     }
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
