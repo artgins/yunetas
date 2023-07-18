@@ -122,7 +122,7 @@ PRIVATE void mt_create(hgobj gobj)
     char host[120];
     char port[10];
 
-    parse_url(
+    if(parse_url(
         gobj,
         gobj_read_str_attr(gobj, "url"),
         schema, sizeof(schema),
@@ -131,7 +131,15 @@ PRIVATE void mt_create(hgobj gobj)
         0, 0,
         0, 0,
         FALSE
-    );
+    )<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Parsing url failed",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+    }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     }
