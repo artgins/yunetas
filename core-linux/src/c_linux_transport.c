@@ -830,7 +830,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // authz_table,
         0,  // command_table,
         s_user_trace_level,
-        gcflag_manual_start // gclass_flag
+        gcflag_manual_start // gclass_flag TODO is needed?
     );
     if(!gclass) {
         // Error already logged
