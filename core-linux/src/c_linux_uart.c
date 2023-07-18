@@ -1,21 +1,20 @@
 /****************************************************************************
  *          c_linux_uart.c
  *
- *          GClass Uart: work with uart
- *          Low level linux TODO no sé si hace falta todavia
+ *          GClass Uart: work with tty ports
+ *          Low level linux
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#ifdef ESP_PLATFORM
-  #include <esp_event.h>
-  #include <c_linux_yuno.h>
-  #include <driver/uart.h>
-  #include <driver/gpio.h>
-#endif
-#include <kwid.h>
+#include <unistd.h>
+#include <termios.h>
 #include <gbuffer.h>
+#include <c_timer.h>
+#include <c_linux_yuno.h>
+#include <kwid.h>
+#include "yunetas_ev_loop.h"
 #include "c_linux_uart.h"
 
 /***************************************************************
@@ -23,17 +22,20 @@
  ***************************************************************/
 
 /***************************************************************
+ *              Structures
+ ***************************************************************/
+typedef enum serial_parity {
+    PARITY_NONE,
+    PARITY_ODD,
+    PARITY_EVEN,
+} serial_parity_t;
+
+/***************************************************************
  *              Prototypes
  ***************************************************************/
-#ifdef ESP_PLATFORM
-PRIVATE void rx_task(void *pv);
-PRIVATE void uart_tx_ev_loop_callback(
-    void *event_handler_arg,
-    esp_event_base_t base,
-    int32_t id,
-    void *event_data
-);
-#endif
+PRIVATE void set_connected(hgobj gobj, int fd);
+PRIVATE void set_disconnected(hgobj gobj, const char *cause);
+PRIVATE int yev_tty_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -43,15 +45,29 @@ PRIVATE void uart_tx_ev_loop_callback(
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
-SDATA (DTP_INTEGER, "mode",             SDF_PERSIST,    "0",        "0 UART, 1 RS485_HALF_DUPLEX, 2 IRDA, 3 RS485_COLLISION_DETECT, 4 RS485_APP_CTRL"),
-SDATA (DTP_INTEGER, "uart_number",      SDF_PERSIST,    "0",        "Uart number"),
-SDATA (DTP_INTEGER, "gpio_rx",          SDF_PERSIST,    "-1",       "Gpio rx (3 console uart0"),
-SDATA (DTP_INTEGER, "gpio_tx",          SDF_PERSIST,    "-1",       "Gpio Tx (1 console uart0"),
-SDATA (DTP_INTEGER, "baudrate",         SDF_PERSIST,    "9600",     "Messages transmitted"),
-SDATA (DTP_INTEGER, "bytesize",         SDF_PERSIST,    "3",        "Byte size: 2=7bits, 3=8bits"),
-SDATA (DTP_INTEGER, "parity",           SDF_PERSIST,    "0",        "Parity: 0 none, 2 even, 3 odd"),
-SDATA (DTP_INTEGER, "stopbits",         SDF_PERSIST,    "1",        "Stop bits: 1=1bit, 2=1.5bits, 3=2bits"),
-SDATA (DTP_INTEGER, "flowcontrol",      SDF_PERSIST,    "0",        "0 DISABLE, 1 RTS, 2 CTS, 3 CTS_RTS"),
+SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
+SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
+SDATA (DTP_STRING,  "path",             SDF_RD,         "/dev/ttyUSB0", "Device to open"),
+
+SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
+SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
+
+SDATA (DTP_INTEGER, "txBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
+SDATA (DTP_INTEGER, "rxBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
+SDATA (DTP_INTEGER, "txMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
+SDATA (DTP_INTEGER, "rxMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
+SDATA (DTP_INTEGER, "txMsgsec",         SDF_VOLATIL|SDF_STATS, "0", "Messages by second"),
+SDATA (DTP_INTEGER, "rxMsgsec",         SDF_VOLATIL|SDF_STATS, "0", "Messages by second"),
+SDATA (DTP_INTEGER, "maxtxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Messages by second"),
+SDATA (DTP_INTEGER, "maxrxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Messages by second"),
+
+SDATA (DTP_INTEGER, "baudrate",         SDF_RD,         "9600",     "Baud rate"),
+SDATA (DTP_INTEGER, "bytesize",         SDF_RD,         "8",        "Byte size"),
+SDATA (DTP_STRING,  "parity",           SDF_RD,         "none",     "Parity"),
+SDATA (DTP_INTEGER, "stopbits",         SDF_RD,         "1",        "Stop bits"),
+SDATA (DTP_BOOLEAN, "xonxoff",          SDF_RD,         "0",        "xonxoff"),
+SDATA (DTP_BOOLEAN, "rtscts",           SDF_RD,         "0",        "rtscts"),
+
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
@@ -63,9 +79,11 @@ SDATA_END()
  *  in s_user_trace_level
  *---------------------------------------------*/
 enum {
-    TRACE_DUMP_TRAFFIC          = 0x0001,
+    TRACE_CONNECT_DISCONNECT    = 0x0001,
+    TRACE_TRAFFIC               = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
+{"connections",         "Trace connections and disconnections"},
 {"traffic",             "Trace dump traffic"},
 {0, 0},
 };
@@ -74,12 +92,10 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-#ifdef ESP_PLATFORM
-    QueueHandle_t uart_queue;
-    TaskHandle_t  rx_task_h;                // Task to read
-    esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
-#endif
-    volatile BOOL task_running;
+    hgobj gobj_timer;
+    int tty_fd;
+    yev_event_t *yev_client_rx;
+    char inform_disconnection;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -100,30 +116,9 @@ PRIVATE hgclass gclass = 0;
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*---------------------------------*
-     *  Create event loop to transmit
-     *---------------------------------*/
-    esp_event_loop_args_t loop_handle_args = {
-        .queue_size = 64,
-        .task_name = gobj_name(gobj), // task will be created
-        .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 8*1024,
-        .task_core_id = tskNO_AFFINITY
-    };
-    ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        priv->tx_ev_loop_h,         // event loop handle
-        ESP_EVENT_ANY_BASE,         // event base
-        ESP_EVENT_ANY_ID,           // event id
-        uart_tx_ev_loop_callback,        // event handler
-        gobj,                       // event_handler_arg
-        NULL                        // event handler instance, useful to unregister callback
-    ));
-#endif
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  Child, default subscriber, the parent
@@ -150,97 +145,37 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    int uart_number = (int) gobj_read_integer_attr(gobj, "uart_number");
-
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /* Configure parameters of an UART driver,
-     * communication pins and install the driver */
-    uart_config_t uart_config = {
-        .baud_rate = (int)gobj_read_integer_attr(gobj, "baudrate"),
-        .data_bits = (int)gobj_read_integer_attr(gobj, "bytesize"),
-        .parity    = (int)gobj_read_integer_attr(gobj, "parity"),
-        .stop_bits = (int)gobj_read_integer_attr(gobj, "stopbits"),
-        .flow_ctrl = (int)gobj_read_integer_attr(gobj, "flowcontrol"),
-        .source_clk = UART_SCLK_DEFAULT,
-    };
+    gobj_start(priv->gobj_timer);
 
-    int intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-
-    uart_driver_delete(uart_number);
-
-    ESP_ERROR_CHECK(uart_param_config(uart_number, &uart_config));
-
-    esp_err_t err = uart_set_pin(
-        uart_number,
-        (int)gobj_read_integer_attr(gobj, "gpio_tx"),
-        (int)gobj_read_integer_attr(gobj, "gpio_rx"),
-        -1, // RTS,
-        -1  // CTS
-    );
-    if(err != ESP_OK) {
+    gobj_state_t state = gobj_current_state(gobj);
+    if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "uart_set_pin() FAILED",
-            "esp_error",    "%s", esp_err_to_name(err),
-            "uart_number",  "%d", (int)uart_number,
-            "gpio_tx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_tx"),
-            "gpio_rx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_rx"),
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Initial wrong task state",
+            "state",        "%s", gobj_current_state(gobj),
             NULL
         );
     }
-    ESP_ERROR_CHECK(uart_driver_install(
-        uart_number,
-        1*1024,             // rx_buffer_size
-        1*1024,             // tx_buffer_size
-        20,                 // event_queue_size
-        &priv->uart_queue,  // uart_queue handle
-        intr_alloc_flags
-    ));
+    if(state == ST_STOPPED) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+    }
 
-    if(!priv->rx_task_h) {
-        portBASE_TYPE ret = xTaskCreate(
-            rx_task,
-            gobj_name(gobj),
-            8*1024,
-            gobj,
-            tskIDLE_PRIORITY,
-            &priv->rx_task_h
-        );
-        if(ret != pdPASS) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot create Uart Task",
-                NULL
-            );
-        }
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Uart Task Already exists",
-            NULL
-        );
-    }
-#endif
+    gobj_reset_volatil_attrs(gobj);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "Start Uart",
-        "uart",         "%d", uart_number,
-        "gpio_tx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_tx"),
-        "gpio_rx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_rx"),
+//        "uart",         "%d", uart_number,
+//        "gpio_tx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_tx"),
+//        "gpio_rx",      "%d", (int)gobj_read_integer_attr(gobj, "gpio_rx"),
         NULL
     );
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_CONNECTED, 0);
-    }
+    // HACK el start de tty lo hace el timer
+    set_timeout(priv->gobj_timer, 100);
 
     return 0;
 }
@@ -250,39 +185,23 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->task_running) {
-        /* A running client cannot be stopped from the MQTT task/event handler */
-        TaskHandle_t running_task = xTaskGetCurrentTaskHandle();
-        if(running_task == priv->rx_task_h) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "gobj cannot be stopped from ESP task",
-                NULL
-            );
-            //return -1;
+    gobj_stop(priv->gobj_timer);
+
+    BOOL change_to_wait_stopped = FALSE;
+
+    if(priv->yev_client_rx) {
+        if(yev_event_in_ring(priv->yev_client_rx)) {
+            change_to_wait_stopped = TRUE;
         }
-        priv->task_running = FALSE;
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "gobj asked to stop task, but task was not started",
-            NULL
-        );
-        //return -1;
+        yev_stop_event(priv->yev_client_rx);
     }
 
-    uart_driver_delete((int) gobj_read_integer_attr(gobj, "uart_number"));
-#endif
-
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
+    if(change_to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
-        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        gobj_change_state(gobj, ST_STOPPED);
     }
 
     return 0;
@@ -293,14 +212,9 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->tx_ev_loop_h) {
-        esp_event_loop_delete(priv->tx_ev_loop_h);
-        priv->tx_ev_loop_h = 0;
-    }
-#endif
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
 }
 
 
@@ -316,180 +230,575 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-#ifdef ESP_PLATFORM
-PRIVATE void rx_task(void *pv)
+PRIVATE int _serial_baudrate_to_bits(int baudrate)
 {
-    hgobj gobj = pv;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    uart_event_t event;
-    int uart_number = (int) gobj_read_integer_attr(gobj, "uart_number");
-
-    priv->task_running = true;
-    while(priv->task_running) {
-        if(xQueueReceive(priv->uart_queue, (void *)&event, 1/portTICK_PERIOD_MS)) {
-            switch(event.type) {
-                case UART_DATA:
-                    {
-                        size_t len = 0;
-                        uart_get_buffered_data_len(uart_number, &len);
-                        if(len > 0) {
-                            gbuffer_t *gbuf = gbuffer_create(len, len);
-                            if(gbuf) {
-                                char *p = gbuffer_cur_wr_pointer(gbuf);
-                                uart_read_bytes(uart_number, p, len, 0);
-                                gbuffer_set_wr(gbuf, len);
-                                json_t *kw = json_pack("{s:I}",
-                                    "gbuffer", (json_int_t)(size_t)gbuf
-                                );
-                                gobj_post_event(gobj, EV_RX_DATA, kw, gobj);
-                            }
-                        }
-                    }
-                    break;
-                case UART_FIFO_OVF:
-                    // If fifo overflow happened, you should consider adding flow control for your application.
-                    // The ISR has already reset the rx FIFO,
-                    // As an example, we directly flush the rx buffer here in order to read more data.
-                    uart_flush_input(uart_number);
-                    xQueueReset(priv->uart_queue);
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_FIFO_OVF",
-                        NULL
-                    );
-                    break;
-                case UART_BUFFER_FULL:
-                    // If buffer full happened, you should consider encreasing your buffer size
-                    // As an example, we directly flush the rx buffer here in order to read more data.
-                    uart_flush_input(uart_number);
-                    xQueueReset(priv->uart_queue);
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_BUFFER_FULL",
-                        NULL
-                    );
-                    break;
-                case UART_BREAK:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_BREAK",
-                        NULL
-                    );
-                    break;
-                case UART_PARITY_ERR:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_PARITY_ERR",
-                        NULL
-                    );
-                    break;
-                case UART_FRAME_ERR:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_FRAME_ERR",
-                        NULL
-                    );
-                    break;
-                case UART_DATA_BREAK:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_DATA_BREAK",
-                        NULL
-                    );
-                    break;
-                case UART_PATTERN_DET:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "UART_PATTERN_DET",
-                        NULL
-                    );
-                    break;
-                default:
-                    break;
-            }
-        }
+    switch (baudrate) {
+        case 50: return B50;
+        case 75: return B75;
+        case 110: return B110;
+        case 134: return B134;
+        case 150: return B150;
+        case 200: return B200;
+        case 300: return B300;
+        case 600: return B600;
+        case 1200: return B1200;
+        case 1800: return B1800;
+        case 2400: return B2400;
+        case 4800: return B4800;
+        case 9600: return B9600;
+        case 19200: return B19200;
+        case 38400: return B38400;
+        case 57600: return B57600;
+        case 115200: return B115200;
+        case 230400: return B230400;
+        case 460800: return B460800;
+        case 500000: return B500000;
+        case 576000: return B576000;
+        case 921600: return B921600;
+        case 1000000: return B1000000;
+        case 1152000: return B1152000;
+        case 1500000: return B1500000;
+        case 2000000: return B2000000;
+#ifdef B2500000
+        case 2500000: return B2500000;
+#endif
+#ifdef B3000000
+        case 3000000: return B3000000;
+#endif
+#ifdef B3500000
+        case 3500000: return B3500000;
+#endif
+#ifdef B4000000
+        case 4000000: return B4000000;
+#endif
+        default: return -1;
     }
-
-    priv->rx_task_h = NULL;
-    vTaskDelete(NULL);
 }
 
 /***************************************************************************
- *  Two types of data can be passed in to the event handler:
- *      - the handler specific data
- *      - the event-specific data.
  *
- *  - The handler specific data (handler_args) is a pointer to the original data,
- *  therefore, the user should ensure that the memory location it points to
- *  is still valid when the handler executes.
- *
- *  - The event-specific data (event_data) is a pointer to a deep copy of the original data,
- *  and is managed automatically.
-***************************************************************************/
-PRIVATE void uart_tx_ev_loop_callback(
-    void *event_handler_arg,
-    esp_event_base_t base,
-    int32_t id,
-    void *event_data
-) {
-    /*
-     *  Manage tx_ev_loop_h
-     */
-    hgobj gobj = event_handler_arg;
-
-    int uart_number = (int) gobj_read_integer_attr(gobj, "uart_number");
-    gbuffer_t *gbuf = *((gbuffer_t **) event_data);
-
-    int trozo = 0;
-    int len, wlen;
-    char *bf;
-    while((len = (int)gbuffer_leftbytes(gbuf))) {
-        bf = gbuffer_cur_rd_pointer(gbuf);
-        wlen = uart_write_bytes(uart_number, bf, len);
-        if (wlen < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "uart_write_bytes() FAILED",
-                NULL
-            );
-            break;
-
-        } else if (wlen == 0) {
-            // Timeout
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "uart_write_bytes() return 0",
-                NULL
-            );
-            break;
-        }
-
-        if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-            gobj_trace_dump(gobj, bf, wlen, "%s: (trozo %d)",
-                gobj_short_name(gobj),
-                ++trozo
-            );
-        }
-
-        /*
-         *  Pop sent data
-         */
-        gbuffer_get(gbuf, wlen);
+ ***************************************************************************/
+PRIVATE int configure_tty(hgobj gobj, int fd)
+{
+    struct termios termios_settings;
+    if(tcgetattr(fd, &termios_settings)<0) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "tcgetattr() FAILED",
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "fd",           "%d", fd,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
     }
 
-    GBUFFER_DECREF(gbuf)
+    /*-----------------------------*
+     *      Baud rate
+     *-----------------------------*/
+    int baudrate_ = (int)gobj_read_integer_attr(gobj, "baudrate");
+    int baudrate = _serial_baudrate_to_bits(baudrate_);
+    if(baudrate == -1) {
+        baudrate = B9600;
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "fd",           "%d", fd,
+            "msg",          "%s", "Bad baudrate",
+            "baudrate",     "%d", baudrate_,
+            NULL
+        );
+    }
+
+    /*-----------------------------*
+     *      Parity
+     *-----------------------------*/
+    serial_parity_t parity = PARITY_NONE;
+    const char *sparity = gobj_read_str_attr(gobj, "parity");
+    SWITCHS(sparity) {
+        CASES("odd")
+            parity = PARITY_ODD;
+            break;
+        CASES("even")
+            parity = PARITY_EVEN;
+            break;
+        CASES("none")
+            parity = PARITY_NONE;
+            break;
+        DEFAULTS
+            parity = PARITY_NONE;
+            gobj_log_error(gobj, 0,
+                "gobj",         "%s", gobj_full_name(gobj),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Parity UNKNOWN",
+                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "fd",           "%d", fd,
+                "parity",       "%s", sparity,
+                NULL
+            );
+            break;
+    } SWITCHS_END;
+
+    /*-----------------------------*
+     *      Byte size
+     *-----------------------------*/
+    int bytesize = (int)gobj_read_integer_attr(gobj, "bytesize");
+    switch(bytesize) {
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "gobj",         "%s", gobj_full_name(gobj),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Bad bytesize",
+                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "fd",           "%d", fd,
+                "bytesize",     "%d", bytesize,
+                NULL
+            );
+            bytesize = 8;
+            break;
+    }
+
+    /*-----------------------------*
+     *      Stop bits
+     *-----------------------------*/
+    int stopbits = (int)gobj_read_integer_attr(gobj, "stopbits");
+    switch(stopbits) {
+        case 1:
+        case 2:
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "gobj",         "%s", gobj_full_name(gobj),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Bad stopbits",
+                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "fd",           "%d", fd,
+                "stopbits",     "%d", bytesize,
+                NULL
+            );
+            stopbits = 1;
+            break;
+    }
+
+    /*-----------------------------*
+     *      Control
+     *-----------------------------*/
+    int xonxoff = gobj_read_bool_attr(gobj, "xonxoff");
+    int rtscts = gobj_read_bool_attr(gobj, "rtscts");
+
+    /* c_iflag */
+
+    /* Ignore break characters */
+    termios_settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+
+    if (parity != PARITY_NONE)
+        termios_settings.c_iflag |= INPCK;
+    /* Only use ISTRIP when less than 8 bits as it strips the 8th bit */
+    if (parity != PARITY_NONE && bytesize != 8)
+        termios_settings.c_iflag |= ISTRIP;
+    if (xonxoff)
+        termios_settings.c_iflag |= (IXON | IXOFF);
+
+    /* c_oflag */
+    termios_settings.c_oflag &= ~OPOST;
+
+    /* c_lflag */
+    termios_settings.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN); // No echo
+
+    /* c_cflag */
+    /* Enable receiver, ignore modem control lines */
+    termios_settings.c_cflag = CREAD | CLOCAL;
+
+    /* Databits */
+    if (bytesize == 5)
+        termios_settings.c_cflag |= CS5;
+    else if (bytesize == 6)
+        termios_settings.c_cflag |= CS6;
+    else if (bytesize == 7)
+        termios_settings.c_cflag |= CS7;
+    else if (bytesize == 8)
+        termios_settings.c_cflag |= CS8;
+
+    /* Parity */
+    if (parity == PARITY_EVEN)
+        termios_settings.c_cflag |= PARENB;
+    else if (parity == PARITY_ODD)
+        termios_settings.c_cflag |= (PARENB | PARODD);
+
+    /* Stopbits */
+    if (stopbits == 2)
+        termios_settings.c_cflag |= CSTOPB;
+
+    /* RTS/CTS */
+    if (rtscts) {
+        termios_settings.c_cflag |= CRTSCTS;
+    }
+
+    /* Baudrate */
+    cfsetispeed(&termios_settings, baudrate);
+    cfsetospeed(&termios_settings, baudrate);
+
+    if(tcsetattr(fd, TCSANOW, &termios_settings)<0) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "tcsetattr() FAILED",
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "fd",           "%d", fd,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
 }
-#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_tty(hgobj gobj)
+{
+    const char *path = gobj_read_str_attr(gobj, "path");
+    if(empty_string(path)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "path EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    int fd = open(path, O_RDWR, 0);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "Cannot open path",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    if(configure_tty(gobj, fd)<0) {
+        // Error already logged
+        close(fd);
+        return -1;
+    } else {
+        gobj_log_info(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "tty opened",
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "fd",           "%d", fd,
+            NULL
+        );
+    }
+
+    return fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void set_connected(hgobj gobj, int fd)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->tty_fd = fd;
+
+    /*
+     *  Info of "connected"
+     */
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Connected",
+            "msg2",         "%s", "Connected🔵",
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            NULL
+        );
+    }
+
+    clear_timeout(priv->gobj_timer);
+    gobj_change_state(gobj, ST_CONNECTED);
+
+    INCR_ATTR_INTEGER(connxs)
+
+    /*
+     *  Ready to receive
+     */
+    if(!priv->yev_client_rx) {
+        priv->yev_client_rx = yev_create_read_event(
+            yuno_event_loop(),
+            yev_tty_callback,
+            gobj,
+            fd
+        );
+    }
+
+    if(priv->yev_client_rx) {
+        yev_set_fd(priv->yev_client_rx, fd);
+    }
+    if(!priv->yev_client_rx->gbuf) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
+    } else {
+        gbuffer_clear(priv->yev_client_rx->gbuf);
+    }
+
+    yev_start_event(priv->yev_client_rx);
+
+    priv->inform_disconnection = TRUE;
+
+    /*
+     *  Publish
+     */
+    json_t *kw_conn = json_pack("{s:s}",
+        "path",     gobj_read_str_attr(gobj, "path")
+    );
+    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void set_disconnected(hgobj gobj, const char *cause)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+        return;
+    }
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Disconnected",
+            "msg2",         "%s", "Disconnected🔴",
+            "cause",        "%s", cause?cause:"",
+            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            NULL
+        );
+    }
+
+    if(gobj_is_running(gobj)) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+    }
+
+    if(priv->tty_fd > 0) {
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket",
+                "msg2",         "%s", "💥🟥 close socket",
+                "fd",           "%d", priv->tty_fd ,
+                NULL
+            );
+        }
+
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
+    }
+
+    if(priv->yev_client_rx) {
+        yev_set_fd(priv->yev_client_rx, -1);
+        yev_stop_event(priv->yev_client_rx);
+    }
+
+    if(gobj_is_running(gobj)) {
+        set_timeout(
+            priv->gobj_timer,
+            gobj_read_integer_attr(gobj, "timeout_between_connections")
+        );
+    }
+
+    /*
+     *  Info of "disconnected"
+     */
+    if(priv->inform_disconnection) {
+        priv->inform_disconnection = FALSE;
+        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_tty_callback(yev_event_t *yev_event)
+{
+    hgobj gobj = yev_event->gobj;
+
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        if(yev_event->result != -ECANCELED) {
+                            gobj_log_info(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                                "msg",          "%s", "read FAILED",
+                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "errno",        "%d", -yev_event->result,
+                                "strerror",     "%s", strerror(-yev_event->result),
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                        }
+                    }
+                    set_disconnected(gobj, strerror(-yev_event->result));
+
+                } else {
+                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                            gobj_short_name(gobj),
+                            gobj_read_str_attr(gobj, "sockname"),
+                            " <- ",
+                            gobj_read_str_attr(gobj, "peername")
+                        );
+                    }
+                    GBUFFER_INCREF(yev_event->gbuf)
+                    json_t *kw = json_pack("{s:I}",
+                        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+                    );
+                    gobj_publish_event(gobj, EV_RX_DATA, kw);
+
+                    /*
+                     *  Clear buffer
+                     *  Re-arm read
+                     */
+                    gbuffer_clear(yev_event->gbuf);
+                    yev_start_event(yev_event);
+                }
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Disconnected
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        if(yev_event->result != -ECANCELED) {
+                            gobj_log_info(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                                "msg",          "%s", "write FAILED",
+                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "errno",        "%d", -yev_event->result,
+                                "strerror",     "%s", strerror(-yev_event->result),
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                        }
+                    }
+                    set_disconnected(gobj, strerror(-yev_event->result));
+
+                } else {
+                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                    if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
+                        json_t *kw_tx_ready = json_object();
+                        json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                    }
+                }
+
+                yev_destroy_event(yev_event);
+            }
+            break;
+
+        case YEV_CONNECT_TYPE:
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Error on connection
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        if(yev_event->result != -ECANCELED) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                                "msg",          "%s", "connect FAILED",
+                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                                "errno",        "%d", -yev_event->result,
+                                "strerror",     "%s", strerror(-yev_event->result),
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                        }
+                    }
+                    set_disconnected(gobj, strerror(-yev_event->result));
+                } else {
+                    set_connected(gobj, yev_event->fd);
+                }
+            }
+            break;
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
+                NULL
+            );
+            break;
+    }
+
+    return gobj_is_running(gobj)?0:-1;
+}
 
 
 
@@ -502,17 +811,29 @@ PRIVATE void uart_tx_ev_loop_callback(
 
 
 /***************************************************************************
+ *  Timeout to start connection
+ ***************************************************************************/
+PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_send_event(gobj, EV_CONNECT, 0, gobj);
+
+    JSON_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s",
-            gobj_short_name(gobj)
-        );
+    int fd = open_tty(gobj);
+    if(fd < 0) {
+        set_disconnected(gobj, strerror(errno));
+    } else {
+        set_connected(gobj, fd);
     }
-    gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+
+    JSON_DECREF(kw);
     return 0;
 }
 
@@ -521,6 +842,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -533,30 +857,21 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-#ifdef ESP_PLATFORM
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    esp_err_t err = esp_event_post_to(
-        priv->tx_ev_loop_h,
-        event,
-        0,
-        &gbuf,
-        sizeof(gbuffer_t *),
-        2
+    /*
+     *  Transmit
+     */
+    yev_event_t *yev_client_tx = yev_create_write_event(
+        yuno_event_loop(),
+        yev_tty_callback,
+        gobj,
+        priv->tty_fd
     );
-    if(err != ESP_OK) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "esp_event_post_to(Uart TX) FAILED",
-            "esp_error",    "%s", esp_err_to_name(err),
-            NULL
-        );
-        GBUFFER_DECREF(gbuf)
-        KW_DECREF(kw)
-        return -1;
-    }
-#endif
+    yev_set_gbuffer(
+        yev_client_tx,
+        gbuf
+    );
+    yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+    yev_start_event(yev_client_tx);
 
     KW_DECREF(kw)
     return 0;
@@ -615,22 +930,38 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Define States
      *----------------------------------------*/
-    ev_action_t st_idle[] = {
-        {EV_RX_DATA,            ac_rx_data,                 0},
+    ev_action_t st_stopped[] = {
+        {0,0,0}
+    };
+    ev_action_t st_disconnected[] = {
+        {EV_CONNECT,            ac_connect,                 0},
+        {EV_TIMEOUT,            ac_timeout_disconnected,    0},  // send EV_CONNECT
+        {0,0,0}
+    };
+    ev_action_t st_connected[] = {
         {EV_TX_DATA,            ac_tx_data,                 0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_stopped[] = {
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_IDLE,           st_idle},
+        {ST_STOPPED,            st_stopped},
+        {ST_DISCONNECTED,       st_disconnected},
+        {ST_CONNECTED,          st_connected},
+        {ST_WAIT_STOPPED,       st_wait_stopped},
         {0, 0}
     };
 
     event_type_t event_types[] = {
-        {EV_TX_DATA,        0},
         {EV_RX_DATA,        EVF_OUTPUT_EVENT},
+        {EV_TX_DATA,        0},
+        {EV_TX_READY,       EVF_OUTPUT_EVENT},
+        {EV_DROP,           0},
         {EV_CONNECTED,      EVF_OUTPUT_EVENT},
         {EV_DISCONNECTED,   EVF_OUTPUT_EVENT},
+        {EV_STOPPED,        EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
@@ -648,7 +979,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // authz_table,
         0,  // command_table,
         s_user_trace_level,
-        0   // gclass_flag
+        gcflag_manual_start // gclass_flag TODO is needed?
     );
     if(!gclass) {
         // Error already logged
