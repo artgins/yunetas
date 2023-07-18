@@ -63,9 +63,6 @@ SDATA (DTP_INTEGER, "maxtxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Message
 SDATA (DTP_INTEGER, "maxrxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Messages by second"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
-SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         "0",        "Maximum messages in tx queue. Default is 0: no limit."),
-SDATA (DTP_INTEGER, "tx_queue_size",    SDF_RD|SDF_STATS,"0",       "Current messages in tx queue"),
-
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 
@@ -80,7 +77,7 @@ SDATA_END()
  *---------------------------------------------*/
 enum {
     TRACE_CONNECT_DISCONNECT    = 0x0001,
-    TRACE_DUMP_TRAFFIC          = 0x0002,
+    TRACE_TRAFFIC               = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"connections",         "Trace connections and disconnections"},
@@ -488,7 +485,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                     set_disconnected(gobj, strerror(-yev_event->result));
 
                 } else {
-                    if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
+                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
                         gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
