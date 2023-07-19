@@ -6036,17 +6036,24 @@ PRIVATE char *tab(char *bf, int bflen)
 PUBLIC void trace_machine(const char *fmt, ...)
 {
     va_list ap;
-    char bf[1024];
-    tab(bf, sizeof(bf));
-//     printf("tab(%d): %s\n", (int)strlen(bf), bf);
-//     printf("fmt: %s\n", fmt);
+    char temp1[40];
+    char dtemp[90];
+    char temp[512];
+    tab(temp1, sizeof(temp1));
+    current_timestamp(dtemp, sizeof(dtemp));
+
+    snprintf(temp, sizeof(temp),
+        "%s -%s",
+        dtemp,
+        temp1
+    );
 
     va_start(ap, fmt);
-    size_t len = strlen(bf);
-    vsnprintf(bf+len, sizeof(bf)-len, fmt, ap);
+    size_t len = strlen(temp);
+    vsnprintf(temp+len, sizeof(temp)-len, fmt, ap);
     va_end(ap);
 
-    _log_bf(LOG_DEBUG, 0, bf, strlen(bf));
+    _log_bf(LOG_DEBUG, 0, temp, strlen(temp));
 }
 
 
