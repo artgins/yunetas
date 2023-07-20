@@ -103,6 +103,10 @@ extern "C"{
 #define SET_PRIV(__name__, __func__) \
     priv->__name__ = __func__(gobj, #__name__);
 
+#ifndef ARRAY_SIZE
+    #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
 /***********************************************************************
  *  Macros of switch for strings, copied from:
  *  https://gist.github.com/HoX/abfe15c40f2d9daebc35
@@ -146,7 +150,7 @@ int main(int argc, char **argv) {
  ***********************************************************************/
 /** Begin a switch for the string x */
 #define SWITCHS(x) \
-    { const char *__sw = (x); bool __done = false; bool __cont = false; \
+    { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); bool __done = false; bool __cont = false; \
         regex_t __regex; regcomp(&__regex, ".*", 0); do {
 
 /** Check if the string matches the cases argument (case sensitive) */
@@ -160,7 +164,7 @@ int main(int argc, char **argv) {
 /** Check if the string matches the specified regular expression using regcomp(3) */
 #define CASES_RE(x,flags) } regfree ( &__regex ); if ( __cont || ( \
                               0 == regcomp ( &__regex, x, flags ) && \
-                              0 == regexec ( &__regex, __sw, 0, NULL, 0 ) ) ) { \
+                              0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
                                 __done = true; __cont = true;
 
 /** Default behaviour */
