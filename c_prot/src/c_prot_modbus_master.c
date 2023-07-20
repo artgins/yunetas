@@ -555,10 +555,6 @@ PRIVATE int mt_start(hgobj gobj)
             break;
     } SWITCHS_END;
 
-//    gobj_start(gobj_bottom_gobj(gobj));
-//    gobj_change_state(gobj, ST_SESSION); // TODO TEST
-//    gobj_send_event(gobj, EV_TIMEOUT, 0, gobj); // TODO TEST
-
     return 0;
 }
 
@@ -3392,12 +3388,12 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//    gobj_log_error(gobj, 0, TODO repon
-//        "function",     "%s", __FUNCTION__,
-//        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-//        "msg",          "%s", "Modbus Timeout",
-//        NULL
-//    );
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msg",          "%s", "Modbus Timeout",
+        NULL
+    );
 
     RESET_MACHINE()
     gobj_change_state(gobj, "ST_SESSION");
