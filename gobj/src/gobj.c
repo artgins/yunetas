@@ -7447,8 +7447,10 @@ PUBLIC int change_char(char *s, char old_c, char new_c)
 
 /***************************************************************************
     Split a string by delim returning the list of strings.
-    Fill list_size if not null.
+    Return filling `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
     WARNING Remember free with split_free2().
+    HACK: No, It does NOT include the empty strings!
  ***************************************************************************/
 PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 {
@@ -7520,7 +7522,7 @@ PUBLIC void split_free2(const char **list)
 
 /***************************************************************************
     Split string `str` by `delim` chars returning the list of strings.
-    Fill `list_size` if not null with items size,
+    Return filling `list_size` if not null with items size,
         It MUST be initialized to 0 (no limit) or to maximum items wanted.
     WARNING Remember free with split_free3().
     HACK: Yes, It does include the empty strings!
