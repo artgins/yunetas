@@ -5,7 +5,7 @@
 # This file is to compile esp32 firmware in linux environment
 # TODO cuando esté transport y uart en linux ya no hará falta
 #
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0)
 include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
 project(yunetas-esp32 C)
 

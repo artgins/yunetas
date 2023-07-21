@@ -1,7 +1,7 @@
 ##############################################
 #   CMake
 ##############################################
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0)
 include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
 project(yunetas-gobj C)
 
