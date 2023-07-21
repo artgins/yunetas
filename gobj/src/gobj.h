@@ -1554,6 +1554,15 @@ PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
 PUBLIC int change_char(char *s, char old_c, char new_c);
+
+/**rst**
+    Split a string by delim returning the list of strings.
+    Fill list_size if not null.
+    WARNING Remember free with split_free2().
+**rst**/
+PUBLIC const char ** split2(const char *str, const char *delim, int *list_size);
+PUBLIC void split_free2(const char **list);
+
 /**rst**
     Split string `str` by `delim` chars returning the list of strings.
     Fill `list_size` if not null with items size,

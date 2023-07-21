@@ -492,7 +492,7 @@ PRIVATE int open_tty(hgobj gobj)
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",          "%s", "Cannot open path",
+            "msg",          "%s", "Cannot open tty device",
             "path",         "%s", path,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),

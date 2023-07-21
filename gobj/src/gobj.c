@@ -7446,6 +7446,69 @@ PUBLIC int change_char(char *s, char old_c, char new_c)
 }
 
 /***************************************************************************
+    Split a string by delim returning the list of strings.
+    Fill list_size if not null.
+    WARNING Remember free with split_free2().
+ ***************************************************************************/
+PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
+{
+    char *ptr;
+
+    if(plist_size) {
+        *plist_size = 0; // error case
+    }
+    char *buffer = GBMEM_STRDUP(str);
+    if(!buffer) {
+        return 0;
+    }
+
+    // Get list size
+    int list_size = 0;
+    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+        list_size++;
+    }
+    GBMEM_FREE(buffer);
+
+    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    if(!buffer) {
+        return 0;
+    }
+    // Alloc list
+    int size = sizeof(char *) * (list_size + 1);
+    const char **list = GBMEM_MALLOC(size);
+
+    // Fill list
+    int i = 0;
+    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+        if (i < list_size) {
+            list[i++] = GBMEM_STRDUP(ptr);
+        }
+    }
+    GBMEM_FREE(buffer);
+
+    if(plist_size) {
+        *plist_size = i;
+    }
+    return list;
+}
+
+/***************************************************************************
+ *  Free split list content
+ ***************************************************************************/
+PUBLIC void split_free2(const char **list)
+{
+    if(list) {
+        char **p = (char **)list;
+        while(*p) {
+            GBMEM_FREE(*p);
+            *p = 0;
+            p++;
+        }
+        GBMEM_FREE(list);
+    }
+}
+
+/***************************************************************************
     Split string `str` by `delim` chars returning the list of strings.
     Fill `list_size` if not null with items size,
         It MUST be initialized to 0 (no limit) or to maximum items wanted.
