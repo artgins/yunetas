@@ -7453,8 +7453,10 @@ PUBLIC int change_char(char *s, char old_c, char new_c)
 PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 {
     char *ptr;
+    int max_items = 0;
 
     if(plist_size) {
+        max_items = *plist_size;
         *plist_size = 0; // error case
     }
     char *buffer = GBMEM_STRDUP(str);
@@ -7473,6 +7475,12 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     if(!buffer) {
         return 0;
     }
+
+    // Limit list
+    if(max_items > 0) {
+        list_size = MIN(max_items, list_size);
+    }
+
     // Alloc list
     int size = sizeof(char *) * (list_size + 1);
     const char **list = GBMEM_MALLOC(size);
@@ -7482,6 +7490,8 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
         if (i < list_size) {
             list[i++] = GBMEM_STRDUP(ptr);
+        } else {
+            break;
         }
     }
     GBMEM_FREE(buffer);
@@ -7519,6 +7529,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
 {
     char *ptr, *p;
     int max_items = 0;
+
     if(plist_size) {
         max_items = *plist_size;
         *plist_size = 0; // error case
