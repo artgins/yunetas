@@ -54,7 +54,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type---------name---------------flag------------default---------description---------- */
 SDATA (DTP_STRING,  "url_udp_log",      SDF_PERSIST,    "",             "UDP Log url"),
-SDATA (DTP_STRING,  "url_esp_ota",      SDF_PERSIST,    "",             "ESP OTA url"), // TODO OTA
 SDATA (DTP_STRING,  "process",          SDF_RD,         "",             "Process name"),
 SDATA (DTP_STRING,  "hostname",         SDF_RD,         "",             "Hostname"),
 SDATA (DTP_INTEGER, "pid",              SDF_RD,         "",             "pid"),
@@ -199,6 +198,9 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_integer_attr(gobj, "start_time", now);
     node_uuid();
 
+    /*------------------------*
+     *  Create childs
+     *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
     gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
@@ -453,6 +455,8 @@ PRIVATE int udp_log(const char *fmt, va_list ap)
  ***************************************************************************/
 PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  Wait to have time to play the default service
      */
@@ -462,11 +466,11 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     config.sync_cb = time_sync_notification_cb;     // Note: This is only needed if we want
     esp_netif_sntp_init(&config);
 
-    /*
-     *  Set upd handler
-     */
-    //gobj_log_del_handler(NULL); // Delete all handlers TODO repon cuando funcione
+    gpio_set_level(OLIMEX_LED_PIN, 1); // TODO put in config
 
+    /*-----------------------------------*
+     *      Start udp handler
+     *-----------------------------------*/
     udpc_t udpc = udpc_open(
         gobj_read_str_attr(gobj, "url_udp_log"),
         NULL,   // bindip
@@ -477,10 +481,8 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     );
     if(udpc) {
         gobj_log_add_handler("udp", "udp", LOG_OPT_ALL, udpc);
-        //esp_log_set_vprintf(udp_log); TODO set in prod
+        //esp_log_set_vprintf(udp_log); // TODO ???
     }
-    gpio_set_level(OLIMEX_LED_PIN, 1); // TODO put in config
-
 #endif
 
     JSON_DECREF(kw)
@@ -493,6 +495,8 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  save current time in nvs
      */
@@ -504,10 +508,12 @@ PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 #ifdef ESP_PLATFORM
     gpio_set_level(OLIMEX_LED_PIN, 0); // TODO put in config
     esp_netif_sntp_deinit();
+    //esp_log_set_vprintf(vprintf); // TODO ???
 #endif
 
-//    esp_log_set_vprintf(vprintf); // TODO repon cuando funcione
-//    gobj_log_del_handler(NULL); // Delete all handlers; it does the close()
+    /*-----------------------------------*
+     *      Stop udp handler
+     *-----------------------------------*/
     gobj_log_del_handler("udp");
 
     /*

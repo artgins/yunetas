@@ -106,8 +106,6 @@ typedef enum { // WARNING add new values to opt2json()
     obflag_destroying       = 0x0001,
     obflag_destroyed        = 0x0002,
     obflag_created          = 0x0004,
-    obflag_autoplay         = 0x0010,   // Set by gobj_create_tree0
-    obflag_autostart        = 0x0020,   // Set by gobj_create_tree0
 } obflag_t;
 
 typedef struct gclass_s {
@@ -3366,7 +3364,7 @@ PUBLIC int gobj_autostart_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
-        if(gobj->obflag & obflag_autostart) {
+        if(gobj->gobj_flag & gobj_flag_autostart) {
             if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he have the power on!
                 gobj_start(gobj);
             } else {
@@ -3388,7 +3386,7 @@ PUBLIC int gobj_autoplay_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
-        if(gobj->obflag & obflag_autoplay) {
+        if(gobj->gobj_flag & gobj_flag_autoplay) {
             if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he have the power on!
                 gobj_start(gobj);
             } else {

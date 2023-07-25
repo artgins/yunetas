@@ -896,6 +896,8 @@ typedef enum { // HACK strict ascendant value!, strings in s_gobj_flag (TODO)
     gobj_flag_service           = 0x0004,
     gobj_flag_volatil           = 0x0008,
     gobj_flag_pure_child        = 0x0010,
+    gobj_flag_autoplay          = 0x0020,   // Set by gobj_create_tree0 too
+    gobj_flag_autostart         = 0x0040,   // Set by gobj_create_tree0 too
 } gobj_flag_t;
 
 
@@ -1067,9 +1069,6 @@ PUBLIC hgobj gobj_create_obj(
 #define gobj_create_default_service(name, gclass, kw, parent) \
     gobj_create_obj(name, gclass, kw, parent, gobj_flag_default_service)
 
-#define gobj_create_default_service(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag_default_service)
-
 #define gobj_create_volatil(name, gclass, kw, parent) \
     gobj_create_obj(name, gclass, kw, parent, gobj_flag_volatil)
 
@@ -1079,6 +1078,8 @@ PUBLIC hgobj gobj_create_obj(
 #define gobj_create(name, gclass, kw, parent) \
     gobj_create_obj(name, gclass, kw, parent, 0)
 
+#define gobj_create2(name, gclass, kw, parent, gobj_flag) \
+    gobj_create_obj(name, gclass, kw, parent, gobj_flag)
 
 PUBLIC void gobj_destroy(hgobj gobj);
 
