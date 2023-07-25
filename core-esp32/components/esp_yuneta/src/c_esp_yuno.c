@@ -455,8 +455,6 @@ PRIVATE int udp_log(const char *fmt, va_list ap)
  ***************************************************************************/
 PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  Wait to have time to play the default service
      */
@@ -495,8 +493,6 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  save current time in nvs
      */
