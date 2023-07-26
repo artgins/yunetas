@@ -310,7 +310,7 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  The order to play the default service is in the action of networking on
      */
-    // NOT here! gobj_play(gobj_default_service());
+    // WARNING: play of default service NOT here! gobj_play(gobj_default_service());
 
     return 0;
 }
