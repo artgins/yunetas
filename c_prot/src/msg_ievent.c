@@ -247,6 +247,7 @@ PUBLIC json_t *msg_iev_answer(
 //
 //    KW_DECREF(kw_request);
 //    return kw_answer;
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -285,6 +286,7 @@ PUBLIC json_t *msg_iev_answer_without_answer_filter(
 //
 //    KW_DECREF(kw_request);
 //    return kw_answer;
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -325,6 +327,7 @@ PUBLIC int msg_iev_push_stack(
 //        kw_set_subdict_value(gobj, kw, "__md_iev__", stack, jn_stack);
 //    }
 //    return json_array_insert_new(jn_stack, 0, jn_user_info);
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -352,6 +355,7 @@ PUBLIC json_t *msg_iev_get_stack( // return is not yours!
 //    }
 //    json_t *jn_user_info = json_array_get(jn_stack, 0);
 //    return jn_user_info;
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -385,6 +389,7 @@ PUBLIC json_t * msg_iev_pop_stack(
 //        kw_delete_subkey(kw, "__md_iev__", stack);
 //    }
 //    return jn_user_info;
+return 0; //TODO
 }
 
 /***************************************************************************

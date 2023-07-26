@@ -7,17 +7,10 @@
  *          Copyright (c) 2016-2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#pragma once
-
 #include <gobj.h>
 #include "msg_ievent.h"
 
-// TODO check these includes
-//#include "yuneta_version.h"
-//#include "msglog_yuneta.h"
-//#include "c_iogate.h"
-//#include "c_timer.h"
-
+#pragma once
 
 #ifdef __cplusplus
 extern "C"{

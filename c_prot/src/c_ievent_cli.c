@@ -434,6 +434,7 @@ PRIVATE int mt_subscription_added(
 //        return 0;
 //    }
 //    return send_remote_subscription(gobj, subs);
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -487,6 +488,7 @@ PRIVATE int mt_subscription_deleted(
 //    kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string("__unsubscribing__"));
 //
 //    return send_static_iev(gobj, event, kw, gobj);
+return 0; //TODO
 }
 
 
@@ -534,6 +536,7 @@ PRIVATE json_t *build_ievent_request(
 //        "host", get_host_name()
 //    );
 //    return jn_ievent_chain;
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -605,6 +608,7 @@ PRIVATE int send_identity_card(hgobj gobj)
 //        kw,
 //        gobj
 //    );
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -664,6 +668,7 @@ PRIVATE int send_static_iev(
 //        kw_send,
 //        gobj
 //    );
+return 0; //TODO
 }
 
 /***************************************************************************
