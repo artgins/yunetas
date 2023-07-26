@@ -64,9 +64,12 @@ SDATA (DTP_STRING,  "realm_owner",      SDF_RD,         "",             "Owner o
 SDATA (DTP_STRING,  "realm_role",       SDF_RD,         "",             "Role of realm"),
 SDATA (DTP_STRING,  "realm_name",       SDF_RD,         "",             "Name of realm"),
 SDATA (DTP_STRING,  "realm_env",        SDF_RD,         "",             "Environment of realm"),
-SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id"),
-SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name"),
-SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno"),
+
+SDATA (DTP_STRING,  "yuno_role",        SDF_RD,         "",             "Yuno Role"),
+SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id. Set by agent"),
+SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name. Set by agent"),
+SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno. Set by agent"),
+
 SDATA (DTP_STRING,  "yuneta_version",   SDF_RD,         YUNETA_VERSION, "Yuneta version"),
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),

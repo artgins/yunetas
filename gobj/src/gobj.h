@@ -1267,6 +1267,9 @@ PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
 
+#define gobj_yuno_name()    gobj_name(gobj_yuno())
+#define gobj_yuno_role()    gobj_read_str_attr(gobj_yuno(), "yuno_role"))
+
 /*--------------------------------------------*
  *          Events and States
  *--------------------------------------------*/

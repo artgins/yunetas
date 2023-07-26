@@ -10,6 +10,7 @@
 #pragma once
 
 #include <gobj.h>
+#include "msg_ievent.h"
 
 // TODO check these includes
 //#include "yuneta_version.h"

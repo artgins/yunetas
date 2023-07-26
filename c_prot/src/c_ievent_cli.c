@@ -259,9 +259,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(kw, "service", 0, 0)
+        kw_get_str(gobj, kw, "service", 0, 0)
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -269,6 +270,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_object_set_new(kw, "__stats__", json_string(stats));
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         "__stats__",
         json_string(stats)   // owned
@@ -284,9 +286,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(gobj_current_state(gobj) != ST_SESSION) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not in session",
@@ -306,9 +307,10 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(kw, "service", 0, 0)
+        kw_get_str(gobj, kw, "service", 0, 0)
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -316,6 +318,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     json_object_set_new(kw, "__command__", json_string(command));
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         "__command__",
         json_string(command)   // owned
@@ -331,9 +334,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(gobj_current_state(gobj) != ST_SESSION) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not in session",
@@ -359,11 +361,12 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
         json_t *jn_ievent_id = build_ievent_request(
             gobj,
             gobj_name(src),
-            kw_get_str(kw, "__service__", 0, 0)
+            kw_get_str(gobj, kw, "__service__", 0, 0)
         );
         json_object_del(kw, "__service__");
 
         msg_iev_push_stack(
+            gobj,
             kw,         // not owned
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id   // owned
@@ -375,62 +378,62 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *      Framework Method subscription_added
  ***************************************************************************/
-PRIVATE int send_remote_subscription(
-    hgobj gobj,
-    hsdata subs)
-{
-    const char *event = sdata_read_str(subs, "event");
-    if(empty_string(event)) {
-        // HACK only resend explicit subscriptions
-        return -1;
-    }
-    json_t *__config__ = sdata_read_json(subs, "__config__");
-    json_t *__global__ = sdata_read_json(subs, "__global__");
-    json_t *__filter__ = sdata_read_json(subs, "__filter__");
-    const char *__service__ = sdata_read_str(subs, "__service__");
-    hgobj subscriber = sdata_read_pointer(subs, "subscriber");
-
-    /*
-     *      __MESSAGE__
-     */
-    json_t *kw = json_object();
-    if(__config__) {
-        json_object_set_new(kw, "__config__", kw_duplicate(__config__));
-    }
-    if(__global__) {
-        json_object_set_new(kw, "__global__", kw_duplicate(__global__));
-    }
-    if(__filter__) {
-        json_object_set_new(kw, "__filter__", kw_duplicate(__filter__));
-    }
-    json_t *jn_ievent_id = build_ievent_request(
-        gobj,
-        gobj_name(subscriber),
-        __service__
-    );
-
-    msg_iev_push_stack(
-        kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-    kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string("__subscribing__"));
-
-    return send_static_iev(gobj, event, kw, gobj);
-}
+//PRIVATE int send_remote_subscription(
+//    hgobj gobj,
+//    hsdata subs)
+//{
+//    const char *event = sdata_read_str(subs, "event");
+//    if(empty_string(event)) {
+//        // HACK only resend explicit subscriptions
+//        return -1;
+//    }
+//    json_t *__config__ = sdata_read_json(subs, "__config__");
+//    json_t *__global__ = sdata_read_json(subs, "__global__");
+//    json_t *__filter__ = sdata_read_json(subs, "__filter__");
+//    const char *__service__ = sdata_read_str(subs, "__service__");
+//    hgobj subscriber = sdata_read_pointer(subs, "subscriber");
+//
+//    /*
+//     *      __MESSAGE__
+//     */
+//    json_t *kw = json_object();
+//    if(__config__) {
+//        json_object_set_new(kw, "__config__", kw_duplicate(__config__));
+//    }
+//    if(__global__) {
+//        json_object_set_new(kw, "__global__", kw_duplicate(__global__));
+//    }
+//    if(__filter__) {
+//        json_object_set_new(kw, "__filter__", kw_duplicate(__filter__));
+//    }
+//    json_t *jn_ievent_id = build_ievent_request(
+//        gobj,
+//        gobj_name(subscriber),
+//        __service__
+//    );
+//
+//    msg_iev_push_stack(
+//        kw,         // not owned
+//        IEVENT_MESSAGE_AREA_ID,
+//        jn_ievent_id   // owned
+//    );
+//    kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string("__subscribing__"));
+//
+//    return send_static_iev(gobj, event, kw, gobj);
+//}
 
 /***************************************************************************
  *      Framework Method subscription_added
  ***************************************************************************/
 PRIVATE int mt_subscription_added(
     hgobj gobj,
-    hsdata subs)
+    json_t *subs)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        // on_open will send all subscriptions
-        return 0;
-    }
-    return send_remote_subscription(gobj, subs);
+//    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
+//        // on_open will send all subscriptions
+//        return 0;
+//    }
+//    return send_remote_subscription(gobj, subs);
 }
 
 /***************************************************************************
@@ -438,52 +441,52 @@ PRIVATE int mt_subscription_added(
  ***************************************************************************/
 PRIVATE int mt_subscription_deleted(
     hgobj gobj,
-    hsdata subs)
+    json_t *subs)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        // Nothing to do. On open this subscription will be not sent.
-        return -1;
-    }
-
-    const char *event = sdata_read_str(subs, "event");
-    if(empty_string(event)) {
-        // HACK only resend explicit subscriptions
-        return -1;
-    }
-
-    json_t *__config__ = sdata_read_json(subs, "__config__");
-    json_t *__global__ = sdata_read_json(subs, "__global__");
-    json_t *__filter__ = sdata_read_json(subs, "__filter__");
-    const char *__service__ = sdata_read_str(subs, "__service__");
-    hgobj subscriber = sdata_read_pointer(subs, "subscriber");
-
-    /*
-     *      __MESSAGE__
-     */
-    json_t *kw = json_object();
-    if(__config__) {
-        json_object_set_new(kw, "__config__", kw_duplicate(__config__));
-    }
-    if(__global__) {
-        json_object_set_new(kw, "__global__", kw_duplicate(__global__));
-    }
-    if(__filter__) {
-        json_object_set_new(kw, "__filter__", kw_duplicate(__filter__));
-    }
-    json_t *jn_ievent_id = build_ievent_request(
-        gobj,
-        gobj_name(subscriber),
-        __service__
-    );
-
-    msg_iev_push_stack(
-        kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-    kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string("__unsubscribing__"));
-
-    return send_static_iev(gobj, event, kw, gobj);
+//    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
+//        // Nothing to do. On open this subscription will be not sent.
+//        return -1;
+//    }
+//
+//    const char *event = sdata_read_str(subs, "event");
+//    if(empty_string(event)) {
+//        // HACK only resend explicit subscriptions
+//        return -1;
+//    }
+//
+//    json_t *__config__ = sdata_read_json(subs, "__config__");
+//    json_t *__global__ = sdata_read_json(subs, "__global__");
+//    json_t *__filter__ = sdata_read_json(subs, "__filter__");
+//    const char *__service__ = sdata_read_str(subs, "__service__");
+//    hgobj subscriber = sdata_read_pointer(subs, "subscriber");
+//
+//    /*
+//     *      __MESSAGE__
+//     */
+//    json_t *kw = json_object();
+//    if(__config__) {
+//        json_object_set_new(kw, "__config__", kw_duplicate(__config__));
+//    }
+//    if(__global__) {
+//        json_object_set_new(kw, "__global__", kw_duplicate(__global__));
+//    }
+//    if(__filter__) {
+//        json_object_set_new(kw, "__filter__", kw_duplicate(__filter__));
+//    }
+//    json_t *jn_ievent_id = build_ievent_request(
+//        gobj,
+//        gobj_name(subscriber),
+//        __service__
+//    );
+//
+//    msg_iev_push_stack(
+//        kw,         // not owned
+//        IEVENT_MESSAGE_AREA_ID,
+//        jn_ievent_id   // owned
+//    );
+//    kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string("__unsubscribing__"));
+//
+//    return send_static_iev(gobj, event, kw, gobj);
 }
 
 
@@ -520,17 +523,17 @@ PRIVATE json_t *build_ievent_request(
     if(empty_string(dst_service)) {
         dst_service = gobj_read_str_attr(gobj, "wanted_yuno_service");
     }
-    json_t *jn_ievent_chain = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-        "dst_yuno", gobj_read_str_attr(gobj, "wanted_yuno_name"),
-        "dst_role", gobj_read_str_attr(gobj, "wanted_yuno_role"),
-        "dst_service", dst_service,
-        "src_yuno", gobj_yuno_name(),
-        "src_role", gobj_yuno_role(),
-        "src_service", src_service,
-        "user", get_user_name(),
-        "host", get_host_name()
-    );
-    return jn_ievent_chain;
+//    json_t *jn_ievent_chain = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+//        "dst_yuno", gobj_read_str_attr(gobj, "wanted_yuno_name"),
+//        "dst_role", gobj_read_str_attr(gobj, "wanted_yuno_role"),
+//        "dst_service", dst_service,
+//        "src_yuno", gobj_yuno_name(),
+//        "src_role", gobj_yuno_role(),
+//        "src_service", src_service,
+//        "user", get_user_name(),
+//        "host", get_host_name()
+//    );
+//    return jn_ievent_chain;
 }
 
 /***************************************************************************
@@ -545,83 +548,63 @@ PRIVATE int send_identity_card(hgobj gobj)
     const char *yuno_version = gobj_read_str_attr(gobj_yuno(), "yuno_version");
     const char *yuno_release = gobj_read_str_attr(gobj_yuno(), "yuno_release");
     const char *yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
-    json_int_t launch_id = gobj_read_uint64_attr(gobj_yuno(), "launch_id");
-    json_t *kw = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s}",
-        "yuno_role", gobj_yuno_role(),
-        "yuno_id", gobj_yuno_id(),
-        "yuno_name", gobj_yuno_name(),
-        "yuno_tag", yuno_tag?yuno_tag:"",
-        "yuno_version", yuno_version?yuno_version:"",
-        "yuno_release", yuno_release?yuno_release:"",
-        "yuneta_version", __yuneta_version__,
-        "playing", playing,
-        "pid", (int)getpid(),
-        "watcher_pid", (int)gobj_read_uint32_attr(gobj_yuno(), "watcher_pid"),
-        "jwt", gobj_read_str_attr(gobj, "jwt"),
-        "username", gobj_read_str_attr(gobj, "__username__"),
-        "launch_id", launch_id,
-        "yuno_startdate", gobj_read_str_attr(gobj_yuno(), "start_date"),
-        "id", node_uuid()
-    );
-
-    json_t *jn_required_services = gobj_read_json_attr(gobj_yuno(), "required_services");
-    if(jn_required_services) {
-        json_object_set(kw, "required_services", jn_required_services);
-    } else {
-        json_object_set_new(kw, "required_services", json_array());
-    }
-
-    json_t *jn_extra_info = gobj_read_json_attr(gobj, "extra_info");
-    if(jn_extra_info) {
-        // Información extra que puede añadir el usuario,
-        // para adjuntar a la tarjeta de presentación.
-        // No voy a permitir modificar los datos propios del yuno
-        // Only update missing
-        json_object_update_missing(kw, jn_extra_info);
-    }
-
-    /*
-     *      __REQUEST__ __MESSAGE__
-     */
-    json_t *jn_ievent_id = build_ievent_request(
-        gobj,
-        gobj_name(gobj),
-        0
-    );
-    msg_iev_push_stack(
-        kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-
-    set_timeout(priv->timer, gobj_read_uint32_attr(gobj, "timeout_idack"));
-    return send_static_iev(
-        gobj,
-        "EV_IDENTITY_CARD",
-        kw,
-        gobj
-    );
-}
-
-/***************************************************************************
- *  Get bottom level gobj
- ***************************************************************************/
-PRIVATE hgobj get_bottom_gobj(hgobj gobj)
-{
-    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    if(bottom_gobj) {
-        return bottom_gobj;
-    } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "NOT below gobj",
-            NULL
-        );
-    }
-    return 0;
+//    json_int_t launch_id = gobj_read_uint64_attr(gobj_yuno(), "launch_id");
+//    json_t *kw = json_pack(
+//        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s}",
+//        "yuno_role", gobj_yuno_role(),
+//        "yuno_id", gobj_yuno_id(),
+//        "yuno_name", gobj_yuno_name(),
+//        "yuno_tag", yuno_tag?yuno_tag:"",
+//        "yuno_version", yuno_version?yuno_version:"",
+//        "yuno_release", yuno_release?yuno_release:"",
+//        "yuneta_version", __yuneta_version__,
+//        "playing", playing,
+//        "pid", (int)getpid(),
+//        "watcher_pid", (int)gobj_read_uint32_attr(gobj_yuno(), "watcher_pid"),
+//        "jwt", gobj_read_str_attr(gobj, "jwt"),
+//        "username", gobj_read_str_attr(gobj, "__username__"),
+//        "launch_id", launch_id,
+//        "yuno_startdate", gobj_read_str_attr(gobj_yuno(), "start_date"),
+//        "id", node_uuid()
+//    );
+//
+//    json_t *jn_required_services = gobj_read_json_attr(gobj_yuno(), "required_services");
+//    if(jn_required_services) {
+//        json_object_set(kw, "required_services", jn_required_services);
+//    } else {
+//        json_object_set_new(kw, "required_services", json_array());
+//    }
+//
+//    json_t *jn_extra_info = gobj_read_json_attr(gobj, "extra_info");
+//    if(jn_extra_info) {
+//        // Información extra que puede añadir el usuario,
+//        // para adjuntar a la tarjeta de presentación.
+//        // No voy a permitir modificar los datos propios del yuno
+//        // Only update missing
+//        json_object_update_missing(kw, jn_extra_info);
+//    }
+//
+//    /*
+//     *      __REQUEST__ __MESSAGE__
+//     */
+//    json_t *jn_ievent_id = build_ievent_request(
+//        gobj,
+//        gobj_name(gobj),
+//        0
+//    );
+//    msg_iev_push_stack(
+//        kw,         // not owned
+//        IEVENT_MESSAGE_AREA_ID,
+//        jn_ievent_id   // owned
+//    );
+//
+//    set_timeout(priv->timer, gobj_read_uint32_attr(gobj, "timeout_idack"));
+//    return send_static_iev(
+//        gobj,
+//        "EV_IDENTITY_CARD",
+//        kw,
+//        gobj
+//    );
 }
 
 /***************************************************************************
@@ -634,12 +617,13 @@ PRIVATE int send_static_iev(
     hgobj src
 )
 {
-    hgobj below_gobj = get_bottom_gobj(gobj);
+    hgobj below_gobj = gobj_bottom_gobj(gobj);
     if(!below_gobj) {
         // Error already logged
         return -1;
     }
     json_t *jn_iev = iev_create(
+        gobj,
         event,
         kw  // owned and serialized
     );
@@ -649,37 +633,37 @@ PRIVATE int send_static_iev(
     }
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level) {
-        char prefix[256];
-        snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s ==> %s",
-            gobj_yuno_role(),
-            gobj_yuno_name(),
-            gobj_short_name(src),
-            gobj_short_name(below_gobj)
-        );
-        const char *event_ = kw_get_str(jn_iev, "event", "?", 0);
-        json_t *kw_ = kw_get_dict_value(jn_iev, "kw", 0, 0);
-        if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(prefix, event_, kw_);
-        } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(prefix, event_, kw_);
-        } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(event, "EV_IDENTITY_CARD")==0 ||
-                    strcmp(event, "EV_IDENTITY_CARD_ACK")==0) {
-                trace_inter_event2(prefix, event_, kw_);
-            }
-        }
+//        char prefix[256];
+//        snprintf(prefix, sizeof(prefix),
+//            "INTRA-EVENT(%s^%s) %s ==> %s",
+//            gobj_yuno_role(),
+//            gobj_yuno_name(),
+//            gobj_short_name(src),
+//            gobj_short_name(below_gobj)
+//        );
+//        const char *event_ = kw_get_str(jn_iev, "event", "?", 0);
+//        json_t *kw_ = kw_get_dict_value(jn_iev, "kw", 0, 0);
+//        if((trace_level & TRACE_IEVENTS2)) {
+//            trace_inter_event2(prefix, event_, kw_);
+//        } else if((trace_level & TRACE_IEVENTS)) {
+//            trace_inter_event(prefix, event_, kw_);
+//        } else if((trace_level & TRACE_IDENTITY_CARD)) {
+//            if(strcmp(event, "EV_IDENTITY_CARD")==0 ||
+//                    strcmp(event, "EV_IDENTITY_CARD_ACK")==0) {
+//                trace_inter_event2(prefix, event_, kw_);
+//            }
+//        }
     }
 
-    GBUFFER *gbuf = iev2gbuffer(jn_iev, FALSE); // inter_event decref
-    json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
-    );
-    return gobj_send_event(below_gobj,
-        "EV_SEND_MESSAGE",
-        kw_send,
-        gobj
-    );
+//    GBUFFER *gbuf = iev2gbuffer(jn_iev, FALSE); // inter_event decref
+//    json_t *kw_send = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)gbuf
+//    );
+//    return gobj_send_event(below_gobj,
+//        "EV_SEND_MESSAGE",
+//        kw_send,
+//        gobj
+//    );
 }
 
 /***************************************************************************
@@ -687,15 +671,15 @@ PRIVATE int send_static_iev(
  ***************************************************************************/
 PRIVATE int resend_subscriptions(hgobj gobj)
 {
-    dl_list_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
-
-    rc_instance_t *i_subs; hsdata subs;
-    i_subs = rc_first_instance(dl_subs, (rc_resource_t **)&subs);
-    while(i_subs) {
-        send_remote_subscription(gobj, subs);
-        i_subs = rc_next_instance(i_subs, (rc_resource_t **)&subs);
-    }
-    rc_free_iter(dl_subs, TRUE, FALSE);
+//    dl_list_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
+//
+//    rc_instance_t *i_subs; hsdata subs;
+//    i_subs = rc_first_instance(dl_subs, (rc_resource_t **)&subs);
+//    while(i_subs) {
+//        send_remote_subscription(gobj, subs);
+//        i_subs = rc_next_instance(i_subs, (rc_resource_t **)&subs);
+//    }
+//    rc_free_iter(dl_subs, TRUE, FALSE);
     return 0;
 }
 
@@ -752,7 +736,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_idAck(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -768,7 +752,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     /*---------------------------------------*
      *  Clear timeout
      *---------------------------------------*/
-    clear_timeout(priv->timer);
+    clear_timeout(priv->gobj_timer);
 
     /*---------------------------------------*
      *  Update remote values
@@ -782,9 +766,9 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
      *      __ANSWER__ __MESSAGE__
      */
     json_t *jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, TRUE);
-    const char *src_yuno = kw_get_str(jn_ievent_id, "src_yuno", "", 0);
-    const char *src_role = kw_get_str(jn_ievent_id, "src_role", "", 0);
-    const char *src_service = kw_get_str(jn_ievent_id, "src_service", "", 0);
+    const char *src_yuno = kw_get_str(gobj, jn_ievent_id, "src_yuno", "", 0);
+    const char *src_role = kw_get_str(gobj, jn_ievent_id, "src_role", "", 0);
+    const char *src_service = kw_get_str(gobj, jn_ievent_id, "src_service", "", 0);
     gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
     gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
     gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
@@ -792,12 +776,12 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     //gobj_write_str_attr(gobj, "__username__", username);
 
     // WARNING comprueba result, ahora puede venir negativo
-    int result = kw_get_int(kw, "result", -1, 0);
+    int result = kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
-        gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
         gobj_publish_event(gobj, "EV_ON_ID_NAK", json_incref(kw));
     } else {
-        json_t *jn_data = kw_get_dict_value(kw, "data", 0, 0);
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
 
         gobj_change_state(gobj, "ST_SESSION");
 
@@ -828,235 +812,235 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
-
-    /*---------------------------------------*
-     *  Create inter_event from gbuf
-     *---------------------------------------*/
-    gbuf_incref(gbuf);
-    iev_msg_t iev_msg;
-    if(iev_create_from_gbuffer(&iev_msg, gbuf, 0)<0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "iev_create_from_gbuffer() FAILED",
-            NULL
-        );
-        gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-        KW_DECREF(kw);
-        return -1;
-    }
-
-    /*---------------------------------------*
-     *          trace inter_event
-     *---------------------------------------*/
-    char *iev_event = iev_msg.event;
-    json_t *iev_kw = iev_msg.kw;
-
-    uint32_t trace_level = gobj_trace_level(gobj);
-    if(trace_level) {
-        char prefix[256];
-        snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s <== %s",
-            gobj_yuno_role(),
-            gobj_yuno_name(),
-            gobj_short_name(gobj),
-            gobj_short_name(src)
-        );
-        if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(prefix, iev_event, iev_kw);
-        } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(prefix, iev_event, iev_kw);
-        } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(iev_event, "EV_IDENTITY_CARD")==0 ||
-                    strcmp(iev_event, "EV_IDENTITY_CARD_ACK")==0) {
-                trace_inter_event2(prefix, iev_event, iev_kw);
-            }
-        }
-    }
-
-    /*---------------------------------------*
-     *  If state is not SESSION send self.
-     *  Mainly process EV_IDENTITY_CARD_ACK
-     *---------------------------------------*/
-    if(!gobj_in_this_state(gobj, "ST_SESSION")){
-        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
-                KW_DECREF(kw);
-                return 0;
-            }
-        }
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "event failed in not session state",
-            "event",        "%s", iev_event,
-            NULL
-        );
-        gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    /*------------------------------------*
-     *   Analyze inter_event
-     *------------------------------------*/
-    const char *msg_type = kw_get_str(iev_kw, "__md_iev__`__msg_type__", "", 0);
-
-    /*----------------------------------------*
-     *  Get inter-event routing information.
-     *----------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID, TRUE);
-
-    /*----------------------------------------*
-     *  Check dst role^name
-     *----------------------------------------*/
-    const char *iev_dst_role = kw_get_str(jn_ievent_id, "dst_role", "", 0);
-    if(!empty_string(iev_dst_role)) {
-        if(strcmp(iev_dst_role, gobj_yuno_role())!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "It's not my role",
-                "yuno_role",    "%s", iev_dst_role,
-                "my_role",      "%s", gobj_yuno_role(),
-                NULL
-            );
-            gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
-            return -1;
-        }
-    }
-    const char *iev_dst_yuno = kw_get_str(jn_ievent_id, "dst_yuno", "", 0);
-    if(!empty_string(iev_dst_yuno)) {
-        char *px = strchr(iev_dst_yuno, '^');
-        if(px) {
-            *px = 0;
-        }
-        int ret = strcmp(iev_dst_yuno, gobj_yuno_name());
-        if(px) {
-            *px = '^';
-        }
-        if(ret!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "It's not my name",
-                "yuno_name",    "%s", iev_dst_yuno,
-                "my_name",      "%s", gobj_yuno_name(),
-                NULL
-            );
-            gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
-            return -1;
-        }
-    }
-
-    /*----------------------------------------*
-     *  Check dst service
-     *----------------------------------------*/
-    const char *iev_dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
-    // TODO de momento pasa todo, multi-servicio.
-    // Obligado al servicio acordado en el identity_card.
-    // (priv->gobj_service)
-    // Puede venir empty si se autoriza a buscar el evento publico en otros servicios
-
-    /*------------------------------------*
-     *   Dispatch event
-     *------------------------------------*/
-    if(strcasecmp(msg_type, "__subscribing__")==0) {
-        /*-----------------------------------*
-         *  It's a external subscription
-         *-----------------------------------*/
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "subscription event ignored, I'm client",
-            "service",      "%s", iev_dst_service,
-            "event",        "%s", iev_event,
-            NULL
-        );
-        gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
-        return -1;
-
-    } else if(strcasecmp(msg_type, "__unsubscribing__")==0) {
-        /*-----------------------------------*
-         *  It's a external unsubscription
-         *-----------------------------------*/
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "subscription event ignored, I'm client",
-            "service",      "%s", iev_dst_service,
-            "event",        "%s", iev_event,
-            NULL
-        );
-        gobj_send_event(get_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
-        return -1;
-
-    } else {
-        /*-------------------------------------------------------*
-         *  Publish the event
-         *  Graph documentation in:
-         *  https://www.draw.io/#G0B-uHwiqttlN9UG5xTm50ODBFbnM
-         *  Este documento estaba hecho pensando en los antiguos
-         *  inter-eventos. Hay que rehacerlo sobre los nuevos.
-         *-------------------------------------------------------*/
-        /*-------------------------------------------------------*
-         *  Filter public events of this gobj
-         *-------------------------------------------------------*/
-        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            /*
-             *  It's mine (I manage inter-command and inter-stats)
-             */
-            gobj_send_event(
-                gobj,
-                iev_event,
-                iev_kw,
-                gobj
-            );
-            KW_DECREF(kw);
-            return 0;
-        }
-
-        /*-------------------------*
-         *  Dispatch the event
-         *-------------------------*/
-        // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
-        // improving security: only gobj services must be accessed externally,
-        // may happen collateral damages
-        hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
-        if(gobj_service) {
-            if(gobj_event_in_input_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-                gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
-            } else {
-                gobj_publish_event( /* NOTE original behaviour */
-                    gobj,
-                    iev_event,
-                    iev_kw
-                );
-            }
-        } else {
-            gobj_publish_event( /* NOTE original behaviour */
-                gobj,
-                iev_event,
-                iev_kw
-            );
-        }
-    }
-
+//    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+//
+//    /*---------------------------------------*
+//     *  Create inter_event from gbuf
+//     *---------------------------------------*/
+//    gbuf_incref(gbuf);
+//    iev_msg_t iev_msg;
+//    if(iev_create_from_gbuffer(&iev_msg, gbuf, 0)<0) {
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(gobj),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "iev_create_from_gbuffer() FAILED",
+//            NULL
+//        );
+//        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//        KW_DECREF(kw);
+//        return -1;
+//    }
+//
+//    /*---------------------------------------*
+//     *          trace inter_event
+//     *---------------------------------------*/
+//    char *iev_event = iev_msg.event;
+//    json_t *iev_kw = iev_msg.kw;
+//
+//    uint32_t trace_level = gobj_trace_level(gobj);
+//    if(trace_level) {
+//        char prefix[256];
+//        snprintf(prefix, sizeof(prefix),
+//            "INTRA-EVENT(%s^%s) %s <== %s",
+//            gobj_yuno_role(),
+//            gobj_yuno_name(),
+//            gobj_short_name(gobj),
+//            gobj_short_name(src)
+//        );
+//        if((trace_level & TRACE_IEVENTS2)) {
+//            trace_inter_event2(prefix, iev_event, iev_kw);
+//        } else if((trace_level & TRACE_IEVENTS)) {
+//            trace_inter_event(prefix, iev_event, iev_kw);
+//        } else if((trace_level & TRACE_IDENTITY_CARD)) {
+//            if(strcmp(iev_event, "EV_IDENTITY_CARD")==0 ||
+//                    strcmp(iev_event, "EV_IDENTITY_CARD_ACK")==0) {
+//                trace_inter_event2(prefix, iev_event, iev_kw);
+//            }
+//        }
+//    }
+//
+//    /*---------------------------------------*
+//     *  If state is not SESSION send self.
+//     *  Mainly process EV_IDENTITY_CARD_ACK
+//     *---------------------------------------*/
+//    if(!gobj_in_this_state(gobj, "ST_SESSION")){
+//        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+//            if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
+//                KW_DECREF(kw);
+//                return 0;
+//            }
+//        }
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(gobj),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "event failed in not session state",
+//            "event",        "%s", iev_event,
+//            NULL
+//        );
+//        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//        KW_DECREF(kw);
+//        return 0;
+//    }
+//
+//    /*------------------------------------*
+//     *   Analyze inter_event
+//     *------------------------------------*/
+//    const char *msg_type = kw_get_str(iev_kw, "__md_iev__`__msg_type__", "", 0);
+//
+//    /*----------------------------------------*
+//     *  Get inter-event routing information.
+//     *----------------------------------------*/
+//    json_t *jn_ievent_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID, TRUE);
+//
+//    /*----------------------------------------*
+//     *  Check dst role^name
+//     *----------------------------------------*/
+//    const char *iev_dst_role = kw_get_str(jn_ievent_id, "dst_role", "", 0);
+//    if(!empty_string(iev_dst_role)) {
+//        if(strcmp(iev_dst_role, gobj_yuno_role())!=0) {
+//            log_error(0,
+//                "gobj",         "%s", gobj_full_name(gobj),
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                "msg",          "%s", "It's not my role",
+//                "yuno_role",    "%s", iev_dst_role,
+//                "my_role",      "%s", gobj_yuno_role(),
+//                NULL
+//            );
+//            gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//            KW_DECREF(iev_kw);
+//            KW_DECREF(kw);
+//            return -1;
+//        }
+//    }
+//    const char *iev_dst_yuno = kw_get_str(jn_ievent_id, "dst_yuno", "", 0);
+//    if(!empty_string(iev_dst_yuno)) {
+//        char *px = strchr(iev_dst_yuno, '^');
+//        if(px) {
+//            *px = 0;
+//        }
+//        int ret = strcmp(iev_dst_yuno, gobj_yuno_name());
+//        if(px) {
+//            *px = '^';
+//        }
+//        if(ret!=0) {
+//            log_error(0,
+//                "gobj",         "%s", gobj_full_name(gobj),
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                "msg",          "%s", "It's not my name",
+//                "yuno_name",    "%s", iev_dst_yuno,
+//                "my_name",      "%s", gobj_yuno_name(),
+//                NULL
+//            );
+//            gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//            KW_DECREF(iev_kw);
+//            KW_DECREF(kw);
+//            return -1;
+//        }
+//    }
+//
+//    /*----------------------------------------*
+//     *  Check dst service
+//     *----------------------------------------*/
+//    const char *iev_dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+//    // TODO de momento pasa todo, multi-servicio.
+//    // Obligado al servicio acordado en el identity_card.
+//    // (priv->gobj_service)
+//    // Puede venir empty si se autoriza a buscar el evento publico en otros servicios
+//
+//    /*------------------------------------*
+//     *   Dispatch event
+//     *------------------------------------*/
+//    if(strcasecmp(msg_type, "__subscribing__")==0) {
+//        /*-----------------------------------*
+//         *  It's a external subscription
+//         *-----------------------------------*/
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(gobj),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "subscription event ignored, I'm client",
+//            "service",      "%s", iev_dst_service,
+//            "event",        "%s", iev_event,
+//            NULL
+//        );
+//        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//        KW_DECREF(iev_kw);
+//        KW_DECREF(kw);
+//        return -1;
+//
+//    } else if(strcasecmp(msg_type, "__unsubscribing__")==0) {
+//        /*-----------------------------------*
+//         *  It's a external unsubscription
+//         *-----------------------------------*/
+//        log_error(0,
+//            "gobj",         "%s", gobj_full_name(gobj),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "subscription event ignored, I'm client",
+//            "service",      "%s", iev_dst_service,
+//            "event",        "%s", iev_event,
+//            NULL
+//        );
+//        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+//        KW_DECREF(iev_kw);
+//        KW_DECREF(kw);
+//        return -1;
+//
+//    } else {
+//        /*-------------------------------------------------------*
+//         *  Publish the event
+//         *  Graph documentation in:
+//         *  https://www.draw.io/#G0B-uHwiqttlN9UG5xTm50ODBFbnM
+//         *  Este documento estaba hecho pensando en los antiguos
+//         *  inter-eventos. Hay que rehacerlo sobre los nuevos.
+//         *-------------------------------------------------------*/
+//        /*-------------------------------------------------------*
+//         *  Filter public events of this gobj
+//         *-------------------------------------------------------*/
+//        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+//            /*
+//             *  It's mine (I manage inter-command and inter-stats)
+//             */
+//            gobj_send_event(
+//                gobj,
+//                iev_event,
+//                iev_kw,
+//                gobj
+//            );
+//            KW_DECREF(kw);
+//            return 0;
+//        }
+//
+//        /*-------------------------*
+//         *  Dispatch the event
+//         *-------------------------*/
+//        // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
+//        // improving security: only gobj services must be accessed externally,
+//        // may happen collateral damages
+//        hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
+//        if(gobj_service) {
+//            if(gobj_event_in_input_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+//                gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+//            } else {
+//                gobj_publish_event( /* NOTE original behaviour */
+//                    gobj,
+//                    iev_event,
+//                    iev_kw
+//                );
+//            }
+//        } else {
+//            gobj_publish_event( /* NOTE original behaviour */
+//                gobj,
+//                iev_event,
+//                iev_kw
+//            );
+//        }
+//    }
+//
     KW_DECREF(kw);
     return 0;
 }
@@ -1109,8 +1093,8 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     //json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
 
-    const char *stats = kw_get_str(kw, "__stats__", 0, 0);
-    const char *service = kw_get_str(kw, "service", "", 0);
+    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     hgobj service_gobj;
     if(empty_string(service)) {
@@ -1126,29 +1110,30 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     json_sprintf("Service '%s' not found.", service),
                     0,
                     0,
-                    kw
+                    kw,
+                    "???" // TODO
                 ),
                 src
             );
         }
     }
     KW_INCREF(kw);
-    json_t *webix = gobj_stats(
-        service_gobj,
-        stats,
-        kw,
-        src
-    );
-    if(!webix) {
-       // Asynchronous response
-    } else {
-        json_t * kw2 = msg_iev_answer(gobj, kw, webix, 0);
-        return send_static_iev(gobj,
-            "EV_MT_STATS_ANSWER",
-            kw2,
-            src
-        );
-    }
+//    json_t *webix = gobj_stats(
+//        service_gobj,
+//        stats,
+//        kw,
+//        src
+//    );
+//    if(!webix) {
+//       // Asynchronous response
+//    } else {
+//        json_t * kw2 = msg_iev_answer(gobj, kw, webix, 0);
+//        return send_static_iev(gobj,
+//            "EV_MT_STATS_ANSWER",
+//            kw2,
+//            src
+//        );
+//    }
 
     KW_DECREF(kw);
     return 0;
@@ -1164,77 +1149,77 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     //json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
 
-    const char *command = kw_get_str(kw, "__command__", 0, 0);
-    const char *service = kw_get_str(kw, "service", "", 0);
+    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
-    if(strncmp(command, "__spawn__", strlen("__spawn__"))==0) {
-        int response_size = MIN(1*1024*1024L, gbmem_get_maximum_block());
-        char *response = gbmem_malloc(response_size);
-        int ret = run_command(command + strlen("__spawn__") + 1, response, response_size);
-        json_t *jn_response = json_string(response);
-        gbmem_free(response);
-
-        return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
-            msg_iev_build_webix2(
-                gobj,
-                ret,
-                0,
-                0,
-                jn_response,
-                kw,
-                ""
-            ),
-            src
-        );
-    }
-
-    hgobj service_gobj;
-    if(empty_string(service)) {
-        service_gobj = gobj_default_service();
-    } else {
-        service_gobj = gobj_find_service(service, FALSE);
-        if(!service_gobj) {
-            service_gobj = gobj_find_gobj(service);
-            if(!service_gobj) {
-                return send_static_iev(gobj,
-                    "EV_MT_COMMAND_ANSWER",
-                    msg_iev_build_webix2(
-                        gobj,
-                        -100,
-                        json_sprintf("Service '%s' not found.", service),
-                        0,
-                        0,
-                        kw,
-                        ""
-                    ),
-                    src
-                );
-            }
-        }
-    }
-    KW_INCREF(kw);
-    json_t *webix = gobj_command(
-        service_gobj,
-        command,
-        kw,
-        src
-    );
-    if(!webix) {
-        // Asynchronous response
-    } else {
-        json_t *kw2 = msg_iev_answer(
-            gobj,
-            kw,
-            webix,
-            ""
-        );
-        return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
-            kw2,
-            src
-        );
-    }
+//    if(strncmp(command, "__spawn__", strlen("__spawn__"))==0) {
+//        int response_size = MIN(1*1024*1024L, gbmem_get_maximum_block());
+//        char *response = gbmem_malloc(response_size);
+//        int ret = run_command(command + strlen("__spawn__") + 1, response, response_size);
+//        json_t *jn_response = json_string(response);
+//        gbmem_free(response);
+//
+//        return send_static_iev(gobj,
+//            "EV_MT_COMMAND_ANSWER",
+//            msg_iev_build_webix2(
+//                gobj,
+//                ret,
+//                0,
+//                0,
+//                jn_response,
+//                kw,
+//                ""
+//            ),
+//            src
+//        );
+//    }
+//
+//    hgobj service_gobj;
+//    if(empty_string(service)) {
+//        service_gobj = gobj_default_service();
+//    } else {
+//        service_gobj = gobj_find_service(service, FALSE);
+//        if(!service_gobj) {
+//            service_gobj = gobj_find_gobj(service);
+//            if(!service_gobj) {
+//                return send_static_iev(gobj,
+//                    "EV_MT_COMMAND_ANSWER",
+//                    msg_iev_build_webix2(
+//                        gobj,
+//                        -100,
+//                        json_sprintf("Service '%s' not found.", service),
+//                        0,
+//                        0,
+//                        kw,
+//                        ""
+//                    ),
+//                    src
+//                );
+//            }
+//        }
+//    }
+//    KW_INCREF(kw);
+//    json_t *webix = gobj_command(
+//        service_gobj,
+//        command,
+//        kw,
+//        src
+//    );
+//    if(!webix) {
+//        // Asynchronous response
+//    } else {
+//        json_t *kw2 = msg_iev_answer(
+//            gobj,
+//            kw,
+//            webix,
+//            ""
+//        );
+//        return send_static_iev(gobj,
+//            "EV_MT_COMMAND_ANSWER",
+//            kw2,
+//            src
+//        );
+//    }
 
     KW_DECREF(kw);
     return 0;
@@ -1297,7 +1282,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_subscription_added = mt_subscription_added,
     .mt_subscription_deleted = mt_subscription_deleted,
     .mt_stats = mt_stats,
-    .mt_command = mt_command,
+    .mt_command_parser = mt_command,
     .mt_inject_event = mt_inject_event,
 };
 
