@@ -115,7 +115,6 @@ typedef struct {
 } json_desc_t;
 
 PUBLIC json_t *create_json_record(
-    hgobj gobj,
     const json_desc_t *json_desc
 );
 
@@ -141,7 +140,7 @@ PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (
 
 PUBLIC char *helper_quote2doublequote(char *str);
 PUBLIC char *helper_doublequote2quote(char *str);
-PUBLIC json_t * anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbose);
+PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
 PUBLIC json_int_t jn2integer(json_t *jn_var);
 PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
 PUBLIC void delete_right_blanks(char *s);

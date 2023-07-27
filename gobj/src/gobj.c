@@ -1837,21 +1837,21 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             jn_value = json_real(atof(svalue));
             break;
         case DTP_LIST:
-            jn_value = anystring2json(gobj, svalue, strlen(svalue), FALSE);
+            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_array(jn_value)) {
                 JSON_DECREF(jn_value)
                 jn_value = json_array();
             }
             break;
         case DTP_DICT:
-            jn_value = anystring2json(gobj, svalue, strlen(svalue), FALSE);
+            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_object(jn_value)) {
                 JSON_DECREF(jn_value)
                 jn_value = json_object();
             }
             break;
         case DTP_JSON:
-            jn_value = anystring2json(gobj, svalue, strlen(svalue), FALSE);
+            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             break;
         case DTP_POINTER:
             jn_value = json_integer((json_int_t)(size_t)svalue);

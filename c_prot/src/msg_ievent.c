@@ -162,44 +162,44 @@ PUBLIC int iev_create_from_gbuffer(
  *  Key: IEVENT_MESSAGE_AREA_ID "ievent_gate_stack"
  *  Dale la vuelta src->dst dst->src
  ***************************************************************************/
-PRIVATE int ievent_answer_filter(
-    hgobj gobj,
-    json_t* jn_ievent_gate_stack)
-{
-    json_t * jn_ievent = json_array_get(jn_ievent_gate_stack, 0);
-
-    /*
-     *  Dale la vuelta src->dst dst->src
-     */
-    const char *iev_src_yuno = kw_get_str(gobj, jn_ievent, "src_yuno", "", KW_REQUIRED);
-    const char *iev_src_role = kw_get_str(gobj, jn_ievent, "src_role", "", KW_REQUIRED);
-    const char *iev_src_service = kw_get_str(gobj, jn_ievent, "src_service", "", KW_REQUIRED);
-
-    json_object_set_new(jn_ievent, "dst_yuno", json_string(iev_src_yuno));
-    json_object_set_new(jn_ievent, "dst_role", json_string(iev_src_role));
-    json_object_set_new(jn_ievent, "dst_service", json_string(iev_src_service));
-    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_name(gobj_yuno())));
-    json_object_set_new(jn_ievent, "src_role", json_string(gobj_read_str_attr(gobj_yuno(), "yuno_role")));
-
-    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_yuno_name()));
-    json_object_set_new(jn_ievent, "src_role", json_string(gobj_yuno_role()));
-
-    json_object_set_new(jn_ievent, "src_service", json_string(gobj_name(gobj)));
-
-    return 0;
-}
+//PRIVATE int ievent_answer_filter(
+//    hgobj gobj,
+//    json_t* jn_ievent_gate_stack)
+//{
+//    json_t * jn_ievent = json_array_get(jn_ievent_gate_stack, 0);
+//
+//    /*
+//     *  Dale la vuelta src->dst dst->src
+//     */
+//    const char *iev_src_yuno = kw_get_str(gobj, jn_ievent, "src_yuno", "", KW_REQUIRED);
+//    const char *iev_src_role = kw_get_str(gobj, jn_ievent, "src_role", "", KW_REQUIRED);
+//    const char *iev_src_service = kw_get_str(gobj, jn_ievent, "src_service", "", KW_REQUIRED);
+//
+//    json_object_set_new(jn_ievent, "dst_yuno", json_string(iev_src_yuno));
+//    json_object_set_new(jn_ievent, "dst_role", json_string(iev_src_role));
+//    json_object_set_new(jn_ievent, "dst_service", json_string(iev_src_service));
+//    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_name(gobj_yuno())));
+//    json_object_set_new(jn_ievent, "src_role", json_string(gobj_read_str_attr(gobj_yuno(), "yuno_role")));
+//
+//    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_yuno_name()));
+//    json_object_set_new(jn_ievent, "src_role", json_string(gobj_yuno_role()));
+//
+//    json_object_set_new(jn_ievent, "src_service", json_string(gobj_name(gobj)));
+//
+//    return 0;
+//}
 
 /***************************************************************************
  *  Apply answer filters
  ***************************************************************************/
-PRIVATE int msg_apply_answer_filters(hgobj gobj, json_t *__request_msg_area__)
-{
-    json_t *jn_value = kw_get_dict_value(gobj, __request_msg_area__, IEVENT_MESSAGE_AREA_ID, 0, 0);
-    if(jn_value) {
-        return ievent_answer_filter(gobj, jn_value);
-    }
-    return -1;
-}
+//PRIVATE int msg_apply_answer_filters(hgobj gobj, json_t *__request_msg_area__)
+//{
+//    json_t *jn_value = kw_get_dict_value(gobj, __request_msg_area__, IEVENT_MESSAGE_AREA_ID, 0, 0);
+//    if(jn_value) {
+//        return ievent_answer_filter(gobj, jn_value);
+//    }
+//    return -1;
+//}
 
 ///***************************************************************************
 // *  Return a new kw with all minus this keys:
@@ -476,17 +476,17 @@ return 0; //TODO
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *msg_type_list[] = {
-    "__command__",
-    "__publishing__",
-    "__subscribing__",
-    "__unsubscribing__",
-    "__query__",
-    "__response__",
-    "__order__",
-    "__first_shot__",
-    0
-};
+//PRIVATE const char *msg_type_list[] = {
+//    "__command__",
+//    "__publishing__",
+//    "__subscribing__",
+//    "__unsubscribing__",
+//    "__query__",
+//    "__response__",
+//    "__order__",
+//    "__first_shot__",
+//    0
+//};
 
 PUBLIC int msg_set_msg_type(
     json_t *kw,

@@ -836,11 +836,11 @@ PUBLIC char *helper_doublequote2quote(char *str)
 /***************************************************************************
  *  Convert any json string to json binary.
  ***************************************************************************/
-PUBLIC json_t *anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbose)
+PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 {
     if(empty_string(bf)) {
         if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "bf EMPTY",
@@ -854,7 +854,7 @@ PUBLIC json_t *anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbo
     json_t *jn = json_loadb(bf, len, flags, &error);
     if(!jn) {
         if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON_ERROR,
                 "msg",          "%s", "json_loads() FAILED",
@@ -865,7 +865,7 @@ PUBLIC json_t *anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbo
                 "position",     "%d", error.position,
                 NULL
             );
-            gobj_trace_dump(gobj, bf, strlen(bf), "json_loads() FAILED");
+            gobj_trace_dump(0, bf, strlen(bf), "json_loads() FAILED");
         }
     }
     return jn;

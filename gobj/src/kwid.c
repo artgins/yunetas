@@ -207,12 +207,11 @@ PUBLIC int save_json_to_file(
  *  type can be: str, int, real, bool, null, dict, list
  ***************************************************************************/
 PUBLIC json_t *create_json_record(
-    hgobj gobj,
     const json_desc_t *json_desc
 )
 {
     if(!json_desc) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "DESC null",
@@ -224,7 +223,7 @@ PUBLIC json_t *create_json_record(
 
     while(json_desc->name) {
         if(empty_string(json_desc->name)) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "DESC without key field",
@@ -233,7 +232,7 @@ PUBLIC json_t *create_json_record(
             break;
         }
         if(empty_string(json_desc->type)) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "DESC without type field",
@@ -294,7 +293,7 @@ PUBLIC json_t *create_json_record(
                 json_object_set_new(jn, name, json_array());
                 break;
             DEFAULTS
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                gobj_log_error(0, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "Type UNKNOWN",
