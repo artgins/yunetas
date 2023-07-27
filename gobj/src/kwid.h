@@ -302,12 +302,25 @@ PUBLIC int kw_pop(
     json_t *kw2  // NOT owned
 );
 
+/**rst**
+    Match a json dict with a json filter
+    Only compare str/int/real/bool items
+**rst**/
+PUBLIC BOOL kw_match_simple(
+    json_t *kw,         // NOT owned
+    json_t *jn_filter   // owned
+);
+typedef BOOL (*kw_match_fn)(
+    json_t *kw,         // NOT owned
+    json_t *jn_filter   // owned
+);
 
 
 
-                    /*---------------------------------*
-                     *          KWID
-                     *---------------------------------*/
+
+/*---------------------------------*
+ *          KWID
+ *---------------------------------*/
 
 
 

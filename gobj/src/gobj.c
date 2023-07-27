@@ -296,7 +296,6 @@ PRIVATE int add_event_type(
     dl_list_t *dl,
     event_type_t *event_type_
 );
-PRIVATE hgobj _gobj_search_path(gobj_t *gobj, const char *path);
 
 /***************************************************************
  *              Data
@@ -340,7 +339,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 
 PRIVATE dl_list_t dl_gclass;
 PRIVATE json_t *jn_services = 0;        // Dict service:(json_int_t)(size_t)gobj
-//PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
+PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
 
 /*
  *  Global trace levels
@@ -3647,7 +3646,7 @@ PUBLIC hgobj gobj_find_gobj(const char *path)
         return __yuno__;
     }
 
-    return _gobj_search_path(__yuno__, path);
+    return gobj_search_path(__yuno__, path);
 }
 
 /***************************************************************************
@@ -3777,72 +3776,196 @@ PUBLIC size_t gobj_child_size(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Return the object searched by path.
- *  The separator of tree's gobj must be '`'
+ *  Match child.
  ***************************************************************************/
-PRIVATE hgobj _gobj_search_path(gobj_t *gobj, const char *path)
+PRIVATE BOOL match_child(
+    gobj_t *child,
+    json_t *jn_filter_  // NOT owned
+)
 {
-    if(empty_string(path) || !gobj) {
+    const char *__inherited_gclass_name__ = kw_get_str(child, jn_filter_, "__inherited_gclass_name__", 0, 0);
+    const char *__gclass_name__ = kw_get_str(child, jn_filter_, "__gclass_name__", 0, 0);
+    const char *__gobj_name__ = kw_get_str(child, jn_filter_, "__gobj_name__", 0, 0);
+    const char *__prefix_gobj_name__ = kw_get_str(child, jn_filter_, "__prefix_gobj_name__", 0, 0);
+    const char *__state__ = kw_get_str(child, jn_filter_, "__state__", 0, 0);
+
+    /*
+     *  Delete the system keys of the jn_filter used in find loop
+     */
+    json_t *jn_filter = json_deep_copy(jn_filter_);
+    if(__inherited_gclass_name__) {
+        json_object_del(jn_filter, "__inherited_gclass_name__");
+    }
+    if(__gclass_name__) {
+        json_object_del(jn_filter, "__gclass_name__");
+    }
+    if(__gobj_name__) {
+        json_object_del(jn_filter, "__gobj_name__");
+    }
+    if(__prefix_gobj_name__) {
+        json_object_del(jn_filter, "__prefix_gobj_name__");
+    }
+    if(__state__) {
+        json_object_del(jn_filter, "__state__");
+    }
+
+    if(kw_has_key(jn_filter_, "__disabled__")) {
+        BOOL disabled = kw_get_bool(child, jn_filter_, "__disabled__", 0, 0);
+        if(disabled && !gobj_is_disabled(child)) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+        if(!disabled && gobj_is_disabled(child)) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+        json_object_del(jn_filter, "__disabled__");
+    }
+
+   if(!empty_string(__inherited_gclass_name__)) {
+        if(!gobj_typeof_inherited_gclass(child, __inherited_gclass_name__)) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+    }
+    if(!empty_string(__gclass_name__)) {
+        if(!gobj_typeof_gclass(child, __gclass_name__)) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+    }
+    const char *child_name = gobj_name(child);
+    if(!empty_string(__gobj_name__)) {
+        if(strcmp(__gobj_name__, child_name)!=0) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+    }
+    if(!empty_string(__prefix_gobj_name__)) {
+        if(strncmp(__prefix_gobj_name__, child_name, strlen(__prefix_gobj_name__))!=0) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+    }
+    if(!empty_string(__state__)) {
+        if(strcasecmp(__state__, gobj_current_state(child))!=0) {
+            json_decref(jn_filter); // clone
+            return FALSE;
+        }
+    }
+
+    const char *key;
+    json_t *jn_value;
+
+    BOOL matched = TRUE;
+    json_object_foreach(jn_filter, key, jn_value) {
+        json_t *hs = gobj_hsdata2(child, key, FALSE);
+        if(hs) {
+            json_t *jn_var1 = json_object_get(hs, key);
+            int cmp = cmp_two_simple_json(jn_var1, jn_value);
+            JSON_DECREF(jn_var1);
+            if(cmp!=0) {
+                matched = FALSE;
+                break;
+            }
+        }
+    }
+
+    json_decref(jn_filter); // clone
+    return matched;
+}
+
+/***************************************************************************
+ *  Returns the first matched child.
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_child(
+    hgobj gobj,
+    json_t *jn_filter  // not owned
+)
+{
+    if(!gobj) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
         return 0;
     }
 
-// TODO   /*
-//     *  Get node and compare with this
-//     */
-//    const char *p = strchr(path, '`');
-//
-//    char temp[120];
-//    if(p) {
-//        snprintf(temp, sizeof(temp), "%.*s", (int)(p-path), path);
-//    } else {
-//        snprintf(temp, sizeof(temp), "%s", path);
-//    }
-//    if(!its_me(gobj, temp)) {
-//        return 0;
-//    }
-//    if(!p) {
-//        // No more nodes
-//        return gobj;
-//    }
-//
-//    /*
-//     *  Get next node and compare with childs
-//     */
-//    p++;
-//    const char *n = p;
-//    p = strchr(n, '`');
-//
-//    /*
-//     *  Search in childs
-//     */
-//    if(p) {
-//        snprintf(temp, sizeof(temp), "%.*s", (int)(p-n), n);
-//    } else {
-//        snprintf(temp, sizeof(temp), "%s", n);
-//    }
-//    char *gclass_name_ = 0;
-//    char *gobj_name_ = strchr(temp, '^');
-//    if(gobj_name_) {
-//        gclass_name_ = temp;
-//        *gobj_name_ = 0;
-//        gobj_name_++;
-//    } else {
-//        gobj_name_ = temp;
-//    }
-//
-//    json_t *jn_filter = json_pack("{s:s}",
-//        "__gobj_name__", gobj_name_
-//    );
-//    if(gclass_name_) {
-//        json_object_set_new(jn_filter, "__gclass_name__", json_string(gclass_name_));
-//    }
-//
-//    hgobj child = gobj_find_child(gobj, jn_filter);
-//    if(!child) {
-//        return 0;
-//    }
-//    return _gobj_search_path(child, n);
-return 0; //TODO
+    gobj_t *child = gobj_first_child(gobj);
+
+    while(child) {
+        if(match_child(child, jn_filter)) {
+            JSON_DECREF(jn_filter);
+            return child;
+        }
+        child = gobj_next_child(child);
+    }
+
+    JSON_DECREF(jn_filter);
+    return 0;
+}
+
+/***************************************************************************
+ *  Return the object searched by path.
+ *  The separator of tree's gobj must be '`'
+ ***************************************************************************/
+PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
+{
+    gobj_t *gobj = gobj_;
+    // TODO check, new function implementation
+    char delimiter[2] = {'`',0};
+    if(empty_string(path_) || !gobj) {
+        return 0;
+    }
+    char *path = GBMEM_STRDUP(path_);
+
+    int list_size = 0;
+    const char **ss = split2(path, delimiter, &list_size);
+
+    if(list_size <= 1) {
+        split_free2(ss);
+        GBMEM_FREE(path)
+        return gobj;
+    }
+
+    hgobj child = 0;
+    const char *key = 0;
+    for(int i=0; i<list_size && gobj; i++) {
+        key = *(ss + i);
+
+        const char *gclass_name_ = 0;
+        char *gobj_name_ = strchr(key, '^');
+        if(gobj_name_) {
+            gclass_name_ = key;
+            *gobj_name_ = 0;
+            gobj_name_++;
+        } else {
+            gobj_name_ = (char *)key;
+        }
+
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gobj_name__", gobj_name_
+        );
+        if(gclass_name_) {
+            json_object_set_new(jn_filter, "__gclass_name__", json_string(gclass_name_));
+        }
+
+        child = gobj_find_child(
+            gobj,
+            jn_filter
+        );
+        if(!child) {
+            break;
+        }
+        gobj = child;
+    }
+
+    split_free2(ss);
+    GBMEM_FREE(path)
+    return child;
 }
 
 /***************************************************************************
@@ -4320,6 +4443,34 @@ PUBLIC BOOL gobj_is_pure_child(hgobj gobj_)
     if(gobj->gobj_flag & gobj_flag_pure_child) {
         return TRUE;
     }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  True if gobj is of gclass gclass_name
+ ***************************************************************************/
+PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)
+{
+    if(strcasecmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0)
+        return TRUE;
+    else
+        return FALSE;
+}
+
+/***************************************************************************
+ *  Is a inherited (bottom) of this gclass?
+ ***************************************************************************/
+PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
+{
+    gobj_t * gobj = gobj_;
+
+    while(gobj) {
+        if(strcasecmp(gclass_name, gobj->gclass->gclass_name)==0) {
+            return TRUE;
+        }
+        gobj = gobj->bottom_gobj;
+    }
+
     return FALSE;
 }
 
@@ -5542,6 +5693,7 @@ PUBLIC int gobj_publish_event(
         if(!event_ || event_ == event) {
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
+            json_t *__filter__ = kw_get_dict(publisher, subs, "__filter__", 0, 0);
 
             json_t *kw2publish = kw_incref(kw);
 
@@ -5560,6 +5712,11 @@ PUBLIC int gobj_publish_event(
                     kw2publish,  // not owned
                     subscriber
                 );
+            } else if(__filter__) {
+                if(__publish_event_match__) {
+                    KW_INCREF(__filter__);
+                    topublish = __publish_event_match__(kw2publish , __filter__);
+                }
             }
 
             if(topublish<0) {

@@ -141,7 +141,6 @@ PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (
 PUBLIC char *helper_quote2doublequote(char *str);
 PUBLIC char *helper_doublequote2quote(char *str);
 PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
-PUBLIC json_int_t jn2integer(json_t *jn_var);
 PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
 PUBLIC void delete_right_blanks(char *s);
 PUBLIC void delete_left_blanks(char *s);
@@ -149,6 +148,43 @@ PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
 PUBLIC int change_char(char *s, char old_c, char new_c);
+/**rst**
+    Simple json to real
+**rst**/
+PUBLIC double jn2real(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to int
+**rst**/
+PUBLIC json_int_t jn2integer(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to string, WARNING free return with gbmem_free
+**rst**/
+PUBLIC char *jn2string(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to boolean
+**rst**/
+PUBLIC BOOL jn2bool(
+    json_t *jn_var
+);
+
+/**rst**
+    Only compare str/int/real/bool items
+    Complex types are done as matched
+    Return lower, iqual, higher (-1, 0, 1), like strcmp
+**rst**/
+PUBLIC int cmp_two_simple_json(
+    json_t *jn_var1,    // NOT owned
+    json_t *jn_var2     // NOT owned
+);
 
 /**rst**
     Split a string by delim returning the list of strings.

@@ -1538,6 +1538,125 @@ PUBLIC int kw_pop(
     return 0;
 }
 
+/***************************************************************************
+    Match a json dict with a json filter (only compare str/number)
+ ***************************************************************************/
+PRIVATE BOOL _kw_match_simple(
+    json_t *kw,         // not owned
+    json_t *jn_filter,  // owned
+    int level
+)
+{
+    BOOL matched = FALSE;
+
+    level++;
+
+    if(json_is_array(jn_filter)) {
+        // Empty array evaluate as false, until a match condition occurs.
+        matched = FALSE;
+        size_t idx;
+        json_t *jn_filter_value;
+        json_array_foreach(jn_filter, idx, jn_filter_value) {
+            json_incref(jn_filter_value);
+            matched = _kw_match_simple(
+                kw,                 // not owned
+                jn_filter_value,    // owned
+                level
+            );
+            if(matched) {
+                break;
+            }
+        }
+
+    } else if(json_is_object(jn_filter)) {
+        if(json_object_size(jn_filter)==0) {
+            // Empty object evaluate as false.
+            matched = FALSE;
+        } else {
+            // Not Empty object evaluate as true, until a NOT match condition occurs.
+            matched = TRUE;
+        }
+
+        const char *filter_path;
+        json_t *jn_filter_value;
+        json_object_foreach(jn_filter, filter_path, jn_filter_value) {
+            /*
+             *  Variable compleja, recursivo
+             */
+            if(json_is_array(jn_filter_value) || json_is_object(jn_filter_value)) {
+                json_incref(jn_filter_value);
+                matched = _kw_match_simple(
+                    kw,                 // not owned
+                    jn_filter_value,    // owned
+                    level
+                );
+                break;
+            }
+
+            /*
+             *  Variable sencilla
+             */
+            /*
+             * TODO get the name and op.
+             */
+            const char *path = filter_path; // TODO
+            const char *op = "__equal__";
+
+            /*
+             *  Get the record value, firstly by path else by name
+             */
+            json_t *jn_record_value;
+            // Firstly try the key as pointers
+            jn_record_value = kw_get_dict_value(0, kw, path, 0, 0);
+            if(!jn_record_value) {
+                // Secondly try the key with points (.) as full key
+                jn_record_value = json_object_get(kw, path);
+            }
+            if(!jn_record_value) {
+                matched = FALSE;
+                break;
+            }
+
+            /*
+             *  Do simple operation
+             */
+            if(strcasecmp(op, "__equal__")==0) { // TODO __equal__ by default
+                int cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
+                if(cmp!=0) {
+                    matched = FALSE;
+                    break;
+                }
+            } else {
+                // TODO op: __lower__ __higher__ __re__ __equal__
+            }
+        }
+    }
+
+    json_decref(jn_filter);
+    return matched;
+}
+
+/***************************************************************************
+    Match a json dict with a json filter (only compare str/number)
+ ***************************************************************************/
+PUBLIC BOOL kw_match_simple(
+    json_t *kw,         // not owned
+    json_t *jn_filter   // owned
+)
+{
+    if(!jn_filter) {
+        // Si no hay filtro pasan todos.
+        return TRUE;
+    }
+    if(json_is_object(jn_filter) && json_object_size(jn_filter)==0) {
+        // A empty object at first level evaluate as true.
+        json_decref(jn_filter);
+        return TRUE;
+    }
+
+    return _kw_match_simple(kw, jn_filter, 0);
+}
+
 
 
 

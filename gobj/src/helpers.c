@@ -872,35 +872,6 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 }
 
 /***************************************************************************
- *  Simple json to int
- ***************************************************************************/
-PUBLIC json_int_t jn2integer(json_t *jn_var)
-{
-    json_int_t val = 0;
-    if(json_is_real(jn_var)) {
-        val = (json_int_t)json_real_value(jn_var);
-    } else if(json_is_integer(jn_var)) {
-        val = json_integer_value(jn_var);
-    } else if(json_is_string(jn_var)) {
-        const char *v = json_string_value(jn_var);
-        if(*v == '0') {
-            val = strtoll(v, 0, 8);
-        } else if(*v == 'x' || *v == 'X') {
-            val = strtoll(v, 0, 16);
-        } else {
-            val = strtoll(v, 0, 10);
-        }
-    } else if(json_is_true(jn_var)) {
-        val = 1;
-    } else if(json_is_false(jn_var)) {
-        val = 0;
-    } else if(json_is_null(jn_var)) {
-        val = 0;
-    }
-    return val;
-}
-
-/***************************************************************************
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
  *  https://www.mbeckler.org/blog/?p=114
  ***************************************************************************/
@@ -1047,6 +1018,182 @@ PUBLIC int change_char(char *s, char old_c, char new_c)
         s++;
     }
     return count;
+}
+
+/***************************************************************************
+ *  Simple json to real
+ ***************************************************************************/
+PUBLIC double jn2real(json_t *jn_var)
+{
+    double val = 0.0;
+    if(json_is_real(jn_var)) {
+        val = json_real_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        val = (double)json_integer_value(jn_var);
+    } else if(json_is_string(jn_var)) {
+        const char *s = json_string_value(jn_var);
+        val = atof(s);
+    } else if(json_is_true(jn_var)) {
+        val = 1.0;
+    } else if(json_is_false(jn_var)) {
+        val = 0.0;
+    } else if(json_is_null(jn_var)) {
+        val = 0.0;
+    }
+    return val;
+}
+
+/***************************************************************************
+ *  Simple json to int
+ ***************************************************************************/
+PUBLIC json_int_t jn2integer(json_t *jn_var)
+{
+    json_int_t val = 0;
+    if(json_is_real(jn_var)) {
+        val = (json_int_t)json_real_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        val = json_integer_value(jn_var);
+    } else if(json_is_string(jn_var)) {
+        const char *v = json_string_value(jn_var);
+        if(*v == '0') {
+            val = strtoll(v, 0, 8);
+        } else if(*v == 'x' || *v == 'X') {
+            val = strtoll(v, 0, 16);
+        } else {
+            val = strtoll(v, 0, 10);
+        }
+    } else if(json_is_true(jn_var)) {
+        val = 1;
+    } else if(json_is_false(jn_var)) {
+        val = 0;
+    } else if(json_is_null(jn_var)) {
+        val = 0;
+    }
+    return val;
+}
+
+/***************************************************************************
+ *  Simple json to string, WARNING free return with gbmem_free
+ ***************************************************************************/
+PUBLIC char *jn2string(json_t *jn_var)
+{
+    char temp[PATH_MAX];
+    char *s="";
+
+    if(json_is_string(jn_var)) {
+        s = (char *)json_string_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        json_int_t v = json_integer_value(jn_var);
+        snprintf(temp, sizeof(temp), "%"JSON_INTEGER_FORMAT, v);
+        s = temp;
+    } else if(json_is_real(jn_var)) {
+        double v = json_real_value(jn_var);
+        snprintf(temp, sizeof(temp), "%.17f", v);
+        s = temp;
+    } else if(json_is_boolean(jn_var)) {
+        s = json_is_true(jn_var)?"1":"0";
+    }
+
+    return GBMEM_STRDUP(s);
+}
+
+/***************************************************************************
+ *  Simple json to bool
+ ***************************************************************************/
+PUBLIC BOOL jn2bool(json_t *jn_var)
+{
+    BOOL val = 0;
+    if(json_is_real(jn_var)) {
+        val = json_real_value(jn_var)?1:0;
+    } else if(json_is_integer(jn_var)) {
+        val = json_integer_value(jn_var)?1:0;
+    } else if(json_is_string(jn_var)) {
+        const char *v = json_string_value(jn_var);
+        val = empty_string(v)?0:1;
+    } else if(json_is_true(jn_var)) {
+        val = 1;
+    } else if(json_is_false(jn_var)) {
+        val = 0;
+    } else if(json_is_null(jn_var)) {
+        val = 0;
+    }
+    return val;
+}
+
+/***************************************************************************
+    Only compare str/int/real/bool items
+    Complex types are done as matched
+    Return lower, iqual, higher (-1, 0, 1), like strcmp
+ ***************************************************************************/
+PUBLIC int cmp_two_simple_json(
+    json_t *jn_var1,    // not owned
+    json_t *jn_var2     // not owned
+)
+{
+    /*
+     *  Discard complex types, done as matched
+     */
+    if(json_is_object(jn_var1) ||
+            json_is_object(jn_var2) ||
+            json_is_array(jn_var1) ||
+            json_is_array(jn_var2)) {
+        return 0;
+    }
+
+    /*
+     *  First try real
+     */
+    if(json_is_real(jn_var1) || json_is_real(jn_var2)) {
+        double val1 = jn2real(jn_var1);
+        double val2 = jn2real(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try integer
+     */
+    if(json_is_integer(jn_var1) || json_is_integer(jn_var2)) {
+        json_int_t val1 = jn2integer(jn_var1);
+        json_int_t val2 = jn2integer(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try boolean
+     */
+    if(json_is_boolean(jn_var1) || json_is_boolean(jn_var2)) {
+        json_int_t val1 = jn2integer(jn_var1);
+        json_int_t val2 = jn2integer(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try string
+     */
+    char *val1 = jn2string(jn_var1);
+    char *val2 = jn2string(jn_var2);
+    int ret = strcmp(val1, val2);
+    GBMEM_FREE(val1);
+    GBMEM_FREE(val2);
+    return ret;
 }
 
 /***************************************************************************

@@ -1208,6 +1208,26 @@ PUBLIC hgobj gobj_next_child(hgobj child);
 PUBLIC hgobj gobj_prev_child(hgobj child);
 PUBLIC hgobj gobj_child_by_name(hgobj gobj, const char *name);
 PUBLIC size_t gobj_child_size(hgobj gobj);
+PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path);
+
+/*
+    jn_filter: a dict with names of attributes with the value to mach,
+        or a system name like:
+
+        '__inherited_gclass_name__'
+        '__gclass_name__'
+        '__gobj_name__'
+        '__prefix_gobj_name__'
+        '__state__'
+        '__disabled__'
+
+    gobj_find_child() returns the first matched child.
+
+ */
+PUBLIC hgobj gobj_find_child(
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
 
 typedef enum {
     /*
@@ -1260,6 +1280,9 @@ PUBLIC BOOL gobj_is_service(hgobj gobj);
 PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
+
+PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            /* strict same gclass */
+PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  /* check inherited (bottom) gclass */
 
 static inline const char *gobj_yuno_name(void) {return gobj_name(gobj_yuno());}
 static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role");}
