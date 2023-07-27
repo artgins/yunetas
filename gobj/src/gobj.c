@@ -3393,79 +3393,68 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     hgobj src
 )
 {
-//    GObj_t *gobj = gobj_;
-//    if(!gobj || gobj->obflag & obflag_destroyed) {
-//        log_error(0,
-//            "gobj",         "%s", __FILE__,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//            "msg",          "%s", "hgobj NULL or DESTROYED",
-//            NULL
-//        );
-//        KW_DECREF(kw)
-//        return 0;
-//    }
-//
-//    /*-----------------------------------------------*
-//     *  Trace
-//     *-----------------------------------------------*/
-//    BOOL tracea = is_machine_tracing(gobj) && !is_machine_not_tracing(src);
-//    if(tracea) {
-//        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
-//            (!gobj->running)?"!!":"",
-//            gobj_short_name(gobj),
-//            command,
-//            gobj_short_name(src)
-//        );
-//        log_debug_json(0, kw, "command kw");
-//    }
-//
-//    /*-----------------------------------------------*
-//     *  The local mt_command_parser has preference
-//     *-----------------------------------------------*/
-//    if(gobj->gclass->gmt.mt_command_parser) {
-//        if(__audit_command_cb__) {
-//            __audit_command_cb__(command, kw, __audit_command_user_data__);
-//        }
-//        return gobj->gclass->gmt.mt_command_parser(gobj, command, kw, src);
-//    }
-//
-//    /*-----------------------------------------------*
-//     *  If it has command_table
-//     *  then use the global command parser
-//     *-----------------------------------------------*/
-//    if(gobj->gclass->command_table) {
-//        if(__audit_command_cb__) {
-//            __audit_command_cb__(command, kw, __audit_command_user_data__);
-//        }
-//        if(__global_command_parser_fn__) {
-//            return __global_command_parser_fn__(gobj, command, kw, src);
-//        } else {
-//            log_error(LOG_OPT_TRACE_STACK,
-//                "gobj",         "%s", gobj_full_name(gobj),
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//                "msg",          "%s", "Global command parser function not available",
-//                "command",      "%s", command?command:"",
-//                NULL
-//            );
-//            KW_DECREF(kw)
-//            return 0;
-//        }
-//    } else {
-//        return msg_iev_build_webix(
-//            gobj,
-//            -1,
-//            json_sprintf(
-//                "Command table not available in '%s' gobj",
-//                gobj_short_name(gobj)
-//            ),
-//            0,
-//            0,
-//            kw
-//        );
-//    }
-return 0; // TODO
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    /*-----------------------------------------------*
+     *  Trace
+     *-----------------------------------------------*/
+    BOOL tracea = is_machine_tracing(gobj) && !is_machine_not_tracing(src);
+    if(tracea) {
+        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
+            (!gobj->running)?"!!":"",
+            gobj_short_name(gobj),
+            command,
+            gobj_short_name(src)
+        );
+        gobj_trace_json(gobj, kw, "command kw");
+    }
+
+    /*-----------------------------------------------*
+     *  The local mt_command_parser has preference
+     *-----------------------------------------------*/
+    if(gobj->gclass->gmt->mt_command_parser) {
+        return gobj->gclass->gmt->mt_command_parser(gobj, command, kw, src);
+    }
+
+    /*-----------------------------------------------*
+     *  If it has command_table
+     *  then use the global command parser
+     *-----------------------------------------------*/
+    if(gobj->gclass->command_table) {
+        if(__global_command_parser_fn__) {
+            return __global_command_parser_fn__(gobj, command, kw, src);
+        } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Global command parser function not available",
+                "command",      "%s", command?command:"",
+                NULL
+            );
+            KW_DECREF(kw)
+            return 0;
+        }
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Command table not available",
+            "command",      "%s", command?command:"",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
 }
 
 /***************************************************************************
@@ -3473,43 +3462,42 @@ return 0; // TODO
  ***************************************************************************/
 PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
 {
-// TODO    GObj_t * gobj = gobj_;
-//
-//    if(!gobj || gobj->obflag & obflag_destroyed) {
-//        log_error(0,
-//            "gobj",         "%s", __FILE__,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//            "msg",          "%s", "hgobj NULL or DESTROYED",
-//            NULL
-//        );
-//        KW_DECREF(kw)
-//        return 0;
-//    }
-//
-//    /*--------------------------------------*
-//     *  The local mt_stats has preference
-//     *--------------------------------------*/
-//    if(gobj->gclass->gmt.mt_stats) {
-//        return gobj->gclass->gmt.mt_stats(gobj, stats, kw, src);
-//    }
-//
-//    /*-----------------------------------------------*
-//     *  Then use the global stats parser
-//     *-----------------------------------------------*/
-//    if(__global_stats_parser_fn__) {
-//        return __global_stats_parser_fn__(gobj, stats, kw, src);
-//    } else {
-//        log_error(LOG_OPT_TRACE_STACK,
-//            "gobj",         "%s", gobj_full_name(gobj),
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "Stats parser not available",
-//            "stats",        "%s", stats?stats:"",
-//            NULL
-//        );
-//        KW_DECREF(kw)
-//    }
+     gobj_t * gobj = gobj_;
+
+    if(!gobj || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    /*--------------------------------------*
+     *  The local mt_stats has preference
+     *--------------------------------------*/
+    if(gobj->gclass->gmt->mt_stats) {
+        return gobj->gclass->gmt->mt_stats(gobj, stats, kw, src);
+    }
+
+    /*-----------------------------------------------*
+     *  Then use the global stats parser
+     *-----------------------------------------------*/
+    if(__global_stats_parser_fn__) {
+        return __global_stats_parser_fn__(gobj, stats, kw, src);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Stats parser not available",
+            "stats",        "%s", stats?stats:"",
+            NULL
+        );
+        KW_DECREF(kw)
+    }
     return 0;
 }
 
@@ -3798,7 +3786,7 @@ PRIVATE hgobj _gobj_search_path(gobj_t *gobj, const char *path)
         return 0;
     }
 
-//    /*
+// TODO   /*
 //     *  Get node and compare with this
 //     */
 //    const char *p = strchr(path, '`');
@@ -4259,7 +4247,7 @@ PUBLIC BOOL gobj_is_running(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(!gobj_ || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
           "function",     "%s", __FUNCTION__,
           "msgset",       "%s", MSGSET_PARAMETER_ERROR,
           "msg",          "%s", "hgobj NULL or DESTROYED",
@@ -4278,7 +4266,7 @@ PUBLIC BOOL gobj_is_playing(hgobj gobj_)
     gobj_t *gobj = gobj_;
 
     if(!gobj_ || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "hgobj NULL or DESTROYED",
