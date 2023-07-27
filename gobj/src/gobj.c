@@ -5691,6 +5691,7 @@ PUBLIC int gobj_publish_event(
             publisher, subs, "event", 0, KW_REQUIRED
         );
         if(!event_ || event_ == event) {
+            // TODO check if need it: json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
             json_t *__filter__ = kw_get_dict(publisher, subs, "__filter__", 0, 0);
@@ -5749,6 +5750,16 @@ PUBLIC int gobj_publish_event(
                     __local__ // not owned
                 );
             }
+
+            /*
+             *  Apply transformation filters
+             */
+//            if(__config__) { TODO need it?
+//                json_t *jn_trans_filters = kw_get_dict_value(__config__, "__trans_filter__", 0, 0);
+//                if(jn_trans_filters) {
+//                    kw2publish = apply_trans_filters(kw2publish, jn_trans_filters);
+//                }
+//            }
 
             /*
              *  Add global keys
