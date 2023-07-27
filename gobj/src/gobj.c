@@ -6,12 +6,10 @@
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <time.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <math.h>
 #include <wchar.h>
 
 #ifdef __linux__
@@ -25,6 +23,7 @@
 #include "kwid.h"
 #include "gobj.h"
 #include "gbuffer.h"
+#include "helpers.h"
 
 extern void jsonp_free(void *ptr);
 
@@ -297,6 +296,7 @@ PRIVATE int add_event_type(
     dl_list_t *dl,
     event_type_t *event_type_
 );
+PRIVATE hgobj _gobj_search_path(gobj_t *gobj, const char *path);
 
 /***************************************************************
  *              Data
@@ -3311,76 +3311,6 @@ PUBLIC int gobj_get_exit_code(void)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PUBLIC hgobj gobj_default_service(void)
-{
-    return __default_service__;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
-{
-    if(empty_string(service)) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "service EMPTY",
-                NULL
-            );
-        }
-        return NULL;
-    }
-
-    if(strcasecmp(service, "__default_service__")==0) {
-        return __default_service__;
-    }
-    if(strcasecmp(service, "__yuno__")==0 || strcasecmp(service, "__root__")==0) {
-        return gobj_yuno();
-    }
-
-    json_t *o = json_object_get(jn_services, service);
-    if(!o) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "service NOT FOUND",
-                "service",      "%s", service,
-                NULL
-            );
-        }
-        return NULL;
-    }
-
-    return (hgobj)(size_t)json_integer_value(o);
-}
-
-/***************************************************************************
- *  Find a gobj by path
- ***************************************************************************/
-PUBLIC hgobj gobj_find_gobj(const char *path)
-{
-    if(empty_string(path)) {
-        return 0;
-    }
-    /*
-     *  WARNING code repeated
-     */
-    if(strcasecmp(path, "__default_service__")==0) {
-        return __default_service__;
-    }
-    if(strcasecmp(path, "__yuno__")==0 || strcasecmp(path, "__root__")==0) {
-        return __yuno__;
-    }
-
-    return 0; // TODO return _gobj_search_path(__yuno__, path);
-}
-
-/***************************************************************************
  *  If service has mt_play then start only the service gobj.
  *      (Let mt_play be responsible to start their tree)
  *  If service has not mt_play then start the tree with gobj_start_tree().
@@ -3660,6 +3590,271 @@ PUBLIC hgobj gobj_bottom_gobj(hgobj gobj_)
         return 0;
     }
     return gobj->bottom_gobj;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj gobj_default_service(void)
+{
+    return __default_service__;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
+{
+    if(empty_string(service)) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "service EMPTY",
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    if(strcasecmp(service, "__default_service__")==0) {
+        return __default_service__;
+    }
+    if(strcasecmp(service, "__yuno__")==0 || strcasecmp(service, "__root__")==0) {
+        return gobj_yuno();
+    }
+
+    json_t *o = json_object_get(jn_services, service);
+    if(!o) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "service NOT FOUND",
+                "service",      "%s", service,
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    return (hgobj)(size_t)json_integer_value(o);
+}
+
+/***************************************************************************
+ *  Find a gobj by path
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_gobj(const char *path)
+{
+    if(empty_string(path)) {
+        return 0;
+    }
+    /*
+     *  WARNING code repeated
+     */
+    if(strcasecmp(path, "__default_service__")==0) {
+        return __default_service__;
+    }
+    if(strcasecmp(path, "__yuno__")==0 || strcasecmp(path, "__root__")==0) {
+        return __yuno__;
+    }
+
+    return _gobj_search_path(__yuno__, path);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj gobj_first_child(hgobj gobj_)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    return dl_first(&gobj->dl_childs);
+}
+
+/***************************************************************************
+ *  Return last child, last to `child`
+ ***************************************************************************/
+PUBLIC hgobj gobj_last_child(hgobj gobj_)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+    return dl_last(&gobj->dl_childs);
+}
+
+
+/***************************************************************************
+ *  Return next child, next to `child`
+ ***************************************************************************/
+PUBLIC hgobj gobj_next_child(hgobj child)
+{
+    gobj_t * gobj = child;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+    return dl_next(gobj);
+}
+
+/***************************************************************************
+ *  Return prev child, prev to `child`
+ ***************************************************************************/
+PUBLIC hgobj gobj_prev_child(hgobj child)
+{
+    gobj_t * gobj = child;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+    return dl_prev(gobj);
+}
+
+/***************************************************************************
+ *  Return the child of gobj by name.
+ *  The first found is returned.
+ ***************************************************************************/
+PUBLIC hgobj gobj_child_by_name(hgobj gobj_, const char *name)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+    if(empty_string(name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "name NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    gobj_t *child = dl_first(&gobj->dl_childs);
+    while(child) {
+        if(!(child->obflag & (obflag_destroyed|obflag_destroying))) {
+            const char *name_ = gobj_name(child);
+            if(name_ && strcmp(name_, name)==0) {
+                return child;
+            }
+        }
+        /*
+         *  Next
+         */
+        child = dl_next(child);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Return the size of childs of gobj
+ ***************************************************************************/
+PUBLIC size_t gobj_child_size(hgobj gobj_)
+{
+    gobj_t * gobj = gobj_;
+
+    return dl_size(&gobj->dl_childs);
+}
+
+/***************************************************************************
+ *  Return the object searched by path.
+ *  The separator of tree's gobj must be '`'
+ ***************************************************************************/
+PRIVATE hgobj _gobj_search_path(gobj_t *gobj, const char *path)
+{
+    if(empty_string(path) || !gobj) {
+        return 0;
+    }
+
+//    /*
+//     *  Get node and compare with this
+//     */
+//    const char *p = strchr(path, '`');
+//
+//    char temp[120];
+//    if(p) {
+//        snprintf(temp, sizeof(temp), "%.*s", (int)(p-path), path);
+//    } else {
+//        snprintf(temp, sizeof(temp), "%s", path);
+//    }
+//    if(!its_me(gobj, temp)) {
+//        return 0;
+//    }
+//    if(!p) {
+//        // No more nodes
+//        return gobj;
+//    }
+//
+//    /*
+//     *  Get next node and compare with childs
+//     */
+//    p++;
+//    const char *n = p;
+//    p = strchr(n, '`');
+//
+//    /*
+//     *  Search in childs
+//     */
+//    if(p) {
+//        snprintf(temp, sizeof(temp), "%.*s", (int)(p-n), n);
+//    } else {
+//        snprintf(temp, sizeof(temp), "%s", n);
+//    }
+//    char *gclass_name_ = 0;
+//    char *gobj_name_ = strchr(temp, '^');
+//    if(gobj_name_) {
+//        gclass_name_ = temp;
+//        *gobj_name_ = 0;
+//        gobj_name_++;
+//    } else {
+//        gobj_name_ = temp;
+//    }
+//
+//    json_t *jn_filter = json_pack("{s:s}",
+//        "__gobj_name__", gobj_name_
+//    );
+//    if(gclass_name_) {
+//        json_object_set_new(jn_filter, "__gclass_name__", json_string(gclass_name_));
+//    }
+//
+//    hgobj child = gobj_find_child(gobj, jn_filter);
+//    if(!child) {
+//        return 0;
+//    }
+//    return _gobj_search_path(child, n);
+return 0; //TODO
 }
 
 /***************************************************************************
@@ -7052,150 +7247,6 @@ PUBLIC void gobj_trace_buffer(
     json_decref(jn_data);
 }
 
-/***********************************************************************
- *  byte_to_strhex - sprintf %02X
- *  Usage:
- *        char *byte_to_strhex(char *strh, uint8_t w)
- *  Description:
- *        Print in 'strh' the Hexadecimal ASCII representation of 'w'
- *        Equivalent to sprintf %02X SIN EL NULO
- *        OJO que hay f() que usan esta caracteristica
- *  Return:
- *        Pointer to endp
- ***********************************************************************/
-static const char tbhexa[]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-static inline char * byte_to_strhex(char *s, char w)
-{
-    *s = tbhexa[ ((w >> 4) & 0x0f) ];
-    s++;
-    *s = tbhexa[ ((w) & 0x0f) ];
-    s++;
-    return s;
-}
-
-/***********************************************************************
- *  Vuelca en formato tdump un array de longitud 'len'
- *  nivel 1 -> solo en hexa
- *  nivel 2 -> en hexa y en asci
- *  nivel 3 -> en hexa y en asci y con contador (indice)
- ***********************************************************************/
-PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel)
-{
-    static char bf[80+1];
-    static char asci[40+1];
-    char *p;
-    size_t i, j;
-
-    if(!nivel) {
-        nivel = 3;
-    }
-    if(!view) {
-        view = printf;
-    }
-    if(!prefix) {
-        prefix = (char *) "";
-    }
-
-    p = bf;
-    for(i=j=0; i<len; i++) {
-        asci[j] = (*s<' ' || *s>0x7f)? '.': *s;
-        if(asci[j] == '%')
-            asci[j] = '.';
-        j++;
-        p = byte_to_strhex(p, *s++);
-        *p++ = ' ';
-        if(j == 16) {
-            *p++ = '\0';
-            asci[j] = '\0';
-
-            if(nivel==1) {
-                view("%s%s\n", prefix, bf);
-
-            } else if(nivel==2) {
-                view("%s%s  %s\n", prefix, bf, asci);
-
-            } else {
-                view("%s%04X: %s  %s\n", prefix, i-15, bf, asci);
-            }
-
-            p = bf;
-            j = 0;
-        }
-    }
-    if(j) {
-        len = 16 - j;
-        while(len-- >0) {
-            *p++ = ' ';
-            *p++ = ' ';
-            *p++ = ' ';
-        }
-        *p++ = '\0';
-        asci[j] = '\0';
-
-        if(nivel==1) {
-           view("%s%s\n", prefix, bf);
-
-        } else if(nivel==2) {
-            view("%s%s  %s\n", prefix, bf, asci);
-
-        } else {
-            view("%s%04X: %s  %s\n", prefix, i - j, bf, asci);
-        }
-    }
-}
-
-/***********************************************************************
- *  Vuelca en formato tdump un array de longitud 'len'
- *    Contador, hexa, ascii
- ***********************************************************************/
-PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)
-{
-    char hexa[80+1];
-    char asci[40+1];
-    char addr[16+1];
-    char *p;
-    size_t i, j;
-
-    json_t *jn_dump = json_object();
-
-    p = hexa;
-    for(i=j=0; i<len; i++) {
-        asci[j] = (*s<' ' || *s>0x7f)? '.': *s;
-        if(asci[j] == '%')
-            asci[j] = '.';
-        j++;
-        p = byte_to_strhex(p, *s++);
-        *p++ = ' ';
-        if(j == 16) {
-            *p++ = '\0';
-            asci[j] = '\0';
-
-            snprintf(addr, sizeof(addr), "%04X", (unsigned int)(i-15));
-            json_t *jn_hexa = json_sprintf("%s  %s",  hexa, asci);
-            json_object_set_new(jn_dump, addr, jn_hexa);
-
-            p = hexa;
-            j = 0;
-        }
-    }
-    if(j) {
-        len = 16 - j;
-        while(len-- >0) {
-            *p++ = ' ';
-            *p++ = ' ';
-            *p++ = ' ';
-        }
-        *p++ = '\0';
-        asci[j] = '\0';
-
-        snprintf(addr, sizeof(addr), "%04X", (unsigned int)(i-j));
-        json_t *jn_hexa = json_sprintf("%s  %s",  hexa, asci);
-        json_object_set_new(jn_dump, addr, jn_hexa);
-    }
-
-    return jn_dump;
-}
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -7217,790 +7268,6 @@ PUBLIC void gobj_trace_dump(
     json_decref(jn_data);
 }
 
-/***************************************************************************
- *  Print json to stdout
- ***************************************************************************/
-PUBLIC int print_json2(const char *label, json_t *jn)
-{
-    if(!label) {
-        label = "";
-    }
-    if(!jn || jn->refcount <= 0) {
-        fprintf(stdout, "%s (%p) ERROR print_json2(): json %s %d, type %d\n",
-            label,
-            jn,
-            jn?"NULL":"or refcount is",
-            jn?(int)(jn->refcount):0,
-            jn?(int)(jn->type):0
-        );
-        return -1;
-    }
-
-    size_t flags = JSON_INDENT(2)|JSON_ENCODE_ANY;
-    fprintf(stdout, "%s (%p) (refcount: %d, type %d) ==>\n",
-        label,
-        jn,
-        (int)(jn->refcount),
-        (int)(jn->type)
-    );
-    json_dumpf(jn, stdout, flags);
-    fprintf(stdout, "\n");
-    return 0;
-}
-
-
-
-
-                        /*---------------------------------*
-                         *      Utilities functions
-                         *---------------------------------*/
-
-
-
-
-/*****************************************************************
- *  timestamp with usec resolution
- *  `bf` must be 90 bytes minimum
- *****************************************************************/
-PUBLIC char *current_timestamp(char *bf, size_t bfsize)
-{
-    struct timespec ts;
-    struct tm *tm;
-    char stamp[64], zone[16];
-    clock_gettime(CLOCK_REALTIME, &ts);
-    tm = localtime(&ts.tv_sec);
-
-    strftime(stamp, sizeof (stamp), "%Y-%m-%dT%H:%M:%S", tm);
-    strftime(zone, sizeof (zone), "%z", tm);
-    snprintf(bf, bfsize, "%s.%09lu%s", stamp, ts.tv_nsec, zone);
-    return bf;
-}
-
-/****************************************************************************
- *   Arranca un timer de 'seconds' segundos.
- *   El valor retornado es el que hay que usar en la funcion test_timer()
- *   para ver si el timer ha cumplido.
- ****************************************************************************/
-PUBLIC time_t start_sectimer(time_t seconds)
-{
-    time_t timer;
-
-    time(&timer);
-    timer += seconds;
-    return timer;
-}
-
-/****************************************************************************
- *   Retorna TRUE si ha cumplido el timer 'value', FALSE si no.
- ****************************************************************************/
-PUBLIC BOOL test_sectimer(time_t value)
-{
-    time_t timer_actual;
-
-    if(value <= 0) {
-        // No value no test true
-        return FALSE;
-    }
-    time(&timer_actual);
-    return (timer_actual>=value)? TRUE:FALSE;
-}
-
-/****************************************************************************
- *   Arranca un timer de 'miliseconds' mili-segundos.
- *   El valor retornado es el que hay que usar en la funcion test_msectimer()
- *   para ver si el timer ha cumplido.
- ****************************************************************************/
-PUBLIC uint64_t start_msectimer(uint64_t miliseconds)
-{
-    uint64_t ms = time_in_miliseconds();
-    ms += miliseconds;
-    return ms;
-}
-
-/****************************************************************************
- *   Retorna TRUE si ha cumplido el timer 'value', FALSE si no.
- ****************************************************************************/
-PUBLIC BOOL test_msectimer(uint64_t value)
-{
-    if(value == 0) {
-        // No value no test true
-        return FALSE;
-    }
-
-    uint64_t ms = time_in_miliseconds();
-
-    return (ms>value)? TRUE:FALSE;
-}
-
-/****************************************************************************
- *  Current time in milisecons
- ****************************************************************************/
-PUBLIC uint64_t time_in_miliseconds(void)
-{
-    struct timespec spec;
-
-    //clock_gettime(CLOCK_MONOTONIC, &spec); //Este no da el time from Epoch
-    clock_gettime(CLOCK_REALTIME, &spec);
-
-    // Convert to milliseconds
-    return ((uint64_t)spec.tv_sec)*1000 + ((uint64_t)spec.tv_nsec)/1000000;
-}
-
-/***************************************************************************
- *  Return current time in seconds (standart time(&t))
- ***************************************************************************/
-PUBLIC uint64_t time_in_seconds(void)
-{
-    time_t __t__;
-    time(&__t__);
-    return (uint64_t) __t__;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *helper_quote2doublequote(char *str)
-{
-    register size_t len = strlen(str);
-    register char *p = str;
-
-    for(size_t i=0; i<len; i++, p++) {
-        if(*p== '\'')
-            *p = '"';
-    }
-    return str;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *helper_doublequote2quote(char *str)
-{
-    register size_t len = strlen(str);
-    register char *p = str;
-
-    for(size_t i=0; i<len; i++, p++) {
-        if(*p== '"')
-            *p = '\'';
-    }
-    return str;
-}
-
-/***************************************************************************
- *  Convert any json string to json binary.
- ***************************************************************************/
-PUBLIC json_t *anystring2json(hgobj gobj, const char *bf, size_t len, BOOL verbose)
-{
-    if(empty_string(bf)) {
-        if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "bf EMPTY",
-                NULL
-            );
-        }
-        return 0;
-    }
-    size_t flags = JSON_DECODE_ANY;
-    json_error_t error;
-    json_t *jn = json_loadb(bf, len, flags, &error);
-    if(!jn) {
-        if(verbose) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
-                "msg",          "%s", "json_loads() FAILED",
-                "bf",          "%s", bf,
-                "error",        "%s", error.text,
-                "line",         "%d", error.line,
-                "column",       "%d", error.column,
-                "position",     "%d", error.position,
-                NULL
-            );
-            gobj_trace_dump(gobj, bf, strlen(bf), "json_loads() FAILED");
-        }
-    }
-    return jn;
-}
-
-/***************************************************************************
- *  Simple json to int
- ***************************************************************************/
-PUBLIC json_int_t jn2integer(json_t *jn_var)
-{
-    json_int_t val = 0;
-    if(json_is_real(jn_var)) {
-        val = (json_int_t)json_real_value(jn_var);
-    } else if(json_is_integer(jn_var)) {
-        val = json_integer_value(jn_var);
-    } else if(json_is_string(jn_var)) {
-        const char *v = json_string_value(jn_var);
-        if(*v == '0') {
-            val = strtoll(v, 0, 8);
-        } else if(*v == 'x' || *v == 'X') {
-            val = strtoll(v, 0, 16);
-        } else {
-            val = strtoll(v, 0, 10);
-        }
-    } else if(json_is_true(jn_var)) {
-        val = 1;
-    } else if(json_is_false(jn_var)) {
-        val = 0;
-    } else if(json_is_null(jn_var)) {
-        val = 0;
-    }
-    return val;
-}
-
-/***************************************************************************
- *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
- *  https://www.mbeckler.org/blog/?p=114
- ***************************************************************************/
-PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes)
-{
-    const char* suffixes[7];
-    suffixes[0] = "B";
-    suffixes[1] = "Thousands";
-    suffixes[2] = "Millions";
-    suffixes[3] = "GB";
-    suffixes[4] = "TB";
-    suffixes[5] = "PB";
-    suffixes[6] = "EB";
-    unsigned int s = 0; // which suffix to use
-    double count = (double)bytes;
-    while (count >= 1000 && s < 7)
-    {
-        s++;
-        count /= 1000;
-    }
-    if (count - floor(count) == 0.0)
-        snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
-    else
-        snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
-}
-
-/***************************************************************************
- *    Elimina blancos a la derecha. (Espacios, tabuladores, CR's  o LF's)
- ***************************************************************************/
-PUBLIC void delete_right_blanks(char *s)
-{
-    int l;
-    char c;
-
-    /*---------------------------------*
-     *  Elimina blancos a la derecha
-     *---------------------------------*/
-    l = (int)strlen(s);
-    if(l==0)
-        return;
-    while(--l>=0) {
-        c= *(s+l);
-        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
-            *(s+l)='\0';
-        else
-            break;
-    }
-}
-
-/***************************************************************************
- *    Elimina blancos a la izquierda. (Espacios, tabuladores, CR's  o LF's)
- ***************************************************************************/
-PUBLIC void delete_left_blanks(char *s)
-{
-    unsigned l;
-    char c;
-
-    /*----------------------------*
-     *  Busca el primer no blanco
-     *----------------------------*/
-    l=0;
-    while(1) {
-        c= *(s+l);
-        if(c=='\0')
-            break;
-        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
-            l++;
-        else
-            break;
-    }
-    if(l>0) {
-        memmove(s,s+l,(unsigned long)strlen(s) -l + 1);
-    }
-}
-
-/***************************************************************************
- *    Justifica a la izquierda eliminado blancos a la derecha
- ***************************************************************************/
-PUBLIC void left_justify(char *s)
-{
-    if(s) {
-        /*---------------------------------*
-         *  Elimina blancos a la derecha
-         *---------------------------------*/
-        delete_right_blanks(s);
-
-        /*-----------------------------------*
-         *  Quita los blancos a la izquierda
-         *-----------------------------------*/
-        delete_left_blanks(s);
-    }
-}
-
-/***************************************************************************
- *  Convert n bytes of string to upper case
- ***************************************************************************/
-PUBLIC char *strntoupper(char* s, size_t n)
-{
-    if(!s || n == 0)
-        return 0;
-
-    char *p = s;
-    while (n > 0 && *p != '\0') {
-        int c = (int)*p;
-        *p = (char)toupper(c);
-        p++;
-        n--;
-    }
-
-    return s;
-}
-
-/***************************************************************************
- *  Convert n bytes of string to lower case
- ***************************************************************************/
-PUBLIC char *strntolower(char* s, size_t n)
-{
-    if(!s || n == 0)
-        return 0;
-
-    char *p = s;
-    while (n > 0 && *p != '\0') {
-        int c = (int)*p;
-        *p = (char)tolower(c);
-        p++;
-        n--;
-    }
-
-    return s;
-}
-
-/***************************************************************************
- *    cambia el character old_d por new_c. Retorna los caracteres cambiados
- ***************************************************************************/
-PUBLIC int change_char(char *s, char old_c, char new_c)
-{
-    int count = 0;
-
-    while(*s) {
-        if(*s == old_c) {
-            *s = new_c;
-            count++;
-        }
-        s++;
-    }
-    return count;
-}
-
-/***************************************************************************
-    Split a string by delim returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free2().
-    HACK: No, It does NOT include the empty strings!
- ***************************************************************************/
-PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
-{
-    char *ptr;
-    int max_items = 0;
-
-    if(plist_size) {
-        max_items = *plist_size;
-        *plist_size = 0; // error case
-    }
-    char *buffer = GBMEM_STRDUP(str);
-    if(!buffer) {
-        return 0;
-    }
-
-    // Get list size
-    int list_size = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
-        list_size++;
-    }
-    GBMEM_FREE(buffer);
-
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
-    if(!buffer) {
-        return 0;
-    }
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
-    }
-
-    // Alloc list
-    int size = sizeof(char *) * (list_size + 1);
-    const char **list = GBMEM_MALLOC(size);
-
-    // Fill list
-    int i = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
-        if (i < list_size) {
-            list[i++] = GBMEM_STRDUP(ptr);
-        } else {
-            break;
-        }
-    }
-    GBMEM_FREE(buffer);
-
-    if(plist_size) {
-        *plist_size = i;
-    }
-    return list;
-}
-
-/***************************************************************************
- *  Free split list content
- ***************************************************************************/
-PUBLIC void split_free2(const char **list)
-{
-    if(list) {
-        char **p = (char **)list;
-        while(*p) {
-            GBMEM_FREE(*p);
-            *p = 0;
-            p++;
-        }
-        GBMEM_FREE(list);
-    }
-}
-
-/***************************************************************************
-    Split string `str` by `delim` chars returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free3().
-    HACK: Yes, It does include the empty strings!
- ***************************************************************************/
-PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
-{
-    char *ptr, *p;
-    int max_items = 0;
-
-    if(plist_size) {
-        max_items = *plist_size;
-        *plist_size = 0; // error case
-    }
-    char *buffer = GBMEM_STRDUP(str);
-    if(!buffer) {
-        return 0;
-    }
-
-    // Get list size
-    int list_size = 0;
-
-    p = buffer;
-    while ((ptr = strsep(&p, delim)) != NULL) {
-        list_size++;
-    }
-    GBMEM_FREE(buffer);
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
-    }
-
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
-    if(!buffer) {
-        return 0;
-    }
-
-    // Alloc list
-    size_t size = sizeof(char *) * (list_size + 1);
-    const char **list = GBMEM_MALLOC(size);
-
-    // Fill list
-    int i = 0;
-    p = buffer;
-    while ((ptr = strsep(&p, delim)) != NULL) {
-        if (i < list_size) {
-            list[i] = GBMEM_STRDUP(ptr);
-            i++;
-        } else {
-            break;
-        }
-    }
-    GBMEM_FREE(buffer);
-
-    if(plist_size) {
-        *plist_size = list_size;
-    }
-    return list;
-}
-
-/***************************************************************************
- *  Free split list content
- ***************************************************************************/
-PUBLIC void split_free3(const char **list)
-{
-    if(list) {
-        char **p = (char **)list;
-        while(*p) {
-            GBMEM_FREE(*p);
-            *p = 0;
-            p++;
-        }
-        GBMEM_FREE(list);
-    }
-}
-
-
-
-
-                        /*---------------------------------*
-                         *      SECTION: dl_list
-                         *---------------------------------*/
-
-
-
-
-/***************************************************************
- *      Initialize double list
- ***************************************************************/
-PUBLIC int dl_init(dl_list_t *dl)
-{
-    if(dl->head || dl->tail || dl->__itemsInContainer__) {
-        gobj_trace_msg(0, "dl_init(): Wrong dl_list_t, MUST be empty");
-        abort();
-    }
-    dl->head = 0;
-    dl->tail = 0;
-    dl->__itemsInContainer__ = 0;
-    return 0;
-}
-
-/***************************************************************
- *      Seek first item
- ***************************************************************/
-PUBLIC void *dl_first(dl_list_t *dl)
-{
-    return dl->head;
-}
-
-/***************************************************************
- *      Seek last item
- ***************************************************************/
-PUBLIC void *dl_last(dl_list_t *dl)
-{
-    return dl->tail;
-}
-
-/***************************************************************
- *      next Item
- ***************************************************************/
-PUBLIC void *dl_next(void *curr)
-{
-    if(curr) {
-        return ((dl_item_t *) curr)->__next__;
-    }
-    return (void *)0;
-}
-
-/***************************************************************
- *      previous Item
- ***************************************************************/
-PUBLIC void *dl_prev(void *curr)
-{
-    if(curr) {
-        return ((dl_item_t *) curr)->__prev__;
-    }
-    return (void *)0;
-}
-
-/***************************************************************
- *  Check if a new item has links: MUST have NO links
- *  Return true if it has links
- ***************************************************************/
-static bool check_links(register dl_item_t *item)
-{
-    if(item->__prev__ || item->__next__ || item->__dl__) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Wrong dl_item_t, WITH links",
-            NULL
-        );
-        return true;
-    }
-    return false;
-}
-
-/***************************************************************
- *  Check if a item has no links: MUST have links
- *  Return true if it has not links
- ***************************************************************/
-static bool check_no_links(register dl_item_t *item)
-{
-    if(!item->__dl__) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Wrong dl_item_t, WITHOUT links",
-            NULL
-        );
-        return true;
-    }
-    return false;
-}
-
-/***************************************************************
- *      Add at end of the list
- ***************************************************************/
-PUBLIC int dl_add(dl_list_t *dl, void *item)
-{
-    if(check_links(item)) return -1;
-
-    if(dl->tail==0) { /*---- Empty List -----*/
-        ((dl_item_t *)item)->__prev__=0;
-        ((dl_item_t *)item)->__next__=0;
-        dl->head = item;
-        dl->tail = item;
-    } else { /* LAST ITEM */
-        ((dl_item_t *)item)->__prev__ = dl->tail;
-        ((dl_item_t *)item)->__next__ = 0;
-        dl->tail->__next__ = item;
-        dl->tail = item;
-    }
-    dl->__itemsInContainer__++;
-    dl->__last_id__++;
-    ((dl_item_t *)item)->__id__ = dl->__last_id__;
-    ((dl_item_t *)item)->__dl__ = dl;
-
-    return 0;
-}
-
-/***************************************************************
- *    Delete current item
- ***************************************************************/
-PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
-{
-    register dl_item_t * curr = curr_;
-    /*-------------------------*
-     *     Check nulls
-     *-------------------------*/
-    if(curr==0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Deleting item NULL",
-            NULL
-        );
-        return -1;
-    }
-    if(check_no_links(curr))
-        return -1;
-
-    if(curr->__dl__ != dl) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Deleting item with DIFFERENT dl_list_t",
-            NULL
-        );
-        return -1;
-    }
-
-    /*-------------------------*
-     *     Check list
-     *-------------------------*/
-    if(dl->head==0 || dl->tail==0 || dl->__itemsInContainer__==0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Deleting item in EMPTY list",
-            NULL
-        );
-        return -1;
-    }
-
-    /*------------------------------------------------*
-     *                 Delete
-     *------------------------------------------------*/
-    if(((dl_item_t *)curr)->__prev__==0) {
-        /*------------------------------------*
-         *  FIRST ITEM. (curr==dl->head)
-         *------------------------------------*/
-        dl->head = dl->head->__next__;
-        if(dl->head) /* is last item? */
-            dl->head->__prev__=0; /* no */
-        else
-            dl->tail=0; /* yes */
-
-    } else {
-        /*------------------------------------*
-         *    MIDDLE or LAST ITEM
-         *------------------------------------*/
-        ((dl_item_t *)curr)->__prev__->__next__ = ((dl_item_t *)curr)->__next__;
-        if(((dl_item_t *)curr)->__next__) /* last? */
-            ((dl_item_t *)curr)->__next__->__prev__ = ((dl_item_t *)curr)->__prev__; /* no */
-        else
-            dl->tail= ((dl_item_t *)curr)->__prev__; /* yes */
-    }
-
-    /*-----------------------------*
-     *  Decrement items counter
-     *-----------------------------*/
-    dl->__itemsInContainer__--;
-
-    /*-----------------------------*
-     *  Reset pointers
-     *-----------------------------*/
-    ((dl_item_t *)curr)->__prev__ = 0;
-    ((dl_item_t *)curr)->__next__ = 0;
-    ((dl_item_t *)curr)->__dl__ = 0;
-
-    /*-----------------------------*
-     *  Free item
-     *-----------------------------*/
-    if(fnfree) {
-        (*fnfree)(curr);
-    }
-
-    return 0;
-}
-
-/***************************************************************
- *      DL_LIST: Flush double list. (Remove all items).
- ***************************************************************/
-PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *))
-{
-    register dl_item_t *first;
-
-    while((first = dl_first(dl))) {
-        dl_delete(dl, first, fnfree);
-    }
-    if(dl->head || dl->tail || dl->__itemsInContainer__) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Wrong dl_list_t, MUST be empty",
-            NULL
-        );
-    }
-}
-
-/***************************************************************
- *   Return number of items in list
- ***************************************************************/
-PUBLIC size_t dl_size(dl_list_t *dl)
-{
-    if(!dl) {
-        return 0;
-    }
-    return dl->__itemsInContainer__;
-}
 
 
 

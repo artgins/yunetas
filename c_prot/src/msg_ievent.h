@@ -21,7 +21,7 @@
  ****************************************************************************/
 #include <gobj.h>
 #include <kwid.h>
-
+#include <gbuffer.h>
 #pragma once
 
 #ifdef __cplusplus
