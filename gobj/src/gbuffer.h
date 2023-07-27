@@ -117,11 +117,11 @@ PUBLIC size_t gbuffer_getmark(gbuffer_t *gbuf);
 
 PUBLIC json_t* gbuffer_serialize(
     hgobj gobj,
-gbuffer_t *gbuf // not owned
+    gbuffer_t *gbuf // not owned
 );
 PUBLIC gbuffer_t *gbuffer_deserialize(
     hgobj gobj,
-const json_t *jn  // not owned
+    const json_t *jn  // not owned
 );
 
 /*

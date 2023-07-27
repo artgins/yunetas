@@ -12,6 +12,7 @@
 #include "nvs.h"
 #endif
 #include <kwid.h>
+#include <helpers.h>
 #include "esp_persistent.h"
 
 extern void jsonp_free(void *ptr);
@@ -138,7 +139,7 @@ PRIVATE json_t *load_json(
         return NULL;
     }
 
-    jn = anystring2json(gobj, svalue, strlen(svalue), TRUE);
+    jn = anystring2json(svalue, strlen(svalue), TRUE);
 
     // Close
     nvs_close(nvs_handle);
