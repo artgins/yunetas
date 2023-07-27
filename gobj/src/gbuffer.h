@@ -133,6 +133,22 @@ PUBLIC gbuffer_t *gbuffer_string_to_base64(const char* src, size_t len); // base
  */
 PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len);
 
+/*
+ *  Json to gbuffer
+ */
+PUBLIC gbuffer_t *json2gbuf(
+    gbuffer_t *gbuf,
+    json_t *jn, // owned
+    size_t flags
+);
+/*
+ *  Json from gbuffer
+ */
+PUBLIC json_t *gbuf2json(
+    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
+    int verbose     // 1 log, 2 log+dump
+);
+
 PUBLIC void gobj_trace_dump_gbuf(
     hgobj gobj,
     gbuffer_t *gbuf,

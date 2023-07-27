@@ -8,6 +8,7 @@
 ***********************************************************************/
 #include <sys/types.h>
 #include <unistd.h>
+#include <gbuffer.h>
 #include "msg_ievent.h"
 
 /****************************************************************
@@ -31,22 +32,19 @@
  ***************************************************************/
 
 /***************************************************************************
- *
+ *  Useful to send event's messages TO outside world.
  ***************************************************************************/
-PUBLIC json_t* iev_create(
+PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw // owned
 )
 {
     if(empty_string(event)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "event NULL",
-//            "process",      "%s", get_process_name(),
-//            "hostname",     "%s", get_host_name(),
-//            "pid",          "%d", get_pid(),
             NULL
         );
         return 0;
@@ -64,17 +62,100 @@ PUBLIC json_t* iev_create(
         "kw", kw
     );
     if(!jn_iev) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "json_pack() FAILED",
-//            "process",      "%s", get_process_name(),
-//            "hostname",     "%s", get_host_name(),
-//            "pid",          "%d", get_pid(),
             NULL
         );
     }
-    return jn_iev;
+    size_t flags = JSON_COMPACT;
+    return json2gbuf(0, jn_iev, flags);
+}
+
+/***************************************************************************
+ *  Incorporate event's messages from outside world.
+ *  gbuf decref
+ ***************************************************************************/
+PUBLIC int iev_create_from_gbuffer(
+    hgobj gobj,
+    iev_msg_t *iev_msg,
+    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
+    int verbose     // 1 log, 2 log+dump
+)
+{
+    /*---------------------------------------*
+     *  Convert gbuf msg in json
+     *---------------------------------------*/
+    json_t *jn_msg = gbuf2json(gbuf, verbose); // gbuf stolen: decref and data consumed
+    if(!jn_msg) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msg",          "%s", "gbuf2json() FAILED",
+            NULL
+        );
+        iev_msg->event[0] = 0;
+        iev_msg->kw = 0;
+        return -1;
+    }
+
+
+
+    /*
+     *  Get fields
+     */
+    const char *event = kw_get_str(gobj, jn_msg, "event", "", KW_REQUIRED);
+    json_t *kw = kw_get_dict(gobj, jn_msg, "kw", 0, KW_REQUIRED);
+
+    if(empty_string(event)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "event EMPTY",
+            NULL
+        );
+        JSON_DECREF(jn_msg);
+        iev_msg->event[0] = 0;
+        iev_msg->kw = 0;
+        return -1;
+    }
+    if(!kw) { // WARNING cannot be null!
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw EMPTY",
+            NULL
+        );
+        JSON_DECREF(jn_msg);
+        iev_msg->event[0] = 0;
+        iev_msg->kw = 0;
+        return -1;
+    }
+    /*
+     *  Aquí se tendría que tracear el inter-evento de entrada
+     */
+    /*
+     *  Inter-event from world outside, deserialize!
+     */
+    json_incref(kw);
+    json_t *new_kw = kw_deserialize(gobj, kw);
+
+    if(strlen(event) >= sizeof(iev_msg->event)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Event name TOO LARGE",
+            "len",          "%d", strlen(event),
+            "maxlen",       "%d", sizeof(iev_msg->event)-1,
+            NULL
+        );
+    }
+    snprintf(iev_msg->event, sizeof(iev_msg->event), "%s", event);
+    iev_msg->kw = new_kw;
+    JSON_DECREF(jn_msg);
+
+    return 0;
 }
 
 /***************************************************************************
@@ -342,7 +423,7 @@ PUBLIC json_t *msg_iev_get_stack( // return is not yours!
 //    json_t *jn_stack = kw_get_subdict_value(gobj, kw, "__md_iev__", stack, 0, 0);
 //    if(!jn_stack) {
 //        if(print_not_found) {
-//            log_error(0,
+//    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //                "gobj",         "%s", __FILE__,
 //                "function",     "%s", __FUNCTION__,
 //                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -372,7 +453,7 @@ PUBLIC json_t * msg_iev_pop_stack(
 //     *-----------------------------------*/
 //    json_t *jn_stack = kw_get_subdict_value(gobj, kw, "__md_iev__", stack, 0, 0);
 //    if(!jn_stack) {
-//        log_error(0,
+//    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //            "gobj",         "%s", __FILE__,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INTERNAL_ERROR,

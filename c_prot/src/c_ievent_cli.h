@@ -2,7 +2,8 @@
  *          C_IEVENT_CLI.H
  *          Ievent_cli GClass.
  *
- *          Inter-event client protocol
+ *          Inter-event (client side)
+ *          Simulate a remote service like a local gobj.
  *
  *          Copyright (c) 2016-2023 Niyamaka.
  *          All Rights Reserved.

@@ -29,18 +29,40 @@ extern "C"{
 #endif
 
 /***************************************************
- *              Interface
+ *              Constants
  **************************************************/
 #define IEVENT_MESSAGE_AREA_ID "ievent_gate_stack"
 
 /***************************************************
+ *              Structures
+ **************************************************/
+typedef struct {
+    char event[80];
+    json_t *kw;
+} iev_msg_t;
+
+/***************************************************
  *              Prototypes
  **************************************************/
-PUBLIC json_t* iev_create(
+/*-----------------------------------------------------*
+ *  Useful to send event's messages TO outside world.
+ *-----------------------------------------------------*/
+PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw // owned
 );
+
+/*-----------------------------------------------------*
+ *  Incorporate event's messages FROM outside world.
+ *-----------------------------------------------------*/
+PUBLIC int iev_create_from_gbuffer(
+    hgobj gobj,
+    iev_msg_t *iev_msg,
+    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
+    int verbose     // 1 log, 2 log+dump
+);
+
 
 /*
  *  build_webix()
@@ -58,10 +80,10 @@ PUBLIC json_t* iev_create(
 
  *
  */
-#define WEBIX_RESULT(webix)     (kw_get_int((webix), "result", 0, 0))
-#define WEBIX_COMMENT(webix)    (kw_get_str((webix), "comment", "", 0))
-#define WEBIX_SCHEMA(webix)     (kw_get_dict_value((webix), "comment", 0, 0))
-#define WEBIX_DATA(webix)       (kw_get_dict_value((webix), "data", 0, 0))
+#define WEBIX_RESULT(gobj, webix)     (kw_get_int((gobj), (webix), "result", 0, KW_REQUIRED))
+#define WEBIX_COMMENT(gobj, webix)    (kw_get_str((gobj), (webix), "comment", "", KW_REQUIRED))
+#define WEBIX_SCHEMA(gobj, webix)     (kw_get_dict_value((gobj), (webix), "comment", 0, KW_REQUIRED))
+#define WEBIX_DATA(gobj, webix)       (kw_get_dict_value((gobj), (webix), "data", 0, KW_REQUIRED))
 
 PUBLIC json_t *build_webix(
     hgobj gobj,

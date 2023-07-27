@@ -9,6 +9,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include "kwid.h"
 #include "gbuffer.h"
 
 /***************************************************************
@@ -1197,6 +1198,82 @@ PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len
     }
     gbuffer_set_wr(gbuf_output, decoded);
     return gbuf_output;
+}
+
+/***************************************************************************
+ *      Dump json into gbuf
+ ***************************************************************************/
+PRIVATE int dump2gbuf(const char *buffer, size_t size, void *data)
+{
+    gbuffer_t *gbuf = data;
+
+    if(size > 0) {
+        gbuffer_append(gbuf, (void *)buffer, size);
+    }
+    return 0;
+}
+PUBLIC gbuffer_t *json2gbuf(
+    gbuffer_t *gbuf,
+    json_t *jn, // owned
+    size_t flags)
+{
+    if(!gbuf) {
+        gbuf = gbuffer_create(4*1024, gobj_get_maximum_block());
+    }
+    json_dump_callback(jn, dump2gbuf, gbuf, flags);
+    JSON_DECREF(jn);
+    return gbuf;
+}
+
+/***************************************************************************
+ *  Convert a json message from gbuffer into a json struct.
+ *  gbuf is stolen
+ *  Return 0 if error
+ ***************************************************************************/
+PRIVATE size_t on_load_callback(void *bf, size_t bfsize, void *data)
+{
+    gbuffer_t *gbuf = data;
+
+    size_t chunk = gbuffer_leftbytes(gbuf);
+    if(!chunk)
+        return 0;
+    if(chunk > bfsize)
+        chunk = bfsize;
+    memcpy(bf, gbuffer_get(gbuf, chunk), chunk);
+    return chunk;
+}
+
+PUBLIC json_t * gbuf2json(
+    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
+    int verbose     // 1 log, 2 log+dump
+)
+{
+    size_t flags = JSON_DECODE_ANY|JSON_ALLOW_NUL;
+    json_error_t jn_error;
+    json_t *jn_msg = json_load_callback(on_load_callback, gbuf, flags, &jn_error);
+
+    if(!jn_msg) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "gobj",         "%s", __FILE__,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msg",          "%s", "json_load_callback() FAILED",
+                "error",        "%s", jn_error.text,
+                NULL
+            );
+            if(verbose > 1) {
+                gbuffer_reset_rd(gbuf);
+                gobj_trace_dump_gbuf(
+                    0,
+                    gbuf,
+                    "Bad json format"
+                );
+            }
+        }
+    }
+    gbuffer_decref(gbuf);
+    return jn_msg;
 }
 
 /*****************************************************************

@@ -2,7 +2,7 @@
  *          c_ievent_cli.c
  *          Ievent_cli GClass.
  *
- *          Inter-event client protocol
+ *          Inter-event (client side)
  *          Simulate a remote service like a local gobj.
  *
  *          Copyright (c) 2016-2023 Niyamaka.
@@ -52,11 +52,11 @@ PRIVATE json_t *build_ievent_request(
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
-SDATA (DTP_STRING,  "wanted_yuno_role",   SDF_RD,       "",         "wanted yuno role"),
-SDATA (DTP_STRING,  "wanted_yuno_name",   SDF_RD,       "",         "wanted yuno name"),
+SDATA (DTP_STRING,  "wanted_yuno_role", SDF_RD,         "",         "wanted yuno role"),
+SDATA (DTP_STRING,  "wanted_yuno_name", SDF_RD,         "",         "wanted yuno name"),
 SDATA (DTP_STRING,  "wanted_yuno_service",SDF_RD,       "",         "wanted yuno service"),
-SDATA (DTP_STRING,  "remote_yuno_role",   SDF_RD,       "",         "confirmed remote yuno role"),
-SDATA (DTP_STRING,  "remote_yuno_name",   SDF_RD,       "",         "confirmed remote yuno name"),
+SDATA (DTP_STRING,  "remote_yuno_role", SDF_RD,         "",         "confirmed remote yuno role"),
+SDATA (DTP_STRING,  "remote_yuno_name", SDF_RD,         "",         "confirmed remote yuno name"),
 SDATA (DTP_STRING,  "remote_yuno_service",SDF_RD,       "",         "confirmed remote yuno service"),
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
@@ -828,7 +828,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //        log_error(0,
 //            "gobj",         "%s", gobj_full_name(gobj),
 //            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msgset",       "%s", MSGSET_INTERN
 //            "msg",          "%s", "iev_create_from_gbuffer() FAILED",
 //            NULL
 //        );
