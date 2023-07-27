@@ -225,6 +225,15 @@ PUBLIC const char *msg_get_msg_type(
     json_t *kw
 );
 
+/*
+ *  Trace inter-events with metadata of kw
+ */
+PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw);
+/*
+ *  Trace inter-events with full kw
+ */
+PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw);
+
 
 #ifdef __cplusplus
 }

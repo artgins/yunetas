@@ -181,8 +181,8 @@ PRIVATE int ievent_answer_filter(
     json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_name(gobj_yuno())));
     json_object_set_new(jn_ievent, "src_role", json_string(gobj_read_str_attr(gobj_yuno(), "yuno_role")));
 
-// TODO repon   json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_yuno_name()));
-//    json_object_set_new(jn_ievent, "src_role", json_string(gobj_yuno_role()));
+    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_yuno_name()));
+    json_object_set_new(jn_ievent, "src_role", json_string(gobj_yuno_role()));
 
     json_object_set_new(jn_ievent, "src_service", json_string(gobj_name(gobj)));
 
@@ -512,3 +512,39 @@ PUBLIC int msg_set_msg_type(
 //{
 //    return kw_get_str(kw, "__md_iev__`__msg_type__", "", 0);
 //}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)
+{
+    json_t * kw_compact = json_object();
+    if(kw_has_key(kw, "result")) {
+        json_object_set(kw_compact, "result", kw_get_dict_value(gobj, kw, "result", 0, 0));
+    }
+    if(kw_has_key(kw, "__md_iev__")) {
+        json_object_set(kw_compact, "__md_iev__", kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0));
+    }
+
+    json_t *jn_iev = json_pack("{s:s, s:o}",
+        "event", event?event:"???",
+        "kw", kw_compact
+    );
+
+    gobj_trace_json(gobj, jn_iev, "%s", prefix);
+    json_decref(jn_iev);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)
+{
+    json_t *jn_iev = json_pack("{s:s, s:O}",
+        "event", event?event:"???",
+        "kw", kw
+    );
+
+    gobj_trace_json(gobj, jn_iev, "%s", prefix);
+    json_decref(jn_iev);
+}

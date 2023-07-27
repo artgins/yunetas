@@ -448,6 +448,7 @@ typedef enum { // HACK strict ascendent value!, strings in event_flag_names[]
     EVF_NO_WARN_SUBS    = 0x0001,   // Don't warn of "Publish event WITHOUT subscribers"
     EVF_OUTPUT_EVENT    = 0x0002,   // Output Event
     EVF_SYSTEM_EVENT    = 0x0004,   // System Event
+    EVF_PUBLIC_EVENT    = 0x0008,   // You should document a public event, it's the API
 } event_flag_t;
 
 /***************************************************************
@@ -1206,10 +1207,31 @@ PUBLIC int gobj_get_exit_code(void);
 
 PUBLIC hgobj gobj_default_service(void);
 PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose);
+PUBLIC hgobj gobj_find_gobj(const char *gobj_path); // find gobj by path (full path)
 
 PUBLIC int gobj_autostart_services(void);
 PUBLIC int gobj_autoplay_services(void);
 PUBLIC int gobj_stop_services(void);
+
+/*
+ *  mt_command must return a webix json or 0 on asynchronous responses.
+ */
+PUBLIC json_t *gobj_command( // With AUTHZ
+    hgobj gobj,
+    const char *command,
+    json_t *kw,
+    hgobj src
+);
+
+/*
+ *  Return a dict with attrs marked with SDF_STATS and stats_metadata
+ */
+PUBLIC json_t * gobj_stats( // Call mt_stats() or build_stats()
+    hgobj gobj,
+    const char* stats,
+    json_t* kw,
+    hgobj src
+);
 
 PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj); // inherit attributes
 PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj); // inherit attributes
@@ -1267,8 +1289,8 @@ PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
 
-#define gobj_yuno_name()    gobj_name(gobj_yuno())
-#define gobj_yuno_role()    gobj_read_str_attr(gobj_yuno(), "yuno_role"))
+static inline const char *gobj_yuno_name(void) {return gobj_name(gobj_yuno());}
+static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role");}
 
 /*--------------------------------------------*
  *          Events and States

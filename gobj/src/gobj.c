@@ -221,6 +221,7 @@ PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     "EVF_NO_WARN_SUBS",
     "EVF_OUTPUT_EVENT",
     "EVF_SYSTEM_EVENT",
+    "EVF_PUBLIC_EVENT",
     0
 };
 
@@ -3334,6 +3335,13 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         return NULL;
     }
 
+    if(strcasecmp(service, "__default_service__")==0) {
+        return __default_service__;
+    }
+    if(strcasecmp(service, "__yuno__")==0 || strcasecmp(service, "__root__")==0) {
+        return gobj_yuno();
+    }
+
     json_t *o = json_object_get(jn_services, service);
     if(!o) {
         if(verbose) {
@@ -3349,6 +3357,27 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
     }
 
     return (hgobj)(size_t)json_integer_value(o);
+}
+
+/***************************************************************************
+ *  Find a gobj by path
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_gobj(const char *path)
+{
+    if(empty_string(path)) {
+        return 0;
+    }
+    /*
+     *  WARNING code repeated
+     */
+    if(strcasecmp(path, "__default_service__")==0) {
+        return __default_service__;
+    }
+    if(strcasecmp(path, "__yuno__")==0 || strcasecmp(path, "__root__")==0) {
+        return __yuno__;
+    }
+
+    return 0; // TODO return _gobj_search_path(__yuno__, path);
 }
 
 /***************************************************************************
@@ -3421,6 +3450,136 @@ PUBLIC int gobj_stop_services(void)
         gobj_stop_tree(gobj);
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *  Execute a command of gclass command table
+ ***************************************************************************/
+PUBLIC json_t *gobj_command( // With AUTHZ
+    hgobj gobj_,
+    const char *command,
+    json_t *kw,
+    hgobj src
+)
+{
+//    GObj_t *gobj = gobj_;
+//    if(!gobj || gobj->obflag & obflag_destroyed) {
+//        log_error(0,
+//            "gobj",         "%s", __FILE__,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "hgobj NULL or DESTROYED",
+//            NULL
+//        );
+//        KW_DECREF(kw)
+//        return 0;
+//    }
+//
+//    /*-----------------------------------------------*
+//     *  Trace
+//     *-----------------------------------------------*/
+//    BOOL tracea = is_machine_tracing(gobj) && !is_machine_not_tracing(src);
+//    if(tracea) {
+//        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
+//            (!gobj->running)?"!!":"",
+//            gobj_short_name(gobj),
+//            command,
+//            gobj_short_name(src)
+//        );
+//        log_debug_json(0, kw, "command kw");
+//    }
+//
+//    /*-----------------------------------------------*
+//     *  The local mt_command_parser has preference
+//     *-----------------------------------------------*/
+//    if(gobj->gclass->gmt.mt_command_parser) {
+//        if(__audit_command_cb__) {
+//            __audit_command_cb__(command, kw, __audit_command_user_data__);
+//        }
+//        return gobj->gclass->gmt.mt_command_parser(gobj, command, kw, src);
+//    }
+//
+//    /*-----------------------------------------------*
+//     *  If it has command_table
+//     *  then use the global command parser
+//     *-----------------------------------------------*/
+//    if(gobj->gclass->command_table) {
+//        if(__audit_command_cb__) {
+//            __audit_command_cb__(command, kw, __audit_command_user_data__);
+//        }
+//        if(__global_command_parser_fn__) {
+//            return __global_command_parser_fn__(gobj, command, kw, src);
+//        } else {
+//            log_error(LOG_OPT_TRACE_STACK,
+//                "gobj",         "%s", gobj_full_name(gobj),
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                "msg",          "%s", "Global command parser function not available",
+//                "command",      "%s", command?command:"",
+//                NULL
+//            );
+//            KW_DECREF(kw)
+//            return 0;
+//        }
+//    } else {
+//        return msg_iev_build_webix(
+//            gobj,
+//            -1,
+//            json_sprintf(
+//                "Command table not available in '%s' gobj",
+//                gobj_short_name(gobj)
+//            ),
+//            0,
+//            0,
+//            kw
+//        );
+//    }
+return 0; // TODO
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
+{
+// TODO    GObj_t * gobj = gobj_;
+//
+//    if(!gobj || gobj->obflag & obflag_destroyed) {
+//        log_error(0,
+//            "gobj",         "%s", __FILE__,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "hgobj NULL or DESTROYED",
+//            NULL
+//        );
+//        KW_DECREF(kw)
+//        return 0;
+//    }
+//
+//    /*--------------------------------------*
+//     *  The local mt_stats has preference
+//     *--------------------------------------*/
+//    if(gobj->gclass->gmt.mt_stats) {
+//        return gobj->gclass->gmt.mt_stats(gobj, stats, kw, src);
+//    }
+//
+//    /*-----------------------------------------------*
+//     *  Then use the global stats parser
+//     *-----------------------------------------------*/
+//    if(__global_stats_parser_fn__) {
+//        return __global_stats_parser_fn__(gobj, stats, kw, src);
+//    } else {
+//        log_error(LOG_OPT_TRACE_STACK,
+//            "gobj",         "%s", gobj_full_name(gobj),
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "Stats parser not available",
+//            "stats",        "%s", stats?stats:"",
+//            NULL
+//        );
+//        KW_DECREF(kw)
+//    }
     return 0;
 }
 
@@ -4299,7 +4458,7 @@ PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag
             "event",        "%s", event,
             NULL
         );
-        return FALSE;
+        return NULL;
     }
     gobj_t *gobj = (gobj_t *)gobj_;
 
