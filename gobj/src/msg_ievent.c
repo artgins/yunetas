@@ -30,8 +30,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
     hgobj gobj,
     gobj_event_t event,
     json_t *kw // owned
-)
-{
+) {
     if(empty_string(event)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -69,13 +68,12 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
  *  Incorporate event's messages from outside world.
  *  gbuf decref
  ***************************************************************************/
-PUBLIC int iev_create_from_gbuffer(
+PUBLIC json_t *iev_create_from_gbuffer(
     hgobj gobj,
-    iev_msg_t *iev_msg,
+    gobj_event_t *event,
     gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
     int verbose     // 1 log, 2 log+dump
-)
-{
+) {
     /*---------------------------------------*
      *  Convert gbuf msg in json
      *---------------------------------------*/
@@ -87,20 +85,17 @@ PUBLIC int iev_create_from_gbuffer(
             "msg",          "%s", "gbuf2json() FAILED",
             NULL
         );
-        iev_msg->event[0] = 0;
-        iev_msg->kw = 0;
-        return -1;
+        *event = NULL;
+        return NULL;
     }
-
-
 
     /*
      *  Get fields
      */
-    const char *event = kw_get_str(gobj, jn_msg, "event", "", KW_REQUIRED);
+    const char *event_ = kw_get_str(gobj, jn_msg, "event", "", KW_REQUIRED);
     json_t *kw = kw_get_dict(gobj, jn_msg, "kw", 0, KW_REQUIRED);
 
-    if(empty_string(event)) {
+    if(empty_string(event_)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -108,9 +103,8 @@ PUBLIC int iev_create_from_gbuffer(
             NULL
         );
         JSON_DECREF(jn_msg);
-        iev_msg->event[0] = 0;
-        iev_msg->kw = 0;
-        return -1;
+        *event = NULL;
+        return NULL;
     }
     if(!kw) { // WARNING cannot be null!
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -120,10 +114,10 @@ PUBLIC int iev_create_from_gbuffer(
             NULL
         );
         JSON_DECREF(jn_msg);
-        iev_msg->event[0] = 0;
-        iev_msg->kw = 0;
-        return -1;
+        *event = NULL;
+        return NULL;
     }
+
     /*
      *  Aquí se tendría que tracear el inter-evento de entrada
      */
@@ -133,21 +127,151 @@ PUBLIC int iev_create_from_gbuffer(
     json_incref(kw);
     json_t *new_kw = kw_deserialize(gobj, kw);
 
-    if(strlen(event) >= sizeof(iev_msg->event)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Event name TOO LARGE",
-            "len",          "%d", strlen(event),
-            "maxlen",       "%d", sizeof(iev_msg->event)-1,
-            NULL
-        );
-    }
-    snprintf(iev_msg->event, sizeof(iev_msg->event), "%s", event);
-    iev_msg->kw = new_kw;
+    *event = event_; // TODO convert string to gobj_event_t!!!
     JSON_DECREF(jn_msg);
 
-    return 0;
+    return new_kw;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int msg_iev_push_stack( // Push a record in the stack
+    hgobj gobj,
+    json_t *kw,             // not owned
+    const char *stack,
+    json_t *jn_data         // owned, data to be pushed in the stack
+)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "kw is not a dict",
+            NULL
+        );
+        return -1;
+    }
+    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
+    if(!md_iev) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "__md_iev__ NOT FOUND",
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
+        return -1;
+    }
+
+    json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
+    if(!jn_stack) {
+        jn_stack = json_array();
+        json_object_set_new(md_iev, stack, jn_stack);
+    }
+    return json_array_insert_new(jn_stack, 0, jn_data);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack. Return is NOT YOURS!
+    hgobj gobj,
+    json_t *kw,             // not owned
+    const char *stack,
+    BOOL verbose
+)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "kw is not a dict",
+            NULL
+        );
+        return NULL;
+    }
+    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
+    if(!md_iev) {
+        if(verbose) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "__md_iev__ NOT FOUND",
+                NULL
+            );
+            gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
+        }
+        return NULL;
+    }
+
+    json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
+    if(!jn_stack) {
+        if(verbose) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "__md_iev__ stack NOT FOUND",
+                "stack",        "%s", stack,
+                NULL
+            );
+            gobj_trace_json(gobj, kw, "__md_iev__ stack NOT FOUND");
+        }
+        return NULL;
+    }
+
+    json_t *jn_data = json_array_get(jn_stack, 0);
+    return jn_data;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, must be FREE!
+    hgobj gobj,
+    json_t *kw,
+    const char *stack
+)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "kw is not a dict",
+            NULL
+        );
+        return NULL;
+    }
+    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
+    if(!md_iev) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "__md_iev__ NOT FOUND",
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
+        return NULL;
+    }
+
+    json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
+    if(!jn_stack) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "__md_iev__ stack NOT FOUND",
+            "stack",        "%s", stack,
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "__md_iev__ stack NOT FOUND");
+        return NULL;
+    }
+
+    json_t *jn_data = json_array_get(jn_stack, 0);
+
+    json_incref(jn_data);
+    json_array_remove(jn_stack, 0);
+    return jn_data;
 }
 
 /***************************************************************************
@@ -195,6 +319,10 @@ PUBLIC int iev_create_from_gbuffer(
 
 ///***************************************************************************
 // *  Return a new kw with all minus this keys:
+//*  Return a new kw with all minus this keys:
+//"__md_iev__"
+//"__temp__"
+//"__md_tranger__"
 // ***************************************************************************/
 //PUBLIC json_t *msg_iev_pure_clone(
 //    json_t *kw  // NOT owned
@@ -210,13 +338,13 @@ PUBLIC int iev_create_from_gbuffer(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *build_webix(
+PUBLIC json_t *build_command_response( // old build_webix
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
-    json_t *jn_data)    // owned
-{
+    json_t *jn_data     // owned
+) {
     if(!jn_comment) {
         jn_comment = json_string("");
     }
@@ -258,7 +386,7 @@ PUBLIC json_t *msg_iev_build_webix(
     json_t *kw_request, // owned, used to extract ONLY __md_iev__.
     const char *msg_type)
 {
-    json_t *webix = build_webix(gobj, result, jn_comment, jn_schema, jn_data);
+    json_t *webix = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
     json_t *webix_answer = msg_iev_answer(gobj, kw_request, webix, msg_type);
 
     return webix_answer;
@@ -277,7 +405,7 @@ PUBLIC json_t *msg_iev_build_webix2_without_answer_filter(
     const char *msg_type
 )
 {
-    json_t *webix = build_webix(gobj, result, jn_comment, jn_schema, jn_data);
+    json_t *webix = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
     json_t *webix_answer = msg_iev_answer_without_answer_filter(gobj, kw_request, webix, msg_type);
 
     return webix_answer;
@@ -359,109 +487,6 @@ PUBLIC json_t *msg_iev_answer_without_answer_filter(
 //
 //    KW_DECREF(kw_request);
 //    return kw_answer;
-return 0; //TODO
-}
-
-/***************************************************************************
- *
- *  __your_stack__ is a LIFO queue, ultimo en entrar, primero en salir
- *
- {
-    '__md_iev__': {
-        '__your_stack__': [
-            request-msg_id-last,
-            ...
-            request-msg_id-first
-        ],
-        ...
-    }
- }
-
- ***************************************************************************/
-PUBLIC int msg_iev_push_stack(
-    hgobj gobj,
-    json_t *kw,             // not owned
-    const char *stack,
-    json_t *jn_user_info         // owned
-)
-{
-//    if(!json_is_object(kw)) {
-//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "kw is not a dict.",
-//            NULL
-//        );
-//        return -1;
-//    }
-//    json_t *jn_stack = kw_get_subdict_value(gobj, kw, "__md_iev__", stack, 0, 0);
-//    if(!jn_stack) {
-//        jn_stack = json_array();
-//        kw_set_subdict_value(gobj, kw, "__md_iev__", stack, jn_stack);
-//    }
-//    return json_array_insert_new(jn_stack, 0, jn_user_info);
-return 0; //TODO
-}
-
-/***************************************************************************
- *  Get current item from stack, without poping.
- ***************************************************************************/
-PUBLIC json_t *msg_iev_get_stack( // return is not yours!
-    json_t *kw,
-    const char *stack,
-    BOOL print_not_found
-)
-{
-//    json_t *jn_stack = kw_get_subdict_value(gobj, kw, "__md_iev__", stack, 0, 0);
-//    if(!jn_stack) {
-//        if(print_not_found) {
-//    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//                "gobj",         "%s", __FILE__,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                "msg",          "%s", "stack NOT EXIST.",
-//                "stack",        "%s", stack,
-//                NULL
-//            );
-//        }
-//        return 0;
-//    }
-//    json_t *jn_user_info = json_array_get(jn_stack, 0);
-//    return jn_user_info;
-return 0; //TODO
-}
-
-/***************************************************************************
- *  Ppo current item from stack, poping
- *  WARNING free the return
- ***************************************************************************/
-PUBLIC json_t * msg_iev_pop_stack(
-    json_t *kw,
-    const char *stack
-)
-{
-//    /*-----------------------------------*
-//     *  Recover the current item
-//     *-----------------------------------*/
-//    json_t *jn_stack = kw_get_subdict_value(gobj, kw, "__md_iev__", stack, 0, 0);
-//    if(!jn_stack) {
-//    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "gobj",         "%s", __FILE__,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "stack NOT EXIST.",
-//            "stack",        "%s", stack,
-//            NULL
-//        );
-//        return 0;
-//    }
-//    json_t *jn_user_info = json_array_get(jn_stack, 0);
-//    json_incref(jn_user_info);
-//    json_array_remove(jn_stack, 0);
-//    if(json_array_size(jn_stack)==0) {
-//        kw_delete_subkey(kw, "__md_iev__", stack);
-//    }
-//    return jn_user_info;
 return 0; //TODO
 }
 
