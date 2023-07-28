@@ -1,14 +1,39 @@
 /****************************************************************************
  *          MSG_IEVENT.H
  *
- *          Common of Inter-Events messages
- *
- *          (Message Identifier Area):
- *
- *          __md_iev__
- *
- *
- *  Type of messages:
+    Inter-Events interchange gobj events (event,kw) between two yunos.
+
+    Inter-Events messages has the next basic structure:
+        {
+            "event": "",
+            "kw": {
+            }
+        }
+
+    They add "__md_iev__" metadata to provide data of the services interchanging the event:
+
+        {
+            "event": "",
+            "kw": {
+                "__md_iev__": {
+                }
+            }
+        }
+
+    They add "__md_yuno__" metadata to provide information of source yuno
+
+        {
+            "event": "",
+            "kw": {
+                "__md_iev__": {
+                }
+               "__md_yuno__": {
+               }
+            }
+        }
+
+
+    Type of messages:
         "__order__",
         "__request__",
         "__answer__",
@@ -19,9 +44,10 @@
  *          Copyright (c) 2016,2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <gobj.h>
-#include <kwid.h>
-#include <gbuffer.h>
+#include "gobj.h"
+#include "kwid.h"
+#include "gbuffer.h"
+
 #pragma once
 
 #ifdef __cplusplus
@@ -32,6 +58,11 @@ extern "C"{
  *              Constants
  **************************************************/
 #define IEVENT_MESSAGE_AREA_ID "ievent_gate_stack"
+
+#define WEBIX_RESULT(gobj, webix)     (kw_get_int((gobj), (webix), "result", 0, KW_REQUIRED))
+#define WEBIX_COMMENT(gobj, webix)    (kw_get_str((gobj), (webix), "comment", "", KW_REQUIRED))
+#define WEBIX_SCHEMA(gobj, webix)     (kw_get_dict_value((gobj), (webix), "comment", 0, KW_REQUIRED))
+#define WEBIX_DATA(gobj, webix)       (kw_get_dict_value((gobj), (webix), "data", 0, KW_REQUIRED))
 
 /***************************************************
  *              Structures
@@ -63,27 +94,6 @@ PUBLIC int iev_create_from_gbuffer(
     int verbose     // 1 log, 2 log+dump
 );
 
-
-/*
- *  build_webix()
- *  Must return a json dict with "result", "schema" and "data" keys.
- *  On error "result" will be a negative value, and "data" a string with the error description
- *  On successful "data" must return an any type of json data.
- *  "schema" will describe the format of data in "data".
-
-    {
-        "result": Integer,
-        "comment": String,
-        "schema": Array or Object,
-        "data": Array or Object
-    }
-
- *
- */
-#define WEBIX_RESULT(gobj, webix)     (kw_get_int((gobj), (webix), "result", 0, KW_REQUIRED))
-#define WEBIX_COMMENT(gobj, webix)    (kw_get_str((gobj), (webix), "comment", "", KW_REQUIRED))
-#define WEBIX_SCHEMA(gobj, webix)     (kw_get_dict_value((gobj), (webix), "comment", 0, KW_REQUIRED))
-#define WEBIX_DATA(gobj, webix)       (kw_get_dict_value((gobj), (webix), "data", 0, KW_REQUIRED))
 
 PUBLIC json_t *build_webix(
     hgobj gobj,
@@ -126,7 +136,7 @@ PUBLIC json_t *msg_iev_build_webix2_without_answer_filter(
 /*-----------------------------------------------------*
  *  server: build the answer of kw, filters applied.
  *-----------------------------------------------------*/
-PUBLIC json_t *msg_iev_answer( // USING c_agent.c, c_ievent_srv.c, c_ievent_cli.c
+PUBLIC json_t *msg_iev_answer( // USING c_agent.c, c_ievent_srv.c, c_ievent_cli.c, c_controlcenter.c
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
     json_t *kw_answer,      // like owned, is returned!, created if null, body of answer message.
@@ -201,7 +211,7 @@ PUBLIC json_t *msg_iev_get_stack( // return is not yours! USING c_ievent_cli.c c
     const char *stack,
     BOOL print_not_found
 );
-PUBLIC json_t * msg_iev_pop_stack( // USING c_agent.c
+PUBLIC json_t * msg_iev_pop_stack( // USING c_agent.c, c_controlcenter.c
     json_t *kw,
     const char *stack
 );  // WARNING free the return.

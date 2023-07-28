@@ -12,6 +12,7 @@ set(srcs
     src/helpers.c
     src/kwid.c
     src/gbuffer.c
+    src/msg_ievent.c
 )
 
 set(requires

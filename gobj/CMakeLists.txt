@@ -20,6 +20,7 @@ set (SRCS
     src/kwid.c
     src/stacktrace_with_bfd.c
     src/gbuffer.c
+    src/msg_ievent.c
 )
 
 
@@ -36,6 +37,7 @@ set (HDRS
     src/kwid.h
     src/stacktrace_with_bfd.h
     src/gbuffer.h
+    src/msg_ievent.h
 )
 
 ##############################################
