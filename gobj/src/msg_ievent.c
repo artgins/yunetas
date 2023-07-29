@@ -6,7 +6,6 @@
  *          Copyright (c) 2016,2023 Niyamaka.
  *          All Rights Reserved.
 ***********************************************************************/
-#include <sys/types.h>
 #include <unistd.h>
 #include "msg_ievent.h"
 
@@ -17,11 +16,21 @@
 /****************************************************************
  *         Structures
  ****************************************************************/
+//PRIVATE const char *msg_type_list[] = {
+//    "__command__",
+//    "__publishing__",
+//    "__subscribing__",
+//    "__unsubscribing__",
+//    "__query__",
+//    "__response__",
+//    "__order__",
+//    "__first_shot__",
+//    0
+//};
 
 /****************************************************************
  *         Prototypes
  ****************************************************************/
-
 
 /***************************************************************************
  *  Useful to send event's messages TO outside world.
@@ -271,79 +280,21 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
 
     json_incref(jn_data);
     json_array_remove(jn_stack, 0);
+    if(json_array_size(jn_stack)==0) {
+        json_object_del(md_iev, stack);
+    }
     return jn_data;
 }
 
 /***************************************************************************
- *  Key: IEVENT_MESSAGE_AREA_ID "ievent_gate_stack"
- *  Dale la vuelta src->dst dst->src
- ***************************************************************************/
-//PRIVATE int ievent_answer_filter(
-//    hgobj gobj,
-//    json_t* jn_ievent_gate_stack)
-//{
-//    json_t * jn_ievent = json_array_get(jn_ievent_gate_stack, 0);
-//
-//    /*
-//     *  Dale la vuelta src->dst dst->src
-//     */
-//    const char *iev_src_yuno = kw_get_str(gobj, jn_ievent, "src_yuno", "", KW_REQUIRED);
-//    const char *iev_src_role = kw_get_str(gobj, jn_ievent, "src_role", "", KW_REQUIRED);
-//    const char *iev_src_service = kw_get_str(gobj, jn_ievent, "src_service", "", KW_REQUIRED);
-//
-//    json_object_set_new(jn_ievent, "dst_yuno", json_string(iev_src_yuno));
-//    json_object_set_new(jn_ievent, "dst_role", json_string(iev_src_role));
-//    json_object_set_new(jn_ievent, "dst_service", json_string(iev_src_service));
-//    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_name(gobj_yuno())));
-//    json_object_set_new(jn_ievent, "src_role", json_string(gobj_read_str_attr(gobj_yuno(), "yuno_role")));
-//
-//    json_object_set_new(jn_ievent, "src_yuno", json_string(gobj_yuno_name()));
-//    json_object_set_new(jn_ievent, "src_role", json_string(gobj_yuno_role()));
-//
-//    json_object_set_new(jn_ievent, "src_service", json_string(gobj_name(gobj)));
-//
-//    return 0;
-//}
-
-/***************************************************************************
- *  Apply answer filters
- ***************************************************************************/
-//PRIVATE int msg_apply_answer_filters(hgobj gobj, json_t *__request_msg_area__)
-//{
-//    json_t *jn_value = kw_get_dict_value(gobj, __request_msg_area__, IEVENT_MESSAGE_AREA_ID, 0, 0);
-//    if(jn_value) {
-//        return ievent_answer_filter(gobj, jn_value);
-//    }
-//    return -1;
-//}
-
-///***************************************************************************
-// *  Return a new kw with all minus this keys:
-//*  Return a new kw with all minus this keys:
-//"__md_iev__"
-//"__temp__"
-//"__md_tranger__"
-// ***************************************************************************/
-//PUBLIC json_t *msg_iev_pure_clone(
-//    json_t *kw  // NOT owned
-//)
-//{
-//    json_t *kw_clone = kw_duplicate(kw); // not owned
-//    json_object_del(kw_clone, "__md_iev__");
-//    json_object_del(kw_clone, "__temp__");
-//    json_object_del(kw_clone, "__md_tranger__");
-//    return kw_clone;
-//}
-
-/***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *build_command_response( // old build_webix
+PUBLIC json_t *build_command_response( // // old build_webix()
     hgobj gobj,
     json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data     // owned
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
 ) {
     if(!jn_comment) {
         jn_comment = json_string("");
@@ -355,180 +306,95 @@ PUBLIC json_t *build_command_response( // old build_webix
         jn_data = json_null();
     }
 
-    const char *comment = json_string_value(jn_comment);
-    json_t *webix = json_pack("{s:I, s:s, s:o, s:o}",
-        "result", (json_int_t)result,
-        "comment", comment?comment:"",
-        "schema", jn_schema,
-        "data", jn_data
-    );
-    JSON_DECREF(jn_comment);
-    if(!webix) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "build webix FAILED",
-            NULL
-        );
+    json_t *response = json_object();
+    json_object_set_new(response, "result", json_integer(result));
+    if(jn_comment) {
+        json_object_set_new(response, "comment", jn_comment);
     }
-    return webix;
+    if(jn_schema) {
+        json_object_set_new(response, "schema", jn_schema);
+    }
+    if(jn_data) {
+        json_object_set_new(response, "data", jn_data);
+    }
+    return response;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *msg_iev_build_webix(
+PRIVATE int msg_iev_reverse_dst( // Put in destining the source, and in the source the gobj
     hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data,    // owned
-    json_t *kw_request, // owned, used to extract ONLY __md_iev__.
-    const char *msg_type)
-{
-    json_t *webix = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *webix_answer = msg_iev_answer(gobj, kw_request, webix, msg_type);
+    json_t* jn_stack_record
+) {
+    const char *iev_src_yuno = kw_get_str(gobj, jn_stack_record, "src_yuno", "", KW_REQUIRED);
+    const char *iev_src_role = kw_get_str(gobj, jn_stack_record, "src_role", "", KW_REQUIRED);
+    const char *iev_src_service = kw_get_str(gobj, jn_stack_record, "src_service", "", KW_REQUIRED);
 
-    return webix_answer;
-}
+    json_object_set_new(jn_stack_record, "dst_yuno", json_string(iev_src_yuno));
+    json_object_set_new(jn_stack_record, "dst_role", json_string(iev_src_role));
+    json_object_set_new(jn_stack_record, "dst_service", json_string(iev_src_service));
 
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *msg_iev_build_webix2_without_answer_filter(
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data,    // owned
-    json_t *kw_request, // owned, used to extract ONLY __md_iev__.
-    const char *msg_type
-)
-{
-    json_t *webix = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *webix_answer = msg_iev_answer_without_answer_filter(gobj, kw_request, webix, msg_type);
+    json_object_set_new(jn_stack_record, "src_yuno", json_string(gobj_yuno_name()));
+    json_object_set_new(jn_stack_record, "src_role", json_string(gobj_yuno_role()));
+    json_object_set_new(jn_stack_record, "src_service", json_string(gobj_name(gobj)));
 
-    return webix_answer;
-}
-
-/***************************************************************************
- *  server: build the answer of kw
- *  Return a new kw only with the identification message area.
- ***************************************************************************/
-PUBLIC json_t *msg_iev_answer(
-    hgobj gobj,
-    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
-    json_t *kw_answer,      // like owned, is returned!, created if null, body of answer message.
-    const char *msg_type
-)
-{
-//    if(!kw_answer) {
-//        kw_answer = json_object();
-//    }
-//    json_t *__md_iev__ = kw_get_dict(kw_request, "__md_iev__", 0, 0);
-//    if(__md_iev__) {
-//        json_t *request_msg_area = kw_duplicate(__md_iev__);
-//        json_object_set_new(kw_answer, "__md_iev__", request_msg_area);
-//        msg_set_msg_type(kw_answer, msg_type);
-//        if(!kw_has_key(request_msg_area, "__md_yuno__")) {
-//            json_t *jn_metadata = json_pack("{s:s, s:s, s:s, s:s, s:I, s:s}",
-//                "realm_name", gobj_yuno_realm_name(),
-//                "yuno_role", gobj_yuno_role(),
-//                "yuno_name", gobj_name(gobj_yuno()),
-//                "yuno_id", gobj_yuno_id(),
-//                "pid", (json_int_t)getpid(),
-//                "user", get_user_name()
-//            );
-//            json_object_set_new(request_msg_area, "__md_yuno__", jn_metadata);
-//        }
-//
-//        msg_apply_answer_filters(gobj, request_msg_area, kw_answer);
-//    }
-//    json_object_del(kw_answer, "__temp__");
-//
-//    KW_DECREF(kw_request);
-//    return kw_answer;
-return 0; //TODO
-}
-
-/***************************************************************************
- *  server: build the answer of kw
- *  Return a new kw only with the identification message area.
- ***************************************************************************/
-PUBLIC json_t *msg_iev_answer_without_answer_filter(
-    hgobj gobj,
-    json_t *kw_request,         // kw request, owned
-    json_t *kw_answer,          // like owned, is returned!, created if null, body of answer message.
-    const char *msg_type
-)
-{
-//    if(!kw_answer) {
-//        kw_answer = json_object();
-//    }
-//    json_t *__md_iev__ = kw_get_dict(kw_request, "__md_iev__", 0, 0);
-//    if(__md_iev__) {
-//        json_t *request_msg_area = kw_duplicate(__md_iev__);
-//        json_object_set_new(kw_answer, "__md_iev__", request_msg_area);
-//        msg_set_msg_type(kw_answer, msg_type);
-//
-//        if(!kw_has_key(request_msg_area, "__md_yuno__")) {
-//            json_t *jn_metadata = json_pack("{s:s, s:s, s:s, s:s, s:I, s:s}",
-//                "realm_name", gobj_yuno_realm_name(),
-//                "yuno_role", gobj_yuno_role(),
-//                "yuno_name", gobj_name(gobj_yuno()),
-//                "yuno_id", gobj_yuno_id(),
-//                "pid", (json_int_t)getpid(),
-//                "user", get_user_name()
-//            );
-//            json_object_set_new(request_msg_area, "__md_yuno__", jn_metadata);
-//        }
-//    }
-//    json_object_del(kw_answer, "__temp__");
-//
-//    KW_DECREF(kw_request);
-//    return kw_answer;
-return 0; //TODO
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE const char *msg_type_list[] = {
-//    "__command__",
-//    "__publishing__",
-//    "__subscribing__",
-//    "__unsubscribing__",
-//    "__query__",
-//    "__response__",
-//    "__order__",
-//    "__first_shot__",
-//    0
-//};
-
-PUBLIC int msg_set_msg_type(
-    json_t *kw,
-    const char *msg_type
-)
-{
-//    if(!empty_string(msg_type)) {
-//        if(is_metadata_key(msg_type) && !str_in_list(msg_type_list, msg_type, TRUE)) {
-//            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
-//            return kw_delete(kw, "__md_iev__`__msg_type__");
-//        }
-//        return kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string(msg_type));
-//    }
     return 0;
 }
 
-///***************************************************************************
-// *
-// ***************************************************************************/
-//PUBLIC const char *msg_get_msg_type(
-//    json_t *kw
-//)
-//{
-//    return kw_get_str(kw, "__md_iev__`__msg_type__", "", 0);
-//}
+/***************************************************************************
+ *  Set iev metadata back in a response
+ *  Implicitly:
+ *      - Delete __temp__ key in kw_response
+ *      - Set __md_yuno__ key
+ *
+ *  old msg_iev_answer() if reverse_dst TRUE
+ *  old msg_iev_answer_without_answer_filter() if reverse_dst FALSE
+ ***************************************************************************/
+PUBLIC json_t *msg_iev_set_back_metadata(
+    hgobj gobj,
+    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
+    json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message.
+    BOOL no_reverse_dst
+) {
+    if(!kw_response) {
+        kw_response = json_object();
+    }
+    json_t *__md_iev_src__ = kw_get_dict(gobj, kw_request, "__md_iev__", 0, 0);
+    if(!__md_iev_src__) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "__md_iev__ NOT FOUND",
+            NULL
+        );
+        gobj_trace_json(gobj, kw_request, "__md_iev__ NOT FOUND");
+        KW_DECREF(kw_request);
+        return kw_response;
+    }
+
+    json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
+    json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
+
+    json_t *jn_metadata = json_pack("{s:s, s:s, s:s, s:s, s:I, s:s}",
+        "realm_name", gobj_yuno_realm_name(),
+        "yuno_role", gobj_yuno_role(),
+        "yuno_name", gobj_name(gobj_yuno()),
+        "yuno_id", gobj_yuno_id(),
+        "user", "" // TODO get_user_name()
+    );
+    json_object_set_new(__md_iev_dst__, "__md_yuno__", jn_metadata);
+
+    if(!no_reverse_dst) {
+        json_t *jn_ievent_id = msg_iev_get_stack(gobj, __md_iev_dst__, IEVENT_MESSAGE_AREA_ID, TRUE);
+        msg_iev_reverse_dst(gobj, jn_ievent_id);
+    }
+
+    json_object_del(kw_response, "__temp__");
+
+    KW_DECREF(kw_request);
+    return kw_response;
+}
 
 /***************************************************************************
  *

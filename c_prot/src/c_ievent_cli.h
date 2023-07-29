@@ -9,7 +9,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <gobj.h>
-#include "msg_ievent.h"
 
 #pragma once
 

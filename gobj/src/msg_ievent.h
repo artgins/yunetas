@@ -174,74 +174,46 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     const char *stack
 );
 
-
-
-PUBLIC json_t *build_command_response( // old build_webix
+/*---------------------------------------------------------*
+ *  Helpers of request/response pattern
+ *---------------------------------------------------------*/
+PUBLIC json_t *build_command_response( // // old build_webix()
     hgobj gobj,
     json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data     // owned
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
 );
-PUBLIC json_t *msg_iev_build_webix(
+
+/*----------------------------------------------------------*
+ *  Set iev metadata back in a response reversing src/dst
+ *
+ *  Implicitly:
+ *      - Delete __temp__ key in kw_response
+ *      - Set __md_yuno__ key
+ *
+ *  old msg_iev_answer() adding reverse_dst TRUE
+ *  old msg_iev_answer_without_answer_filter() adding reverse_dst FALSE
+ *-----------------------------------------------------------*/
+PUBLIC json_t *msg_iev_set_back_metadata(
+    hgobj gobj,
+    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__
+    json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message
+    BOOL no_reverse_dst
+);
+
+static inline json_t *msg_iev_build_response(
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    json_t *kw_request, // owned, used to extract ONLY __md_iev__.
-    const char *msg_type
-);
-PUBLIC json_t *msg_iev_build_webix2_without_answer_filter(
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data,    // owned
-    json_t *kw_request, // owned, used to extract ONLY __md_iev__.
-    const char *msg_type
-);
-
-/*-----------------------------------------------------*
- *  server: build the answer of kw, filters applied.
- *-----------------------------------------------------*/
-PUBLIC json_t *msg_iev_answer( // USING c_agent.c, c_ievent_srv.c, c_ievent_cli.c, c_controlcenter.c
-    hgobj gobj,
-    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
-    json_t *kw_answer,      // like owned, is returned!, created if null, body of answer message.
-    const char *msg_type
-);
-
-PUBLIC json_t *msg_iev_answer_without_answer_filter(
-    hgobj gobj,
-    json_t *kw_request,         // kw request, owned
-    json_t *kw_answer,          // like owned, is returned!, created if null, body of answer message.
-    const char *msg_type
-);
-
-
-
-
-
-
-/*
-    var msg_type_list = [
-        "__order__",
-        "__request__",
-        "__answer__",
-        "__publishing__",
-        "__subscribing__",
-        "__unsubscribing__",
-        "__first_shot__"
-    ];
-*/
-PUBLIC int msg_set_msg_type(
-    json_t *kw,
-    const char *msg_type // empty string to delete the key
-);
-PUBLIC const char *msg_get_msg_type(
-    json_t *kw
-);
+    json_t *kw_request // owned, used to extract ONLY __md_iev__.
+) {
+    json_t *jn_command = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
+    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_command, TRUE);
+    return jn_answer;
+}
 
 /*
  *  Trace inter-events with metadata of kw

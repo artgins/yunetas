@@ -13,7 +13,6 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
-#include <ghttp_parser.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>
 #endif
@@ -24,6 +23,7 @@
 #include <gbuffer.h>
 #include <gobj_environment.h>
 #include <c_timer.h>
+#include <msg_ievent.h>
 #include "c_ievent_cli.h"
 
 /***************************************************************
@@ -358,7 +358,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *      __MESSAGE__
      */
-    json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, FALSE);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, FALSE);
     if(!jn_request) {
         /*
          *  Pon el ievent si no viene con él,
@@ -754,7 +754,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     /*
      *      __ANSWER__ __MESSAGE__
      */
-    json_t *jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, TRUE);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, TRUE);
     const char *src_yuno = kw_get_str(gobj, jn_ievent_id, "src_yuno", "", 0);
     const char *src_role = kw_get_str(gobj, jn_ievent_id, "src_role", "", 0);
     const char *src_service = kw_get_str(gobj, jn_ievent_id, "src_service", "", 0);
@@ -807,8 +807,10 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Create inter_event from gbuf
      *---------------------------------------*/
     gbuffer_incref(gbuf);
-    iev_msg_t iev_msg;
-    if(iev_create_from_gbuffer(gobj, &iev_msg, gbuf, 0)<0) {
+
+    gobj_event_t iev_event;
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, FALSE);
+    if(!iev_kw) {
         gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
@@ -824,9 +826,6 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------*
      *          trace inter_event
      *---------------------------------------*/
-    char *iev_event = iev_msg.event;
-    json_t *iev_kw = iev_msg.kw;
-
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level) {
         char prefix[256];
@@ -880,7 +879,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Get inter-event routing information.
      *----------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID, TRUE);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_AREA_ID, TRUE);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1039,7 +1038,12 @@ PRIVATE int ac_play_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "result",
         ret
     );
-    json_t *kw2resp = msg_iev_answer(gobj, kw, jn_result, 0);
+    json_t *kw2resp = msg_iev_set_back_metadata(
+        gobj,
+        kw,             // owned, kw request, used to extract ONLY __md_iev__
+        jn_result,      // like owned, is returned!, created if null, the body of answer message
+        FALSE            // no_reverse_dst
+    );
 
     return send_static_iev(gobj,
         "EV_PLAY_YUNO_ACK",
@@ -1058,7 +1062,7 @@ PRIVATE int ac_pause_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "result",
         ret
     );
-    json_t *kw2resp = msg_iev_answer(gobj, kw, jn_result, 0);
+    json_t *kw2resp = msg_iev_set_back_metadata(gobj, kw, jn_result, FALSE);
 
     return send_static_iev(gobj,
         "EV_PAUSE_YUNO_ACK",
@@ -1088,14 +1092,13 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(!service_gobj) {
             return send_static_iev(gobj,
                 "EV_MT_STATS_ANSWER",
-                msg_iev_build_webix(
+                msg_iev_build_response(
                     gobj,
                     -100,
                     json_sprintf("Service '%s' not found.", service),
                     0,
                     0,
-                    kw,
-                    "???" // TODO
+                    kw
                 ),
                 src
             );
@@ -1111,7 +1114,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!webix) {
        // Asynchronous response
     } else {
-        json_t * kw2 = msg_iev_answer(gobj, kw, webix, 0);
+        json_t * kw2 = msg_iev_set_back_metadata(gobj, kw, webix, FALSE);
         return send_static_iev(gobj,
             "EV_MT_STATS_ANSWER",
             kw2,
@@ -1146,14 +1149,13 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         return send_static_iev(gobj,
             "EV_MT_COMMAND_ANSWER",
-            msg_iev_build_webix(
+            msg_iev_build_response(
                 gobj,
                 ret,
                 0,
                 0,
                 jn_response,
-                kw,
-                ""
+                kw
             ),
             src
         );
@@ -1170,14 +1172,13 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!service_gobj) {
                 return send_static_iev(gobj,
                     "EV_MT_COMMAND_ANSWER",
-                    msg_iev_build_webix(
+                    msg_iev_build_response(
                         gobj,
                         -100,
                         json_sprintf("Service '%s' not found.", service),
                         0,
                         0,
-                        kw,
-                        ""
+                        kw
                     ),
                     src
                 );
@@ -1194,11 +1195,11 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!webix) {
         // Asynchronous response
     } else {
-        json_t *kw2 = msg_iev_answer(
+        json_t *kw2 = msg_iev_set_back_metadata(
             gobj,
             kw,
             webix,
-            ""
+            FALSE
         );
         return send_static_iev(gobj,
             "EV_MT_COMMAND_ANSWER",

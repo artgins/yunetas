@@ -315,8 +315,21 @@ typedef BOOL (*kw_match_fn)(
     json_t *jn_filter   // owned
 );
 
+/**rst**
+    HACK Convention: private data begins with "_".
+    Delete private keys (only first level)
+**rst**/
+PUBLIC int kw_delete_private_keys(
+    json_t *kw  // NOT owned
+);
 
-
+/**rst**
+    HACK Convention: metadata begins with "__".
+    Delete metadata keys (only first level)
+**rst**/
+PUBLIC int kw_delete_metadata_keys(
+    json_t *kw  // NOT owned
+);
 
 /*---------------------------------*
  *          KWID

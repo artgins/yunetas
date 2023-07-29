@@ -1286,6 +1286,8 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  
 
 static inline const char *gobj_yuno_name(void) {return gobj_name(gobj_yuno());}
 static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role");}
+static inline const char *gobj_yuno_realm_name(void) {return gobj_read_str_attr(gobj_yuno(), "realm_name");}
+static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_id");}
 
 /*--------------------------------------------*
  *          Events and States
