@@ -1289,6 +1289,9 @@ static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_y
 static inline const char *gobj_yuno_realm_name(void) {return gobj_read_str_attr(gobj_yuno(), "realm_name");}
 static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_id");}
 
+PUBLIC const char *get_host_name(void);
+PUBLIC const char *get_user_name(void);
+
 /*--------------------------------------------*
  *          Events and States
  *--------------------------------------------*/

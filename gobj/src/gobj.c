@@ -13,8 +13,10 @@
 #include <wchar.h>
 
 #ifdef __linux__
+    #include <pwd.h>
     #include <strings.h>
     #include <sys/utsname.h>
+    #include <unistd.h>
     #include <execinfo.h>
 #endif
 
@@ -216,6 +218,9 @@ GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
 /****************************************************************
  *         Data
  ****************************************************************/
+PRIVATE char __hostname__[64] = {0};
+PRIVATE char __username__[64] = {0};
+
 PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     "EVF_NO_WARN_SUBS",
     "EVF_OUTPUT_EVENT",
@@ -528,6 +533,19 @@ PUBLIC int gobj_start_up(
         (incref_fn_t)gbuffer_incref,
         (decref_fn_t)gbuffer_decref
     );
+
+#ifdef WIN32
+    long unsigned int bufsize = sizeof(__username__);
+    GetUserNameA(__username__, &bufsize);
+#endif
+#ifdef __linux__
+    uid_t uid = geteuid();
+    struct passwd *pw = getpwuid(uid);
+    if(pw) {
+        snprintf(__username__, sizeof(__username__), "%s", pw->pw_name);
+    }
+    gethostname(__hostname__, sizeof(__hostname__));
+#endif
 
     /*--------------------------------*
      *  Register included handlers
@@ -4472,6 +4490,18 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
     }
 
     return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const char *get_host_name(void)
+{
+    return __hostname__;
+}
+PUBLIC const char *get_user_name(void)
+{
+    return __username__;
 }
 
 

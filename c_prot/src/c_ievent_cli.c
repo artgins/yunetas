@@ -526,8 +526,8 @@ PRIVATE json_t *build_ievent_request(
         "src_yuno", gobj_yuno_name(),
         "src_role", gobj_yuno_role(),
         "src_service", src_service,
-        "user", "", // TODO get_user_name(),
-        "host", "" // TODO get_host_name()
+        "user", get_user_name(),
+        "host", get_host_name()
     );
     return jn_ievent_chain;
 }
@@ -548,7 +548,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     json_t *kw = json_pack(
         "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s}",
         "yuno_role", gobj_yuno_role(),
-        "yuno_id", 0, // TODO gobj_yuno_id(),
+        "yuno_id", gobj_yuno_id(),
         "yuno_name", gobj_yuno_name(),
         "yuno_tag", yuno_tag?yuno_tag:"",
         "yuno_version", yuno_version?yuno_version:"",
