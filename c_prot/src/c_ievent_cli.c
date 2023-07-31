@@ -1139,29 +1139,6 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
-#ifdef __linux__
-    if(strncmp(command, "__spawn__", strlen("__spawn__"))==0) {
-        int response_size = MIN(1*1024*1024L, gobj_get_maximum_block());
-        char *response = GBMEM_MALLOC(response_size);
-        int ret = -1; // TODO run_command(command + strlen("__spawn__") + 1, response, response_size);
-        json_t *jn_response = json_string(response);
-        GBMEM_FREE(response);
-
-        return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
-            msg_iev_build_response(
-                gobj,
-                ret,
-                0,
-                0,
-                jn_response,
-                kw
-            ),
-            src
-        );
-    }
-#endif
-
     hgobj service_gobj;
     if(empty_string(service)) {
         service_gobj = gobj_default_service();
