@@ -120,14 +120,15 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    /*
-     *  Child, default subscriber, the parent
-     */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
+    if(!gobj_is_pure_child(gobj)) {
+        /*
+         *  Not pure child, explicitly use subscriber
+         */
+        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+        if(subscriber) {
+            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+        }
     }
-    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 }
 
 /***************************************************************************

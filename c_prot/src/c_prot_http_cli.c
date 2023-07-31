@@ -84,21 +84,22 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->parsing_response = ghttp_parser_create(
+    priv->parsing_response = ghttp_parser_create( // TODO publish or send if pure child
         gobj,
         HTTP_RESPONSE,
         EV_ON_MESSAGE,
         FALSE
     );
 
-    /*
-     *  Child, default subscriber, the parent
-     */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
+    if(!gobj_is_pure_child(gobj)) {
+        /*
+         *  Not pure child, explicitly use subscriber
+         */
+        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+        if(subscriber) {
+            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+        }
     }
-    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 }
 
 /***************************************************************************
@@ -220,11 +221,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ghttp_parser_reset(priv->parsing_response);
-    gobj_publish_event(
-        gobj,
-        EV_ON_OPEN,
-        kw // use the same kw
-    );
+
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
+    } else {
+        gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
+    }
 
     return 0;
 }
@@ -234,11 +236,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_publish_event(
-        gobj,
-        EV_ON_CLOSE,
-        kw // use the same kw
-    );
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
+    } else {
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
+    }
 
     return 0;
 }

@@ -219,14 +219,15 @@ PRIVATE void mt_create(hgobj gobj)
 
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, NULL, gobj);
 
-    /*
-     *  Child, default subscriber, the parent
-     */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
+    if(!gobj_is_pure_child(gobj)) {
+        /*
+         *  Not pure child, explicitly use subscriber
+         */
+        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+        if(subscriber) {
+            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+        }
     }
-    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     //SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
 }
@@ -712,7 +713,11 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             );
         }
 
-        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
+        } else {
+            gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        }
     }
 
     JSON_DECREF(kw)
@@ -750,7 +755,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "sockname",     gobj_read_str_attr(gobj, "sockname")
     );
 
-    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    }
 
     JSON_DECREF(kw)
     return 0;
@@ -770,7 +779,12 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_read_str_attr(gobj, "peername")
         );
     }
-    gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
+    } else {
+        gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+    }
     return 0;
 }
 
@@ -870,7 +884,11 @@ PRIVATE int ac_periodic_timeout_stopped(hgobj gobj, gobj_event_t event, json_t *
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_publish_event(gobj, EV_STOPPED, 0);
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_STOPPED, 0);
+    }
 
     JSON_DECREF(kw)
     return 0;

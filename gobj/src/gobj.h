@@ -872,9 +872,9 @@ typedef enum { // HACK strict ascendant value!, strings in s_gcflag (TODO)
 typedef enum { // HACK strict ascendant value!, strings in s_gobj_flag (TODO)
     gobj_flag_yuno              = 0x0001,
     gobj_flag_default_service   = 0x0002,
-    gobj_flag_service           = 0x0004,
+    gobj_flag_service           = 0x0004,   // Interface (events, attrs, commands, stats) available to external access
     gobj_flag_volatil           = 0x0008,
-    gobj_flag_pure_child        = 0x0010,
+    gobj_flag_pure_child        = 0x0010,   // Pure child send events directly to parent, others publish them
     gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree0 too
     gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree0 too
 } gobj_flag_t;

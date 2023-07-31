@@ -471,13 +471,15 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    /*
-     *  CHILD subscription model
-     */
-    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!subscriber)
-        subscriber = gobj_parent(gobj);
-    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    if(!gobj_is_pure_child(gobj)) {
+        /*
+         *  Not pure child, explicitly use subscriber
+         */
+        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+        if(subscriber) {
+            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+        }
+    }
 
     /*
      *  Do copy of heavy used parameters, for quick access.
