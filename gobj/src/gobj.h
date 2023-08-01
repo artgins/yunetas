@@ -1019,7 +1019,7 @@ PUBLIC void gclass_unregister(hgclass hgclass);
 /*---------------------------------*
  *      Create functions
  *---------------------------------*/
-PUBLIC hgobj gobj_create_obj(
+PUBLIC hgobj gobj_create_gobj(
     const char *gobj_name,
     gclass_name_t gclass_name,
     json_t *kw, // owned
@@ -1027,28 +1027,28 @@ PUBLIC hgobj gobj_create_obj(
     gobj_flag_t gobj_flag
 );
 #define gobj_create_yuno(name, gclass, kw) \
-    gobj_create_obj(name, gclass, kw, NULL, gobj_flag_yuno)
+    gobj_create_gobj(name, gclass, kw, NULL, gobj_flag_yuno)
 
 #define gobj_create_service(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag_service)
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_service)
 
 /*
  *  Default service has autostart but no autoplay: it will be played by play method of yuno
  */
 #define gobj_create_default_service(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag_default_service|gobj_flag_autostart)
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_default_service|gobj_flag_autostart)
 
 #define gobj_create_volatil(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag_volatil)
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_volatil)
 
 #define gobj_create_pure_child(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag_pure_child)
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_pure_child)
 
 #define gobj_create(name, gclass, kw, parent) \
-    gobj_create_obj(name, gclass, kw, parent, 0)
+    gobj_create_gobj(name, gclass, kw, parent, 0)
 
 #define gobj_create2(name, gclass, kw, parent, gobj_flag) \
-    gobj_create_obj(name, gclass, kw, parent, gobj_flag)
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag)
 
 PUBLIC void gobj_destroy(hgobj gobj);
 

@@ -1035,7 +1035,7 @@ PRIVATE int add_event_type(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC hgobj gobj_create_obj(
+PUBLIC hgobj gobj_create_gobj(
     const char *gobj_name,
     gclass_name_t gclass_name,
     json_t *kw, // owned

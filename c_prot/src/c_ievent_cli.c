@@ -196,6 +196,8 @@ PRIVATE int mt_start(hgobj gobj)
 
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
     if(!bottom_gobj) {
+        const char *schema = comm_prot_get_schema(gobj_read_str_attr(gobj, "url"));
+
         json_t *kw_prot = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
             "url", gobj_read_str_attr(gobj, "url"),
