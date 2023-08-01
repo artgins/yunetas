@@ -198,14 +198,15 @@ PRIVATE int mt_start(hgobj gobj)
     if(!bottom_gobj) {
         json_t *kw = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-            "url", gobj_read_str_attr(gobj, "url")
+            "url", gobj_read_str_attr(gobj, "url"),
+            "jwt", gobj_read_str_attr(gobj, "jwt")
         );
 
         #ifdef ESP_PLATFORM
-            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
         #endif
         #ifdef __linux__
-            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
     }
@@ -684,7 +685,7 @@ PRIVATE int resend_subscriptions(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *  Static route
@@ -699,7 +700,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     /*
@@ -814,7 +815,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
@@ -1298,25 +1299,25 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,           ST_WAIT_IDENTITY_CARD_ACK},
+        {EV_ON_OPEN,            ac_on_open,             ST_WAIT_IDENTITY_CARD_ACK},
         {EV_STOPPED,            ac_stopped,             0},
         {0,0,0}
     };
     ev_action_t st_wait_identity_card_ack[] = {
-        {EV_RX_DATA,            ac_rx_data,             0},
+        {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_IDENTITY_CARD_ACK,  ac_identity_card_ack,   0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_ON_CLOSE,       ac_on_close,        ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_idAck,  0},
         {0,0,0}
     };
     ev_action_t st_session[] = {
-        {EV_RX_DATA,            ac_rx_data,             0},
+        {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_MT_STATS,           ac_mt_stats,            0},
         {EV_MT_COMMAND,         ac_mt_command,          0},
         {EV_SEND_COMMAND_ANSWER,ac_send_command_answer, 0},
         {EV_PLAY_YUNO,          ac_play_yuno,           0},
         {EV_PAUSE_YUNO,         ac_pause_yuno,          0},
-        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
         {EV_DROP,               ac_drop,                0},
         {0,0,0}
     };
