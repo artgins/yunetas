@@ -84,11 +84,11 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->parsing_response = ghttp_parser_create( // TODO publish or send if pure child
+    priv->parsing_response = ghttp_parser_create(
         gobj,
         HTTP_RESPONSE,
         EV_ON_MESSAGE,
-        FALSE
+        gobj_is_pure_child(gobj)?TRUE:FALSE
     );
 
     if(!gobj_is_pure_child(gobj)) {
