@@ -21,6 +21,7 @@ set (SRCS
     src/stacktrace_with_bfd.c
     src/gbuffer.c
     src/msg_ievent.c
+    src/comm_prot.c
 )
 
 
@@ -38,6 +39,7 @@ set (HDRS
     src/stacktrace_with_bfd.h
     src/gbuffer.h
     src/msg_ievent.h
+    src/comm_prot.h
 )
 
 ##############################################

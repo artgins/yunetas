@@ -196,17 +196,27 @@ PRIVATE int mt_start(hgobj gobj)
 
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
     if(!bottom_gobj) {
-        json_t *kw = json_pack("{s:s, s:s}",
+        json_t *kw_prot = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
             "url", gobj_read_str_attr(gobj, "url"),
             "jwt", gobj_read_str_attr(gobj, "jwt")
         );
 
         #ifdef ESP_PLATFORM
-            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(
+                gobj_name(gobj),
+                C_ESP_TRANSPORT,
+                kw_prot,
+                gobj
+            );
         #endif
         #ifdef __linux__
-            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(
+                gobj_name(gobj),
+                C_LINUX_TRANSPORT,
+                kw_prot,
+                gobj
+            );
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
     }
