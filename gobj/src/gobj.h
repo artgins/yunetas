@@ -82,11 +82,11 @@ extern "C"{
 # define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #endif
 
-#ifndef ARRAY_NSIZE
-# define ARRAY_NSIZE(a) (sizeof(a) / sizeof((a)[0]))
-#endif
-
 #define EXEC_AND_RESET(function, variable) if(variable) {function((void *)(variable)); (variable)=0;}
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
 
 /*
  *  Macros to assign attr data to priv data.
@@ -102,10 +102,6 @@ extern "C"{
 
 #define SET_PRIV(__name__, __func__) \
     priv->__name__ = __func__(gobj, #__name__);
-
-#ifndef ARRAY_SIZE
-    #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
-#endif
 
 /***********************************************************************
  *  Macros of switch for strings, copied from:
@@ -190,6 +186,28 @@ static inline BOOL empty_json(const json_t *jn)
 }
 
 /***************************************************************
+ *              DL_LIST Structures
+ ***************************************************************/
+#define DL_ITEM_FIELDS              \
+    struct dl_list_s *__dl__;       \
+    struct dl_item_s  *__next__;    \
+    struct dl_item_s  *__prev__;    \
+    size_t __id__;
+
+typedef struct dl_item_s {
+    DL_ITEM_FIELDS
+} dl_item_t;
+
+typedef struct dl_list_s {
+    struct dl_item_s *head;
+    struct dl_item_s *tail;
+    size_t __itemsInContainer__;
+    size_t __last_id__; // auto-incremental, always.
+} dl_list_t;
+
+typedef void (*fnfree)(void *);
+
+/***************************************************************
  *              Log Structures
  ***************************************************************/
 /*
@@ -221,6 +239,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_PROTOCOL                 "Protocol"
 #define MSGSET_GBUFFERS                 "GBuffers"
 #define MSGSET_YEV_LOOP                 "Yev_loop"
+
 /*
  *  Options for handlers
  */
@@ -1596,6 +1615,20 @@ PUBLIC size_t gobj_get_maximum_block(void);
 #define GBMEM_STRDUP gobj_strdup
 
 #define GBMEM_REALLOC(ptr, size) (gobj_realloc_func())((ptr), (size))
+
+/*---------------------------------*
+ *      Double link  functions
+ *---------------------------------*/
+PUBLIC int dl_init(dl_list_t *dl);
+PUBLIC void *dl_first(dl_list_t *dl);
+PUBLIC void *dl_last(dl_list_t *dl);
+PUBLIC void *dl_next(void *curr);
+PUBLIC void *dl_prev(void *curr);
+PUBLIC int dl_add(dl_list_t *dl, void *item);
+PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
+PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
+PUBLIC size_t dl_size(dl_list_t *dl);
+
 
 #ifdef __cplusplus
 }

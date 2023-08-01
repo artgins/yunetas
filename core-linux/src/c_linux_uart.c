@@ -11,10 +11,10 @@
 #include <unistd.h>
 #include <termios.h>
 #include <gbuffer.h>
-#include <c_timer.h>
-#include <c_linux_yuno.h>
 #include <kwid.h>
 #include "yunetas_ev_loop.h"
+#include "c_timer.h"
+#include "c_linux_yuno.h"
 #include "c_linux_uart.h"
 
 /***************************************************************

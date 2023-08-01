@@ -25,7 +25,6 @@
 #include "kwid.h"
 #include "gobj.h"
 #include "gbuffer.h"
-#include "helpers.h"
 
 extern void jsonp_free(void *ptr);
 
@@ -6783,7 +6782,7 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
         "pid"
     };
 
-    for(size_t i=0; i<ARRAY_NSIZE(yuno_attrs); i++) {
+    for(size_t i=0; i<ARRAY_SIZE(yuno_attrs); i++) {
         const char *attr = yuno_attrs[i];
         if(gobj_has_attr(gobj_yuno(), attr)) { // WARNING Check that attr exists:  avoid recursive loop
             json_t *value = gobj_read_attr(gobj_yuno(), attr, 0);
@@ -6821,7 +6820,7 @@ PRIVATE void discover(gobj_t *gobj, json_t *jn)
     const char *gobj_attrs[] = {
         "id"
     };
-    for(size_t i=0; i<ARRAY_NSIZE(gobj_attrs); i++) {
+    for(size_t i=0; i<ARRAY_SIZE(gobj_attrs); i++) {
         const char *attr = gobj_attrs[i];
         if(gobj_has_attr(gobj, attr)) { // WARNING Check that attr exists:  avoid recursive loop
             const char *value = gobj_read_str_attr(gobj, attr);
@@ -7201,7 +7200,7 @@ PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...)
  *****************************************************************/
 PUBLIC const char *gobj_get_log_priority_name(int priority)
 {
-    if(priority >= (int)ARRAY_NSIZE(priority_names)) {
+    if(priority >= (int)ARRAY_SIZE(priority_names)) {
         return "";
     }
     return priority_names[priority];
@@ -7258,7 +7257,7 @@ PUBLIC int stdout_write(void* v, int priority, const char* bf, size_t len)
         // silence
         return -1;
     }
-    if(priority >= (int)ARRAY_NSIZE(priority_names)) {
+    if(priority >= (int)ARRAY_SIZE(priority_names)) {
         priority = LOG_DEBUG;
     }
 
@@ -7700,4 +7699,250 @@ PUBLIC char *gobj_strdup(const char *string)
 PUBLIC size_t gobj_get_maximum_block(void)
 {
     return __max_block__;
+}
+
+
+
+
+                        /*---------------------------------*
+                         *      SECTION: dl_list
+                         *---------------------------------*/
+
+
+
+
+/***************************************************************
+ *      Initialize double list
+ ***************************************************************/
+PUBLIC int dl_init(dl_list_t *dl)
+{
+    if(dl->head || dl->tail || dl->__itemsInContainer__) {
+        gobj_trace_msg(0, "dl_init(): Wrong dl_list_t, MUST be empty");
+        abort();
+    }
+    dl->head = 0;
+    dl->tail = 0;
+    dl->__itemsInContainer__ = 0;
+    return 0;
+}
+
+/***************************************************************
+ *      Seek first item
+ ***************************************************************/
+PUBLIC void *dl_first(dl_list_t *dl)
+{
+    return dl->head;
+}
+
+/***************************************************************
+ *      Seek last item
+ ***************************************************************/
+PUBLIC void *dl_last(dl_list_t *dl)
+{
+    return dl->tail;
+}
+
+/***************************************************************
+ *      next Item
+ ***************************************************************/
+PUBLIC void *dl_next(void *curr)
+{
+    if(curr) {
+        return ((dl_item_t *) curr)->__next__;
+    }
+    return (void *)0;
+}
+
+/***************************************************************
+ *      previous Item
+ ***************************************************************/
+PUBLIC void *dl_prev(void *curr)
+{
+    if(curr) {
+        return ((dl_item_t *) curr)->__prev__;
+    }
+    return (void *)0;
+}
+
+/***************************************************************
+ *  Check if a new item has links: MUST have NO links
+ *  Return true if it has links
+ ***************************************************************/
+static bool check_links(register dl_item_t *item)
+{
+    if(item->__prev__ || item->__next__ || item->__dl__) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Wrong dl_item_t, WITH links",
+            NULL
+        );
+        return true;
+    }
+    return false;
+}
+
+/***************************************************************
+ *  Check if a item has no links: MUST have links
+ *  Return true if it has not links
+ ***************************************************************/
+static bool check_no_links(register dl_item_t *item)
+{
+    if(!item->__dl__) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Wrong dl_item_t, WITHOUT links",
+            NULL
+        );
+        return true;
+    }
+    return false;
+}
+
+/***************************************************************
+ *      Add at end of the list
+ ***************************************************************/
+PUBLIC int dl_add(dl_list_t *dl, void *item)
+{
+    if(check_links(item)) return -1;
+
+    if(dl->tail==0) { /*---- Empty List -----*/
+        ((dl_item_t *)item)->__prev__=0;
+        ((dl_item_t *)item)->__next__=0;
+        dl->head = item;
+        dl->tail = item;
+    } else { /* LAST ITEM */
+        ((dl_item_t *)item)->__prev__ = dl->tail;
+        ((dl_item_t *)item)->__next__ = 0;
+        dl->tail->__next__ = item;
+        dl->tail = item;
+    }
+    dl->__itemsInContainer__++;
+    dl->__last_id__++;
+    ((dl_item_t *)item)->__id__ = dl->__last_id__;
+    ((dl_item_t *)item)->__dl__ = dl;
+
+    return 0;
+}
+
+/***************************************************************
+ *    Delete current item
+ ***************************************************************/
+PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
+{
+    register dl_item_t * curr = curr_;
+    /*-------------------------*
+     *     Check nulls
+     *-------------------------*/
+    if(curr==0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Deleting item NULL",
+            NULL
+        );
+        return -1;
+    }
+    if(check_no_links(curr))
+        return -1;
+
+    if(curr->__dl__ != dl) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Deleting item with DIFFERENT dl_list_t",
+            NULL
+        );
+        return -1;
+    }
+
+    /*-------------------------*
+     *     Check list
+     *-------------------------*/
+    if(dl->head==0 || dl->tail==0 || dl->__itemsInContainer__==0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Deleting item in EMPTY list",
+            NULL
+        );
+        return -1;
+    }
+
+    /*------------------------------------------------*
+     *                 Delete
+     *------------------------------------------------*/
+    if(((dl_item_t *)curr)->__prev__==0) {
+        /*------------------------------------*
+         *  FIRST ITEM. (curr==dl->head)
+         *------------------------------------*/
+        dl->head = dl->head->__next__;
+        if(dl->head) /* is last item? */
+            dl->head->__prev__=0; /* no */
+        else
+            dl->tail=0; /* yes */
+
+    } else {
+        /*------------------------------------*
+         *    MIDDLE or LAST ITEM
+         *------------------------------------*/
+        ((dl_item_t *)curr)->__prev__->__next__ = ((dl_item_t *)curr)->__next__;
+        if(((dl_item_t *)curr)->__next__) /* last? */
+            ((dl_item_t *)curr)->__next__->__prev__ = ((dl_item_t *)curr)->__prev__; /* no */
+        else
+            dl->tail= ((dl_item_t *)curr)->__prev__; /* yes */
+    }
+
+    /*-----------------------------*
+     *  Decrement items counter
+     *-----------------------------*/
+    dl->__itemsInContainer__--;
+
+    /*-----------------------------*
+     *  Reset pointers
+     *-----------------------------*/
+    ((dl_item_t *)curr)->__prev__ = 0;
+    ((dl_item_t *)curr)->__next__ = 0;
+    ((dl_item_t *)curr)->__dl__ = 0;
+
+    /*-----------------------------*
+     *  Free item
+     *-----------------------------*/
+    if(fnfree) {
+        (*fnfree)(curr);
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *      DL_LIST: Flush double list. (Remove all items).
+ ***************************************************************/
+PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *))
+{
+    register dl_item_t *first;
+
+    while((first = dl_first(dl))) {
+        dl_delete(dl, first, fnfree);
+    }
+    if(dl->head || dl->tail || dl->__itemsInContainer__) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Wrong dl_list_t, MUST be empty",
+            NULL
+        );
+    }
+}
+
+/***************************************************************
+ *   Return number of items in list
+ ***************************************************************/
+PUBLIC size_t dl_size(dl_list_t *dl)
+{
+    if(!dl) {
+        return 0;
+    }
+    return dl->__itemsInContainer__;
 }

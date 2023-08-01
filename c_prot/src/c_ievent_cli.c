@@ -24,6 +24,7 @@
 #include <gobj_environment.h>
 #include <c_timer.h>
 #include <msg_ievent.h>
+#include <comm_prot.h>
 #include "c_ievent_cli.h"
 
 /***************************************************************
@@ -197,6 +198,7 @@ PRIVATE int mt_start(hgobj gobj)
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
     if(!bottom_gobj) {
         const char *schema = comm_prot_get_schema(gobj_read_str_attr(gobj, "url"));
+        gclass_name_t gclass_name = comm_prot_get_gclass(schema);
 
         json_t *kw_prot = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
@@ -207,7 +209,7 @@ PRIVATE int mt_start(hgobj gobj)
         #ifdef ESP_PLATFORM
             hgobj gobj_bottom = gobj_create_pure_child(
                 gobj_name(gobj),
-                C_ESP_TRANSPORT,
+                gclass_name, // C_ESP_TRANSPORT,
                 kw_prot,
                 gobj
             );
@@ -215,7 +217,7 @@ PRIVATE int mt_start(hgobj gobj)
         #ifdef __linux__
             hgobj gobj_bottom = gobj_create_pure_child(
                 gobj_name(gobj),
-                C_LINUX_TRANSPORT,
+                gclass_name, // C_LINUX_TRANSPORT,
                 kw_prot,
                 gobj
             );
