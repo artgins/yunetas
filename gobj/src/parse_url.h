@@ -30,6 +30,15 @@ PUBLIC int parse_url(
     BOOL no_schema // only host:port
 );
 
+/**rst**
+   Get the schema of an url
+**rst**/
+PUBLIC int get_url_schema(
+    hgobj gobj,
+    const char *uri,
+    char *schema, size_t schema_size
+);
+
 #ifdef __cplusplus
 }
 #endif

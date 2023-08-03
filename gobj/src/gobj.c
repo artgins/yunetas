@@ -957,6 +957,14 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC gclass_name_t gclass_find_by_protocol_schema(const char *schema)
+{
+
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC void gclass_unregister(hgclass hgclass)
 {
     gclass_t *gclass = (gclass_t *)hgclass;

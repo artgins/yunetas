@@ -24,7 +24,7 @@
 #include <gobj_environment.h>
 #include <c_timer.h>
 #include <msg_ievent.h>
-#include <comm_prot.h>
+#include <parse_url.h>
 #include "c_ievent_cli.h"
 
 /***************************************************************
@@ -197,8 +197,9 @@ PRIVATE int mt_start(hgobj gobj)
 
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
     if(!bottom_gobj) {
-        const char *schema = comm_prot_get_schema(gobj_read_str_attr(gobj, "url"));
-        gclass_name_t gclass_name = comm_prot_get_gclass(schema);
+        char schema[32];
+        get_url_schema(gobj, gobj_read_str_attr(gobj, "url"), schema, sizeof(schema));
+        gclass_name_t gclass_name = gclass_find_by_protocol_schema(schema);
 
         json_t *kw_prot = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),

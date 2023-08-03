@@ -120,3 +120,54 @@ PUBLIC int parse_url(
 
     return 0;
 }
+
+/***************************************************************************
+   Get the schema of an url
+ ***************************************************************************/
+PUBLIC int get_url_schema(
+    hgobj gobj,
+    const char *uri,
+    char *schema, size_t schema_size
+) {
+    struct http_parser_url u;
+    http_parser_url_init(&u);
+
+    if(schema) schema[0] = 0;
+
+    int result = http_parser_parse_url(uri, strlen(uri), FALSE, &u);
+    if (result != 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "http_parser_parse_url() FAILED",
+            "url",          "%s", uri,
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln;
+
+    /*
+     *  Schema
+     */
+    if(schema && schema_size > 0) {
+        ln = u.field_data[UF_SCHEMA].len;
+        if(ln > 0) {
+            if(ln >= schema_size) {
+                ln = schema_size - 1;
+            }
+            memcpy(schema, uri + u.field_data[UF_SCHEMA].off, ln);
+            schema[ln] = 0;
+            return 0;
+        }
+    }
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "no schema found",
+        "url",          "%s", uri,
+        NULL
+    );
+    return -1;
+}
