@@ -3141,7 +3141,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     RESET_MACHINE();
 
-    gobj_change_state(gobj, ST_SESSION);
+    gobj_change_state(gobj, ST_CONNECTED);
 
     priv->inform_on_close = TRUE;
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
@@ -3296,7 +3296,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
         clear_timeout(priv->gobj_timer);
 
         RESET_MACHINE()
-        gobj_change_state(gobj, ST_SESSION);
+        gobj_change_state(gobj, ST_CONNECTED);
 
         if(!send_request(gobj)) {
             if(next_map(gobj)<0) {
@@ -3398,7 +3398,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
     );
 
     RESET_MACHINE()
-    gobj_change_state(gobj, "ST_SESSION");
+    gobj_change_state(gobj, ST_CONNECTED);
 
     /*
      *  Next map
@@ -3490,7 +3490,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,       ST_SESSION},
+        {EV_CONNECTED,          ac_connected,       ST_CONNECTED},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -3505,7 +3505,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_response[] = {
         {EV_RX_DATA,            ac_rx_data,             0},
         {EV_SEND_MESSAGE,       ac_enqueue_tx_message,  0},
-        {EV_TIMEOUT,            ac_timeout_response,    ST_SESSION},
+        {EV_TIMEOUT,            ac_timeout_response,    ST_CONNECTED},
         {EV_TX_READY,           0,                      0},
         {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
         {EV_DROP,               ac_drop,            0},
@@ -3513,7 +3513,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     states_t states[] = {
         {ST_DISCONNECTED,   st_disconnected},
-        {ST_SESSION,        st_session},
+        {ST_CONNECTED,        st_session},
         {ST_WAIT_RESPONSE,  st_wait_response},
         {0, 0}
     };
