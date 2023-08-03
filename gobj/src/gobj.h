@@ -1013,8 +1013,7 @@ PUBLIC hgclass gclass_create(
     const sdata_desc_t *authz_table,
     const sdata_desc_t *command_table,
     const trace_level_t *s_user_trace_level,
-    gclass_flag_t gclass_flag,
-    const char *protocol_schema
+    gclass_flag_t gclass_flag
 );
 
 PUBLIC int gclass_add_state(
@@ -1034,7 +1033,6 @@ PUBLIC int gclass_add_state_with_action_list(
     ev_action_t *ev_action_list
 );
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
-PUBLIC gclass_name_t gclass_find_by_protocol_schema(const char *schema);
 PUBLIC void gclass_unregister(hgclass hgclass);
 
 /*---------------------------------*
