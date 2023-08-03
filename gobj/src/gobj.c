@@ -112,6 +112,7 @@ typedef struct gclass_s {
     DL_ITEM_FIELDS
 
     char *gclass_name;
+    char *protocol_schema;
     dl_list_t dl_states;            // FSM
     dl_list_t dl_events;            // FSM
     const GMETHODS *gmt;            // Global methods
@@ -661,7 +662,8 @@ PUBLIC hgclass gclass_create(
     const sdata_desc_t *authz_table,
     const sdata_desc_t *command_table,
     const trace_level_t *s_user_trace_level,
-    gclass_flag_t gclass_flag
+    gclass_flag_t gclass_flag,
+    const char *protocol_schema
 ) {
     if(!__initialized__) {
         return NULL;
@@ -727,6 +729,9 @@ PUBLIC hgclass gclass_create(
 
     dl_add(&dl_gclass, gclass);
     gclass->gclass_name = gobj_strdup(gclass_name);
+    if(!empty_string(protocol_schema)) {
+        gclass->protocol_schema = gobj_strdup(protocol_schema);
+    }
     gclass->gmt = gmt;
     gclass->lmt = lmt;
     gclass->tattr_desc = tattr_desc;
@@ -959,7 +964,15 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC gclass_name_t gclass_find_by_protocol_schema(const char *schema)
 {
+    gclass_t *gclass = dl_first(&dl_gclass);
+    while(gclass) {
+        if(schema && gclass->protocol_schema && strcmp(schema, gclass->protocol_schema)==0) {
+            return gclass->gclass_name;
+        }
+        gclass = dl_next(gclass);
+    }
 
+    return NULL;
 }
 
 /***************************************************************************
@@ -1001,6 +1014,9 @@ PUBLIC void gclass_unregister(hgclass hgclass)
     }
 
     sys_free_fn(gclass->gclass_name);
+    if(gclass->protocol_schema) {
+        sys_free_fn(gclass->protocol_schema);
+    }
     sys_free_fn(gclass);
 }
 

@@ -1013,7 +1013,8 @@ PUBLIC hgclass gclass_create(
     const sdata_desc_t *authz_table,
     const sdata_desc_t *command_table,
     const trace_level_t *s_user_trace_level,
-    gclass_flag_t gclass_flag
+    gclass_flag_t gclass_flag,
+    const char *protocol_schema
 );
 
 PUBLIC int gclass_add_state(
