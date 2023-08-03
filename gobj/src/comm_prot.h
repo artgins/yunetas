@@ -22,17 +22,17 @@ extern "C"{
 /**rst**
    Register a gclass with a communication protocol
 **rst**/
-PUBLIC int comm_prot_register(const char *schema, gclass_name_t gclass_name);
-
-/**rst**
-   Get the schema of an url
-**rst**/
-PUBLIC const char *comm_prot_get_schema(const char *url);
+PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema);
 
 /**rst**
    Get the gclass name implementing the schema
 **rst**/
 PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema);
+
+/**rst**
+   Free comm_prot register
+**rst**/
+PUBLIC void comm_prot_free(void);
 
 #ifdef __cplusplus
 }
