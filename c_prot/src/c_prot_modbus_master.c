@@ -3494,7 +3494,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
-    ev_action_t st_session[] = {
+    ev_action_t st_connected[] = {
         {EV_SEND_MESSAGE,       ac_enqueue_tx_message,  0},
         {EV_TIMEOUT,            ac_timeout_polling,     0},
         {EV_TX_READY,           0,                      0},
@@ -3513,7 +3513,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     states_t states[] = {
         {ST_DISCONNECTED,   st_disconnected},
-        {ST_CONNECTED,        st_session},
+        {ST_CONNECTED,      st_connected},
         {ST_WAIT_RESPONSE,  st_wait_response},
         {0, 0}
     };

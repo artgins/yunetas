@@ -8,7 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <strings.h>
+#include <netinet/in.h>
 #include <comm_prot.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>
@@ -27,6 +27,10 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+typedef union {
+    unsigned char bf[4];
+    uint32_t len;
+} HEADER_ERPL2;
 
 /***************************************************************
  *              Data
@@ -39,6 +43,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
+SDATA (DTP_INTEGER, "max_pkt_size",     SDF_WR,         "4048",     "Package maximum size"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -61,7 +66,11 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    char p;
+    gbuffer_t *last_pkt;  /* packet currently receiving */
+    char bf_header_erpl2[sizeof(HEADER_ERPL2)];
+    size_t idx_header;
+
+    uint32_t max_pkt_size;
 } PRIVATE_DATA;
 
 PRIVATE hgclass gclass = 0;
@@ -92,6 +101,11 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_subscribe_event(gobj, NULL, NULL, subscriber);
         }
     }
+
+    SET_PRIV(max_pkt_size,      (uint32_t)gobj_read_integer_attr)
+    if(priv->max_pkt_size == 0) {
+        priv->max_pkt_size = (uint32_t)gobj_get_maximum_block();
+    }
 }
 
 /***************************************************************************
@@ -99,6 +113,13 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(max_pkt_size,    gobj_read_integer_attr)
+        if(priv->max_pkt_size == 0) {
+            priv->max_pkt_size = (uint32_t)gobj_get_maximum_block();
+        }
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -132,8 +153,6 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     gobj_stop(gobj_bottom_gobj(gobj));
 
     return 0;
@@ -144,7 +163,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 }
 
 
@@ -173,8 +191,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
     } else {
@@ -189,12 +205,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_pure_child(gobj)) {
+    if (gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
     } else {
         gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
     }
-
     return 0;
 }
 
@@ -214,6 +229,146 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    size_t pend_size = 0;
+    size_t len = gbuffer_leftbytes(gbuf);
+    while(len>0) {
+        if(priv->last_pkt) {
+            /*--------------------*
+              *   Estoy a medias
+              *--------------------*/
+            pend_size = gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
+            if(len >= pend_size) {
+                /*----------------------------------------*
+                 *   Justo lo que falta o
+                 *   Resto de uno y principio de otro
+                 *---------------------------------------*/
+                gbuffer_append(
+                    priv->last_pkt,
+                    gbuffer_get(gbuf, pend_size),
+                    pend_size
+                );
+                len -= pend_size;
+                json_t *kw_tx = json_pack("{s:I}",
+                    "gbuffer", (json_int_t)(size_t)priv->last_pkt
+                );
+                priv->last_pkt = 0;
+
+                if (gobj_is_pure_child(gobj)) {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
+                } else {
+                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+                }
+
+            } else { /* len < pend_size */
+                /*-------------------------------------*
+                  *   Falta todavía mas
+                  *-------------------------------------*/
+                gbuffer_append(
+                    priv->last_pkt,
+                    gbuffer_get(gbuf, len),
+                    len
+                );
+                len = 0;
+            }
+        } else {
+            /*--------------------*
+             *   New packet
+             *--------------------*/
+            size_t need2header = sizeof(HEADER_ERPL2) - priv->idx_header;
+            if(len < need2header) {
+                memcpy(
+                    priv->bf_header_erpl2 + priv->idx_header,
+                    gbuffer_get(gbuf, len),
+                    len
+                );
+                priv->idx_header += len;
+                len = 0;
+                continue;
+            } else {
+                memcpy(
+                    priv->bf_header_erpl2 + priv->idx_header,
+                    gbuffer_get(gbuf, need2header),
+                    need2header
+                );
+                len -= need2header;
+                priv->idx_header = 0;
+            }
+
+            /*
+             *  Quita la cabecera
+             */
+            HEADER_ERPL2 header_erpl2;
+            memmove((char *)&header_erpl2, priv->bf_header_erpl2, sizeof(HEADER_ERPL2));
+            header_erpl2.len = ntohl(header_erpl2.len);
+            header_erpl2.len -= sizeof(HEADER_ERPL2); // remove header
+
+            if(header_erpl2.len > priv->max_pkt_size) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msg",          "%s", "TOO LONG SIZE",
+                    "len",          "%d", header_erpl2.len,
+                    NULL
+                );
+                gobj_trace_dump_gbuf(
+                    gobj,
+                    gbuf,
+                    "ERROR: TOO LONG SIZE (%d)",
+                    header_erpl2.len
+                );
+                gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+                break;
+            }
+            gbuffer_t *new_pkt = gbuffer_create(header_erpl2.len, header_erpl2.len);
+            if(!new_pkt) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msg",          "%s", "gbuffer_create() FAILED",
+                    "len",          "%d", header_erpl2.len,
+                    NULL
+                );
+                gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+                break;
+            }
+            /*
+             *  Put the data
+             */
+            if(len >= header_erpl2.len) {
+                /* PAQUETE COMPLETO o MULTIPLE */
+                if(header_erpl2.len > 0) {
+                    // SSQ/SSR are 0 length
+                    gbuffer_append(
+                        new_pkt,
+                        gbuffer_get(gbuf, header_erpl2.len),
+                        header_erpl2.len
+                    );
+                    len -= header_erpl2.len;
+                }
+                json_t *kw_tx = json_pack("{s:I}",
+                    "gbuffer", (json_int_t)(size_t)new_pkt
+                );
+                if (gobj_is_pure_child(gobj)) {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
+                } else {
+                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+                }
+
+            } else { /* len < header_erpl2.len */
+                /* PAQUETE INCOMPLETO */
+                if(len>0) {
+                    gbuffer_append(
+                        new_pkt,
+                        gbuffer_get(gbuf, len),
+                        len
+                    );
+                }
+                priv->last_pkt = new_pkt;
+                len = 0;
+            }
+        }
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -223,18 +378,37 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-//    if(gobj_trace_level(gobj) & TRAFFIC) {
-//        gobj_trace_dump_gbuf(gobj, gbuf, "%s -> %s",
-//             gobj_short_name(gobj),
-//             gobj_short_name(gobj_bottom_gobj(gobj))
-//        );
-//    }
-//    KW_DECREF(kw)
-//
-//    json_t *kw_response = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf
-//    );
-//    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_response, gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    size_t len = gbuffer_leftbytes(gbuf);
+    gbuffer_t *new_gbuf;
+    HEADER_ERPL2 header_erpl2;
+
+    memset(&header_erpl2, 0, sizeof(HEADER_ERPL2));
+
+    len += sizeof(HEADER_ERPL2);
+    new_gbuf = gbuffer_create(len, len);
+    header_erpl2.len = htonl(len);
+    gbuffer_append(
+        new_gbuf,
+        &header_erpl2,
+        sizeof(HEADER_ERPL2)
+    );
+    gbuffer_append_gbuf(new_gbuf, gbuf);
+
+    if(gobj_trace_level(gobj) & TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, new_gbuf, "%s -> %s",
+             gobj_short_name(gobj),
+             gobj_short_name(gobj_bottom_gobj(gobj))
+        );
+    }
+
+    json_t *kw_tx = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(size_t)new_gbuf
+    );
+    gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_tx, gobj);
+
+    KW_DECREF(kw);
+    return 0;
 }
 
 /***************************************************************************
