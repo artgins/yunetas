@@ -219,7 +219,7 @@ PRIVATE int mt_start(hgobj gobj)
         #ifdef __linux__
             hgobj gobj_bottom = gobj_create_pure_child(
                 gobj_name(gobj),
-                gclass_name, // C_LINUX_TRANSPORT,
+                gclass_name,
                 kw_prot,
                 gobj
             );

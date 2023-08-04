@@ -36,7 +36,7 @@ PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
         __initialized__ = TRUE;
         dl_init(&dl_prot);
     }
-
+// TODO
     return 0;
 }
 
@@ -46,7 +46,7 @@ PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
 PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)
 {
     gclass_name_t gclass_name;
-
+// TODO
     return gclass_name;
 }
 
@@ -55,5 +55,5 @@ PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)
  ***************************************************************************/
 PUBLIC void comm_prot_free(void)
 {
-
+// TODO
 }

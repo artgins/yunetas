@@ -2,7 +2,7 @@
  *          C_PROT_TCP4.H
  *          Prot_tcp4 GClass.
  *
- *          Protocol tcp4, messages with a header of 4 bytes
+ *          Protocol tcp4h, messages with a header of 4 bytes
  *
  *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_PROT_TCP4);
+GOBJ_DECLARE_GCLASS(C_PROT_TCP4H);
 
 /*------------------------*
  *      States
@@ -34,7 +34,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_TCP4);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_prot_tcp4(void);
+PUBLIC int register_c_prot_tcp4h(void);
 
 #ifdef __cplusplus
 }
