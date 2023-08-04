@@ -538,8 +538,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Register comm protocol
      *----------------------------------------*/
-    comm_prot_register(gclass_name, "tcp4h");
-    comm_prot_register(gclass_name, "tcp4hs");
+    comm_prot_register(gclass_name, "tcph");
+    comm_prot_register(gclass_name, "tcphs");
 
     return 0;
 }
