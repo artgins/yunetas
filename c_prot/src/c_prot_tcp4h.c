@@ -135,10 +135,10 @@ PRIVATE int mt_start(hgobj gobj)
         );
 
         #ifdef ESP_PLATFORM
-            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
         #endif
         #ifdef __linux__
-            hgobj gobj_bottom = gobj_create(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
     }

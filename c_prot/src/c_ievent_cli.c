@@ -202,7 +202,7 @@ PRIVATE int mt_start(hgobj gobj)
         get_url_schema(gobj, gobj_read_str_attr(gobj, "url"), schema, sizeof(schema));
         gclass_name_t gclass_name = comm_prot_get_gclass(schema);
 
-        json_t *kw_prot = json_pack("{s:s, s:s}",
+        json_t *kw_prot = json_pack("{s:s, s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
             "url", gobj_read_str_attr(gobj, "url"),
             "jwt", gobj_read_str_attr(gobj, "jwt")
