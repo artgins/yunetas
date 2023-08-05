@@ -316,7 +316,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "ERROR: TOO LONG SIZE (%d)",
                     header_erpl2.len
                 );
-                gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+                gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
                 break;
             }
             gbuffer_t *new_pkt = gbuffer_create(header_erpl2.len, header_erpl2.len);
@@ -328,7 +328,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "len",          "%d", header_erpl2.len,
                     NULL
                 );
-                gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+                gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
                 break;
             }
             /*
@@ -405,7 +405,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     json_t *kw_tx = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)new_gbuf
     );
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_tx, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 
     KW_DECREF(kw);
     return 0;

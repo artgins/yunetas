@@ -109,7 +109,7 @@ extern "C"{
 /*---------------------------------------------------------*
  *  Useful to send event's messages TO the outside world.
  *---------------------------------------------------------*/
-PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
+PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     hgobj gobj,
     gobj_event_t event,
     json_t *kw // owned

@@ -35,7 +35,7 @@
 /***************************************************************************
  *  Useful to send event's messages TO outside world.
  ***************************************************************************/
-PUBLIC gbuffer_t *iev_create_to_gbuffer( // TODO old iev_create()
+PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     hgobj gobj,
     gobj_event_t event,
     json_t *kw // owned
@@ -161,18 +161,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
         );
         return -1;
     }
-    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, 0);
-    if(!md_iev) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "__md_iev__ NOT FOUND",
-            NULL
-        );
-        gobj_trace_json(gobj, kw, "__md_iev__ NOT FOUND");
-        return -1;
-    }
-
+    json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", json_object(), KW_CREATE);
     json_t *jn_stack = kw_get_list(gobj, md_iev, stack, 0, 0);
     if(!jn_stack) {
         jn_stack = json_array();
@@ -381,7 +370,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
         "yuno_role", gobj_yuno_role(),
         "yuno_name", gobj_name(gobj_yuno()),
         "yuno_id", gobj_yuno_id(),
-        "user", "" // TODO get_user_name()
+        "user", get_user_name()
     );
     json_object_set_new(__md_iev_dst__, "__md_yuno__", jn_metadata);
 

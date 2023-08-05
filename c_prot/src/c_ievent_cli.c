@@ -667,7 +667,7 @@ PRIVATE int send_static_iev(
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     return gobj_send_event(below_gobj,
-        "EV_SEND_MESSAGE",
+        EV_SEND_MESSAGE,
         kw_send,
         gobj
     );
@@ -746,7 +746,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_idAck(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -788,7 +788,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     // WARNING comprueba result, ahora puede venir negativo
     int result = kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), EV_ON_ID_NAK, json_incref(kw), gobj);
@@ -850,7 +850,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "msg",          "%s", "iev_create_from_gbuffer() FAILED",
             NULL
         );
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return -1;
     }
@@ -898,7 +898,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "event",        "%s", iev_event,
             NULL
         );
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -927,7 +927,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "my_role",      "%s", gobj_yuno_role(),
                 NULL
             );
-            gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             KW_DECREF(iev_kw);
             KW_DECREF(kw);
             return -1;
@@ -952,7 +952,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "my_name",      "%s", gobj_yuno_name(),
                 NULL
             );
-            gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             KW_DECREF(iev_kw);
             KW_DECREF(kw);
             return -1;
@@ -983,7 +983,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "event",        "%s", iev_event,
             NULL
         );
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw);
         KW_DECREF(kw);
         return -1;
@@ -1000,7 +1000,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "event",        "%s", iev_event,
             NULL
         );
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw);
         KW_DECREF(kw);
         return -1;

@@ -4955,7 +4955,7 @@ PUBLIC int gobj_send_event(
         if(kw) {
             if(__trace_gobj_ev_kw__(dst)) {
                 if(json_object_size(kw)) {
-                    gobj_trace_json(dst, kw, "kw exec event :%s", event?event:"");
+                    gobj_trace_json(dst, kw, "kw exec event: %s", event?event:"");
                 }
             }
         }

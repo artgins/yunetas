@@ -344,9 +344,9 @@ PUBLIC int kw_add_binary_type(
 /***************************************************************************
  *  Serialize fields
  ***************************************************************************/
-PUBLIC json_t *kw_serialize(
+PUBLIC json_t *kw_serialize( // return the same kw
     hgobj gobj,
-    json_t *kw // owned
+    json_t *kw
 )
 {
     serialize_fields_t * pf = serialize_fields;
@@ -399,16 +399,15 @@ PUBLIC json_t *kw_serialize(
         }
         pf++;
     }
-    KW_DECREF(kw);
     return kw;
 }
 
 /***************************************************************************
  *  Deserialize fields
  ***************************************************************************/
-PUBLIC json_t *kw_deserialize(
+PUBLIC json_t *kw_deserialize( // return the same kw
     hgobj gobj,
-    json_t *kw // owned
+    json_t *kw
 )
 {
     serialize_fields_t * pf = serialize_fields;
@@ -434,7 +433,7 @@ PUBLIC json_t *kw_deserialize(
                 /*
                  *  Decref json
                  */
-                JSON_DECREF(jn_serialized); // TODO ??? check it
+                // JSON_DECREF(jn_serialized); TODO CHECK creo que no hace falta
 
                 /*
                  *  Save the binary field to kw
@@ -450,7 +449,6 @@ PUBLIC json_t *kw_deserialize(
         }
         pf++;
     }
-    KW_DECREF(kw);
     return kw;
 }
 

@@ -104,13 +104,13 @@ PUBLIC int kw_add_binary_type(
     incref_fn_t incref_fn,
     decref_fn_t decref_fn
 );
-PUBLIC json_t *kw_serialize(
+PUBLIC json_t *kw_serialize( // return the same kw
     hgobj gobj,
-    json_t *kw // owned
+    json_t *kw
 );
-PUBLIC json_t *kw_deserialize(
+PUBLIC json_t *kw_deserialize( // return the same kw
     hgobj gobj,
-    json_t *kw // owned
+    json_t *kw
 );
 PUBLIC json_t *kw_incref(json_t *kw);
 PUBLIC json_t *kw_decref(json_t* kw);

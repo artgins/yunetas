@@ -711,6 +711,15 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
+            gobj_short_name(gobj),
+            gobj_read_str_attr(gobj, "sockname"),
+            " -> ",
+            gobj_read_str_attr(gobj, "peername")
+        );
+    }
+
     /*
      *  Transmit
      */
