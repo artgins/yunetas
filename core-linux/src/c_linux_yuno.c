@@ -55,19 +55,21 @@ SDATA (DTP_STRING,  "realm_role",       SDF_RD,         "",             "Role of
 SDATA (DTP_STRING,  "realm_name",       SDF_RD,         "",             "Name of realm"),
 SDATA (DTP_STRING,  "realm_env",        SDF_RD,         "",             "Environment of realm"),
 
-SDATA (DTP_STRING,  "appName",          SDF_RD,         "",             "App name, must match the role"),
-SDATA (DTP_STRING,  "appDesc",          SDF_RD,         "",             "App Description"),
-SDATA (DTP_STRING,  "appDate",          SDF_RD,         "",             "App date/time"),
-SDATA (DTP_STRING,  "work_dir",         SDF_RD,         "",             "Work dir"),
-SDATA (DTP_STRING,  "domain_dir",       SDF_RD,         "",             "Domain dir"),
-
 SDATA (DTP_STRING,  "yuno_role",        SDF_RD,         "",             "Yuno Role"),
 SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id. Set by agent"),
 SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name. Set by agent"),
 SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno. Set by agent"),
 SDATA (DTP_STRING,  "yuno_release",     SDF_RD,         "",             "Yuno Release. Set by agent"),
+
+SDATA (DTP_STRING,  "yuno_version",     SDF_RD,         "",             "Yuno version (APP_VERSION)"),
 SDATA (DTP_STRING,  "yuneta_version",   SDF_RD,         YUNETA_VERSION, "Yuneta version"),
 
+SDATA (DTP_STRING,  "appName",          SDF_RD,         "",             "App name, must match the role"),
+SDATA (DTP_STRING,  "appDesc",          SDF_RD,         "",             "App Description"),
+SDATA (DTP_STRING,  "appDate",          SDF_RD,         "",             "App date/time"),
+
+SDATA (DTP_STRING,  "work_dir",         SDF_RD,         "",             "Work dir"),
+SDATA (DTP_STRING,  "domain_dir",       SDF_RD,         "",             "Domain dir"),
 SDATA (DTP_STRING,  "bind_ip",          SDF_RD,         "",             "Bind ip of yuno's realm. Set by agent"),
 SDATA (DTP_BOOLEAN, "yuno_multiple",    SDF_RD,         "0",            "True when yuno can open shared ports. Set by agent"),
 SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
@@ -199,8 +201,6 @@ PRIVATE void mt_create(hgobj gobj)
     current_timestamp(bfdate, sizeof(bfdate));
     gobj_write_str_attr(gobj, "start_date", bfdate);
 
-    node_uuid();
-
     gobj_log_warning(0, 0,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "yuno start time",
@@ -208,6 +208,9 @@ PRIVATE void mt_create(hgobj gobj)
         "start_date",   "%s", bfdate,
         NULL
     );
+
+    json_t *attrs = gobj_hsdata(gobj);
+    gobj_trace_json(gobj, attrs, "yuno's attrs");
 
     const char *i18n_domain = gobj_read_str_attr(gobj, "i18n_domain");
     if(!empty_string(i18n_domain)) {

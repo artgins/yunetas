@@ -1105,6 +1105,7 @@ PUBLIC json_t * gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs); // str
 // If `attr` is null returns full attr's table
 PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass, const char *name, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj, const char *attr, BOOL verbose);
+PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name);
@@ -1310,6 +1311,8 @@ static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yun
 
 PUBLIC const char *get_host_name(void);
 PUBLIC const char *get_user_name(void);
+
+PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with gobj's public attributes.
 
 /*--------------------------------------------*
  *          Events and States

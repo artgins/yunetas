@@ -70,7 +70,13 @@ SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id
 SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name. Set by agent"),
 SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno. Set by agent"),
 
+SDATA (DTP_STRING,  "yuno_version",     SDF_RD,         "",             "Yuno version (APP_VERSION)"),
 SDATA (DTP_STRING,  "yuneta_version",   SDF_RD,         YUNETA_VERSION, "Yuneta version"),
+
+SDATA (DTP_STRING,  "appName",          SDF_RD,         "",             "App name, must match the role"),
+SDATA (DTP_STRING,  "appDesc",          SDF_RD,         "",             "App Description"),
+SDATA (DTP_STRING,  "appDate",          SDF_RD,         "",             "App date/time"),
+
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "1000",         "Timeout periodic, in miliseconds"),
@@ -199,7 +205,9 @@ PRIVATE void mt_create(hgobj gobj)
     time_t now;
     time(&now);
     gobj_write_integer_attr(gobj, "start_time", now);
-    node_uuid();
+
+    json_t *attrs = gobj_hsdata(gobj);
+    gobj_trace_json(gobj, attrs, "yuno's attrs");
 
     /*------------------------*
      *  Create childs

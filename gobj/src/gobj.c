@@ -217,6 +217,31 @@ GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
 /****************************************************************
  *         Data
  ****************************************************************/
+PRIVATE const char *sdata_flag_names[] = {
+    "SDF_NOTACCESS",
+    "SDF_RD",
+    "SDF_WR",
+    "SDF_REQUIRED",
+    "SDF_PERSIST",
+    "SDF_VOLATIL",
+    "SDF_RESOURCE",
+    "SDF_PKEY",
+    "SDF_FUTURE1",
+    "SDF_FUTURE2",
+    "SDF_WILD_CMD",
+    "SDF_STATS",
+    "SDF_FKEY",
+    "SDF_RSTATS",
+    "SDF_PSTATS",
+    "SDF_AUTHZ_R",
+    "SDF_AUTHZ_W",
+    "SDF_AUTHZ_X",
+    "SDF_AUTHZ_P",
+    "SDF_AUTHZ_S",
+    "SDF_AUTHZ_RS",
+    0
+};
+
 PRIVATE char __hostname__[64] = {0};
 PRIVATE char __username__[64] = {0};
 
@@ -282,7 +307,6 @@ PRIVATE int rc_walk_by_level(
 
 PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
-PRIVATE json_t *gobj_hsdata(gobj_t *gobj);
 PRIVATE json_t *gobj_hsdata2(gobj_t *gobj, const char *name, BOOL verbose);
 PUBLIC void trace_vjson(
     hgobj gobj,
@@ -299,6 +323,17 @@ PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
 PRIVATE int add_event_type(
     dl_list_t *dl,
     event_type_t *event_type_
+);
+
+PRIVATE json_t *bit2level(
+    const trace_level_t *internal_trace_level,
+    const trace_level_t *user_trace_level,
+    uint32_t bit
+);
+PRIVATE uint32_t level2bit(
+    const trace_level_t *internal_trace_level,
+    const trace_level_t *user_trace_level,
+    const char *level
 );
 
 /***************************************************************
@@ -2017,8 +2052,9 @@ PRIVATE int json2item(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *gobj_hsdata(gobj_t *gobj)
+PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 {
+    gobj_t *gobj = gobj_;
     return gobj?gobj->jn_attrs:NULL;
 }
 
@@ -4503,6 +4539,281 @@ PUBLIC const char *get_user_name(void)
     return __username__;
 }
 
+/***************************************************************************
+ *  Get a gbuffer with type strings
+ ***************************************************************************/
+PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
+{
+    gbuffer_t *gbuf = gbuffer_create(256, 256);
+    if(!gbuf) {
+        return 0;
+    }
+    BOOL add_sep = FALSE;
+
+    char **name = (char **)sdata_flag_names;
+    while(*name) {
+        if(flag & 0x01) {
+            if(add_sep) {
+                gbuffer_append(gbuf, "|", 1);
+            }
+            gbuffer_append(gbuf, *name, strlen(*name));
+            add_sep = TRUE;
+        }
+        flag = flag >> 1;
+        name++;
+    }
+    return gbuf;
+}
+
+/***************************************************************************
+ *
+ *  Return list of objects with gobj's attribute description,
+ *  restricted to attributes having SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS flag.
+ *
+ *  Esquema tabla webix:
+
+    data:[
+        {
+            id: integer (index)
+            name: string,
+            type: string ("real" | "boolean" | "integer" | "string" | "json"),
+            flag: string ("SDF_RD",...),
+            description: string,
+            stats: boolean,
+            value: any
+        },
+        {   Metadata:
+            "name", "__state__",
+            "name", "__bottom__",
+            "name", "__shortname__",
+            "name", "__fullname__",
+            "name", "__running__",
+            "name", "__playing__",
+            "name", "__service__",
+            "name", "__unique__",
+            "name", "__disabled__",
+            "name", "__gobj_trace_level__",
+            "name", "__gobj_no_trace_level__"
+        }
+    ]
+ ***************************************************************************/
+PUBLIC json_t *attr2json(hgobj gobj_)
+{
+    gobj_t * gobj = gobj_;
+    json_t *jn_data = json_array();
+
+    int id = 1;
+    const sdata_desc_t *it = gobj->gclass->tattr_desc;
+    while(it && it->name) {
+        if(it->flag & (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)) {
+            char *type;
+            if(it->type == DTP_REAL) {
+                type = "real";
+            } else if(it->type == DTP_BOOLEAN) {
+                type = "boolean";
+            } else if(it->type == DTP_INTEGER) {
+                type = "integer";
+            } else if(it->type == DTP_STRING) {
+                type = "string";
+            } else if(it->type == DTP_JSON) {
+                type = "json";
+            } else if(it->type == DTP_DICT) {
+                type = "dict";
+            } else if(it->type == DTP_LIST) {
+                type = "list";
+            } else {
+                it++;
+                continue;
+            }
+
+            gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+            char *flag = gbuf?gbuffer_cur_rd_pointer(gbuf):"";
+            json_t *attr_dict = json_pack("{s:I, s:s, s:s, s:s, s:s, s:b}",
+                "id", (json_int_t)id++,
+                "name", it->name,
+                "type", type,
+                "flag", flag,
+                "description", it->description?it->description:"",
+                "stats", (it->flag & (SDF_STATS|SDF_RSTATS|SDF_PSTATS))?1:0
+            );
+            GBUFFER_DECREF(gbuf);
+
+            if(it->type == DTP_REAL) {
+                json_object_set_new(
+                    attr_dict,
+                    "value",
+                    json_real(
+                        gobj_read_real_attr(gobj, it->name)
+                    )
+                );
+            } else if(it->type == DTP_INTEGER) {
+                json_object_set_new(
+                    attr_dict,
+                    "value",
+                    json_integer(
+                        gobj_read_integer_attr(gobj, it->name)
+                    )
+                );
+            } else if(it->type == DTP_BOOLEAN) {
+                json_object_set_new(
+                    attr_dict,
+                    "value",
+                    json_boolean(
+                        gobj_read_bool_attr(gobj, it->name)
+                    )
+                );
+            } else if(it->type == DTP_STRING) {
+                json_object_set_new(
+                    attr_dict,
+                    "value",
+                    json_string(
+                        gobj_read_str_attr(gobj, it->name)
+                    )
+                );
+            } else if(it->type == DTP_JSON || it->type == DTP_DICT || it->type == DTP_LIST) {
+                json_t *jn = gobj_read_json_attr(gobj, it->name);
+                char *value = 0;
+                if(jn) {
+                    value = json_dumps(jn, JSON_ENCODE_ANY|JSON_COMPACT);
+                }
+                json_object_set_new(
+                    attr_dict,
+                    "value",
+                    json_string(value?value:"")
+                );
+                if(value) {
+                    jsonp_free(value);
+                }
+            }
+
+            json_array_append_new(jn_data, attr_dict);
+        }
+        it++;
+    }
+
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
+            "id", (json_int_t)id++,
+            "name", "__state__",
+            "type", "string",
+            "flag", "",
+            "description", "SMachine state of gobj",
+            "stats", 0,
+            "value", gobj_current_state(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
+            "id", (json_int_t)id++,
+            "name", "__bottom__",
+            "type", "string",
+            "flag", "",
+            "description", "Bottom gobj",
+            "stats", 0,
+            "value", gobj->bottom_gobj? gobj_short_name(gobj->bottom_gobj):""
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
+            "id", (json_int_t)id++,
+            "name", "__shortname__",
+            "type", "string",
+            "flag", "",
+            "description", "Full name",
+            "stats", 0,
+            "value", gobj_short_name(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
+            "id", (json_int_t)id++,
+            "name", "__fullname__",
+            "type", "string",
+            "flag", "",
+            "description", "Full name",
+            "stats", 0,
+            "value", gobj_full_name(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
+            "id", (json_int_t)id++,
+            "name", "__running__",
+            "type", "boolean",
+            "flag", "",
+            "description", "Is running the gobj?",
+            "stats", 0,
+            "value", (json_int_t)(size_t)gobj_is_running(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
+            "id", (json_int_t)id++,
+            "name", "__playing__",
+            "type", "boolean",
+            "flag", "",
+            "description", "Is playing the gobj?",
+            "stats", 0,
+            "value", (json_int_t)(size_t)gobj_is_playing(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
+            "id", (json_int_t)id++,
+            "name", "__service__",
+            "type", "boolean",
+            "flag", "",
+            "description", "Is a service the gobj?",
+            "stats", 0,
+            "value", (json_int_t)(size_t)gobj_is_service(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
+            "id", (json_int_t)id++,
+            "name", "__disabled__",
+            "type", "boolean",
+            "flag", "",
+            "description", "Is disabled the gobj?",
+            "stats", 0,
+            "value", (json_int_t)(size_t)gobj_is_disabled(gobj)
+        )
+    );
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:o}",
+            "id", (json_int_t)id++,
+            "name", "__gobj_trace_level__",
+            "type", "array",
+            "flag", "",
+            "description", "Current trace level",
+            "stats", 0,
+            "value",  bit2level(
+                s_global_trace_level,
+                gobj->gclass->s_user_trace_level,
+                gobj_trace_level(gobj)
+            )
+        )
+    );
+
+    json_array_append_new(jn_data,
+        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:o}",
+            "id", (json_int_t)id++,
+            "name", "__gobj_no_trace_level__",
+            "type", "array",
+            "flag", "",
+            "description", "Current no trace level",
+            "stats", 0,
+            "value",  bit2level(
+                s_global_trace_level,
+                gobj->gclass->s_user_trace_level,
+                gobj_trace_no_level(gobj)
+            )
+        )
+    );
+
+    return jn_data;
+}
+
 
 
 
@@ -5928,7 +6239,7 @@ PUBLIC uint32_t gobj_trace_no_level(hgobj gobj_)
 /****************************************************************************
  *  Convert 32 bit to string level
  ****************************************************************************/
-json_t *bit2level(  // TODO es PRIVATE, para cuando hagas las funciones de consulta
+PRIVATE json_t *bit2level(
     const trace_level_t *internal_trace_level,
     const trace_level_t *user_trace_level,
     uint32_t bit)
@@ -7029,16 +7340,16 @@ PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
  *****************************************************************/
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 {
-    static char __inside__ = 0;
+    static char __inside_log__ = 0;
 
     if(len <= 0) {
         return;
     }
 
-    if(__inside__) {
+    if(__inside_log__) {
         return;
     }
-    __inside__ = 1;
+    __inside_log__ = 1;
 
     BOOL backtrace_showed = FALSE;
     log_handler_t *lh = dl_first(&dl_log_handlers);
@@ -7072,7 +7383,7 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
         lh = dl_next(lh);
     }
 
-    __inside__ = 0;
+    __inside_log__ = 0;
 
     if(opt & LOG_OPT_EXIT_NEGATIVE) {
         exit(-1);
@@ -7092,6 +7403,13 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 {
     char timestamp[90];
 
+    static char __inside_log__ = 0;
+
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
+
     current_timestamp(timestamp, sizeof(timestamp));
     json_t *jn_log = json_object();
     json_object_set_new(jn_log, "timestamp", json_string(timestamp));
@@ -7103,6 +7421,8 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
     _log_bf(priority, opt, s, strlen(s));
     jsonp_free(s);
     json_decref(jn_log);
+
+    __inside_log__ = 0;
 }
 
 /*****************************************************************
@@ -7357,6 +7677,12 @@ PUBLIC void trace_vjson(
     log_opt_t opt = 0;
     char timestamp[90];
     char msg[256];
+    static char __inside_log__ = 0;
+
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
 
     current_timestamp(timestamp, sizeof(timestamp));
     json_t *jn_log = json_object();
@@ -7376,6 +7702,8 @@ PUBLIC void trace_vjson(
     _log_bf(priority, opt, s, strlen(s));
     jsonp_free(s);
     json_decref(jn_log);
+
+    __inside_log__ = 0;
 }
 
 /***************************************************************************
