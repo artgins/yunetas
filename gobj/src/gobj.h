@@ -1507,10 +1507,13 @@ PUBLIC json_t *gobj_get_trace_filter(hgclass gclass); // Return is not YOURS
 PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set);
 PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set);
 PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)));
+PUBLIC char *tab(char *bf, int bflen);
 
 /*---------------------------------*
  *      Log functions
  *---------------------------------*/
+PUBLIC void glog_init(void);
+PUBLIC void glog_end(void);
 /*
  *  log handler "stdout" is included
  */

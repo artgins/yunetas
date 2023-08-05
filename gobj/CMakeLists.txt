@@ -12,16 +12,18 @@ set (SRCS
     src/00_http_parser.c
     src/ghttp_parser.c
     src/gobj.c
+    src/glog.c
+    src/gobj_environment.c
     src/istream.c
     src/parse_url.c
-    src/gobj_environment.c
     src/log_udp_handler.c
     src/helpers.c
     src/kwid.c
-    src/stacktrace_with_bfd.c
     src/gbuffer.c
     src/msg_ievent.c
     src/comm_prot.c
+
+    src/stacktrace_with_bfd.c
 )
 
 
