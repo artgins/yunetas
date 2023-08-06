@@ -712,6 +712,32 @@ PUBLIC void gobj_trace_dump(
     json_decref(jn_data);
 }
 
+/***************************************************************************
+ *  Print ERROR message to stdout
+ ***************************************************************************/
+PUBLIC void print_error(
+    const char *fmt,
+    ...
+)
+{
+    va_list ap;
+
+    fwrite(On_Red, strlen(On_Red), 1, stdout);
+    fwrite(BWhite, strlen(BWhite), 1, stdout);
+
+    int length = vsnprintf(NULL, 0, fmt, ap);
+    if(length>0) {
+        char *buf = malloc((size_t)length + 1);
+        if(buf) {
+            vsnprintf(buf, (size_t)length + 1, fmt, ap);
+            fwrite(buf, strlen(buf), 1, stdout);
+            free(buf);
+        }
+    }
+    fwrite(Color_Off, strlen(Color_Off), 1, stdout);
+    fprintf(stdout, "\n");
+}
+
 /*****************************************************************
  *      Log data in transparent format
  *****************************************************************/
@@ -850,10 +876,13 @@ PUBLIC void trace_vjson(
         json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
         json_object_set_new(jn_log, "type", json_integer(jn_data->type));
     }
-
     char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
-    _log_bf(priority, opt, s, strlen(s));
-    jsonp_free(s);
+    if(s) {
+        _log_bf(priority, opt, s, strlen(s));
+        jsonp_free(s);
+    } else {
+        print_json2(On_Red BWhite "ERROR json_dumps()" Color_Off, jn_log);
+    }
     json_decref(jn_log);
 
     __inside_log__ = 0;

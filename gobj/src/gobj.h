@@ -1581,6 +1581,11 @@ PUBLIC void gobj_trace_dump(
     ...
 ) JANSSON_ATTRS((format(printf, 4, 5)));
 
+PUBLIC void print_error(
+    const char *fmt,
+    ...
+) JANSSON_ATTRS((format(printf, 1, 2)));
+
 /*---------------------------------*
  *      Memory functions
  *---------------------------------*/
