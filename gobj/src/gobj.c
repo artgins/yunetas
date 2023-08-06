@@ -10,14 +10,12 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <wchar.h>
 
 #ifdef __linux__
     #include <pwd.h>
     #include <strings.h>
     #include <sys/utsname.h>
     #include <unistd.h>
-    #include <execinfo.h>
 #endif
 
 #include "ansi_escape_codes.h"

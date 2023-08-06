@@ -7,31 +7,23 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <wchar.h>
 
 #ifdef __linux__
-    #include <pwd.h>
-    #include <strings.h>
-    #include <sys/utsname.h>
-    #include <unistd.h>
     #include <execinfo.h>
 #endif
 
-#include "ansi_escape_codes.h"
-#include "gobj_environment.h"
-#include "kwid.h"
 #include "gobj.h"
 #include "gbuffer.h"
+
+extern void jsonp_free(void *ptr);
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 #define MAX_LOG_HANDLER_TYPES 8
-
-extern void jsonp_free(void *ptr); // TODO remove
 
 /***************************************************************
  *              Log Structures
@@ -75,6 +67,16 @@ typedef struct {
     void *h;
 } log_handler_t;
 
+typedef struct {
+    size_t alloc;
+    size_t len;
+    char *msg;
+    char indented;
+    int items;
+} ul_buffer_t;
+
+typedef int hgen_t;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -82,6 +84,58 @@ PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
 PRIVATE int stdout_write(void *v, int priority, const char *bf, size_t len);
 PRIVATE int stdout_fwrite(void* v, int priority, const char* format, ...);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
+PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap);
+PRIVATE void discover(hgobj gobj, hgen_t hgen);
+
+/*****************************************************************
+ *          Json Data
+ *  Auto-growing string buffers
+ *  Copyright (c) 2012 BalaBit IT Security Ltd.
+ *  All rights reserved.
+ *****************************************************************/
+PRIVATE ul_buffer_t *ul_buffer_reset(hgen_t hgen, int indented);
+PRIVATE ul_buffer_t *ul_buffer_append(
+    hgen_t hgen,
+    const char *key,
+    const char *value,
+    int with_comillas
+);
+PRIVATE char *ul_buffer_finalize(hgen_t hgen);
+PRIVATE void ul_buffer_finish(void);
+PRIVATE void json_add_string(hgen_t hgen, const char *key, const char *str);
+PRIVATE void json_add_null(hgen_t hgen, const char *key);
+PRIVATE void json_add_double(hgen_t hgen, const char *key, double number);
+PRIVATE void json_add_integer(hgen_t hgen, const char *key, long long int number);
+PRIVATE char *json_get_buf(hgen_t hgen);
+PRIVATE void json_vappend(hgen_t hgen, va_list ap);
+
+static const unsigned char json_exceptions[] = {
+    0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86,
+    0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e,
+    0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96,
+    0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e,
+    0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6,
+    0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae,
+    0xaf, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
+    0xb7, 0xb8, 0xb9, 0xba, 0xbb, 0xbc, 0xbd, 0xbe,
+    0xbf, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6,
+    0xc7, 0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce,
+    0xcf, 0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
+    0xd7, 0xd8, 0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde,
+    0xdf, 0xe0, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6,
+    0xe7, 0xe8, 0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee,
+    0xef, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6,
+    0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe,
+    0xff, '\0'
+};
+
+/*
+ *  Máximum # of json buffer.
+ */
+PRIVATE ul_buffer_t escape_buffer[2];
+PRIVATE ul_buffer_t ul_buffer[2];
+PRIVATE char __initialized__ = 0;
+PRIVATE volatile char __inside_log__ = 0;
 
 /***************************************************************
  *              Data
@@ -119,6 +173,7 @@ PUBLIC void glog_init(void)
         stdout_fwrite       // fwrite_fn
     );
 
+    __initialized__ = TRUE;
 }
 
 /****************************************************************************
@@ -133,32 +188,11 @@ PUBLIC void glog_end(void)
     while((lh=dl_first(&dl_log_handlers))) {
         gobj_log_del_handler(lh->handler_name);
     }
-}
+    max_log_register = 0;
 
-/****************************************************************************
- *  Trace machine function
- ****************************************************************************/
-PUBLIC void trace_machine(const char *fmt, ...)
-{
-    va_list ap;
-    char temp1[40];
-    char dtemp[90];
-    char temp[512];
-    tab(temp1, sizeof(temp1));
-    current_timestamp(dtemp, sizeof(dtemp));
+    ul_buffer_finish();
 
-    snprintf(temp, sizeof(temp),
-        "%s -%s",
-        dtemp,
-        temp1
-    );
-
-    va_start(ap, fmt);
-    size_t len = strlen(temp);
-    vsnprintf(temp+len, sizeof(temp)-len, fmt, ap);
-    va_end(ap);
-
-    _log_bf(LOG_DEBUG, 0, temp, strlen(temp));
+    __initialized__ = FALSE;
 }
 
 /*****************************************************************
@@ -326,347 +360,43 @@ PUBLIC json_t *gobj_log_list_handlers(void)
 }
 
 /*****************************************************************
- *      Discover extra data
- *****************************************************************/
-PRIVATE void discover(hgobj gobj, json_t *jn)
-{
-    const char *yuno_attrs[] = {
-        "node_uuid",
-        "process",
-        "hostname",
-        "pid"
-    };
-
-    for(size_t i=0; i<ARRAY_SIZE(yuno_attrs); i++) {
-        const char *attr = yuno_attrs[i];
-        if(gobj_has_attr(gobj_yuno(), attr)) { // WARNING Check that attr exists:  avoid recursive loop
-            json_t *value = gobj_read_attr(gobj_yuno(), attr, 0);
-            if(value) {
-                json_object_set(jn, attr, value);
-            }
-        }
-    }
-
-#ifdef ESP_PLATFORM
-    #include <esp_system.h>
-    size_t size = esp_get_free_heap_size();
-    json_object_set_new(jn, "HEAP free", json_integer((json_int_t)size));
-#endif
-
-    if(!gobj) {
-        return;
-    }
-    json_object_set_new(jn, "gclass", json_string(gobj_gclass_name(gobj)));
-    json_object_set_new(jn, "gobj_name", json_string(gobj_name(gobj)));
-    json_object_set_new(jn, "state", json_string(gobj_current_state(gobj)));
-    if(trace_with_full_name) {
-        json_object_set_new(jn,
-            "gobj_full_name",
-            json_string(gobj_full_name(gobj))
-        );
-    }
-    if(trace_with_short_name) {
-        json_object_set_new(jn,
-            "gobj_short_name",
-            json_string(gobj_short_name(gobj))
-        );
-    }
-
-    const char *gobj_attrs[] = {
-        "id"
-    };
-    for(size_t i=0; i<ARRAY_SIZE(gobj_attrs); i++) {
-        const char *attr = gobj_attrs[i];
-        if(gobj_has_attr(gobj, attr)) { // WARNING Check that attr exists:  avoid recursive loop
-            const char *value = gobj_read_str_attr(gobj, attr);
-            if(!empty_string(value)) {
-                json_object_set_new(jn, attr, json_string(attr));
-            }
-        }
-    }
-}
-
-/*****************************************************************
- *  Add key/values from va_list argument
- *****************************************************************/
-PRIVATE void json_vappend(json_t *hgen, va_list ap)
-{
-    char *key;
-    char *fmt;
-    size_t i;
-    char value[256];
-
-    while ((key = (char *)va_arg (ap, char *)) != NULL) {
-        fmt = (char *)va_arg (ap, char *);
-        for (i = 0; i < strlen (fmt); i++) {
-            int eof = 0;
-
-            if (fmt[i] != '%')
-                continue;
-            i++;
-            while (eof != 1) {
-                switch (fmt[i]) {
-                    case 'd':
-                    case 'i':
-                    case 'o':
-                    case 'u':
-                    case 'x':
-                    case 'X':
-                        if (fmt[i - 1] == 'l') {
-                            if (i - 2 > 0 && fmt[i - 2] == 'l') {
-                                long long int v;
-                                v = va_arg(ap, long long int);
-                                json_object_set_new(hgen, key, json_integer(v));
-
-                            } else {
-                                long int v;
-                                v = va_arg(ap, long int);
-                                json_object_set_new(hgen, key, json_integer(v));
-                            }
-                        } else {
-                            int v;
-                            v = va_arg(ap, int);
-                            json_object_set_new(hgen, key, json_integer(v));
-                        }
-                        eof = 1;
-                        break;
-                    case 'e':
-                    case 'E':
-                    case 'f':
-                    case 'F':
-                    case 'g':
-                    case 'G':
-                    case 'a':
-                    case 'A':
-                        if (fmt[i - 1] == 'L') {
-                            long double v;
-                            v = va_arg (ap, long double);
-                            json_object_set_new(hgen, key, json_real((double)v));
-                        } else {
-                            double v;
-                            v = va_arg (ap, double);
-                            json_object_set_new(hgen, key, json_real(v));
-                        }
-                        eof = 1;
-                        break;
-                    case 'c':
-                        if (fmt [i - 1] == 'l') {
-                            wint_t v = va_arg (ap, wint_t);
-                            json_object_set_new(hgen, key, json_integer(v));
-                        } else {
-                            int v = va_arg (ap, int);
-                            json_object_set_new(hgen, key, json_integer(v));
-                        }
-                        eof = 1;
-                        break;
-                    case 's':
-                        if (fmt [i - 1] == 'l') {
-                            wchar_t *p;
-                            int len;
-
-                            p = va_arg (ap, wchar_t *);
-                            if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
-                                if(strcmp(key, "msg")==0) {
-                                    gobj_log_set_last_message("%s", value);
-                                }
-                                json_object_set_new(hgen, key, json_string(value));
-                            } else {
-                                json_object_set_new(hgen, key, json_null());
-                            }
-
-                        } else {
-                            char *p;
-                            int len;
-
-                            p = va_arg (ap, char *);
-                            if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
-                                if(strcmp(key, "msg")==0) {
-                                    gobj_log_set_last_message("%s", value);
-                                }
-                                json_object_set_new(hgen, key, json_string(value));
-                            } else {
-                                json_object_set_new(hgen, key, json_null());
-                            }
-                        }
-                        eof = 1;
-                        break;
-                    case 'p':
-                    {
-                        void *p;
-                        int len;
-
-                        p = va_arg (ap, void *);
-                        eof = 1;
-                        if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
-                            json_object_set_new(hgen, key, json_string(value));
-                        } else {
-                            json_object_set_new(hgen, key, json_null());
-                        }
-                    }
-                        break;
-                    case 'j':
-                    {
-                        json_t *jn;
-
-                        jn = va_arg (ap, void *);
-                        eof = 1;
-
-                        if(jn) {
-                            size_t flags = JSON_ENCODE_ANY |
-                                           JSON_INDENT(0) |
-                                           JSON_REAL_PRECISION(12);
-                            char *bf = json_dumps(jn, flags);
-                            if(bf) {
-                                helper_doublequote2quote(bf);
-                                json_object_set_new(hgen, key, json_string(bf));
-                                jsonp_free(bf) ;
-                            } else {
-                                json_object_set_new(hgen, key, json_null());
-                            }
-                        } else {
-                            json_object_set_new(hgen, key, json_null());
-                        }
-                    }
-                        break;
-                    case '%':
-                        eof = 1;
-                        break;
-                    default:
-                        i++;
-                }
-            }
-        }
-    }
-}
-
-/*****************************************************************
  *
  *****************************************************************/
 PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
 {
-BOOL ignore = TRUE;
-log_handler_opt_t handler_options = lh->handler_options;
+    BOOL ignore = TRUE;
+    log_handler_opt_t handler_options = lh->handler_options;
 
-switch(priority) {
-case LOG_ALERT:
-if(handler_options & LOG_HND_OPT_ALERT)
-ignore = FALSE;
-break;
-case LOG_CRIT:
-if(handler_options & LOG_HND_OPT_CRITICAL)
-ignore = FALSE;
-break;
-case LOG_ERR:
-if(handler_options & LOG_HND_OPT_ERROR)
-ignore = FALSE;
-break;
-case LOG_WARNING:
-if(handler_options & LOG_HND_OPT_WARNING)
-ignore = FALSE;
-break;
-case LOG_INFO:
-if(handler_options & LOG_HND_OPT_INFO)
-ignore = FALSE;
-break;
-case LOG_DEBUG:
-if(handler_options & LOG_HND_OPT_DEBUG)
-ignore = FALSE;
-break;
+    switch(priority) {
+    case LOG_ALERT:
+        if(handler_options & LOG_HND_OPT_ALERT)
+            ignore = FALSE;
+        break;
+    case LOG_CRIT:
+        if(handler_options & LOG_HND_OPT_CRITICAL)
+            ignore = FALSE;
+        break;
+    case LOG_ERR:
+        if(handler_options & LOG_HND_OPT_ERROR)
+            ignore = FALSE;
+        break;
+    case LOG_WARNING:
+        if(handler_options & LOG_HND_OPT_WARNING)
+            ignore = FALSE;
+        break;
+    case LOG_INFO:
+        if(handler_options & LOG_HND_OPT_INFO)
+            ignore = FALSE;
+        break;
+    case LOG_DEBUG:
+        if(handler_options & LOG_HND_OPT_DEBUG)
+            ignore = FALSE;
+        break;
 
-default:
-break;
+    default:
+        break;
 }
 return ignore;
-}
-
-/*****************************************************************
- *      Log data in transparent format
- *****************************************************************/
-PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
-{
-    static char __inside_log__ = 0;
-
-    if(len <= 0) {
-        return;
-    }
-
-    if(__inside_log__) {
-        return;
-    }
-    __inside_log__ = 1;
-
-    BOOL backtrace_showed = FALSE;
-    log_handler_t *lh = dl_first(&dl_log_handlers);
-    while(lh) {
-        if(must_ignore(lh, priority)) {
-            /*
-             *  Next
-             */
-            lh = dl_next(lh);
-            continue;
-        }
-
-        if(lh->hr->write_fn) {
-            int ret = (lh->hr->write_fn)(lh->h, priority, bf, len);
-            if(ret < 0) { // Handler owns the message
-                break;
-            }
-        }
-        if(opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) {
-            if(!backtrace_showed) {
-                if(show_backtrace_fn && lh->hr->fwrite_fn) {
-                    show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
-                }
-            }
-            backtrace_showed = TRUE;
-        }
-
-        /*
-         *  Next
-         */
-        lh = dl_next(lh);
-    }
-
-    __inside_log__ = 0;
-
-    if(opt & LOG_OPT_EXIT_NEGATIVE) {
-        exit(-1);
-    }
-    if(opt & LOG_OPT_EXIT_ZERO) {
-        exit(0);
-    }
-    if(opt & LOG_OPT_ABORT) {
-        abort();
-    }
-}
-
-/*****************************************************************
- *      Log
- *****************************************************************/
-PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
-{
-    char timestamp[90];
-
-    static char __inside_log__ = 0;
-
-    if(__inside_log__) {
-        return;
-    }
-    __inside_log__ = 1;
-
-    current_timestamp(timestamp, sizeof(timestamp));
-    json_t *jn_log = json_object();
-    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
-    discover(gobj, jn_log);
-
-    json_vappend(jn_log, ap);
-
-    char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
-    _log_bf(priority, opt, s, strlen(s));
-    jsonp_free(s);
-    json_decref(jn_log);
-
-    __inside_log__ = 0;
 }
 
 /*****************************************************************
@@ -910,49 +640,6 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void trace_vjson(
-    hgobj gobj,
-    json_t *jn_data,    // now owned
-    const char *msgset,
-    const char *fmt,
-    va_list ap
-) {
-    int priority = LOG_DEBUG;
-    log_opt_t opt = 0;
-    char timestamp[90];
-    char msg[256];
-    static char __inside_log__ = 0;
-
-    if(__inside_log__) {
-        return;
-    }
-    __inside_log__ = 1;
-
-    current_timestamp(timestamp, sizeof(timestamp));
-    json_t *jn_log = json_object();
-    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
-    discover(gobj, jn_log);
-
-    vsnprintf(msg, sizeof(msg), fmt, ap);
-    json_object_set_new(jn_log, "msgset", json_string(msgset));
-    json_object_set_new(jn_log, "msg", json_string(msg));
-    if(jn_data) {
-        json_object_set(jn_log, "data", jn_data);
-        json_object_set_new(jn_log, "refcount", json_integer(jn_data->refcount));
-        json_object_set_new(jn_log, "type", json_integer(jn_data->type));
-    }
-
-    char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
-    _log_bf(priority, opt, s, strlen(s));
-    jsonp_free(s);
-    json_decref(jn_log);
-
-    __inside_log__ = 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC void gobj_trace_msg(hgobj gobj, const char *fmt, ... )
 {
     va_list ap;
@@ -1023,4 +710,696 @@ PUBLIC void gobj_trace_dump(
     va_end(ap);
 
     json_decref(jn_data);
+}
+
+/*****************************************************************
+ *      Log data in transparent format
+ *****************************************************************/
+PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
+{
+    if(len <= 0) {
+        return;
+    }
+
+    BOOL backtrace_showed = FALSE;
+    log_handler_t *lh = dl_first(&dl_log_handlers);
+    while(lh) {
+        if(must_ignore(lh, priority)) {
+            /*
+             *  Next
+             */
+            lh = dl_next(lh);
+            continue;
+        }
+
+        if(lh->hr->write_fn) {
+            int ret = (lh->hr->write_fn)(lh->h, priority, bf, len);
+            if(ret < 0) { // Handler owns the message
+                break;
+            }
+        }
+        if(opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) {
+            if(!backtrace_showed) {
+                if(show_backtrace_fn && lh->hr->fwrite_fn) {
+                    show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
+                }
+            }
+            backtrace_showed = TRUE;
+        }
+
+        /*
+         *  Next
+         */
+        lh = dl_next(lh);
+    }
+
+    if(opt & LOG_OPT_EXIT_NEGATIVE) {
+        exit(-1);
+    }
+    if(opt & LOG_OPT_EXIT_ZERO) {
+        exit(0);
+    }
+    if(opt & LOG_OPT_ABORT) {
+        abort();
+    }
+}
+
+/*****************************************************************
+ *      Log
+ *****************************************************************/
+PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
+{
+    char timestamp[90];
+
+    if(!__initialized__) {
+        return;
+    }
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
+
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    ul_buffer_reset(0, TRUE);
+    json_add_string(0, "timestamp", timestamp);
+    discover(gobj, 0);
+
+    json_vappend(0, ap);
+    char *s = json_get_buf(0);
+
+    _log_bf(priority, opt, s, strlen(s));
+
+    __inside_log__ = 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void trace_vjson(
+    hgobj gobj,
+    json_t *jn_data,    // now owned
+    const char *msgset,
+    const char *fmt,
+    va_list ap
+) {
+    int priority = LOG_DEBUG;
+    log_opt_t opt = 0;
+    char timestamp[90];
+    char msg[256];
+
+    if(!__initialized__) {
+        return;
+    }
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
+
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    ul_buffer_reset(0, TRUE);
+    json_add_string(0, "timestamp", timestamp);
+    discover(gobj, 0);
+
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    json_add_string(0, "msgset", msgset);
+    json_add_string(0, "msg", msg);
+    if(jn_data) {
+        size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+                       JSON_INDENT(0) |
+                       JSON_REAL_PRECISION(12);
+        char *bf = json_dumps(jn_data, flags);
+        if(bf) {
+            helper_doublequote2quote(bf);
+            json_add_string(0, "data", bf);
+            jsonp_free(bf) ;
+        } else {
+            json_add_null(0, "data");
+        }
+        json_add_integer(0, "refcount", (long long int)jn_data->refcount);
+        json_add_integer(0, "type", (long long int)jn_data->type);
+    }
+
+    char *s = json_get_buf(0);
+
+    _log_bf(priority, opt, s, strlen(s));
+
+    __inside_log__ = 0;
+}
+
+/****************************************************************************
+ *  Trace machine function
+ ****************************************************************************/
+PUBLIC void trace_machine(const char *fmt, ...)
+{
+    va_list ap;
+    char temp1[40];
+    char dtemp[90];
+    char temp[512];
+
+    if(!__initialized__) {
+        return;
+    }
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
+
+    tab(temp1, sizeof(temp1));
+    current_timestamp(dtemp, sizeof(dtemp));
+
+    snprintf(temp, sizeof(temp),
+        "%s -%s",
+        dtemp,
+        temp1
+    );
+
+    va_start(ap, fmt);
+    size_t len = strlen(temp);
+    vsnprintf(temp+len, sizeof(temp)-len, fmt, ap);
+    va_end(ap);
+
+    _log_bf(LOG_DEBUG, 0, temp, strlen(temp));
+
+    __inside_log__ = 0;
+}
+
+/*****************************************************************
+ *      Discover extra data
+ *****************************************************************/
+PRIVATE void discover(hgobj gobj, hgen_t hgen)
+{
+    const char *yuno_attrs[] = {
+        "node_uuid",
+        "process",
+        "hostname",
+        "pid"
+    };
+
+    for(size_t i=0; i<ARRAY_SIZE(yuno_attrs); i++) {
+        const char *attr = yuno_attrs[i];
+        if(gobj_has_attr(gobj_yuno(), attr)) { // WARNING Check that attr exists: avoid recursive loop
+            json_t *value = gobj_read_attr(gobj_yuno(), attr, 0);
+            if(value) {
+                if(json_is_integer(value)) {
+                    json_add_integer(hgen, attr, json_integer_value(value));
+                } else if(json_is_string(value)) {
+                    json_add_string(hgen, attr, json_string_value(value));
+
+                } else if(json_is_null(value)) {
+                    json_add_null(hgen, attr);
+                }
+            }
+        }
+    }
+
+#ifdef ESP_PLATFORM
+    #include <esp_system.h>
+    size_t size = esp_get_free_heap_size();
+    json_add_integer(hgen, "HEAP free", size);
+#endif
+
+    if(!gobj) {
+        return;
+    }
+    json_add_string(hgen, "gclass", gobj_gclass_name(gobj));
+    json_add_string(hgen, "gobj_name", gobj_name(gobj));
+    json_add_string(hgen, "state", gobj_current_state(gobj));
+    if(trace_with_full_name) {
+        json_add_string(hgen,
+            "gobj_full_name",
+            gobj_full_name(gobj)
+        );
+    }
+    if(trace_with_short_name) {
+        json_add_string(hgen,
+            "gobj_short_name",
+            gobj_short_name(gobj)
+        );
+    }
+
+    const char *gobj_attrs[] = {
+        "id"
+    };
+    for(size_t i=0; i<ARRAY_SIZE(gobj_attrs); i++) {
+        const char *attr = gobj_attrs[i];
+        if(gobj_has_attr(gobj, attr)) { // WARNING Check that attr exists:  avoid recursive loop
+            const char *value = gobj_read_str_attr(gobj, attr);
+            if(!empty_string(value)) {
+                json_add_string(hgen, attr, value);
+            }
+        }
+    }
+}
+
+/*****************************************************************
+ *  Add key/values from va_list argument
+ *****************************************************************/
+PRIVATE void json_vappend(hgen_t hgen, va_list ap)
+{
+    char *key;
+    char *fmt;
+    size_t i;
+    char value[256];
+
+    while ((key = (char *)va_arg (ap, char *)) != NULL) {
+        fmt = (char *)va_arg (ap, char *);
+        for (i = 0; i < strlen (fmt); i++) {
+            int eof = 0;
+
+            if (fmt[i] != '%')
+                continue;
+            i++;
+            while (eof != 1) {
+                switch (fmt[i]) {
+                    case 'd':
+                    case 'i':
+                    case 'o':
+                    case 'u':
+                    case 'x':
+                    case 'X':
+                        if (fmt[i - 1] == 'l') {
+                            if (i - 2 > 0 && fmt[i - 2] == 'l') {
+                                long long int v;
+                                v = va_arg(ap, long long int);
+                                json_add_integer(hgen, key, v);
+
+                            } else {
+                                long int v;
+                                v = va_arg(ap, long int);
+                                json_add_integer(hgen, key, v);
+                            }
+                        } else {
+                            int v;
+                            v = va_arg(ap, int);
+                            json_add_integer(hgen, key, v);
+                        }
+                        eof = 1;
+                        break;
+                    case 'e':
+                    case 'E':
+                    case 'f':
+                    case 'F':
+                    case 'g':
+                    case 'G':
+                    case 'a':
+                    case 'A':
+                        if (fmt[i - 1] == 'L') {
+                            long double v;
+                            v = va_arg (ap, long double);
+                            json_add_double(hgen, key, v);
+                        } else {
+                            double v;
+                            v = va_arg (ap, double);
+                            json_add_double(hgen, key, v);
+                        }
+                        eof = 1;
+                        break;
+                    case 'c':
+                        if (fmt [i - 1] == 'l') {
+                            wint_t v = va_arg (ap, wint_t);
+                            json_add_integer(hgen, key, v);
+                        } else {
+                            int v = va_arg (ap, int);
+                            json_add_integer(hgen, key, v);
+                        }
+                        eof = 1;
+                        break;
+                    case 's':
+                        if (fmt [i - 1] == 'l') {
+                            wchar_t *p;
+                            int len;
+
+                            p = va_arg (ap, wchar_t *);
+                            if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
+                                if(strcmp(key, "msg")==0) {
+                                    gobj_log_set_last_message("%s", value);
+                                }
+                                json_add_string(hgen, key, value);
+                            } else {
+                                json_add_null(hgen, key);
+                            }
+
+                        } else {
+                            char *p;
+                            int len;
+
+                            p = va_arg (ap, char *);
+                            if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
+                                if(strcmp(key, "msg")==0) {
+                                    gobj_log_set_last_message("%s", value);
+                                }
+                                json_add_string(hgen, key, value);
+                            } else {
+                                json_add_null(hgen, key);
+                            }
+                        }
+                        eof = 1;
+                        break;
+                    case 'p':
+                        {
+                            void *p;
+                            int len;
+
+                            p = va_arg (ap, void *);
+                            eof = 1;
+                            if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
+                                json_add_string(hgen, key, value);
+                            } else {
+                                json_add_null(hgen, key);
+                            }
+                        }
+                        break;
+                    case 'j':
+                        {
+                            json_t *jn;
+
+                            jn = va_arg (ap, void *);
+                            eof = 1;
+
+                            if(jn) {
+                                size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+                                               JSON_INDENT(0) |
+                                               JSON_REAL_PRECISION(12);
+                                char *bf = json_dumps(jn, flags);
+                                if(bf) {
+                                    helper_doublequote2quote(bf);
+                                    json_add_string(0, key, bf);
+                                    jsonp_free(bf) ;
+                                } else {
+                                    json_add_null(hgen, key);
+                                }
+                            } else {
+                                json_add_null(hgen, key);
+                            }
+                        }
+                        break;
+                    case '%':
+                        eof = 1;
+                        break;
+                    default:
+                        i++;
+                }
+            }
+        }
+    }
+}
+
+
+
+
+                    /*---------------------------------*
+                     *      json buffer functions
+                     *---------------------------------*/
+
+
+
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void ul_buffer_finish(void)
+{
+    for(size_t i=0; i<ARRAY_SIZE(escape_buffer); i++) {
+        if(escape_buffer[i].msg) {
+            free(escape_buffer[i].msg);
+            escape_buffer[i].msg = 0;
+        }
+        if(ul_buffer[i].msg) {
+            free(ul_buffer[i].msg);
+            ul_buffer[i].msg = 0;
+        }
+    }
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE char *_ul_str_escape(
+    const char *str,
+    char *dest,
+    size_t * length)
+{
+    const unsigned char *p;
+    char *q;
+    static unsigned char exmap[256];
+    static int exmap_inited = 0;
+
+    if (!str)
+        return NULL;
+
+    p = (unsigned char *) str;
+    q = dest;
+
+    if (!exmap_inited) {
+        const unsigned char *e = json_exceptions;
+
+        memset(exmap, 0, 256);
+        while (*e) {
+            exmap[*e] = 1;
+            e++;
+        }
+        exmap_inited = 1;
+    }
+
+    while (*p) {
+        if (exmap[*p])
+            *q++ = *p;
+        else {
+            switch (*p) {
+            case '\b':
+                *q++ = '\\';
+                *q++ = 'b';
+                break;
+            case '\f':
+                *q++ = '\\';
+                *q++ = 'f';
+                break;
+            case '\n':
+                *q++ = '\\';
+                *q++ = 'n';
+                break;
+            case '\r':
+                *q++ = '\\';
+                *q++ = 'r';
+                break;
+            case '\t':
+                *q++ = '\\';
+                *q++ = 't';
+                break;
+            case '\\':
+                *q++ = '\\';
+                *q++ = '\\';
+                break;
+            case '"':
+                *q++ = '\\';
+                *q++ = '"';
+                break;
+            default:
+                if ((*p < ' ') || (*p >= 0177)) {
+                    const char *json_hex_chars = "0123456789abcdef";
+
+                    *q++ = '\\';
+                    *q++ = 'u';
+                    *q++ = '0';
+                    *q++ = '0';
+                    *q++ = json_hex_chars[(*p) >> 4];
+                    *q++ = json_hex_chars[(*p) & 0xf];
+                } else
+                    *q++ = *p;
+                break;
+            }
+        }
+        p++;
+    }
+
+    *q = 0;
+    if (length)
+        *length = q - dest;
+    return dest;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE inline ul_buffer_t *_ul_buffer_ensure_size(
+    ul_buffer_t * buffer, size_t size)
+{
+    if (buffer->alloc < size) {
+        buffer->alloc += size * 2;
+        char *msg = realloc(buffer->msg, buffer->alloc);
+        if (!msg) {
+            return NULL;
+        }
+        buffer->msg = msg;
+    }
+    return buffer;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE ul_buffer_t *ul_buffer_reset(hgen_t hgen, int indented)
+{
+    ul_buffer_t *buffer = &ul_buffer[hgen];
+    _ul_buffer_ensure_size(buffer, 512);
+    _ul_buffer_ensure_size(&escape_buffer[hgen], 256);
+    if(indented) {
+        memcpy(buffer->msg, "{\n", 2);
+        buffer->len = 2;
+    } else {
+        memcpy(buffer->msg, "{", 1);
+        buffer->len = 1;
+    }
+    buffer->indented = (char)indented;
+    buffer->items = 0;
+    return buffer;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE ul_buffer_t *ul_buffer_append(hgen_t hgen,
+    const char *key,
+    const char *value,
+    int with_comillas)
+{
+    char *k, *v;
+    size_t lk, lv;
+    ul_buffer_t * buffer = &ul_buffer[hgen];
+    size_t orig_len = buffer->len;
+
+    /* Append the key to the buffer */
+    escape_buffer[hgen].len = 0;
+    _ul_buffer_ensure_size(&escape_buffer[hgen], strlen(key) * 6 + 1);
+    k = _ul_str_escape(key, escape_buffer[hgen].msg, &lk);
+    if (!k) {
+        return NULL;
+    }
+
+    buffer = _ul_buffer_ensure_size(buffer, buffer->len + lk + 10);
+    if (!buffer)
+        return NULL;
+
+    if(buffer->items > 0) {
+        memcpy(buffer->msg + buffer->len, ",", 1);
+        buffer->len += 1;
+        if(buffer->indented) {
+            memcpy(buffer->msg + buffer->len, "\n", 1);
+            buffer->len += 1;
+        } else {
+            memcpy(buffer->msg + buffer->len, " ", 1);
+            buffer->len += 1;
+        }
+    }
+    if(buffer->indented) {
+        memcpy(buffer->msg + buffer->len, "    \"", 5);
+        buffer->len += 5;
+    } else {
+        memcpy(buffer->msg + buffer->len, "\"", 1);
+        buffer->len += 1;
+    }
+
+    memcpy(buffer->msg + buffer->len, k, lk);
+    buffer->len += lk;
+    if(with_comillas) {
+        memcpy(buffer->msg + buffer->len, "\": \"", 4);
+        buffer->len += 4;
+    } else {
+        memcpy(buffer->msg + buffer->len, "\": ", 3);
+        buffer->len += 3;
+    }
+
+    /* Append the value to the buffer */
+    escape_buffer[hgen].len = 0;
+    _ul_buffer_ensure_size(&escape_buffer[hgen], strlen(value) * 6 + 1);
+    v = _ul_str_escape(value, escape_buffer[hgen].msg, &lv);
+    if (!v) {
+        buffer->len = orig_len;
+        return NULL;
+    }
+
+    buffer = _ul_buffer_ensure_size(buffer, buffer->len + lv + 6);
+    if (!buffer) {
+        // PVS-Studio
+        // buffer->len = orig_len;
+        return NULL;
+    }
+
+    memcpy(buffer->msg + buffer->len, v, lv);
+    buffer->len += lv;
+    if(with_comillas) {
+        memcpy(buffer->msg + buffer->len, "\"", 1);
+        buffer->len += 1;
+    }
+    buffer->items++;
+    return buffer;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE char *ul_buffer_finalize(hgen_t hgen)
+{
+    ul_buffer_t *buffer = &ul_buffer[hgen];
+    if (!_ul_buffer_ensure_size(buffer, buffer->len + 3)) {
+        return NULL;
+    }
+    if(buffer->indented)
+        buffer->msg[buffer->len++] = '\n';
+    else
+        buffer->msg[buffer->len++] = ' ';
+    buffer->msg[buffer->len++] = '}';
+    buffer->msg[buffer->len] = '\0';
+    return buffer->msg;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE char * json_get_buf(hgen_t hgen)
+{
+    return ul_buffer_finalize (hgen);
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void json_add_string(hgen_t hgen, const char *key, const char *str)
+{
+    ul_buffer_append(hgen, key, str, 1);
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void json_add_null(hgen_t hgen, const char *key)
+{
+    ul_buffer_append(hgen, key, "null", 0);
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void json_add_double(hgen_t hgen, const char *key, double number)
+{
+    char temp[64];
+
+    snprintf(temp, sizeof(temp), "%.20g", number);
+    if (strspn(temp, "0123456789-") == strlen(temp)) {
+        strcat(temp, ".0");
+    }
+    ul_buffer_append(hgen, key, temp, 0);
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void json_add_integer(hgen_t hgen, const char *key, long long int number)
+{
+    char temp[64];
+
+    snprintf(temp, sizeof(temp), "%lld", number);
+    ul_buffer_append(hgen, key, temp, 0);
 }
