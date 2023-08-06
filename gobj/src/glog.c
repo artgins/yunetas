@@ -868,6 +868,9 @@ PUBLIC void trace_vjson(
         );
     }
 
+    json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
+    json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
+
     vsnprintf(msg, sizeof(msg), fmt, ap);
     json_object_set_new(jn_log, "msgset", json_string(msgset));
     json_object_set_new(jn_log, "msg", json_string(msg));
@@ -959,6 +962,9 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
     size_t size = esp_get_free_heap_size();
     json_add_integer(hgen, "HEAP free", size);
 #endif
+
+    json_add_integer(hgen, "max_system_memory", get_max_system_memory());
+    json_add_integer(hgen, "cur_system_memory", get_cur_system_memory());
 
     if(!gobj) {
         return;
@@ -1436,10 +1442,10 @@ PRIVATE void json_add_double(hgen_t hgen, const char *key, double number)
 /*****************************************************************
  *
  *****************************************************************/
-PRIVATE void json_add_integer(hgen_t hgen, const char *key, long long int number)
+PRIVATE void json_add_integer(hgen_t hgen, const char *key, json_int_t number)
 {
     char temp[64];
 
-    snprintf(temp, sizeof(temp), "%lld", number);
+    snprintf(temp, sizeof(temp), "%"JSON_INTEGER_FORMAT, number);
     ul_buffer_append(hgen, key, temp, 0);
 }

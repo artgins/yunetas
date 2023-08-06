@@ -570,7 +570,6 @@ PUBLIC void gobj_end(void)
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_STATISTICS,
             "msg",                  "%s", "shutdown: system memory not free",
-            "cur_system_memory",    "%ld", (long)__cur_system_memory__,
             NULL
         );
     }
@@ -4445,6 +4444,18 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC size_t get_max_system_memory(void)
+{
+    return __max_system_memory__;
+}
+PUBLIC size_t get_cur_system_memory(void)
+{
+    return __cur_system_memory__;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC const char *get_host_name(void)
 {
     return __hostname__;
@@ -6881,8 +6892,6 @@ PRIVATE void *_mem_malloc(size_t size)
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_MEMORY_ERROR,
             "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
-            "cur_system_memory",    "%ld", (long)__cur_system_memory__,
-            "max_system_memory",    "%ld", (long)__max_system_memory__,
             NULL
         );
     }
@@ -6953,8 +6962,6 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_MEMORY_ERROR,
             "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
-            "cur_system_memory",    "%ld", (long)__cur_system_memory__,
-            "max_system_memory",    "%ld", (long)__max_system_memory__,
             NULL
         );
     }

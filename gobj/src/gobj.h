@@ -1303,6 +1303,8 @@ PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
 
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            /* strict same gclass */
 PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  /* check inherited (bottom) gclass */
+PUBLIC size_t get_max_system_memory(void);
+PUBLIC size_t get_cur_system_memory(void);
 
 static inline const char *gobj_yuno_name(void) {return gobj_name(gobj_yuno());}
 static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role");}
