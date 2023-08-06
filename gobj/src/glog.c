@@ -817,33 +817,44 @@ PUBLIC void trace_vjson(
     __inside_log__ = 1;
 
     current_timestamp(timestamp, sizeof(timestamp));
+    json_t *jn_log = json_object();
+    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
 
-    ul_buffer_reset(0, TRUE);
-    json_add_string(0, "timestamp", timestamp);
-    discover(gobj, 0);
-
-    vsnprintf(msg, sizeof(msg), fmt, ap);
-    json_add_string(0, "msgset", msgset);
-    json_add_string(0, "msg", msg);
-    if(jn_data) {
-        size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
-                       JSON_INDENT(0) |
-                       JSON_REAL_PRECISION(12);
-        char *bf = json_dumps(jn_data, flags);
-        if(bf) {
-            helper_doublequote2quote(bf);
-            json_add_string(0, "data", bf);
-            jsonp_free(bf) ;
-        } else {
-            json_add_null(0, "data");
+    if(gobj_has_attr(gobj, "id")) {
+        const char *value = gobj_read_str_attr(gobj, "id");
+        if(!empty_string(value)) {
+            json_object_set_new(jn_log, "id", json_string(value));
         }
-        json_add_integer(0, "refcount", (long long int)jn_data->refcount);
-        json_add_integer(0, "type", (long long int)jn_data->type);
     }
 
-    char *s = json_get_buf(0);
+    if(gobj_has_attr(gobj_yuno(), "node_uuid")) {
+        json_t *value = gobj_read_attr(gobj_yuno(), "node_uuid", 0);
+        json_object_set(jn_log, "id", value);
+    }
 
+    json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
+    json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));
+    json_object_set_new(jn_log, "state", json_string(gobj_current_state(gobj)));
+    if(trace_with_full_name) {
+        json_object_set_new(jn_log,
+            "gobj_full_name",
+            json_string(gobj_full_name(gobj))
+        );
+    }
+
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    json_object_set_new(jn_log, "msgset", json_string(msgset));
+    json_object_set_new(jn_log, "msg", json_string(msg));
+    if(jn_data) {
+        json_object_set(jn_log, "data", jn_data);
+        json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
+        json_object_set_new(jn_log, "type", json_integer(jn_data->type));
+    }
+
+    char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
     _log_bf(priority, opt, s, strlen(s));
+    jsonp_free(s);
+    json_decref(jn_log);
 
     __inside_log__ = 0;
 }
