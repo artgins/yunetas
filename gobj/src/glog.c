@@ -868,18 +868,19 @@ PUBLIC void trace_vjson(
     json_object_set(jn_log, "process", gobj_read_attr(gobj_yuno(), "process", gobj));
     json_object_set(jn_log, "hostname", gobj_read_attr(gobj_yuno(), "hostname", gobj));
 
-    json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
-    json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));
-    json_object_set_new(jn_log, "state", json_string(gobj_current_state(gobj)));
-    if(trace_with_full_name) {
-        json_object_set_new(jn_log,
-            "gobj_full_name",
-            json_string(gobj_full_name(gobj))
-        );
+    if(gobj) {
+        json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
+        json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));
+        json_object_set_new(jn_log, "state", json_string(gobj_current_state(gobj)));
+        if(trace_with_full_name) {
+            json_object_set_new(jn_log,
+                "gobj_full_name",
+                json_string(gobj_full_name(gobj))
+            );
+        }
+        json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
+        json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
     }
-
-    json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
-    json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
 
     vsnprintf(msg, sizeof(msg), fmt, ap);
     json_object_set_new(jn_log, "msgset", json_string(msgset));

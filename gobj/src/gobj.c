@@ -240,6 +240,7 @@ PRIVATE uint32_t level2bit(
     const trace_level_t *user_trace_level,
     const char *level
 );
+PRIVATE void print_track_mem(void);
 
 /***************************************************************
  *              Data
@@ -566,12 +567,7 @@ PUBLIC void gobj_end(void)
     JSON_DECREF(jn_services)
 
     if(__cur_system_memory__) {
-        gobj_log_error(0, 0,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_STATISTICS,
-            "msg",                  "%s", "shutdown: system memory not free",
-            NULL
-        );
+        print_track_mem();
     }
 
     gobj_log_info(0, 0,
@@ -6863,14 +6859,61 @@ PUBLIC sys_malloc_fn_t gobj_malloc_func(void) { return sys_malloc_fn; }
 PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
-#define EXTRA_MEM 0  // 32=OK, XXX
+
+#define CONFIG_TRACK_MEMORY
+
+#ifdef CONFIG_TRACK_MEMORY
+    PRIVATE size_t mem_ref = 0;
+    PRIVATE dl_list_t dl_busy_mem = {0};
+
+    typedef struct {
+        DL_ITEM_FIELDS
+        size_t size;
+        size_t ref;
+    } track_mem_t;
+#else
+    typedef struct {
+        size_t size;
+    } track_mem_t;
+#endif
+
+
+#define TRACK_MEM sizeof(track_mem_t)
+
+/***********************************************************************
+ *      Print track memory
+ ***********************************************************************/
+PRIVATE void print_track_mem(void)
+{
+    gobj_log_error(0, 0,
+        "function",             "%s", __FUNCTION__,
+        "msgset",               "%s", MSGSET_STATISTICS,
+        "msg",                  "%s", "shutdown: system memory not free",
+        NULL
+    );
+#ifdef CONFIG_TRACK_MEMORY
+    track_mem_t *track_mem = dl_first(&dl_busy_mem);
+    while(track_mem) {
+        gobj_log_debug(0,0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRACK_MEM,
+            "msg",          "%s", "mem-not-free",
+            "ref",          "%lu", (unsigned long)track_mem->ref,
+            "size",         "%lu", (unsigned long)track_mem->size,
+            NULL
+        );
+
+        track_mem = dl_next(track_mem);
+    }
+#endif
+}
 
 /***********************************************************************
  *      Alloc memory
  ***********************************************************************/
 PRIVATE void *_mem_malloc(size_t size)
 {
-    size_t extra = sizeof(size_t) + EXTRA_MEM;
+    size_t extra = TRACK_MEM;
     size += extra;
 
     if(size > __max_block__) {
@@ -6905,8 +6948,13 @@ PRIVATE void *_mem_malloc(size_t size)
             NULL
         );
     }
-    size_t *pm_ = (size_t*)pm;
-    *pm_ = size;
+    track_mem_t *pm_ = (track_mem_t*)pm;
+    pm_->size = size;
+
+#ifdef CONFIG_TRACK_MEMORY
+    pm_->ref = ++mem_ref;
+    dl_add(&dl_busy_mem, pm_);
+#endif
 
     pm += extra;
 
@@ -6921,13 +6969,17 @@ PRIVATE void _mem_free(void *p)
     if(!p) {
         return; // El comportamiento como free() es que no salga error; lo quito por libuv (uv_try_write)
     }
-    size_t extra = sizeof(size_t) + EXTRA_MEM;
+    size_t extra = TRACK_MEM;
 
     char *pm = p;
     pm -= extra;
 
-    size_t *pm_ = (size_t*)pm;
-    size_t size = *pm_;
+    track_mem_t *pm_ = (track_mem_t*)pm;
+    size_t size = pm_->size;
+
+#ifdef CONFIG_TRACK_MEMORY
+    dl_delete(&dl_busy_mem, pm_, 0);
+#endif
 
     __cur_system_memory__ -= size;
     free(pm);
@@ -6945,14 +6997,18 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
         return _mem_malloc(new_size);
     }
 
-    size_t extra = sizeof(size_t) + EXTRA_MEM;
+    size_t extra = TRACK_MEM;
     new_size += extra;
 
     char *pm = p;
     pm -= extra;
 
-    size_t *pm_ = (size_t*)pm;
-    size_t size = *pm_;
+    track_mem_t *pm_ = (track_mem_t*)pm;
+    size_t size = pm_->size;
+
+#ifdef CONFIG_TRACK_MEMORY
+    dl_delete(&dl_busy_mem, pm_, 0);
+#endif
 
     __cur_system_memory__ -= size;
 
@@ -6976,8 +7032,15 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
         );
     }
     pm = pm__;
-    pm_ = (size_t*)pm;
-    *pm_ = new_size;
+
+    pm_ = (track_mem_t*)pm;
+    pm_->size = new_size;
+
+#ifdef CONFIG_TRACK_MEMORY
+    pm_->ref = ++mem_ref;
+    dl_add(&dl_busy_mem, pm_);
+#endif
+
     pm += extra;
     return pm;
 }
@@ -6988,7 +7051,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
 PRIVATE void *_mem_calloc(size_t n, size_t size)
 {
     size_t total = n * size;
-    return sys_malloc_fn(total);
+    return _mem_malloc(total);
 }
 
 /***************************************************************************

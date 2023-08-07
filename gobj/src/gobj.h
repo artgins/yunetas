@@ -239,6 +239,7 @@ typedef void (*fnfree)(void *);
 #define MSGSET_PROTOCOL                 "Protocol"
 #define MSGSET_GBUFFERS                 "GBuffers"
 #define MSGSET_YEV_LOOP                 "Yev_loop"
+#define MSGSET_TRACK_MEM                "TrackMem"
 
 /*
  *  Options for handlers
