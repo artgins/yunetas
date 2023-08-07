@@ -307,6 +307,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    get_peer_and_sock_name(gobj, fd);
+
     /*
      *  Info of "connected"
      */
@@ -355,7 +357,6 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     yev_start_event(priv->yev_client_rx);
 
     priv->inform_disconnection = TRUE;
-    get_peer_and_sock_name(gobj, fd);
 
     /*
      *  Publish

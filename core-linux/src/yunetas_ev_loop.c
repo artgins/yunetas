@@ -493,6 +493,7 @@ PUBLIC int yev_start_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
+                "gbuffer",      "%p", yev_event->gbuf,
                 "flag",         "%j", jn_flags,
                 "fd",           "%d", yev_event->fd,
                 NULL
@@ -1675,7 +1676,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
-                "gbuffer"       "%p", gbuf,
+                "gbuffer",      "%p", gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1716,7 +1717,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
-                "gbuffer"       "%p", gbuf,
+                "gbuffer",      "%p", gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );

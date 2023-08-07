@@ -378,7 +378,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gbuffer_t *gbuf_payload = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_EXTRACT);
     gbuffer_t *gbuf_header;
     HEADER_ERPL2 header_erpl2;
 
