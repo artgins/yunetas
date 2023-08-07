@@ -561,7 +561,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     const char *yuno_release = gobj_read_str_attr(gobj_yuno(), "yuno_release");
     const char *yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
     json_int_t launch_id = gobj_read_integer_attr(gobj_yuno(), "launch_id");
-    json_t *kw = json_pack(
+    json_t *kw_identity_card = json_pack(
         "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s}",
         "yuno_role", gobj_yuno_role(),
         "yuno_id", gobj_yuno_id(),
@@ -582,9 +582,9 @@ PRIVATE int send_identity_card(hgobj gobj)
 
     json_t *jn_required_services = gobj_read_json_attr(gobj_yuno(), "required_services");
     if(jn_required_services) {
-        json_object_set(kw, "required_services", jn_required_services);
+        json_object_set(kw_identity_card, "required_services", jn_required_services);
     } else {
-        json_object_set_new(kw, "required_services", json_array());
+        json_object_set_new(kw_identity_card, "required_services", json_array());
     }
 
     json_t *jn_extra_info = gobj_read_json_attr(gobj, "extra_info");
@@ -593,7 +593,7 @@ PRIVATE int send_identity_card(hgobj gobj)
         // para adjuntar a la tarjeta de presentación.
         // No voy a permitir modificar los datos propios del yuno
         // Only update missing
-        json_object_update_missing(kw, jn_extra_info);
+        json_object_update_missing(kw_identity_card, jn_extra_info);
     }
 
     /*
@@ -606,7 +606,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     );
     msg_iev_push_stack(
         gobj,
-        kw,         // not owned
+        kw_identity_card,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
@@ -615,7 +615,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     return send_static_iev(
         gobj,
         "EV_IDENTITY_CARD",
-        kw,
+        kw_identity_card,
         gobj
     );
 }

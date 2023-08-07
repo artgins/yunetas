@@ -728,6 +728,7 @@ PUBLIC int kw_set_dict_value(
             "path",         "%s", path,
             NULL
         );
+        JSON_DECREF(value);
         return 0;
     }
 
@@ -757,8 +758,9 @@ PUBLIC int kw_set_dict_value(
         case JSON_OBJECT:
             next = json_object_get(v, segment);
             if(!next) {
-                json_object_set_new(v, segment, json_object());
-                next = json_object_get(v, segment);
+                json_object_set_new(v, segment, value);
+                value = NULL;
+                fin = TRUE;
             }
             v = next;
             break;
@@ -799,7 +801,7 @@ PUBLIC int kw_set_dict_value(
             NULL
         );
     }
-
+    JSON_DECREF(value)
     split_free3(segments);
 
     return 0;
