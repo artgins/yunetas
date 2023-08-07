@@ -387,7 +387,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *---------------------------*/
     memset(&header_erpl2, 0, sizeof(HEADER_ERPL2));
     gbuf_header = gbuffer_create(sizeof(HEADER_ERPL2), sizeof(HEADER_ERPL2));
-    header_erpl2.len = htonl(gbuffer_leftbytes(gbuf_payload));
+    header_erpl2.len = htonl(gbuffer_leftbytes(gbuf_payload) + sizeof(HEADER_ERPL2));
     gbuffer_append(
         gbuf_header,
         &header_erpl2,
