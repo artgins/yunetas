@@ -1652,7 +1652,8 @@ PUBLIC yev_event_t *yev_create_read_event(
     yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
-    int fd
+    int fd,
+    gbuffer_t *gbuf
 ) {
     yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
     if(!yev_event) {
@@ -1661,6 +1662,7 @@ PUBLIC yev_event_t *yev_create_read_event(
     }
 
     yev_event->type = YEV_READ_TYPE;
+    yev_event->gbuf = gbuf;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
@@ -1673,6 +1675,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
+                "gbuffer"       "%p", gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );

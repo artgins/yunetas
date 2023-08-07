@@ -189,7 +189,8 @@ PUBLIC yev_event_t *yev_create_read_event(
     yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
-    int fd
+    int fd,
+    gbuffer_t *gbuf
 );
 PUBLIC yev_event_t *yev_create_write_event(
     yev_loop_t *loop,
