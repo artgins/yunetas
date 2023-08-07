@@ -809,6 +809,17 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 
     ul_buffer_reset(0, TRUE);
     json_add_string(0, "timestamp", timestamp);
+
+    if(opt & LOG_OPT_EXIT_NEGATIVE) {
+        json_add_string(0, "exiting", "-1");
+    }
+    if(opt & LOG_OPT_EXIT_ZERO) {
+        json_add_string(0, "exiting", "0");
+    }
+    if(opt & LOG_OPT_ABORT) {
+        json_add_string(0, "exiting", "abort");
+    }
+
     discover(gobj, 0);
 
     json_vappend(0, ap);
@@ -853,10 +864,9 @@ PUBLIC void trace_vjson(
         }
     }
 
-    if(gobj_has_attr(gobj_yuno(), "node_uuid")) {
-        json_t *value = gobj_read_attr(gobj_yuno(), "node_uuid", 0);
-        json_object_set(jn_log, "id", value);
-    }
+    json_object_set(jn_log, "node_uuid", gobj_read_attr(gobj_yuno(), "node_uuid", gobj));
+    json_object_set(jn_log, "process", gobj_read_attr(gobj_yuno(), "process", gobj));
+    json_object_set(jn_log, "hostname", gobj_read_attr(gobj_yuno(), "hostname", gobj));
 
     json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
     json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));

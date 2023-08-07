@@ -307,7 +307,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                         yev_event->yev_loop,
                         yev_server_callback,
                         NULL,
-                        srv_cli_fd
+                        srv_cli_fd,
+                        0
                     );
                 }
                 yev_set_gbuffer(yev_server_rx, gbuf_server_rx);
@@ -462,7 +463,8 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         yev_event->yev_loop,
                         yev_client_callback,
                         NULL,
-                        yev_event->fd
+                        yev_event->fd,
+                        0
                     );
                 }
 

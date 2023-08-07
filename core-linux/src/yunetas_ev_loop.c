@@ -451,6 +451,30 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
+    yev_event_t *yev_event,
+    gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
+) {
+    if(gbuf == yev_event->gbuf) {
+        return 0;
+    }
+    if(yev_event->gbuf) {
+        gobj_log_warning(yev_event->gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "Re-writing gbuffer",
+            "gbuffer",      "%p", yev_event->gbuf,
+            NULL
+        );
+        GBUFFER_DECREF(yev_event->gbuf)
+    }
+    yev_event->gbuf = gbuf;
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_start_event(
     yev_event_t *yev_event_
 ) {
@@ -805,6 +829,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
+                "gbuffer",      "%p", yev_event->gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -877,6 +902,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
+                "gbuffer",      "%p", yev_event->gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -912,6 +938,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
+                "gbuffer",      "%p", yev_event->gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );
@@ -1663,7 +1690,8 @@ PUBLIC yev_event_t *yev_create_write_event(
     yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
-    int fd
+    int fd,
+    gbuffer_t *gbuf
 ) {
     yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
     if(!yev_event) {
@@ -1672,6 +1700,7 @@ PUBLIC yev_event_t *yev_create_write_event(
     }
 
     yev_event->type = YEV_WRITE_TYPE;
+    yev_event->gbuf = gbuf;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
@@ -1684,6 +1713,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
+                "gbuffer"       "%p", gbuf,
                 "flag",         "%j", jn_flags,
                 NULL
             );

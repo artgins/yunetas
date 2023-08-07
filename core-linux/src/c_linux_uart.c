@@ -845,10 +845,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         yuno_event_loop(),
         yev_tty_callback,
         gobj,
-        priv->tty_fd
-    );
-    yev_set_gbuffer(
-        yev_client_tx,
+        priv->tty_fd,
         gbuf
     );
     yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);

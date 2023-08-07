@@ -90,24 +90,16 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop);
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
 
 /*
- *  Parameter `gbuf`: to use only with yev_create_read_event() and yev_create_write_event().
  *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
  *  Before start `connects` and `accepts` events, you need to configure them with
  *      yev_setup_connect_event() and yev_setup_accept_event().
  *      These functions will create and configure a socket to listen or to connect
  */
-static inline void yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
+
+PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
-) {
-    if(gbuf == yev_event->gbuf) {
-        return;
-    }
-    if(yev_event->gbuf) {
-        GBUFFER_DECREF(yev_event->gbuf)
-    }
-    yev_event->gbuf = gbuf;
-}
+);
 
 static inline void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
@@ -203,7 +195,8 @@ PUBLIC yev_event_t *yev_create_write_event(
     yev_loop_t *loop,
     yev_callback_t callback,
     hgobj gobj,
-    int fd
+    int fd,
+    gbuffer_t *gbuf
 );
 
 PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
