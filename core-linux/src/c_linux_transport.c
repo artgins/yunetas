@@ -330,31 +330,31 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     INCR_ATTR_INTEGER(connxs)
 
-    /*
-     *  Ready to receive
-     */
-    if(!priv->yev_client_rx) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_client_rx = yev_create_read_event(
-            yuno_event_loop(),
-            yev_transport_callback,
-            gobj,
-            fd,
-            gbuffer_create(rx_buffer_size, rx_buffer_size)
-        );
-    }
-
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, fd);
-    }
-    if(!priv->yev_client_rx->gbuf) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
-    } else {
-        gbuffer_clear(priv->yev_client_rx->gbuf);
-    }
-
-    yev_start_event(priv->yev_client_rx);
+//    /*
+//     *  Ready to receive
+//     */
+//    if(!priv->yev_client_rx) {
+//        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+//        priv->yev_client_rx = yev_create_read_event(
+//            yuno_event_loop(),
+//            yev_transport_callback,
+//            gobj,
+//            fd,
+//            gbuffer_create(rx_buffer_size, rx_buffer_size)
+//        );
+//    }
+//
+//    if(priv->yev_client_rx) {
+//        yev_set_fd(priv->yev_client_rx, fd);
+//    }
+//    if(!priv->yev_client_rx->gbuf) {
+//        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+//        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
+//    } else {
+//        gbuffer_clear(priv->yev_client_rx->gbuf);
+//    }
+//
+//    yev_start_event(priv->yev_client_rx);
 
     priv->inform_disconnection = TRUE;
 
@@ -752,6 +752,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         yev_stop_event(priv->yev_client_connect);
     }
+    set_disconnected(gobj, "drop");
 
     JSON_DECREF(kw)
     return 0;
