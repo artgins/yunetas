@@ -6871,6 +6871,8 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
         size_t size;
         size_t ref;
     } track_mem_t;
+
+    unsigned long *memory_check_list = 0;
 #else
     typedef struct {
         size_t size;
@@ -6879,6 +6881,14 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
 
 #define TRACK_MEM sizeof(track_mem_t)
+
+/***********************************************************************
+ *      Set mem ref list to check
+ ***********************************************************************/
+PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
+{
+    memory_check_list = memory_check_list_;
+}
 
 /***********************************************************************
  *      Print track memory
@@ -6906,6 +6916,26 @@ PRIVATE void print_track_mem(void)
         track_mem = dl_next(track_mem);
     }
 #endif
+}
+
+/***********************************************************************
+ *
+ ***********************************************************************/
+PRIVATE void check_failed_list(track_mem_t *track_mem)
+{
+    for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
+        if(track_mem->ref  == memory_check_list[xx]) {
+            gobj_log_debug(0, LOG_OPT_TRACE_STACK,
+                "msgset",       "%s", MSGSET_STATISTICS,
+                "msg",          "%s", "memory lost",
+                "ref",          "%ul", (unsigned long)track_mem->ref,
+                NULL
+            );
+        }
+        if(xx > 5) {
+            break;  // bit a bit please
+        }
+    }
 }
 
 /***********************************************************************
@@ -6954,6 +6984,8 @@ PRIVATE void *_mem_malloc(size_t size)
 #ifdef CONFIG_TRACK_MEMORY
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
+
+    check_failed_list(pm_);
 #endif
 
     pm += extra;

@@ -1617,6 +1617,7 @@ PUBLIC sys_free_fn_t gobj_free_func(void);
 PUBLIC char *gobj_strndup(const char *str, size_t size);
 PUBLIC char *gobj_strdup(const char *string);
 PUBLIC size_t gobj_get_maximum_block(void);
+PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
 
 #define GBMEM_MALLOC(size) (gobj_malloc_func())(size)
 
