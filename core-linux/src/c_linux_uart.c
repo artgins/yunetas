@@ -553,11 +553,13 @@ PRIVATE void set_connected(hgobj gobj, int fd)
      *  Ready to receive
      */
     if(!priv->yev_client_rx) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
             yev_tty_callback,
             gobj,
-            fd
+            fd,
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
         );
     }
 
