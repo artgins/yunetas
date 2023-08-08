@@ -890,6 +890,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 KW_DECREF(kw);
                 return 0;
             }
+            KW_DECREF(kw);
+            return -1;
         }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -899,8 +901,9 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(iev_kw);
         KW_DECREF(kw);
-        return 0;
+        return -1;
     }
 
     /*------------------------------------*
