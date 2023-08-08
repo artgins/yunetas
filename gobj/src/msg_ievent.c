@@ -40,6 +40,15 @@
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_IDENTITY_CARD);
 GOBJ_DEFINE_EVENT(EV_IDENTITY_CARD_ACK);
+GOBJ_DEFINE_EVENT(EV_PLAY_YUNO);
+GOBJ_DEFINE_EVENT(EV_PLAY_YUNO_ACK);
+GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO);
+GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO_ACK);
+GOBJ_DEFINE_EVENT(EV_MT_STATS);
+GOBJ_DEFINE_EVENT(EV_MT_STATS_ANSWER);
+GOBJ_DEFINE_EVENT(EV_MT_COMMAND);
+GOBJ_DEFINE_EVENT(EV_MT_COMMAND_ANSWER);
+GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 
 /***************************************************************************
  *  Useful to send event's messages TO outside world.
@@ -145,7 +154,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_incref(kw);
     json_t *new_kw = kw_deserialize(gobj, kw);
 
-    *event = event_; ? // TODO convert string to gobj_event_t!!!
+    *event = gclass_find_public_event(event_, verbose);
     JSON_DECREF(jn_msg);
 
     return new_kw;

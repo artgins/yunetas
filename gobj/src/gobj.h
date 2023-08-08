@@ -1034,6 +1034,7 @@ PUBLIC int gclass_add_state_with_action_list(
     ev_action_t *ev_action_list
 );
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
+PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
 PUBLIC void gclass_unregister(hgclass hgclass);
 
 /*---------------------------------*

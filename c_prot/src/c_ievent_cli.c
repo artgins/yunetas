@@ -292,7 +292,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_string(stats)   // owned
     );
 
-    send_static_iev(gobj, "EV_MT_STATS", kw, src);
+    send_static_iev(gobj, EV_MT_STATS, kw, src);
 
     return 0;   // return 0 on asychronous response.
 }
@@ -340,7 +340,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         json_string(command)   // owned
     );
 
-    send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
+    send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
     return 0;   // return 0 on asychronous response.
 }
@@ -793,7 +793,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     } else {
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
 
-        gobj_change_state(gobj, "ST_SESSION");
+        gobj_change_state(gobj, ST_SESSION);
 
         if(!priv->inform_on_close) {
             priv->inform_on_close = TRUE;
@@ -835,16 +835,22 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, FALSE);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
     if(!iev_kw) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "iev_create_from_gbuffer() FAILED",
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(kw);
+        return -1;
+    }
+    if(empty_string(iev_event)) {
+        // Error already logged
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(iev_kw);
         KW_DECREF(kw);
         return -1;
     }
@@ -881,9 +887,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(gobj_current_state(gobj) != ST_SESSION) {
         if(gobj_event_type(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
+                // iev_kw consumed
                 KW_DECREF(kw);
                 return 0;
             }
+            // iev_kw consumed
             KW_DECREF(kw);
             return -1;
         }
@@ -1067,7 +1075,7 @@ PRIVATE int ac_play_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     return send_static_iev(gobj,
-        "EV_PLAY_YUNO_ACK",
+        EV_PLAY_YUNO_ACK,
         kw2resp,
         src
     );
@@ -1086,7 +1094,7 @@ PRIVATE int ac_pause_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw2resp = msg_iev_set_back_metadata(gobj, kw, jn_result, FALSE);
 
     return send_static_iev(gobj,
-        "EV_PAUSE_YUNO_ACK",
+        EV_PAUSE_YUNO_ACK,
         kw2resp,
         src
     );
@@ -1112,7 +1120,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
             return send_static_iev(gobj,
-                "EV_MT_STATS_ANSWER",
+                EV_MT_STATS_ANSWER,
                 msg_iev_build_response(
                     gobj,
                     -100,
@@ -1137,7 +1145,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         json_t * kw2 = msg_iev_set_back_metadata(gobj, kw, webix, FALSE);
         return send_static_iev(gobj,
-            "EV_MT_STATS_ANSWER",
+            EV_MT_STATS_ANSWER,
             kw2,
             src
         );
@@ -1169,7 +1177,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             service_gobj = gobj_find_gobj(service);
             if(!service_gobj) {
                 return send_static_iev(gobj,
-                    "EV_MT_COMMAND_ANSWER",
+                    EV_MT_COMMAND_ANSWER,
                     msg_iev_build_response(
                         gobj,
                         -100,
@@ -1200,7 +1208,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             FALSE
         );
         return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
+            EV_MT_COMMAND_ANSWER,
             kw2,
             src
         );
@@ -1216,7 +1224,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_send_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     return send_static_iev(gobj,
-        "EV_MT_COMMAND_ANSWER",
+        EV_MT_COMMAND_ANSWER,
         kw,
         src
     );
@@ -1284,11 +1292,6 @@ GOBJ_DEFINE_STATE(ST_WAIT_IDENTITY_CARD_ACK);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_PLAY_YUNO);
-GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO);
-GOBJ_DEFINE_EVENT(EV_MT_STATS);
-GOBJ_DEFINE_EVENT(EV_MT_COMMAND);
-GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 
 
 /***************************************************************************

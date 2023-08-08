@@ -902,6 +902,36 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
+{
+    gclass_t *gclass = dl_first(&dl_gclass);
+    while(gclass) {
+        event_t *event_ = dl_first(&gclass->dl_events);
+        while(event_) {
+            if((event_->event_type.event_flag & EVF_PUBLIC_EVENT)) {
+                if(event_->event_type.event && strcmp(event_->event_type.event, event)==0) {
+                    return event_->event_type.event;
+                }
+            }
+            event_ = dl_next(event_);
+        }
+        gclass = dl_next(gclass);
+    }
+    if(verbose) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "event NOT FOUND",
+            "event",        "%s", event,
+            NULL
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC void gclass_unregister(hgclass hgclass)
 {
     gclass_t *gclass = (gclass_t *)hgclass;
@@ -6860,7 +6890,7 @@ PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
-#define CONFIG_TRACK_MEMORY
+//#define CONFIG_TRACK_MEMORY
 
 #ifdef CONFIG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;
@@ -6887,7 +6917,9 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
  ***********************************************************************/
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
 {
+#ifdef CONFIG_TRACK_MEMORY
     memory_check_list = memory_check_list_;
+#endif
 }
 
 /***********************************************************************
@@ -6927,6 +6959,7 @@ PRIVATE void print_track_mem(void)
 /***********************************************************************
  *
  ***********************************************************************/
+#ifdef CONFIG_TRACK_MEMORY
 PRIVATE void check_failed_list(track_mem_t *track_mem)
 {
     for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
@@ -6943,6 +6976,7 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
         }
     }
 }
+#endif
 
 /***********************************************************************
  *      Alloc memory
