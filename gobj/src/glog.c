@@ -810,6 +810,10 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
     ul_buffer_reset(0, TRUE);
     json_add_string(0, "timestamp", timestamp);
 
+    discover(gobj, 0);
+
+    json_vappend(0, ap);
+
     if(opt & LOG_OPT_EXIT_NEGATIVE) {
         json_add_string(0, "exiting", "-1");
     }
@@ -820,9 +824,6 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
         json_add_string(0, "exiting", "abort");
     }
 
-    discover(gobj, 0);
-
-    json_vappend(0, ap);
     char *s = json_get_buf(0);
 
     _log_bf(priority, opt, s, strlen(s));

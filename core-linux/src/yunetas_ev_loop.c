@@ -890,6 +890,13 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
         return -1;
     }
 
+    sqe = io_uring_get_sqe(&yev_loop->ring);
+    io_uring_sqe_set_data(sqe, yev_event);
+    io_uring_prep_cancel(sqe, yev_event, 0);
+    io_uring_submit(&yev_event->yev_loop->ring);
+    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+    yev_set_flag(yev_event, YEV_FLAG_CANCELLING, TRUE);
+
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
@@ -910,13 +917,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             json_decref(jn_flags);
         } while(0);
     }
-
-    sqe = io_uring_get_sqe(&yev_loop->ring);
-    io_uring_sqe_set_data(sqe, yev_event);
-    io_uring_prep_cancel(sqe, yev_event, 0);
-    io_uring_submit(&yev_event->yev_loop->ring);
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
-    yev_set_flag(yev_event, YEV_FLAG_CANCELLING, TRUE);
 
     return 0;
 }

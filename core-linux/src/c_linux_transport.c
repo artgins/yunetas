@@ -533,8 +533,10 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                      *  Clear buffer
                      *  Re-arm read
                      */
-                    gbuffer_clear(yev_event->gbuf);
-                    yev_start_event(yev_event);
+                    if(yev_event->gbuf) {
+                        gbuffer_clear(yev_event->gbuf);
+                        yev_start_event(yev_event);
+                    }
                 }
             }
             break;

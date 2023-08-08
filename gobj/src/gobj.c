@@ -6915,6 +6915,12 @@ PRIVATE void print_track_mem(void)
 
         track_mem = dl_next(track_mem);
     }
+    gobj_log_error(0, 0,  // repeat message at the end
+        "function",             "%s", __FUNCTION__,
+        "msgset",               "%s", MSGSET_STATISTICS,
+        "msg",                  "%s", "shutdown: system memory not free",
+        NULL
+    );
 #endif
 }
 
