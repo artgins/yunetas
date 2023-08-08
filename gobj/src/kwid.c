@@ -611,7 +611,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     }
 
     int list_size = 0;
-    const char **segments = split3(path, delimiter, &list_size);
+    const char **segments = split2(path, delimiter, &list_size);
 
     json_t *v = kw;
     BOOL fin = FALSE;
@@ -694,7 +694,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
         }
     }
 
-    split_free3(segments);
+    split_free2(segments);
     return v;
 }
 
@@ -705,7 +705,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
 PUBLIC int kw_set_dict_value(
     hgobj gobj,
     json_t *kw,
-    const char *path,   // The last word after '.' is the key
+    const char *path,   // The last word after delimiter is the key
     json_t *value) // owned
 {
     if(!json_is_object(kw)) {
@@ -733,7 +733,7 @@ PUBLIC int kw_set_dict_value(
     }
 
     int list_size = 0;
-    const char **segments = split3(path, delimiter, &list_size);
+    const char **segments = split2(path, delimiter, &list_size);
 
     json_t *v = kw;
     BOOL fin = FALSE;
@@ -758,9 +758,8 @@ PUBLIC int kw_set_dict_value(
         case JSON_OBJECT:
             next = json_object_get(v, segment);
             if(!next) {
-                json_object_set_new(v, segment, value);
-                value = NULL;
-                fin = TRUE;
+                json_object_set(v, segment, value);
+                next = value;
             }
             v = next;
             break;
@@ -802,7 +801,7 @@ PUBLIC int kw_set_dict_value(
         );
     }
     JSON_DECREF(value)
-    split_free3(segments);
+    split_free2(segments);
 
     return 0;
 }
