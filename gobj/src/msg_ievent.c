@@ -32,6 +32,15 @@
  *         Prototypes
  ****************************************************************/
 
+/****************************************************************
+ *         FSM
+ ****************************************************************/
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_IDENTITY_CARD);
+GOBJ_DEFINE_EVENT(EV_IDENTITY_CARD_ACK);
+
 /***************************************************************************
  *  Useful to send event's messages TO outside world.
  ***************************************************************************/
@@ -136,7 +145,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_incref(kw);
     json_t *new_kw = kw_deserialize(gobj, kw);
 
-    *event = event_; // TODO convert string to gobj_event_t!!!
+    *event = event_; ? // TODO convert string to gobj_event_t!!!
     JSON_DECREF(jn_msg);
 
     return new_kw;

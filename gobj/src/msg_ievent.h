@@ -100,8 +100,13 @@ extern "C"{
 #define COMMAND_DATA(gobj, kw)       (kw_get_dict_value((gobj), (kw), "data", 0, 0))
 
 /***************************************************
- *              Structures
+ *              FSM
  **************************************************/
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DECLARE_EVENT(EV_IDENTITY_CARD);
+GOBJ_DECLARE_EVENT(EV_IDENTITY_CARD_ACK);
 
 /***************************************************
  *              Prototypes

@@ -13,12 +13,6 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
-#ifdef ESP_PLATFORM
-    #include <c_esp_transport.h>
-#endif
-#ifdef __linux__
-    #include <c_linux_transport.h>
-#endif
 #include <kwid.h>
 #include <gbuffer.h>
 #include <gobj_environment.h>
@@ -614,7 +608,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_idack"));
     return send_static_iev(
         gobj,
-        "EV_IDENTITY_CARD",
+        EV_IDENTITY_CARD,
         kw_identity_card,
         gobj
     );
@@ -647,8 +641,8 @@ PRIVATE int send_static_iev(
         } else if((trace_level & TRACE_IEVENTS)) {
             trace_inter_event(gobj, prefix, event, kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(event, "EV_IDENTITY_CARD")==0 ||
-               strcmp(event, "EV_IDENTITY_CARD_ACK")==0) {
+            if(event == EV_IDENTITY_CARD ||
+               event == EV_IDENTITY_CARD_ACK) {
                 trace_inter_event2(gobj, prefix, event, kw);
             }
         }
@@ -873,8 +867,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         } else if((trace_level & TRACE_IEVENTS)) {
             trace_inter_event(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(iev_event, "EV_IDENTITY_CARD")==0 ||
-                    strcmp(iev_event, "EV_IDENTITY_CARD_ACK")==0) {
+            if(iev_event == EV_IDENTITY_CARD ||
+                    iev_event == EV_IDENTITY_CARD_ACK) {
                 trace_inter_event2(gobj, prefix, iev_event, iev_kw);
             }
         }
@@ -896,7 +890,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "event failed in not session state",
+            "msg",          "%s", "event UNKNOWN in not-session state",
             "event",        "%s", iev_event,
             NULL
         );
@@ -1290,7 +1284,6 @@ GOBJ_DEFINE_STATE(ST_WAIT_IDENTITY_CARD_ACK);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_IDENTITY_CARD_ACK);
 GOBJ_DEFINE_EVENT(EV_PLAY_YUNO);
 GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO);
 GOBJ_DEFINE_EVENT(EV_MT_STATS);
@@ -1325,7 +1318,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_identity_card_ack[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_IDENTITY_CARD_ACK,  ac_identity_card_ack,   0},
-        {EV_ON_CLOSE,       ac_on_close,        ST_DISCONNECTED},
+        {EV_ON_CLOSE,           ac_on_close,        ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_idAck,  0},
         {0,0,0}
     };

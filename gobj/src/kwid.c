@@ -758,6 +758,7 @@ PUBLIC int kw_set_dict_value(
         case JSON_OBJECT:
             next = json_object_get(v, segment);
             if(!next) {
+                // TODO if not the last segment, write a json_object()
                 json_object_set(v, segment, value);
                 next = value;
             }

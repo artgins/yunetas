@@ -314,7 +314,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj,
                     gbuf,
                     "ERROR: TOO LONG SIZE (%d)",
-                    header_erpl2.len
+                    (int)header_erpl2.len
                 );
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
                 break;
