@@ -59,6 +59,7 @@ Example of modbus configuration:
 #include <c_timer.h>
 #include <istream.h>
 #include <kwid.h>
+#include <helpers.h>
 #include "c_prot_modbus_master.h"
 
 /***************************************************************************

@@ -21,8 +21,8 @@
 #include "ansi_escape_codes.h"
 #include "gobj_environment.h"
 #include "kwid.h"
+#include "helpers.h"
 #include "gobj.h"
-#include "gbuffer.h"
 
 extern void jsonp_free(void *ptr);
 
@@ -1996,6 +1996,76 @@ PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 {
     gobj_t *gobj = gobj_;
     return gobj?gobj->jn_attrs:NULL;
+}
+
+/***************************************************************************
+ *  Return the data description of the command `command`
+ *  If `command` is null returns full command's table
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose)
+{
+    gclass_t *gclass = gclass_;
+
+    if(!gclass) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "gclass NULL",
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    if(!name) {
+        return gclass->command_table;
+    }
+    const sdata_desc_t *it = gclass->command_table;
+    while(it->name) {
+        if(strcmp(it->name, name)==0) {
+            return it;
+        }
+        it++;
+    }
+
+    if(verbose) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "GClass command NOT FOUND",
+            "gclass",       "%s", gclass->gclass_name,
+            "command",         "%s", name,
+            NULL
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Return the data description of the command `command`
+ *  If `command` is null returns full command's table
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "gobj NULL",
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    if(!name) {
+        return gobj->gclass->command_table;
+    }
+
+    return gclass_command_desc(gobj->gclass, name, verbose);
 }
 
 /***************************************************************************
@@ -4505,29 +4575,11 @@ PUBLIC const char *get_user_name(void)  // Who started yuno
 }
 
 /***************************************************************************
- *  Get a gbuffer with type strings
+ *  Get names table of sdata flag
  ***************************************************************************/
-PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
+PUBLIC const char **get_sdata_flag_table(void)
 {
-    gbuffer_t *gbuf = gbuffer_create(256, 256);
-    if(!gbuf) {
-        return 0;
-    }
-    BOOL add_sep = FALSE;
-
-    char **name = (char **)sdata_flag_names;
-    while(*name) {
-        if(flag & 0x01) {
-            if(add_sep) {
-                gbuffer_append(gbuf, "|", 1);
-            }
-            gbuffer_append(gbuf, *name, strlen(*name));
-            add_sep = TRUE;
-        }
-        flag = flag >> 1;
-        name++;
-    }
-    return gbuf;
+    return sdata_flag_names;
 }
 
 /***************************************************************************
@@ -4591,7 +4643,7 @@ PUBLIC json_t *attr2json(hgobj gobj_)
                 continue;
             }
 
-            gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+            gbuffer_t *gbuf = bits2gbuffer(get_sdata_flag_table(), it->flag);
             char *flag = gbuf?gbuffer_cur_rd_pointer(gbuf):"";
             json_t *attr_dict = json_pack("{s:I, s:s, s:s, s:s, s:s, s:b}",
                 "id", (json_int_t)id++,

@@ -6,12 +6,12 @@
  *              Copyright (c) 2014,2023 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
-#pragma once
-
 /*
  *  Dependencies
  */
 #include "gobj.h"
+
+#pragma once
 
 #ifdef __cplusplus
 extern "C"{

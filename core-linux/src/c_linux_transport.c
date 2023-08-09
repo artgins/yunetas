@@ -10,7 +10,6 @@
 #include <string.h>
 #include <parse_url.h>
 #include <kwid.h>
-#include <gbuffer.h>
 #include "c_timer.h"
 #include "c_linux_yuno.h"
 #include "yunetas_ev_loop.h"
@@ -470,7 +469,7 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,

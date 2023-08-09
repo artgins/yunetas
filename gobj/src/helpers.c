@@ -505,18 +505,48 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *bits2str(
+PUBLIC json_t *bits2jn_strlist(
     const char **string_table,
     uint64_t bits
 ) {
     json_t *jn_list = json_array();
+
     for(uint64_t i=0; string_table[i]!=NULL && i<sizeof(i); i++) {
         uint64_t bitmask = 1 << i;
         if (bits & bitmask) {
             json_array_append_new(jn_list, json_string(string_table[i]));
         }
     }
+
     return jn_list;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC gbuffer_t *bits2gbuffer(
+    const char **string_table,
+    uint64_t bits
+) {
+    gbuffer_t *gbuf = gbuffer_create(256, 1024);
+
+    if(!gbuf) {
+        return 0;
+    }
+    BOOL add_sep = FALSE;
+
+    for(uint64_t i=0; string_table[i]!=NULL && i<sizeof(i); i++) {
+        uint64_t bitmask = 1 << i;
+        if (bits & bitmask) {
+            if(add_sep) {
+                gbuffer_append(gbuf, "|", 1);
+            }
+            gbuffer_append_string(gbuf, string_table[i]);
+            add_sep = TRUE;
+        }
+    }
+
+    return gbuf;
 }
 
 
@@ -1017,6 +1047,159 @@ PUBLIC int change_char(char *s, char old_c, char new_c)
         s++;
     }
     return count;
+}
+
+/***************************************************************************
+ *  Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
+ *  The string is modified (nulls inserted)!
+ ***************************************************************************/
+PUBLIC char *get_parameter(char *s, char **save_ptr)
+{
+    char c;
+    char *p;
+
+    if(!s) {
+        if(save_ptr) {
+            *save_ptr = 0;
+        }
+        return 0;
+    }
+    /*
+     *  Find first no-blank
+     */
+    while(1) {
+        c = *s;
+        if(c==0)
+            return 0;
+        if(!(c==' ' || c=='\t'))
+            break;
+        s++;
+    }
+
+    /*
+     *  Check quotes
+     */
+    if(c=='\'' || c=='"') {
+        p = strchr(s+1, c);
+        if(p) {
+            *p = 0;
+            if(save_ptr) {
+                *save_ptr = p+1;
+            }
+            return s+1;
+        }
+    }
+
+    /*
+     *  Find first blank
+     */
+    p = s;
+    while(1) {
+        c = *s;
+        if(c==0) {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return p;
+        }
+        if((c==' ' || c=='\t')) {
+            *s = 0;
+            if(save_ptr) {
+                *save_ptr = s+1;
+            }
+            return p;
+        }
+        s++;
+    }
+}
+
+/***************************************************************************
+ *  Extract key=value or key='this value' parameter
+ *  Return the value, the key in `key`
+ *  The string is modified (nulls inserted)!
+ ***************************************************************************/
+PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
+{
+    char c;
+    char *p;
+
+    if(!s) {
+        if(save_ptr) {
+            *save_ptr = 0;
+        }
+        return 0;
+    }
+    /*
+     *  Find first no-blank
+     */
+    while(1) {
+        c = *s;
+        if(c==0)
+            return 0;
+        if(!(c==' ' || c=='\t'))
+            break;
+        s++;
+    }
+
+    char *value = strchr(s, '=');
+    if(!value) {
+        if(key) {
+            *key = 0;
+        }
+        if(save_ptr) {
+            *save_ptr = s;
+        }
+        return 0;
+    }
+    *value = 0; // delete '='
+    value++;
+    left_justify(s);
+    if(key) {
+        *key = s;
+    }
+    s = value;
+    c = *s;
+
+    /*
+     *  Check quotes
+     */
+    if(c=='\'' || c=='"') {
+        p = strchr(s+1, c);
+        if(p) {
+            *p = 0;
+            if(save_ptr) {
+                *save_ptr = p+1;
+            }
+            return s+1;
+        } else {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return 0;
+        }
+    }
+
+    /*
+     *  Find first blank
+     */
+    p = s;
+    while(1) {
+        c = *s;
+        if(c==0) {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return p;
+        }
+        if((c==' ' || c=='\t')) {
+            *s = 0;
+            if(save_ptr) {
+                *save_ptr = s+1;
+            }
+            return p;
+        }
+        s++;
+    }
 }
 
 /***************************************************************************

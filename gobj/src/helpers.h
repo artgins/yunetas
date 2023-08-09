@@ -8,11 +8,12 @@
  ****************************************************************************/
 #pragma once
 
+#include "gobj.h"
+
 /*
  *  Dependencies
  */
 
-#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -99,7 +100,11 @@ PUBLIC json_t *create_json_record(
     const json_desc_t *json_desc
 );
 
-PUBLIC json_t *bits2str(
+PUBLIC json_t *bits2jn_strlist(
+    const char **string_table,
+    uint64_t bits
+);
+PUBLIC gbuffer_t *bits2gbuffer(
     const char **string_table,
     uint64_t bits
 );
@@ -129,6 +134,20 @@ PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
 PUBLIC int change_char(char *s, char old_c, char new_c);
+
+/**rst**
+   Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
+   The string is modified (nulls inserted)!
+**rst**/
+PUBLIC char *get_parameter(char *s, char **save_ptr);
+
+/**rst**
+ *  Extract key=value or key='this value' parameter
+ *  Return the value, the key in `key`
+ *  The string is modified (nulls inserted)!
+**rst**/
+PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
+
 /**rst**
     Simple json to real
 **rst**/

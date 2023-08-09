@@ -79,11 +79,10 @@
  *          Copyright (c) 2016,2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
+#pragma once
+
 #include "gobj.h"
 #include "kwid.h"
-#include "gbuffer.h"
-
-#pragma once
 
 #ifdef __cplusplus
 extern "C"{

@@ -14,7 +14,6 @@
 #include <pwd.h>
 #include <grp.h>
 #include <kwid.h>
-#include <gbuffer.h>
 #include <gobj_environment.h>
 #include <c_timer.h>
 #include <msg_ievent.h>

@@ -160,7 +160,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
 
     if(dump) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -339,7 +339,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
 
     if(dump) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,

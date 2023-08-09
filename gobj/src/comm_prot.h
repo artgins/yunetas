@@ -6,10 +6,9 @@
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
+#include "gobj.h"
 
 #pragma once
-
-#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{

@@ -7,6 +7,7 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include "msg_ievent.h"
+#include "helpers.h"
 #include "command_parser.h"
 
 /***************************************************************
@@ -42,7 +43,7 @@ PUBLIC json_t * command_parser(hgobj gobj,
     if(!command_in_gobj(gobj, command)) {
         return msg_iev_build_response(
             gobj,
-            -15,
+            -1,
             json_sprintf(
                 "%s: command '%s' not available. Try 'help' command.",
                 gobj_short_name(gobj),
@@ -54,15 +55,15 @@ PUBLIC json_t * command_parser(hgobj gobj,
         );
     }
 
-    const sdata_desc_t *command_table = gobj_gclass(gobj)->command_table;
+    const sdata_desc_t *command_table = gobj_command_desc(gobj, NULL, FALSE);
     json_t *kw_cmd = expand_command(gobj_short_name(gobj), command_table, command, kw, &cnf_cmd);
     if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
-        log_debug_json(0, kw_cmd, "expanded_command: kw_cmd");
+        gobj_trace_json(gobj, kw_cmd, "expanded_command: kw_cmd");
     }
     if(!cnf_cmd) {
         return msg_iev_build_response(
             gobj,
-            -14,
+            -1,
             kw_cmd,
             0,
             0,
@@ -182,17 +183,20 @@ PRIVATE BOOL command_in_gobj(
     const char *command
 )
 {
-    const sdata_desc_t *command_table = gobj_gclass(gobj)->command_table;
-
-    char *str, *p;
-    str = p = gbmem_strdup(command);
-    char *cmd = get_parameter(p, &p);  // dejalo como en expand
-    if(empty_string(cmd)) {
-        gbmem_free(str);
+    const sdata_desc_t *command_table = gobj_command_desc(gobj, NULL, FALSE);
+    if(!command_table) {
         return FALSE;
     }
-    const sdata_desc_t *cnf_cmd = command_get_cmd_desc(command_table, cmd);
-    gbmem_free(str);
+
+    char *str, *p;
+    str = p = GBMEM_STRDUP(command);
+    char *cmd = get_parameter(p, &p);  // dejalo como en expand
+    if(empty_string(cmd)) {
+        GBMEM_FREE(str);
+        return FALSE;
+    }
+    const sdata_desc_t *cnf_cmd = gobj_command_desc(gobj, cmd, FALSE);
+    GBMEM_FREE(str);
     return cnf_cmd?TRUE:FALSE;
 }
 
@@ -214,15 +218,15 @@ PUBLIC json_t *expand_command(
     }
 
     char *str, *p;
-    str = p = gbmem_strdup(command);
+    str = p = GBMEM_STRDUP(command);
     char *cmd = get_parameter(p, &p);
     if(empty_string(cmd)) {
-        gbmem_free(str);
+        GBMEM_FREE(str);
         return json_sprintf("No command");
     }
     const sdata_desc_t *cnf_cmd = command_get_cmd_desc(command_table, cmd);
     if(!cnf_cmd) {
-        gbmem_free(str);
+        GBMEM_FREE(str);
         return json_sprintf("No command found: '%s'", cmd);
     }
     if(cmd_desc) {
@@ -231,7 +235,7 @@ PUBLIC json_t *expand_command(
 
     int ok = 0;
     json_t *kw_cmd = build_cmd_kw(gobj_name, cnf_cmd->name, cnf_cmd, p, kw, &ok);
-    gbmem_free(str);
+    GBMEM_FREE(str);
     if(ok < 0) {
         if(cmd_desc) {
             *cmd_desc = 0;
@@ -255,13 +259,13 @@ PRIVATE json_t *parameter2json(
 {
     *result = 0;
 
-    if(ASN_IS_STRING(type)) {
+    if(DTP_IS_STRING(type)) {
         if(!s) {
             s = "";
         }
         return json_string(s);
 
-    } else if(ASN_IS_BOOLEAN(type)) {
+    } else if(DTP_IS_BOOLEAN(type)) {
         BOOL value;
         if(strcasecmp(s, "true")==0) {
             value = 1;
@@ -276,14 +280,14 @@ PRIVATE json_t *parameter2json(
             return json_false();
         }
 
-    } else if(ASN_IS_NATURAL_NUMBER(type)) {
+    } else if(DTP_IS_INTEGER(type)) {
         return json_integer(atoll(s));
 
-    } else if(ASN_IS_REAL_NUMBER(type)) {
+    } else if(DTP_IS_REAL(type)) {
         return json_real(atof(s));
 
-    } else if(ASN_IS_JSON(type)) {
-        return nonlegalstring2json(s, TRUE);
+    } else if(DTP_IS_JSON(type)) {
+        return anystring2json(s, strlen(s), TRUE);
     } else {
         *result = -1;
         json_t *jn_data = json_sprintf(
@@ -325,15 +329,15 @@ PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_paramete
  ***************************************************************************/
 PRIVATE const char *sdata_command_type(uint8_t type)
 {
-    if(ASN_IS_STRING(type)) {
+    if(DTP_IS_STRING(type)) {
         return "string";
-    } else if(ASN_IS_BOOLEAN(type)) {
+    } else if(DTP_IS_BOOLEAN(type)) {
         return "boolean";
-    } else if(ASN_IS_NATURAL_NUMBER(type)) {
+    } else if(DTP_IS_INTEGER(type)) {
         return "integer";
-    } else if(ASN_IS_REAL_NUMBER(type)) {
+    } else if(DTP_IS_REAL(type)) {
         return "real";
-    } else if(ASN_IS_JSON(type)) {
+    } else if(DTP_IS_JSON(type)) {
         return "json";
     } else {
         return "unknown";
@@ -343,30 +347,30 @@ PRIVATE const char *sdata_command_type(uint8_t type)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void add_command_help(GBUFFER *gbuf, const sdata_desc_t *pcmds, BOOL extended)
+PRIVATE void add_command_help(gbuffer_t *gbuf, const sdata_desc_t *pcmds, BOOL extended)
 {
     if(pcmds->alias) {
-        gbuf_printf(gbuf, "- %-28s (", pcmds->name);
+        gbuffer_printf(gbuf, "- %-28s (", pcmds->name);
         const char **alias = pcmds->alias;
         if(*alias) {
-            gbuf_printf(gbuf, "%s ", *alias);
+            gbuffer_printf(gbuf, "%s ", *alias);
         }
         alias++;
         while(*alias) {
-            gbuf_printf(gbuf, ", %s", *alias);
+            gbuffer_printf(gbuf, ", %s", *alias);
             alias++;
         }
-        gbuf_printf(gbuf, ")");
+        gbuffer_printf(gbuf, ")");
     } else {
-        gbuf_printf(gbuf, "- %-28s", pcmds->name);
+        gbuffer_printf(gbuf, "- %-28s", pcmds->name);
     }
     BOOL add_point = FALSE;
     const sdata_desc_t *pparam = pcmds->schema;
     while(pparam && pparam->name) {
         if((pparam->flag & SDF_REQUIRED) && !(pparam->flag & SDF_PERSIST)) { // TODO PERSITS? why?
-            gbuf_printf(gbuf, " <%s>", pparam->name);
+            gbuffer_printf(gbuf, " <%s>", pparam->name);
         } else {
-            gbuf_printf(gbuf,
+            gbuffer_printf(gbuf,
                 " [%s='%s']",
                 pparam->name, pparam->default_value?(char *)pparam->default_value:"?"
             );
@@ -375,24 +379,25 @@ PRIVATE void add_command_help(GBUFFER *gbuf, const sdata_desc_t *pcmds, BOOL ext
         pparam++;
     }
     if(add_point) {
-        gbuf_printf(gbuf, ". %s\n", (pcmds->description)?pcmds->description:"");
+        gbuffer_printf(gbuf, ". %s\n", (pcmds->description)?pcmds->description:"");
     } else {
-        gbuf_printf(gbuf, " %s\n", (pcmds->description)?pcmds->description:"");
+        gbuffer_printf(gbuf, " %s\n", (pcmds->description)?pcmds->description:"");
     }
 
     if(extended) {
-        gbuf_printf(gbuf, "\n");
+        gbuffer_printf(gbuf, "\n");
         pparam = pcmds->schema;
         while(pparam && pparam->name) {
-            GBUFFER *gbuf_flag = get_sdata_flag_desc(pparam->flag);
-            char *p = gbuf_cur_rd_pointer(gbuf_flag);
-            gbuf_printf(gbuf, "    - %-16s Type:%-8s, Desc:%-35s, Flag:%s\n",
+            //get_sdata_flag_desc
+            gbuffer_t *gbuf_flag = bits2gbuffer(get_sdata_flag_table(), pparam->flag);
+            char *p = gbuffer_cur_rd_pointer(gbuf_flag);
+            gbuffer_printf(gbuf, "    - %-16s Type:%-8s, Desc:%-35s, Flag:%s\n",
                 pparam->name,
                 sdata_command_type(pparam->type),
                 (pparam->description)?pparam->description:"",
                 p?p:""
             );
-            gbuf_decref(gbuf_flag);
+            gbuffer_decref(gbuf_flag);
             pparam++;
         }
     }
@@ -448,7 +453,7 @@ PUBLIC json_t *build_cmd_kw(
             /*
              *  Required: si no está en pxxx buscalo en kw
              */
-            json_t *jn_param = kw_get_dict_value(kw, ip->name, 0, 0);
+            json_t *jn_param = kw_get_dict_value(0, kw, ip->name, 0, 0);
             if(jn_param) {
                 json_object_set(kw_cmd, ip->name, jn_param);
                 ip++;
@@ -504,10 +509,10 @@ PUBLIC json_t *build_cmd_kw(
         }
 
         if(kw_has_key(kw, ip->name)) {
-            json_t *value = kw_get_dict_value(kw, ip->name, 0, 0);
-            if(!ASN_IS_STRING(ip->type) && json_is_string(value)) {
+            json_t *value = kw_get_dict_value(0, kw, ip->name, 0, 0);
+            if(!DTP_IS_STRING(ip->type) && json_is_string(value)) {
                 const char *s = json_string_value(value);
-                json_t *new_value = nonlegalstring2json(s, TRUE);
+                json_t *new_value = anystring2json(s, strlen(s), TRUE);
                 json_object_set_new(kw_cmd, ip->name, new_value);
             } else {
                 json_object_set(kw_cmd, ip->name, value);
@@ -564,7 +569,7 @@ PUBLIC json_t *build_cmd_kw(
             jn_param = parameter2json(gobj_name, ip->type, ip->name, value, result);
         } else {
             if(wild_command) {
-                jn_param = parameter2json(gobj_name, ASN_OCTET_STR, "wild-option", value, result);
+                jn_param = parameter2json(gobj_name, DTP_STRING, "wild-option", value, result);
             } else {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
@@ -616,28 +621,28 @@ PUBLIC json_t *build_cmd_kw(
  ***************************************************************************/
 PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 {
-    int level = kw_get_int(kw, "level", 0, KW_WILD_NUMBER);
-    const char *cmd = kw_get_str(kw, "cmd", 0, 0);
+    int level = kw_get_int(gobj, kw, "level", 0, KW_WILD_NUMBER);
+    const char *cmd = kw_get_str(gobj, kw, "cmd", 0, 0);
     if(!empty_string(cmd)) {
         const sdata_desc_t *cnf_cmd;
-        if(gobj_gclass(gobj)->command_table) {
-            cnf_cmd = command_get_cmd_desc(gobj_gclass(gobj)->command_table, cmd);
+        if(gobj_command_desc(gobj, NULL, FALSE)) {
+            cnf_cmd = command_get_cmd_desc(gobj_command_desc(gobj, NULL, FALSE), cmd);
             if(cnf_cmd) {
-                GBUFFER *gbuf = gbuf_create(256, 16*1024, 0, 0);
-                gbuf_printf(gbuf, "%s\n", cmd);
+                gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
+                gbuffer_printf(gbuf, "%s\n", cmd);
                 int len = strlen(cmd);
                 while(len > 0) {
-                    gbuf_printf(gbuf, "%c", '=');
+                    gbuffer_printf(gbuf, "%c", '=');
                     len--;
                 }
-                gbuf_printf(gbuf, "\n");
+                gbuffer_printf(gbuf, "\n");
                 if(!empty_string(cnf_cmd->description)) {
-                    gbuf_printf(gbuf, "%s\n", cnf_cmd->description);
+                    gbuffer_printf(gbuf, "%s\n", cnf_cmd->description);
                 }
                 add_command_help(gbuf, cnf_cmd, TRUE);
-                gbuf_printf(gbuf, "\n");
-                json_t *jn_resp = json_string(gbuf_cur_rd_pointer(gbuf));
-                gbuf_decref(gbuf);
+                gbuffer_printf(gbuf, "\n");
+                json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+                gbuffer_decref(gbuf);
                 KW_DECREF(kw);
                 return jn_resp;
             }
@@ -647,33 +652,31 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
          *  Search in Child commands
          */
         if(level) {
-            hgobj child_;
-            rc_instance_t *i_child = gobj_first_child(gobj, &child_);
-            while(i_child) {
-                hgobj child = child_;
-                if(gobj_gclass(child)->command_table) {
-                    cnf_cmd = command_get_cmd_desc(gobj_gclass(child)->command_table, cmd);
+            hgobj child = gobj_first_child(gobj);
+            while(child) {
+                if(gobj_command_desc(child, NULL, FALSE)) {
+                    cnf_cmd = command_get_cmd_desc(gobj_command_desc(child, NULL, FALSE), cmd);
                     if(cnf_cmd) {
-                        GBUFFER *gbuf = gbuf_create(256, 16*1024, 0, 0);
-                        gbuf_printf(gbuf, "%s\n", cmd);
+                        gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
+                        gbuffer_printf(gbuf, "%s\n", cmd);
                         int len = strlen(cmd);
                         while(len > 0) {
-                            gbuf_printf(gbuf, "%c", '=');
+                            gbuffer_printf(gbuf, "%c", '=');
                             len--;
                         }
-                        gbuf_printf(gbuf, "\n");
+                        gbuffer_printf(gbuf, "\n");
                         if(!empty_string(cnf_cmd->description)) {
-                            gbuf_printf(gbuf, "%s\n", cnf_cmd->description);
+                            gbuffer_printf(gbuf, "%s\n", cnf_cmd->description);
                         }
                         add_command_help(gbuf, cnf_cmd, TRUE);
-                        gbuf_printf(gbuf, "\n");
-                        json_t *jn_resp = json_string(gbuf_cur_rd_pointer(gbuf));
-                        gbuf_decref(gbuf);
+                        gbuffer_printf(gbuf, "\n");
+                        json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+                        gbuffer_decref(gbuf);
                         KW_DECREF(kw);
                         return jn_resp;
                     }
                 }
-                i_child = gobj_next_child(i_child, &child_);
+                child = gobj_next_child(child);
             }
         }
 
@@ -685,16 +688,16 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         );
     }
 
-    GBUFFER *gbuf = gbuf_create(256, 64*1024, 0, 0);
-    gbuf_printf(gbuf, "Available commands\n");
-    gbuf_printf(gbuf, "==================\n");
+    gbuffer_t *gbuf = gbuffer_create(256, 64*1024);
+    gbuffer_printf(gbuf, "Available commands\n");
+    gbuffer_printf(gbuf, "==================\n");
 
     /*
      *  GObj commands
      */
-    if(gobj_gclass(gobj)->command_table) {
-        gbuf_printf(gbuf, "\n> %s\n", gobj_short_name(gobj));
-        const sdata_desc_t *pcmds = gobj_gclass(gobj)->command_table;
+    if(gobj_command_desc(gobj, NULL, FALSE)) {
+        gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(gobj));
+        const sdata_desc_t *pcmds = gobj_command_desc(gobj, NULL, FALSE);
         while(pcmds->name) {
             if(!empty_string(pcmds->name)) {
                 add_command_help(gbuf, pcmds, FALSE);
@@ -703,9 +706,9 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                 *  Empty command (not null) is for print a blank line or a title is desc is not empty
                 */
                 if(!empty_string(pcmds->description)) {
-                    gbuf_printf(gbuf, "%s\n", pcmds->description);
+                    gbuffer_printf(gbuf, "%s\n", pcmds->description);
                 } else {
-                    gbuf_printf(gbuf, "\n");
+                    gbuffer_printf(gbuf, "\n");
                 }
             }
             pcmds++;
@@ -716,13 +719,11 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
      *  Child commands
      */
     if(level) {
-        hgobj child_;
-        rc_instance_t *i_child = gobj_first_child(gobj, &child_);
-        while(i_child) {
-            hgobj child = child_;
-            if(gobj_gclass(child)->command_table) {
-                gbuf_printf(gbuf, "\n> %s\n", gobj_short_name(child));
-                const sdata_desc_t *pcmds = gobj_gclass(child)->command_table;
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_command_desc(child, NULL, FALSE)) {
+                gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(child));
+                const sdata_desc_t *pcmds = gobj_command_desc(child, NULL, FALSE);
                 while(pcmds->name) {
                     if(!empty_string(pcmds->name)) {
                         add_command_help(gbuf, pcmds, FALSE);
@@ -731,20 +732,20 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                         *  Empty command (not null) is for print a blank line or a title is desc is not empty
                         */
                         if(!empty_string(pcmds->description)) {
-                            gbuf_printf(gbuf, "%s\n", pcmds->description);
+                            gbuffer_printf(gbuf, "%s\n", pcmds->description);
                         } else {
-                            gbuf_printf(gbuf, "\n");
+                            gbuffer_printf(gbuf, "\n");
                         }
                     }
                     pcmds++;
                 }
             }
-            i_child = gobj_next_child(i_child, &child_);
+            child = gobj_next_child(child);
         }
     }
 
-    json_t *jn_resp = json_string(gbuf_cur_rd_pointer(gbuf));
-    gbuf_decref(gbuf);
+    json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
     KW_DECREF(kw);
     return jn_resp;
 }

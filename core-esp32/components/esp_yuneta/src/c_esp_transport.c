@@ -17,7 +17,6 @@
 #endif
 #include <parse_url.h>
 #include <kwid.h>
-#include <gbuffer.h>
 #include "c_esp_transport.h"
 
 #ifdef ESP_PLATFORM

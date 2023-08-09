@@ -258,7 +258,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -484,7 +484,7 @@ PUBLIC int yev_start_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -503,7 +503,7 @@ PUBLIC int yev_start_event(
     }
 
     if(yev_event_in_ring(yev_event)) {
-        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -520,7 +520,7 @@ PUBLIC int yev_start_event(
     }
 
     if(yev_loop->stopping) {
-        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -759,7 +759,7 @@ PUBLIC int yev_start_timer_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -819,7 +819,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -857,7 +857,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     if(!(yev_event_in_ring(yev_event))) {
-//        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+//        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
 //        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -874,7 +874,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     if(yev_event_cancelling(yev_event)) {
-//        json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+//        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
 //        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -899,7 +899,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -930,7 +930,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1036,7 +1036,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1073,7 +1073,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1346,7 +1346,7 @@ PUBLIC int yev_setup_connect_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1383,7 +1383,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1627,7 +1627,7 @@ PUBLIC int yev_setup_accept_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1667,7 +1667,7 @@ PUBLIC yev_event_t *yev_create_read_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1708,7 +1708,7 @@ PUBLIC yev_event_t *yev_create_write_event(
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
-            json_t *jn_flags = bits2str(yev_flag_s, yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,

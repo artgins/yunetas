@@ -13,7 +13,6 @@
 #include <gobj.h>
 #include <helpers.h>
 #include <parse_url.h>
-#include <gbuffer.h>
 
 #ifdef __cplusplus
 extern "C"{

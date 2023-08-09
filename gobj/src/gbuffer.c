@@ -6,11 +6,10 @@
  *              Copyright (c) 2013-2023 Niyamaka.
  *              All Rights Reserved.
  ***********************************************************************/
-
 #include <ctype.h>
 #include <errno.h>
 #include "kwid.h"
-#include "gbuffer.h"
+#include "helpers.h"
 
 /***************************************************************
  *              Constants

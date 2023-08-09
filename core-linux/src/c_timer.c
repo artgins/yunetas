@@ -140,7 +140,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -173,7 +173,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         ) {
             // Cases seen valids
         } else {
-            json_t *jn_flags = bits2str(yev_flag_strings(), yev_event->flag);
+            json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -348,7 +348,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     gobj_write_bool_attr(gobj, "periodic", FALSE);
 
     if(tracea) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -381,7 +381,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
     gobj_write_bool_attr(gobj, "periodic", TRUE);
 
     if(tracea) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -411,7 +411,7 @@ PUBLIC void clear_timeout(hgobj gobj)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        json_t *jn_flags = bits2str(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,

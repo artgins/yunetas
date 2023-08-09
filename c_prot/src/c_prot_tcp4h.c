@@ -17,7 +17,6 @@
     #include <c_linux_transport.h>
 #endif
 #include <kwid.h>
-#include <gbuffer.h>
 #include "c_prot_tcp4h.h"
 
 /***************************************************************

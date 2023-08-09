@@ -15,8 +15,8 @@
     #include <execinfo.h>
 #endif
 
+#include "helpers.h"
 #include "gobj.h"
-#include "gbuffer.h"
 
 extern void jsonp_free(void *ptr);
 

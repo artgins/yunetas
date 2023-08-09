@@ -40,7 +40,6 @@ set (HDRS
     src/log_udp_handler.h
     src/helpers.h
     src/kwid.h
-    src/gbuffer.h
     src/msg_ievent.h
     src/comm_prot.h
     src/command_parser.h
