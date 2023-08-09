@@ -308,6 +308,16 @@ typedef enum {
 #define DTP_SCHEMA      DTP_POINTER
 //#define ASN_POINTER     DTP_POINTER
 
+#define DTP_IS_INTEGER(type) ((type) == DTP_INTEGER)
+#define DTP_IS_REAL(type) ((type) == DTP_REAL)
+#define DTP_IS_BOOLEAN(type) ((type) == DTP_BOOLEAN)
+#define DTP_IS_STRING(type) ((type) == DTP_STRING)
+
+#define DTP_IS_NUMBER(type)     \
+    (DTP_IS_INTEGER(type) ||    \
+     DTP_IS_REAL(type) ||       \
+     DTP_IS_BOOLEAN(type))
+
 /*
  *  SData field flags.
  */
@@ -1114,6 +1124,7 @@ PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name);
 PUBLIC BOOL gobj_is_readable_attr(hgobj gobj, const char *name); // True is attr is SDF_RD (public readable)
 PUBLIC BOOL gobj_is_writable_attr(hgobj gobj, const char *name);
 PUBLIC int gobj_reset_volatil_attrs(hgobj gobj);
+PUBLIC int gobj_reset_rstats_attrs(hgobj gobj);
 
 PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
     hgobj gobj,

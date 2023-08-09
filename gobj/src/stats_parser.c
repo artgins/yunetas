@@ -58,22 +58,22 @@ PUBLIC json_t * stats_parser(hgobj gobj,
 /****************************************************************************
  *  Build stats from gobj's attributes with SFD_STATS flag.
  ****************************************************************************/
-PRIVATE int reset_stats_callback(json_t *kw, const char *key, json_t *value)
-{
-    // TODO uso un default? de un schema? gobj_read_default_attr_value(gobj, it->name);
-    if(json_is_array(value)) {
-        json_object_set_new(kw, key, json_array());
-    } else if(json_is_integer(value)) {
-        json_object_set_new(kw, key, json_integer(0));
-    } else if(json_is_boolean(value)) {
-        json_object_set_new(kw, key, json_false());
-    } else if(json_is_real(value)) {
-        json_object_set_new(kw, key, json_real(0));
-    } else if(json_is_null(value)) {
-    }
-    return 0;
-}
-PUBLIC json_t * build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+//PRIVATE int reset_stats_callback(json_t *kw, const char *key, json_t *value)
+//{
+//    // TODO uso un default? de un schema? gobj_read_default_attr_value(gobj, it->name);
+//    if(json_is_array(value)) {
+//        json_object_set_new(kw, key, json_array());
+//    } else if(json_is_integer(value)) {
+//        json_object_set_new(kw, key, json_integer(0));
+//    } else if(json_is_boolean(value)) {
+//        json_object_set_new(kw, key, json_false());
+//    } else if(json_is_real(value)) {
+//        json_object_set_new(kw, key, json_real(0));
+//    } else if(json_is_null(value)) {
+//    }
+//    return 0;
+//}
+PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(!gobj) {
         KW_DECREF(kw);
@@ -83,34 +83,19 @@ PUBLIC json_t * build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
     // TODO check "__reset_stats__" authz
     // TODO check "__read_stats__" authz
 
-    const sdata_desc_t *sdesc = sdata_schema(gobj_hsdata(gobj));
+    const sdata_desc_t *sdesc = gobj_attr_desc(gobj, NULL, FALSE);
     const sdata_desc_t *it;
     if(stats && strcmp(stats, "__reset__")==0) {
         /*-------------------------*
          *  Reset Stats in sdata
          *-------------------------*/
-        it = sdesc;
-        while(it && it->name) {
-            if(!ASN_IS_NUMBER(it->type)) {
-                it++;
-                continue;
-            }
-            if(it->flag & SDF_RSTATS) {
-                SData_Value_t v = gobj_read_default_attr_value(gobj, it->name);
-                if(ASN_IS_REAL_NUMBER(it->type)) {
-                    gobj_write_real_attr(gobj, it->name, v.f);
-                } else if(ASN_IS_NATURAL_NUMBER(it->type)) {
-                    gobj_write_integer_attr(gobj, it->name, v.u64);
-                }
-            }
-            it++;
-        }
+        gobj_reset_rstats_attrs(gobj);
 
         /*----------------------------*
          *  Reset Stats in jn_stats
          *----------------------------*/
-        json_t *jn_stats = gobj_jn_stats(gobj);
-        kw_walk(jn_stats, reset_stats_callback);
+// TODO       json_t *jn_stats = gobj_jn_stats(gobj);
+//        kw_walk(jn_stats, reset_stats_callback);
 
         stats = "";
     }
@@ -125,7 +110,7 @@ PUBLIC json_t * build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
      *-------------------------*/
     it = sdesc;
     while(it && it->name) {
-        if(!(ASN_IS_NUMBER(it->type) || ASN_IS_STRING(it->type))) {
+        if(!(DTP_IS_NUMBER(it->type) || DTP_IS_STRING(it->type))) {
             it++;
             continue;
         }
@@ -145,19 +130,19 @@ PUBLIC json_t * build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
             }
         }
         if(it->flag & (SDF_STATS|SDF_RSTATS|SDF_PSTATS)) {
-            if(ASN_IS_NATURAL_NUMBER(it->type)) {
+            if(DTP_IS_NUMBER(it->type)) {
                 json_object_set_new(
                     jn_data,
                     it->name,
                     json_integer(gobj_read_integer_attr(gobj, it->name))
                 );
-            } else if(ASN_IS_REAL_NUMBER(it->type)) {
+            } else if(DTP_IS_REAL(it->type)) {
                 json_object_set_new(
                     jn_data,
                     it->name,
                     json_real(gobj_read_real_attr(gobj, it->name))
                 );
-            } else if(ASN_IS_STRING(it->type)) {
+            } else if(DTP_IS_STRING(it->type)) {
                 json_object_set_new(
                     jn_data,
                     it->name,
@@ -171,17 +156,17 @@ PUBLIC json_t * build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
     /*----------------------------*
      *      Stats in jn_stats
      *----------------------------*/
-    const char *key;
-    json_t *v;
-    json_t *jn_stats = gobj_jn_stats(gobj); // Stats in gobj->jn_stats;
-    json_object_foreach(jn_stats, key, v) {
-        if(!empty_string(stats)) {
-            if(strstr(stats, key)==0) {
-                continue;
-            }
-        }
-        json_object_set(jn_data, key, v);
-    }
+// TODO   const char *key;
+//    json_t *v;
+//    json_t *jn_stats = gobj_jn_stats(gobj); // Stats in gobj->jn_stats;
+//    json_object_foreach(jn_stats, key, v) {
+//        if(!empty_string(stats)) {
+//            if(strstr(stats, key)==0) {
+//                continue;
+//            }
+//        }
+//        json_object_set(jn_data, key, v);
+//    }
 
     KW_DECREF(kw)
     return jn_data;

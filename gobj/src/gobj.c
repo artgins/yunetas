@@ -2137,6 +2137,19 @@ PUBLIC int gobj_reset_volatil_attrs(hgobj gobj)
 }
 
 /***************************************************************************
+ *  ATTR: write
+ *  Reset rstats attributes
+ ***************************************************************************/
+PUBLIC int gobj_reset_rstats_attrs(hgobj gobj)
+{
+    return sdata_write_default_values(
+        gobj,
+        SDF_RSTATS,     // include_flag
+        0               // exclude_flag
+    );
+}
+
+/***************************************************************************
  *  ATTR: read str
  *  Return is NOT yours! New api (May/2019), js style
  *  Inherit from js-core
