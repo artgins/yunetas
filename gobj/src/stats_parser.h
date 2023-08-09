@@ -3,13 +3,12 @@
  *
  *          Stats parser
  *
- *          Copyright (c) 2017 Niyamaka.
+ *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
 #include "gobj.h"
-#include "msg_ievent.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -18,7 +17,7 @@ extern "C"{
 /***************************************************
  *              Prototypes
  **************************************************/
-PUBLIC json_t * stats_parser(
+PUBLIC json_t *stats_parser(
     hgobj gobj,
     const char *stats,
     json_t *kw,

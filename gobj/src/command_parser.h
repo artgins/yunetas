@@ -3,7 +3,7 @@
  *
  *          Command parser
  *
- *          Copyright (c) 2017 Niyamaka.
+ *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -17,7 +17,7 @@ extern "C"{
 /***************************************************
  *              Prototypes
  **************************************************/
-PUBLIC json_t * command_parser(
+PUBLIC json_t *command_parser(
     hgobj gobj,
     const char *command,
     json_t *kw,

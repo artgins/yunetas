@@ -1314,7 +1314,7 @@ static inline const char *gobj_yuno_realm_name(void) {return gobj_read_str_attr(
 static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_id");}
 
 PUBLIC const char *get_host_name(void);
-PUBLIC const char *get_user_name(void);
+PUBLIC const char *get_user_name(void); // Who started yuno
 
 PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with gobj's public attributes.
 

@@ -4486,7 +4486,7 @@ PUBLIC const char *get_host_name(void)
 {
     return __hostname__;
 }
-PUBLIC const char *get_user_name(void)
+PUBLIC const char *get_user_name(void)  // Who started yuno
 {
     return __username__;
 }

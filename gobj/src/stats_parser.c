@@ -3,9 +3,10 @@
  *
  *          Stats parser
  *
- *          Copyright (c) 2017 Niyamaka.
+ *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
 ***********************************************************************/
+#include "msg_ievent.h"
 #include "stats_parser.h"
 
 /***************************************************************
@@ -43,15 +44,14 @@ PUBLIC json_t * stats_parser(hgobj gobj,
         kw,     // owned
         src
     );
-    append_yuno_metadata(gobj, jn_data, stats);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
-        0,
-        0,
-        0,
-        jn_data,  // owned
-        kw // owned
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data,    // jn_data, owned
+        kw          // kw_request, owned
     );
 }
 

@@ -3,9 +3,10 @@
  *
  *          Command parser
  *
- *          Copyright (c) 2017 Niyamaka.
+ *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
 ***********************************************************************/
+#include "msg_ievent.h"
 #include "command_parser.h"
 
 /***************************************************************
@@ -39,7 +40,7 @@ PUBLIC json_t * command_parser(hgobj gobj,
 {
     const sdata_desc_t *cnf_cmd = 0;
     if(!command_in_gobj(gobj, command)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -15,
             json_sprintf(
@@ -59,7 +60,7 @@ PUBLIC json_t * command_parser(hgobj gobj,
         log_debug_json(0, kw_cmd, "expanded_command: kw_cmd");
     }
     if(!cnf_cmd) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -14,
             kw_cmd,
@@ -100,7 +101,7 @@ PUBLIC json_t * command_parser(hgobj gobj,
 //                 "command",      "%s", command?command:"",
 //                 NULL
 //             );
-//             return msg_iev_build_webix(
+//             return msg_iev_build_response(
 //                 gobj,
 //                 -403,
 //                 json_sprintf(

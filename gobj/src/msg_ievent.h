@@ -191,7 +191,7 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
 /*---------------------------------------------------------*
  *  Helpers of request/response pattern
  *---------------------------------------------------------*/
-PUBLIC json_t *build_command_response( // // old build_webix()
+PUBLIC json_t *build_command_response( // OLD build_webix()
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned, if null then not set
@@ -216,13 +216,13 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     BOOL no_reverse_dst
 );
 
-static inline json_t *msg_iev_build_response(
+static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    json_t *kw_request // owned, used to extract ONLY __md_iev__.
+    json_t *kw_request  // owned, used to extract ONLY __md_iev__.
 ) {
     json_t *jn_command = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
     json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_command, TRUE);
