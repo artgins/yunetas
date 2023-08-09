@@ -22,6 +22,8 @@ set (SRCS
     src/gbuffer.c
     src/msg_ievent.c
     src/comm_prot.c
+    src/command_parser.c
+    src/stats_parser.c
 
     src/stacktrace_with_bfd.c
 )
@@ -38,10 +40,13 @@ set (HDRS
     src/log_udp_handler.h
     src/helpers.h
     src/kwid.h
-    src/stacktrace_with_bfd.h
     src/gbuffer.h
     src/msg_ievent.h
     src/comm_prot.h
+    src/command_parser.h
+    src/stats_parser.h
+
+    src/stacktrace_with_bfd.h
 )
 
 ##############################################
