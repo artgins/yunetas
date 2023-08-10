@@ -2,6 +2,7 @@
 #           Source
 #------------------------------------------------------#
 set(srcs
+    src/msg_ievent.c
     src/c_prot_http_cli.c
     src/c_ievent_cli.c
     src/c_prot_tcp4h.c

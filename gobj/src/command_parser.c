@@ -6,8 +6,8 @@
  *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
 ***********************************************************************/
-#include "msg_ievent.h"
 #include "helpers.h"
+#include "kwid.h"
 #include "command_parser.h"
 
 /***************************************************************
@@ -41,7 +41,8 @@ PUBLIC json_t * command_parser(hgobj gobj,
 {
     const sdata_desc_t *cnf_cmd = 0;
     if(!command_in_gobj(gobj, command)) {
-        return msg_iev_build_response(
+        KW_DECREF(kw);
+        return build_command_response(
             gobj,
             -1,
             json_sprintf(
@@ -50,8 +51,7 @@ PUBLIC json_t * command_parser(hgobj gobj,
                 command
             ),
             0,
-            0,
-            kw
+            0
         );
     }
 
@@ -61,13 +61,13 @@ PUBLIC json_t * command_parser(hgobj gobj,
         gobj_trace_json(gobj, kw_cmd, "expanded_command: kw_cmd");
     }
     if(!cnf_cmd) {
-        return msg_iev_build_response(
+        KW_DECREF(kw);
+        return build_command_response(
             gobj,
             -1,
             kw_cmd,
             0,
-            0,
-            kw
+            0
         );
     }
 

@@ -6,7 +6,7 @@
  *          Copyright (c) 2017-2023 Niyamaka.
  *          All Rights Reserved.
 ***********************************************************************/
-#include "msg_ievent.h"
+#include "kwid.h"
 #include "stats_parser.h"
 
 /***************************************************************
@@ -37,7 +37,6 @@ PUBLIC json_t * stats_parser(hgobj gobj,
     /*--------------------------------------*
      *  Build standard stats
      *--------------------------------------*/
-    KW_INCREF(kw);
     json_t *jn_data = build_stats(
         gobj,
         stats,
@@ -45,13 +44,12 @@ PUBLIC json_t * stats_parser(hgobj gobj,
         src
     );
 
-    return msg_iev_build_response(
+    return build_command_response(
         gobj,
         0,          // result
         0,          // jn_comment
         0,          // jn_schema
-        jn_data,    // jn_data, owned
-        kw          // kw_request, owned
+        jn_data    // jn_data, owned
     );
 }
 

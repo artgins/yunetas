@@ -81,8 +81,8 @@
  ****************************************************************************/
 #pragma once
 
-#include "gobj.h"
-#include "kwid.h"
+#include <gobj.h>
+#include <kwid.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -187,17 +187,6 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     const char *stack
 );
 
-/*---------------------------------------------------------*
- *  Helpers of request/response pattern
- *---------------------------------------------------------*/
-PUBLIC json_t *build_command_response( // OLD build_webix()
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
-);
-
 /*----------------------------------------------------------*
  *  Set iev metadata back in a response reversing src/dst
  *
@@ -205,28 +194,28 @@ PUBLIC json_t *build_command_response( // OLD build_webix()
  *      - Delete __temp__ key in kw_response
  *      - Set __md_yuno__ key
  *
- *  old msg_iev_answer() adding reverse_dst TRUE
- *  old msg_iev_answer_without_answer_filter() adding reverse_dst FALSE
+ *  old msg_iev_answer() with reverse_dst TRUE
+ *  old msg_iev_answer_without_answer_filter() with reverse_dst FALSE
  *-----------------------------------------------------------*/
 PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message
-    BOOL no_reverse_dst
+    BOOL reverse_dst
 );
 
-static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned
-    json_t *jn_schema,  // owned
-    json_t *jn_data,    // owned
-    json_t *kw_request  // owned, used to extract ONLY __md_iev__.
-) {
-    json_t *jn_command = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_command, TRUE);
-    return jn_answer;
-}
+//static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
+//    hgobj gobj,
+//    json_int_t result,
+//    json_t *jn_comment, // owned
+//    json_t *jn_schema,  // owned
+//    json_t *jn_data,    // owned
+//    json_t *kw_request  // owned, used to extract ONLY __md_iev__.
+//) {
+//    json_t *jn_command = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
+//    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_command, TRUE);
+//    return jn_answer;
+//}
 
 /*
  *  Trace inter-events with metadata of kw

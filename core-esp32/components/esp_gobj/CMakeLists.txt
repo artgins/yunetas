@@ -13,7 +13,6 @@ set(srcs
     src/helpers.c
     src/kwid.c
     src/gbuffer.c
-    src/msg_ievent.c
     src/comm_prot.c
     src/command_parser.c
     src/stats_parser.c

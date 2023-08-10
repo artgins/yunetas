@@ -3577,6 +3577,40 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *build_command_response( // // old build_webix()
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
+) {
+    if(!jn_comment) {
+        jn_comment = json_string("");
+    }
+    if(!jn_schema) {
+        jn_schema = json_null();
+    }
+    if(!jn_data) {
+        jn_data = json_null();
+    }
+
+    json_t *response = json_object();
+    json_object_set_new(response, "result", json_integer(result));
+    if(jn_comment) {
+        json_object_set_new(response, "comment", jn_comment);
+    }
+    if(jn_schema) {
+        json_object_set_new(response, "schema", jn_schema);
+    }
+    if(jn_data) {
+        json_object_set_new(response, "data", jn_data);
+    }
+    return response;
+}
+
+/***************************************************************************
  *  Set manually the bottom gobj
  ***************************************************************************/
 PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
@@ -4000,12 +4034,6 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
 
     int list_size = 0;
     const char **ss = split2(path, delimiter, &list_size);
-
-    if(list_size <= 1) {
-        split_free2(ss);
-        GBMEM_FREE(path)
-        return gobj;
-    }
 
     hgobj child = 0;
     const char *key = 0;
@@ -6955,7 +6983,7 @@ PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
-//#define CONFIG_TRACK_MEMORY
+#define CONFIG_TRACK_MEMORY
 
 #ifdef CONFIG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;

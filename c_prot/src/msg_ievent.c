@@ -296,40 +296,6 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *build_command_response( // // old build_webix()
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
-) {
-    if(!jn_comment) {
-        jn_comment = json_string("");
-    }
-    if(!jn_schema) {
-        jn_schema = json_null();
-    }
-    if(!jn_data) {
-        jn_data = json_null();
-    }
-
-    json_t *response = json_object();
-    json_object_set_new(response, "result", json_integer(result));
-    if(jn_comment) {
-        json_object_set_new(response, "comment", jn_comment);
-    }
-    if(jn_schema) {
-        json_object_set_new(response, "schema", jn_schema);
-    }
-    if(jn_data) {
-        json_object_set_new(response, "data", jn_data);
-    }
-    return response;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 //PUBLIC int append_yuno_metadata(hgobj gobj, json_t *kw, const char *source)
 //{
 //    if(!kw) {
@@ -390,14 +356,14 @@ PRIVATE int msg_iev_reverse_dst( // Put in destining the source, and in the sour
  *      - Delete __temp__ key in kw_response
  *      - Set __md_yuno__ key
  *
- *  old msg_iev_answer() if reverse_dst TRUE
- *  old msg_iev_answer_without_answer_filter() if reverse_dst FALSE
+ *  old msg_iev_answer() with reverse_dst TRUE
+ *  old msg_iev_answer_without_answer_filter() with reverse_dst FALSE
  ***************************************************************************/
 PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message.
-    BOOL no_reverse_dst
+    BOOL reverse_dst
 ) {
     if(!kw_response) {
         kw_response = json_object();
@@ -426,12 +392,12 @@ PUBLIC json_t *msg_iev_set_back_metadata(
         "yuno_role", gobj_yuno_role(),
         "yuno_name", gobj_name(gobj_yuno()),
         "yuno_id", gobj_yuno_id(),
-        "__t__", json_integer(t)
+        "__t__", t
     );
     json_object_set_new(__md_iev_dst__, "__md_yuno__", jn_metadata);
 
-    if(!no_reverse_dst) {
-        json_t *jn_ievent_id = msg_iev_get_stack(gobj, __md_iev_dst__, IEVENT_MESSAGE_AREA_ID, TRUE);
+    if(reverse_dst) {
+        json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw_response, IEVENT_MESSAGE_AREA_ID, TRUE);
         msg_iev_reverse_dst(gobj, jn_ievent_id);
     }
 

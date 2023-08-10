@@ -16,9 +16,10 @@
 #include <kwid.h>
 #include <gobj_environment.h>
 #include <c_timer.h>
-#include <msg_ievent.h>
 #include <parse_url.h>
 #include <comm_prot.h>
+#include <helpers.h>
+#include "msg_ievent.h"
 #include "c_ievent_cli.h"
 
 /***************************************************************
@@ -1118,16 +1119,22 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("Service not found: '%s'", service),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            kw_response = msg_iev_set_back_metadata(
+                gobj,
+                kw,             // owned, kw request, used to extract ONLY __md_iev__
+                kw_response,    // like owned, is returned!, created if null, the body of answer message
+                TRUE            // reverse_dst
+            );
             return send_static_iev(gobj,
                 EV_MT_STATS_ANSWER,
-                msg_iev_build_response(
-                    gobj,
-                    -100,
-                    json_sprintf("Service '%s' not found.", service),
-                    0,
-                    0,
-                    kw
-                ),
+                kw_response,
                 src
             );
         }
@@ -1166,6 +1173,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
+service = "XX"; // TODO TEST
 
     hgobj service_gobj;
     if(empty_string(service)) {
@@ -1200,6 +1208,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!webix) {
         // Asynchronous response
     } else {
+print_json2("XX", kw); // TODO TEST
         json_t *kw2 = msg_iev_set_back_metadata(
             gobj,
             kw,
