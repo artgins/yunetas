@@ -56,21 +56,21 @@ PUBLIC json_t * stats_parser(hgobj gobj,
 /****************************************************************************
  *  Build stats from gobj's attributes with SFD_STATS flag.
  ****************************************************************************/
-//PRIVATE int reset_stats_callback(json_t *kw, const char *key, json_t *value)
-//{
-//    // TODO uso un default? de un schema? gobj_read_default_attr_value(gobj, it->name);
-//    if(json_is_array(value)) {
-//        json_object_set_new(kw, key, json_array());
-//    } else if(json_is_integer(value)) {
-//        json_object_set_new(kw, key, json_integer(0));
-//    } else if(json_is_boolean(value)) {
-//        json_object_set_new(kw, key, json_false());
-//    } else if(json_is_real(value)) {
-//        json_object_set_new(kw, key, json_real(0));
-//    } else if(json_is_null(value)) {
-//    }
-//    return 0;
-//}
+PRIVATE int reset_stats_callback(hgobj gobj, json_t *kw, const char *key, json_t *value)
+{
+    // TODO uso un default? de un schema? gobj_read_default_attr_value(gobj, it->name);
+    if(json_is_array(value)) {
+        json_object_set_new(kw, key, json_array());
+    } else if(json_is_integer(value)) {
+        json_object_set_new(kw, key, json_integer(0));
+    } else if(json_is_boolean(value)) {
+        json_object_set_new(kw, key, json_false());
+    } else if(json_is_real(value)) {
+        json_object_set_new(kw, key, json_real(0));
+    } else if(json_is_null(value)) {
+    }
+    return 0;
+}
 PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(!gobj) {
@@ -92,8 +92,8 @@ PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         /*----------------------------*
          *  Reset Stats in jn_stats
          *----------------------------*/
-// TODO       json_t *jn_stats = gobj_jn_stats(gobj);
-//        kw_walk(jn_stats, reset_stats_callback);
+        json_t *jn_stats = gobj_jn_stats(gobj);
+        kw_walk(gobj, jn_stats, reset_stats_callback);
 
         stats = "";
     }
@@ -154,17 +154,17 @@ PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     /*----------------------------*
      *      Stats in jn_stats
      *----------------------------*/
-// TODO   const char *key;
-//    json_t *v;
-//    json_t *jn_stats = gobj_jn_stats(gobj); // Stats in gobj->jn_stats;
-//    json_object_foreach(jn_stats, key, v) {
-//        if(!empty_string(stats)) {
-//            if(strstr(stats, key)==0) {
-//                continue;
-//            }
-//        }
-//        json_object_set(jn_data, key, v);
-//    }
+    const char *key;
+    json_t *v;
+    json_t *jn_stats = gobj_jn_stats(gobj); // Stats in gobj->jn_stats;
+    json_object_foreach(jn_stats, key, v) {
+        if(!empty_string(stats)) {
+            if(strstr(stats, key)==0) {
+                continue;
+            }
+        }
+        json_object_set(jn_data, key, v);
+    }
 
     KW_DECREF(kw)
     return jn_data;

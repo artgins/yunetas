@@ -6216,6 +6216,257 @@ PUBLIC int gobj_publish_event(
 
 
 
+                    /*------------------------------------*
+                     *  SECTION: Authorization functions
+                     *------------------------------------*/
+
+
+
+
+/***************************************************************************
+ *  Authenticate
+ *  Return json response
+ *
+        {
+            "result": 0,        // 0 successful authentication, -1 error
+            "comment": "",
+            "username": ""      // username authenticated
+        }
+
+ *  HACK if there is no authentication parser the authentication is TRUE
+    and the username is the current system user
+ *  WARNING Becare and use no parser only in local services!
+ ***************************************************************************/
+PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    /*---------------------------------------------*
+     *  The local mt_authenticate has preference
+     *---------------------------------------------*/
+    if(gobj->gclass->gmt->mt_authenticate) {
+        return gobj->gclass->gmt->mt_authenticate(gobj, kw, src);
+    }
+
+    /*-----------------------------------------------*
+     *  Then use the global authzs parser
+     *-----------------------------------------------*/
+    if(!__global_authenticate_parser_fn__) {
+#ifdef __linux__
+        struct passwd *pw = getpwuid(getuid());
+
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s, s:s, s:o}",
+            "result", 0,
+            "comment", "Working without authentication",
+            "username", pw->pw_name,
+            "jwt_payload", json_null()
+        );
+#else
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s, s:s, s:o}",
+            "result", 0,
+            "comment", "Working without authentication",
+            "username", "yuneta",
+            "jwt_payload", json_null()
+        );
+#endif
+    }
+
+    return __global_authenticate_parser_fn__(gobj, kw, src);
+}
+
+/****************************************************************************
+ *  list authzs of gobj
+ ****************************************************************************/
+PUBLIC json_t *gobj_authzs(
+    hgobj gobj  // If null return global authzs
+)
+{
+    return 0;
+// TODO    return authzs_list(gobj, "");
+}
+
+/****************************************************************************
+ *  list authzs of gobj
+ ****************************************************************************/
+PUBLIC json_t *gobj_authz(
+    hgobj gobj_,
+    const char *authz // return all list if empty string, else return authz desc
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        return 0;
+    }
+    // TODO return authzs_list(gobj, authz);
+    return 0;
+}
+
+/****************************************************************************
+ *  Return if user has authz in gobj in context
+ *  HACK if there is no authz checker the authz is TRUE
+ ****************************************************************************/
+PUBLIC BOOL gobj_user_has_authz(
+    hgobj gobj_,
+    const char *authz,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t * gobj = gobj_;
+
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return FALSE;
+    }
+
+    /*----------------------------------------------------*
+     *  The local mt_authz_checker has preference
+     *----------------------------------------------------*/
+    if(gobj->gclass->gmt->mt_authz_checker) {
+        BOOL has_permission = gobj->gclass->gmt->mt_authz_checker(gobj, authz, kw, src);
+        if(__trace_gobj_authzs__(gobj)) {
+//TODO            log_debug_json(0, kw,
+//                "local authzs 🔑🔑 %s => %s",
+//                gobj_short_name(gobj),
+//                has_permission?"👍":"🚫"
+//            );
+        }
+        return has_permission;
+    }
+
+    /*-----------------------------------------------*
+     *  Then use the global authz checker
+     *-----------------------------------------------*/
+    if(__global_authz_checker_fn__) {
+        BOOL has_permission = __global_authz_checker_fn__(gobj, authz, kw, src);
+        if(__trace_gobj_authzs__(gobj)) {
+//  TODO          log_debug_json(0, kw,
+//                "global authzs 🔑🔑 %s => %s",
+//                gobj_short_name(gobj),
+//                has_permission?"👍":"🚫"
+//            );
+        }
+        return has_permission;
+    }
+
+    KW_DECREF(kw)
+    return TRUE; // HACK if there is no authz checker the authz is TRUE
+}
+
+/****************************************************************************
+ *
+ ****************************************************************************/
+PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)
+{
+    // TODO return global_authz_table;
+    return 0;
+}
+
+
+
+
+
+                    /*---------------------------------*
+                     *  SECTION: Stats
+                     *---------------------------------*/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_int_t gobj_set_stat(hgobj gobj_, const char *path, json_int_t value)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        return 0;
+    }
+    json_int_t old_value = kw_get_int(gobj, gobj->jn_stats, path, 0, 0);
+    kw_set_dict_value(gobj, gobj->jn_stats, path, json_integer(value));
+
+    return old_value;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_int_t gobj_incr_stat(hgobj gobj_, const char *path, json_int_t value)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        return 0;
+    }
+
+    json_int_t cur_value = kw_get_int(gobj, gobj->jn_stats, path, 0, 0);
+    cur_value += value;
+    kw_set_dict_value(gobj, gobj->jn_stats, path, json_integer(cur_value));
+
+    return cur_value;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_int_t gobj_decr_stat(hgobj gobj_, const char *path, json_int_t value)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        return 0;
+    }
+    json_int_t cur_value = kw_get_int(gobj, gobj->jn_stats, path, 0, 0);
+    cur_value -= value;
+    kw_set_dict_value(gobj, gobj->jn_stats, path, json_integer(cur_value));
+
+    return cur_value;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)
+{
+    if(!gobj) {
+        return 0;
+    }
+    return kw_get_int(gobj, ((gobj_t *)gobj)->jn_stats, path, 0, 0);
+}
+
+/***************************************************************************
+ *  WARNING the json return is NOT YOURS!
+ ***************************************************************************/
+PUBLIC json_t *gobj_jn_stats(hgobj gobj)
+{
+    return ((gobj_t *)gobj)->jn_stats;
+}
+
+
+
+
                     /*---------------------------------*
                      *      Trace functions
                      *---------------------------------*/

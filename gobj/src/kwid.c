@@ -1717,6 +1717,59 @@ PUBLIC int kw_delete_metadata_keys(
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int _walk_object(
+    hgobj gobj,
+    json_t *kw,
+    int (*callback)(hgobj gobj, json_t *kw, const char *key, json_t *value)
+)
+{
+    const char *key;
+    json_t *value;
+    json_object_foreach(kw, key, value) {
+        json_type type = json_typeof(value);
+        switch(type) {
+        case JSON_OBJECT:
+            if(_walk_object(gobj, value, callback)<0) {
+                return -1;
+            }
+            break;
+        case JSON_ARRAY:
+        default:
+            if(callback(gobj, kw, key, value)<0) {
+                return -1;
+            }
+            break;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Walk over an object
+ ***************************************************************************/
+PUBLIC int kw_walk(
+    hgobj gobj,
+    json_t *kw, // not owned
+    int (*callback)(hgobj gobj, json_t *kw, const char *key, json_t *value)
+)
+{
+    if(json_is_object(kw)) {
+        return _walk_object(gobj, kw, callback);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json to duplicate must be an object or array",
+            NULL
+        );
+        return -1;
+    }
+}
+
 
 
 

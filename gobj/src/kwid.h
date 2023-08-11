@@ -331,6 +331,12 @@ PUBLIC int kw_delete_metadata_keys(
     json_t *kw  // NOT owned
 );
 
+PUBLIC int kw_walk(
+    hgobj gobj,
+    json_t *kw, // not owned
+    int (*callback)(hgobj gobj, json_t *kw, const char *key, json_t *value)
+);
+
 /*---------------------------------*
  *          KWID
  *---------------------------------*/
@@ -353,7 +359,6 @@ PUBLIC json_t *kwid_get(
     kw_flag_t flag,
     size_t *idx     // If not null set the idx in case of array
 );
-
 
 #ifdef __cplusplus
 }

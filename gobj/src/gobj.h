@@ -1459,9 +1459,88 @@ PUBLIC int gobj_publish_event( // Return the number of sent events (>=0), or -1 
     json_t *kw  // this kw extends kw_request.
 );
 
-/*---------------------------------*
- *      Trace functions
- *---------------------------------*/
+/*--------------------------------------------*
+ *      AUTHZ Authorization functions
+ *--------------------------------------------*/
+/*
+ *  Global authorization levels
+ *
+    "__read_attribute__",       "Authorization to read gobj's attributes"
+        params: "path"
+
+    "__write_attribute__",      "Authorization to write gobj's attributes"
+        params: "path"
+
+    "__execute_command__",      "Authorization to execute gobj's commands"
+        params: "command", "kw"
+
+    "__inject_event__",         "Authorization to inject events to gobj"
+
+    "__subscribe_event__",      "Authorization to subscribe events of gobj"
+        params: "event", "kw"
+
+    "__read_stats__"            "Authorization to read gobj's stats"
+        params: "stats", "kw"
+
+    "__reset_stats__"           "Authorization to reset gobj's stats"
+        params: "stats", "kw"
+
+ */
+
+/*
+ *  Authenticate
+ *  Return json response
+ *
+        {
+            "result": 0,        // 0 successful authentication, -1 error
+            "comment": "",
+            "username": ""      // username authenticated
+        }
+
+ *  HACK if there is no authentication parser the authentication is TRUE
+    and the username is the current system user
+ *  WARNING Becare and use no parser only in local services!
+ */
+PUBLIC json_t *gobj_authenticate(
+    hgobj gobj,
+    json_t *kw,
+    hgobj src
+);
+
+PUBLIC json_t *gobj_authzs( // list authzs of gobj
+    hgobj gobj  // If null return global authzs
+);
+PUBLIC json_t *gobj_authz( // return authz of gobj
+    hgobj gobj,
+    const char *authz // return all list if empty string, else return authz desc
+);
+
+/*
+ *  Return if user has authz in gobj in context
+ *  HACK if there is no authz checker the authz is TRUE
+ */
+PUBLIC BOOL gobj_user_has_authz(
+    hgobj gobj,
+    const char *authz,
+    json_t *kw,
+    hgobj src
+);
+
+PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void);
+
+/*--------------------------------------------*
+ *  Stats functions
+ *--------------------------------------------*/
+PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value); // return old value
+PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value); // return new value
+PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value); // return new value
+PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
+PUBLIC json_t *gobj_jn_stats(hgobj gobj);  // WARNING the json return is NOT YOURS!
+
+
+/*--------------------------------------------*
+ *          Trace functions
+ *--------------------------------------------*/
 /*
  *  Global trace levels
  *  16 higher bits for global use.
