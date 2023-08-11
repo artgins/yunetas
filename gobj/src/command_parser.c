@@ -21,9 +21,19 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE BOOL command_in_gobj(
+PRIVATE json_t *expand_command(
     hgobj gobj,
-    const char *command
+    const char *command,
+    json_t *kw,     // NOT owned
+    const sdata_desc_t **cmd_desc
+);
+PRIVATE json_t *build_cmd_kw(
+    hgobj gobj,
+    const char *command,
+    const sdata_desc_t *cnf_cmd,
+    char *parameters,
+    json_t *kw, // not owned
+    int *result
 );
 
 /***************************************************************
@@ -33,30 +43,15 @@ PRIVATE BOOL command_in_gobj(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * command_parser(hgobj gobj,
+PUBLIC json_t * command_parser(
+    hgobj gobj,
     const char *command,
     json_t *kw,
     hgobj src
 )
 {
     const sdata_desc_t *cnf_cmd = 0;
-    if(!command_in_gobj(gobj, command)) {
-        KW_DECREF(kw);
-        return build_command_response(
-            gobj,
-            -1,
-            json_sprintf(
-                "%s: command '%s' not available. Try 'help' command.",
-                gobj_short_name(gobj),
-                command
-            ),
-            0,
-            0
-        );
-    }
-
-    const sdata_desc_t *command_table = gobj_command_desc(gobj, NULL, FALSE);
-    json_t *kw_cmd = expand_command(gobj_short_name(gobj), command_table, command, kw, &cnf_cmd);
+    json_t *kw_cmd = expand_command(gobj, command, kw, &cnf_cmd);
     if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
         gobj_trace_json(gobj, kw_cmd, "expanded_command: kw_cmd");
     }
@@ -115,9 +110,9 @@ PUBLIC json_t * command_parser(hgobj gobj,
 //         }
 //     }
 
-    json_t *webix = 0;
+    json_t *kw_response = 0;
     if(cnf_cmd->json_fn) {
-        webix = (cnf_cmd->json_fn)(gobj, cnf_cmd->name, kw_cmd, src);
+        kw_response = (cnf_cmd->json_fn)(gobj, cnf_cmd->name, kw_cmd, src);
     } else {
         /*
          *  Redirect command to event
@@ -132,13 +127,14 @@ PUBLIC json_t * command_parser(hgobj gobj,
         return 0;   /* asynchronous response */
     }
     KW_DECREF(kw);
-    return webix;  /* can be null if asynchronous response */
+    return kw_response;  /* can be null if asynchronous response */
+
 }
 
 /***************************************************************************
  *  Find the command descriptor
  ***************************************************************************/
-PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *cmd)
+PRIVATE const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *cmd)
 {
     const sdata_desc_t *pcmd = command_table;
     while(pcmd->name) {
@@ -176,38 +172,12 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
 }
 
 /***************************************************************************
- *  Is a command in the gobj?
- ***************************************************************************/
-PRIVATE BOOL command_in_gobj(
-    hgobj gobj,
-    const char *command
-)
-{
-    const sdata_desc_t *command_table = gobj_command_desc(gobj, NULL, FALSE);
-    if(!command_table) {
-        return FALSE;
-    }
-
-    char *str, *p;
-    str = p = GBMEM_STRDUP(command);
-    char *cmd = get_parameter(p, &p);  // dejalo como en expand
-    if(empty_string(cmd)) {
-        GBMEM_FREE(str);
-        return FALSE;
-    }
-    const sdata_desc_t *cnf_cmd = gobj_command_desc(gobj, cmd, FALSE);
-    GBMEM_FREE(str);
-    return cnf_cmd?TRUE:FALSE;
-}
-
-/***************************************************************************
- *  Return a new kw for command, poping the parameters inside of `command`
+ *  Return a new kw for command, popping the parameters inside of `command`
  *  If cmd_desc is 0 then there is a error
  *  and the return json is a json string message with the error.
  ***************************************************************************/
-PUBLIC json_t *expand_command(
-    const char *gobj_name,
-    const sdata_desc_t *command_table,
+PRIVATE json_t *expand_command(
+    hgobj gobj,
     const char *command,
     json_t *kw,     // NOT owned
     const sdata_desc_t **cmd_desc
@@ -216,19 +186,28 @@ PUBLIC json_t *expand_command(
     if(cmd_desc) {
         *cmd_desc = 0; // It's error
     }
+    const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, FALSE);
+    if(!cmd_table) {
+        return json_sprintf("%s: No command table", gobj_short_name(gobj));
+    }
 
     char *str, *p;
     str = p = GBMEM_STRDUP(command);
     char *cmd = get_parameter(p, &p);
     if(empty_string(cmd)) {
         GBMEM_FREE(str);
-        return json_sprintf("No command");
+        return json_sprintf("%s: No command", gobj_short_name(gobj));
     }
-    const sdata_desc_t *cnf_cmd = command_get_cmd_desc(command_table, cmd);
+    const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
     if(!cnf_cmd) {
         GBMEM_FREE(str);
-        return json_sprintf("No command found: '%s'", cmd);
+        return json_sprintf(
+            "%s: command not available: '%s'. Try 'help' command.",
+            gobj_short_name(gobj),
+            cmd
+        );
     }
+
     if(cmd_desc) {
         *cmd_desc = cnf_cmd;
     }
@@ -245,12 +224,11 @@ PUBLIC json_t *expand_command(
     return kw_cmd;
 }
 
-
 /***************************************************************************
  *  Parameters of command are described as sdata_desc_t
  ***************************************************************************/
 PRIVATE json_t *parameter2json(
-    const char *gobj_name,
+    hgobj gobj,
     int type,
     const char *name,
     const char *s,
@@ -292,7 +270,7 @@ PRIVATE json_t *parameter2json(
         *result = -1;
         json_t *jn_data = json_sprintf(
             "%s: type %d of parameter '%s' is unknown",
-            gobj_name,
+            gobj_short_name(gobj),
             (int)type,
             name
         );
@@ -407,8 +385,8 @@ PRIVATE void add_command_help(gbuffer_t *gbuf, const sdata_desc_t *pcmds, BOOL e
  *  string parameters to json dict
  *  If error (result < 0) return a json string message
  ***************************************************************************/
-PUBLIC json_t *build_cmd_kw(
-    const char *gobj_name,
+PRIVATE json_t *build_cmd_kw(
+    hgobj gobj,
     const char *command,
     const sdata_desc_t *cnf_cmd,
     char *parameters,   // input line
@@ -432,8 +410,7 @@ PUBLIC json_t *build_cmd_kw(
         return kw_cmd;
     }
     /*
-     *  Check required paramters of pure command.
-     *  Else, it's a redirect2event, let action check parameters.
+     *  Check the required parameters of pure command.
      */
     /*
      *  Firstly get required parameters
@@ -463,7 +440,7 @@ PUBLIC json_t *build_cmd_kw(
                 JSON_DECREF(kw_cmd);
                 return json_sprintf(
                     "%s: command '%s', parameter '%s' is required",
-                    gobj_name,
+                    gobj_short_name(gobj),
                     command,
                     ip->name
                 );
@@ -475,11 +452,11 @@ PUBLIC json_t *build_cmd_kw(
             JSON_DECREF(kw_cmd);
             return json_sprintf(
                 "%s: required parameter '%s' not found",
-                gobj_name,
+                gobj_short_name(gobj),
                 ip->name
             );
         }
-        json_t *jn_param = parameter2json(gobj_name, ip->type, ip->name, param, result);
+        json_t *jn_param = parameter2json(gobj, ip->type, ip->name, param, result);
         if(*result < 0) {
             JSON_DECREF(kw_cmd);
             return jn_param;
@@ -489,7 +466,7 @@ PUBLIC json_t *build_cmd_kw(
             JSON_DECREF(kw_cmd);
             return json_sprintf(
                 "%s: internal error, command '%s', parameter '%s'",
-                gobj_name,
+                gobj_short_name(gobj),
                 command,
                 ip->name
             );
@@ -523,7 +500,7 @@ PUBLIC json_t *build_cmd_kw(
 
         if(ip->default_value) {
             json_t *jn_param = parameter2json(
-                gobj_name,
+                gobj,
                 ip->type,
                 ip->name,
                 (char *)ip->default_value,
@@ -552,30 +529,19 @@ PUBLIC json_t *build_cmd_kw(
             // No parameter then stop
             break;
         }
-        if(!value) {
-            // Non-required parameter must be key=value format
-            *result = -1;
-            JSON_DECREF(kw_cmd);
-            return json_sprintf(
-                "%s: command '%s', optional parameters must be with key=value format ('%s=?')",
-                gobj_name,
-                command,
-                key
-            );
-        }
-        const sdata_desc_t *ip = find_ip_parameter(input_parameters, key);
+        const sdata_desc_t *ip2 = find_ip_parameter(input_parameters, key);
         json_t *jn_param = 0;
-        if(ip) {
-            jn_param = parameter2json(gobj_name, ip->type, ip->name, value, result);
+        if(ip2) {
+            jn_param = parameter2json(gobj, ip2->type, ip2->name, value, result);
         } else {
             if(wild_command) {
-                jn_param = parameter2json(gobj_name, DTP_STRING, "wild-option", value, result);
+                jn_param = parameter2json(gobj, DTP_STRING, "wild-option", value, result);
             } else {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
                 return json_sprintf(
                     "%s: '%s' command has no option '%s'",
-                    gobj_name,
+                    gobj_short_name(gobj),
                     command,
                     key?key:"?"
                 );
@@ -590,7 +556,7 @@ PUBLIC json_t *build_cmd_kw(
             JSON_DECREF(kw_cmd);
             jn_param = json_sprintf(
                 "%s: internal error, command '%s', parameter '%s', value '%s'",
-                gobj_name,
+                gobj_short_name(gobj),
                 command,
                 key,
                 value
@@ -605,7 +571,7 @@ PUBLIC json_t *build_cmd_kw(
         JSON_DECREF(kw_cmd);
         return json_sprintf(
             "%s: command '%s' with extra parameters: '%s'",
-            gobj_name,
+            gobj_short_name(gobj),
             command,
             pxxx
         );
@@ -621,7 +587,7 @@ PUBLIC json_t *build_cmd_kw(
  ***************************************************************************/
 PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 {
-    int level = kw_get_int(gobj, kw, "level", 0, KW_WILD_NUMBER);
+    int level = (int)kw_get_int(gobj, kw, "level", 0, KW_WILD_NUMBER);
     const char *cmd = kw_get_str(gobj, kw, "cmd", 0, 0);
     if(!empty_string(cmd)) {
         const sdata_desc_t *cnf_cmd;
@@ -630,7 +596,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
             if(cnf_cmd) {
                 gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
                 gbuffer_printf(gbuf, "%s\n", cmd);
-                int len = strlen(cmd);
+                int len = (int)strlen(cmd);
                 while(len > 0) {
                     gbuffer_printf(gbuf, "%c", '=');
                     len--;
@@ -659,7 +625,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                     if(cnf_cmd) {
                         gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
                         gbuffer_printf(gbuf, "%s\n", cmd);
-                        int len = strlen(cmd);
+                        int len = (int)strlen(cmd);
                         while(len > 0) {
                             gbuffer_printf(gbuf, "%c", '=');
                             len--;

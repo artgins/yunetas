@@ -18,7 +18,6 @@
 #include <c_timer.h>
 #include <parse_url.h>
 #include <comm_prot.h>
-#include <helpers.h>
 #include "msg_ievent.h"
 #include "c_ievent_cli.h"
 
@@ -294,7 +293,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
-    return 0;   // return 0 on asychronous response.
+    return 0;   // return 0 on asynchronous response.
 }
 
 /***************************************************************************
@@ -342,7 +341,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
-    return 0;   // return 0 on asychronous response.
+    return 0;   // return 0 on asynchronous response.
 }
 
 /***************************************************************************
@@ -583,9 +582,9 @@ PRIVATE int send_identity_card(hgobj gobj)
 
     json_t *jn_extra_info = gobj_read_json_attr(gobj, "extra_info");
     if(jn_extra_info) {
-        // Información extra que puede añadir el usuario,
-        // para adjuntar a la tarjeta de presentación.
-        // No voy a permitir modificar los datos propios del yuno
+        // Additional information that can be added by the user,
+        // to attach to the business card.
+        // I am not going to allow modifying the yuno's own data
         // Only update missing
         json_object_update_missing(kw_identity_card, jn_extra_info);
     }
@@ -1175,8 +1174,6 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *      __MESSAGE__
      */
-    //json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
-
     const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
