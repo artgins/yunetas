@@ -21,6 +21,7 @@
 #include <log_udp_handler.h>    // log upd is open when wifi/ethernet is connected
 #include <gobj_environment.h>
 #include <kwid.h>
+#include <command_parser.h>
 #include "c_esp_ethernet.h"
 #include "c_esp_wifi.h"
 #include "c_timer.h"
@@ -359,17 +360,14 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//     KW_INCREF(kw)
-//     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-//     return msg_iev_build_webix(
-//         gobj,
-//         0,
-//         jn_resp,
-//         0,
-//         0,
-//         kw  // owned
-//     );
-    return json_object();
+     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+     return build_command_response(
+         gobj,
+         0,
+         jn_resp,
+         0,
+         0
+     );
 }
 
 
