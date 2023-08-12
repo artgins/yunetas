@@ -1348,6 +1348,17 @@ PUBLIC const char *get_user_name(void); // Who started yuno
 PUBLIC const char **get_sdata_flag_table(void);
 PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with gobj's public attributes.
 
+/*
+ *  gobj_repr_gclass_register():
+ *      Return [gclass:s}]
+ *
+ *  gobj_repr_service_register():
+ *      Return [{gclass:s, service:s}]
+ *
+ */
+PUBLIC json_t * gobj_repr_gclass_register(void);
+PUBLIC json_t * gobj_repr_service_register(const char *gclass_name);
+
 /*--------------------------------------------*
  *          Events and States
  *--------------------------------------------*/

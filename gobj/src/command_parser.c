@@ -213,7 +213,7 @@ PRIVATE json_t *expand_command(
     }
 
     int ok = 0;
-    json_t *kw_cmd = build_cmd_kw(gobj_name, cnf_cmd->name, cnf_cmd, p, kw, &ok);
+    json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, kw, &ok);
     GBMEM_FREE(str);
     if(ok < 0) {
         if(cmd_desc) {
