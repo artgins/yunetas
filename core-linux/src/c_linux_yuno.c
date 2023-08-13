@@ -528,6 +528,17 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     hgobj gobj2write = gobj_find_service(gobj_name_, FALSE);
     if(!gobj2write) {
@@ -591,7 +602,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
 
     const char *svalue = kw_get_str(gobj, kw, "value", 0, 0);
-    if(empty_string(svalue)) {
+    if(!svalue) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -714,6 +725,17 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
     if(!gobj2read) {
@@ -754,6 +776,17 @@ PRIVATE json_t *cmd_view_attrs2(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
     if(!gobj2read) {
