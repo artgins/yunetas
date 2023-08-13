@@ -1115,15 +1115,11 @@ PUBLIC json_t * gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs); // str
  *  Attribute functions WITHOUT bottom inheritance
  */
 
-//  Return the data description of the command `command`
-//  If `command` is null returns full command's table
-PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose);
-PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose);
-
 // Return the data description of the attribute `attr`
 // If `attr` is null returns full attr's table
 PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass, const char *name, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj, const char *attr, BOOL verbose);
+PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name);
 PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
@@ -1342,11 +1338,16 @@ static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_y
 static inline const char *gobj_yuno_realm_name(void) {return gobj_read_str_attr(gobj_yuno(), "realm_name");}
 static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_id");}
 
+//  Return the data description of the command `command`
+//  If `command` is null returns full command's table
+PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose);
+PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose);
+
 PUBLIC const char *get_host_name(void);
 PUBLIC const char *get_user_name(void); // Who started yuno
 
 PUBLIC const char **get_sdata_flag_table(void);
-PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with gobj's public attributes.
+PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with description of gobj's attributes.
 
 /*
  *  gobj_repr_gclass_register():

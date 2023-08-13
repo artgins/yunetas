@@ -1999,76 +1999,6 @@ PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 }
 
 /***************************************************************************
- *  Return the data description of the command `command`
- *  If `command` is null returns full command's table
- ***************************************************************************/
-PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose)
-{
-    gclass_t *gclass = gclass_;
-
-    if(!gclass) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "gclass NULL",
-                NULL
-            );
-        }
-        return 0;
-    }
-
-    if(!name) {
-        return gclass->command_table;
-    }
-    const sdata_desc_t *it = gclass->command_table;
-    while(it->name) {
-        if(strcmp(it->name, name)==0) {
-            return it;
-        }
-        it++;
-    }
-
-    if(verbose) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "GClass command NOT FOUND",
-            "gclass",       "%s", gclass->gclass_name,
-            "command",         "%s", name,
-            NULL
-        );
-    }
-    return NULL;
-}
-
-/***************************************************************************
- *  Return the data description of the command `command`
- *  If `command` is null returns full command's table
- ***************************************************************************/
-PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose)
-{
-    gobj_t *gobj = gobj_;
-    if(!gobj) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "gobj NULL",
-                NULL
-            );
-        }
-        return 0;
-    }
-
-    if(!name) {
-        return gobj->gclass->command_table;
-    }
-
-    return gclass_command_desc(gobj->gclass, name, verbose);
-}
-
-/***************************************************************************
  *  Return the data description of the attribute `attr`
  *  If `attr` is null returns full attr's table
  ***************************************************************************/
@@ -2136,6 +2066,19 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *name, BOOL ve
     }
 
     return gclass_attr_desc(gobj->gclass, name, verbose);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name)
+{
+    const sdata_desc_t *sdata_desc = gobj_attr_desc(gobj, name, FALSE);
+    if(sdata_desc) {
+        return sdata_desc->type;
+    } else {
+        return 0;
+    }
 }
 
 /***************************************************************************
@@ -4591,6 +4534,76 @@ PUBLIC size_t get_cur_system_memory(void)
 }
 
 /***************************************************************************
+ *  Return the data description of the command `command`
+ *  If `command` is null returns full command's table
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose)
+{
+    gclass_t *gclass = gclass_;
+
+    if(!gclass) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "gclass NULL",
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    if(!name) {
+        return gclass->command_table;
+    }
+    const sdata_desc_t *it = gclass->command_table;
+    while(it->name) {
+        if(strcmp(it->name, name)==0) {
+            return it;
+        }
+        it++;
+    }
+
+    if(verbose) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "GClass command NOT FOUND",
+            "gclass",       "%s", gclass->gclass_name,
+            "command",         "%s", name,
+            NULL
+        );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Return the data description of the command `command`
+ *  If `command` is null returns full command's table
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "gobj NULL",
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    if(!name) {
+        return gobj->gclass->command_table;
+    }
+
+    return gclass_command_desc(gobj->gclass, name, verbose);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC const char *get_host_name(void)
@@ -4644,7 +4657,7 @@ PUBLIC const char **get_sdata_flag_table(void)
  ***************************************************************************/
 PUBLIC json_t *attr2json(hgobj gobj_)
 {
-    gobj_t * gobj = gobj_;
+    gobj_t *gobj = gobj_;
     json_t *jn_data = json_array();
 
     int id = 1;
