@@ -134,7 +134,6 @@ SDATACM (DTP_SCHEMA,    "view-attrs2",              a_read_attrs2,pm_gobj_def_na
 //SDATACM (DTP_SCHEMA,    "list-childs",              0,      pm_list_childs, cmd_list_childs,            "List childs of the specified gclass"),
 //SDATACM (DTP_SCHEMA,    "list-channels",            0,      pm_list_channels,cmd_list_channels,         "List channels (GUI usage)."),
 
-
 SDATA_END()
 };
 
