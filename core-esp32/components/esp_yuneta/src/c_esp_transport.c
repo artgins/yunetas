@@ -510,6 +510,8 @@ PRIVATE void rx_task(void *pv)
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "esp_transport_connect() FAILED",
                         "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "host",         "%s", gobj_read_str_attr(gobj, "host"),
+                        "port",         "%d", (int)gobj_read_integer_attr(gobj, "port"),
                         "err",          "%d", err,
                         "errno",        "%d", actual_errno,
                         "serrno",       "%s", strerror(actual_errno),

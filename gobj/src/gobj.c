@@ -1622,8 +1622,7 @@ PRIVATE int write_json_parameters(
 {
     json_t *hs = gobj_hsdata(gobj);
 
-    json_object_update_existing(hs, kw);
-
+    json_object_update_existing(hs, kw);    // TODO review below code
 
 //    json_t *jn_global_mine = extract_all_mine(
 //        gobj->gclass->gclass_name,
@@ -1634,7 +1633,7 @@ PRIVATE int write_json_parameters(
 //    if(__trace_gobj_create_delete2__(gobj)) {
 //        trace_machine("🔰 %s^%s => global_mine",
 //            gobj->gclass->gclass_name,
-//            gobj->name
+//            gobj->gobj_name
 //        );
 //        gobj_trace_json(0, jn_global, "global all");
 //        gobj_trace_json(0, jn_global_mine, "global_mine");
