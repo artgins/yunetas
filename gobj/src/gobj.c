@@ -6844,7 +6844,7 @@ PUBLIC json_t *gobj_get_gclass_no_trace_level_list(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_xxx_childs(rc_instance_t *i_child, hgobj child, void *user_data, void *user_data2, void *user_data3)
+PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_trace_level(child);
@@ -6870,15 +6870,15 @@ PRIVATE int cb_set_xxx_childs(rc_instance_t *i_child, hgobj child, void *user_da
 PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_xxx_childs(0, gobj, jn_list, 0, 0);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_childs, jn_list, 0, 0);
+    cb_set_xxx_childs(gobj, jn_list);
+    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_childs, jn_list);
     return jn_list;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_no_xxx_childs(rc_instance_t *i_child, hgobj child, void *user_data, void *user_data2, void *user_data3)
+PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_no_trace_level(child);
@@ -6904,8 +6904,8 @@ PRIVATE int cb_set_no_xxx_childs(rc_instance_t *i_child, hgobj child, void *user
 PUBLIC json_t *gobj_get_gobj_no_trace_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_no_xxx_childs(0, gobj, jn_list, 0, 0);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_childs, jn_list, 0, 0);
+    cb_set_no_xxx_childs(gobj, jn_list);
+    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_childs, jn_list);
     return jn_list;
 }
 

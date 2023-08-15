@@ -1227,40 +1227,44 @@ PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *gclass_name_ = kw_get_str(
+        gobj,
         kw,
         "gclass_name",
-        kw_get_str(kw, "gclass", "", 0),
+        kw_get_str(gobj, kw, "gclass", "", 0),
         0
     );
-    GCLASS *gclass = 0;
     if(!empty_string(gclass_name_)) {
-        gclass = gobj_find_gclass(gclass_name_, FALSE);
-        if(!gclass) {
-            gclass = _get_gclass_from_gobj(gclass_name_);
-            if(!gclass) {
-                return msg_iev_build_webix(
+        hgclass gclass_ = gclass_find_by_name(gclass_name_);
+        if(!gclass_) {
+            gclass_ = get_gclass_from_gobj(gclass_name_);
+            if(!gclass_) {
+                json_t *kw_response = build_command_response(
                     gobj,
-                    -1,
-                    json_sprintf(
-                        "%s: what gclass is '%s'?", gobj_short_name(gobj), gclass_name_
-                    ),
-                    0,
-                    0,
-                    kw  // owned
+                    -1,     // result
+                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    0,      // jn_schema
+                    0       // jn_data
                 );
+                JSON_DECREF(kw)
+                return kw_response;
             }
+            gclass_name_ = gclass_gclass_name(gclass_);
         }
     }
 
+    /*
+     *  Inform
+     */
     json_t *jn_data = gobj_get_gclass_no_trace_level_list(gclass);
-    return msg_iev_build_webix(
+    json_t *kw_response = build_command_response(
         gobj,
-        0,
+        0,      // result
         json_sprintf("%d gclass with some no trace", (int)json_array_size(jn_data)),
-        0,
-        jn_data,
-        kw  // owned
+        0,      // jn_schema
+        jn_data
     );
+    JSON_DECREF(kw)
+    return kw_response;
 }
 
 /***************************************************************************
@@ -1268,37 +1272,53 @@ PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw,
  ***************************************************************************/
 PRIVATE json_t *cmd_info_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *gobj_name_ = kw_get_str( // __yuno__
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
         kw,
         "gobj_name",
-        kw_get_str(kw, "gobj", "", 0),
+        kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    hgobj gobj2view = gobj_find_unique_gobj(gobj_name_, FALSE);
-    if(!gobj2view) {
-        gobj2view = gobj_find_gobj(gobj_name_);
-        if(!gobj2view) {
-            return msg_iev_build_webix(
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
                 gobj,
-                -1,
-                json_sprintf(
-                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
-                ),
-                0,
-                0,
-                kw  // owned
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
             );
+            JSON_DECREF(kw)
+            return kw_response;
         }
     }
 
-    return msg_iev_build_webix(
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
         gobj,
+        0,      // result
         0,
-        0,
-        0,
-        gobj_repr_gclass_trace_levels(gobj_gclass_name(gobj2view)),
-        kw  // owned
+        0,      // jn_schema
+        gobj_repr_gclass_trace_levels(gobj_gclass_name(gobj2read))
     );
+    JSON_DECREF(kw)
+    return kw_response;
 }
 
 /***************************************************************************
@@ -1306,38 +1326,54 @@ PRIVATE json_t *cmd_info_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *gobj_name_ = kw_get_str( // __yuno__
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
         kw,
         "gobj_name",
-        kw_get_str(kw, "gobj", "", 0),
+        kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    hgobj gobj2view = gobj_find_unique_gobj(gobj_name_, FALSE);
-    if(!gobj2view) {
-        gobj2view = gobj_find_gobj(gobj_name_);
-        if(!gobj2view) {
-            return msg_iev_build_webix(
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
                 gobj,
-                -1,
-                json_sprintf(
-                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
-                ),
-                0,
-                0,
-                kw  // owned
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
             );
+            JSON_DECREF(kw)
+            return kw_response;
         }
     }
-    json_t *jn_data = gobj_get_gobj_trace_level_tree(gobj2view);
 
-    return msg_iev_build_webix(
+    /*
+     *  Inform
+     */
+    json_t *jn_data = gobj_get_gobj_trace_level_tree(gobj2read);
+    json_t *kw_response = build_command_response(
         gobj,
-        0,
+        0,      // result
         json_sprintf("%d gobjs with some trace", (int)json_array_size(jn_data)),
-        0,
-        jn_data,
-        kw  // owned
+        0,      // jn_schema
+        jn_data
     );
+    JSON_DECREF(kw)
+    return kw_response;
 }
 
 /***************************************************************************
@@ -1345,38 +1381,231 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *gobj_name_ = kw_get_str( // __yuno__
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
         kw,
         "gobj_name",
-        kw_get_str(kw, "gobj", "", 0),
+        kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    hgobj gobj2view = gobj_find_unique_gobj(gobj_name_, FALSE);
-    if(!gobj2view) {
-        gobj2view = gobj_find_gobj(gobj_name_);
-        if(!gobj2view) {
-            return msg_iev_build_webix(
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
                 gobj,
-                -1,
-                json_sprintf(
-                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
-                ),
-                0,
-                0,
-                kw  // owned
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
             );
+            JSON_DECREF(kw)
+            return kw_response;
         }
     }
-    json_t *jn_data = gobj_get_gobj_no_trace_level_tree(gobj2view);
 
-    return msg_iev_build_webix(
+    /*
+     *  Inform
+     */
+    json_t *jn_data = gobj_get_gobj_no_trace_level_tree(gobj2read);
+    json_t *kw_response = build_command_response(
         gobj,
-        0,
+        0,      // result
         json_sprintf("%d gobjs with some no trace", (int)json_array_size(jn_data)),
-        0,
-        jn_data,
-        kw  // owned
+        0,      // jn_schema
+        jn_data
     );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int save_global_trace(
+    hgobj gobj,
+    const char *level,
+    BOOL set,
+    BOOL persistent
+)
+{
+    json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
+
+    if(!kw_has_key(jn_trace_levels, "__global_trace__")) {
+        /*
+         *  Create new row, only if new_bitmask is != 0
+         */
+        if(set) {
+            /*
+             *  Create row
+             */
+            json_object_set_new(jn_trace_levels, "__global_trace__", json_array());
+            json_t *jn_levels = json_object_get(jn_trace_levels, "__global_trace__");
+            json_array_append_new(jn_levels, json_string(level));
+        }
+    } else {
+        json_t *jn_levels = json_object_get(jn_trace_levels, "__global_trace__");
+        if(!set) {
+            /*
+             *  Delete level
+             */
+            int idx = json_list_str_index(jn_levels, level, FALSE);
+            if(idx != -1) {
+                json_array_remove(jn_levels, idx);
+            }
+        } else {
+            /*
+             *  Add level
+             */
+            int idx = json_list_str_index(jn_levels, level, FALSE);
+            if(idx == -1) {
+                json_array_append_new(jn_levels, json_string(level));
+            }
+        }
+    }
+
+    if(persistent) {
+        return gobj_save_persistent_attrs(gobj, json_string("trace_levels"));
+    } else {
+        return 0;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int save_trace_filter(hgobj gobj, hgclass gclass_)
+{
+    json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
+    json_t *jn_trace_filters = gobj_get_trace_filter(gclass_);
+
+// TODO   if(jn_trace_filters) {
+//        kw_set_subdict_value(
+//            jn_trace_levels, "__trace_filter__", gclass->gclass_name, json_incref(jn_trace_filters)
+//        );
+//    } else {
+//        kw_delete_subkey(jn_trace_levels, "__trace_filter__", gclass->gclass_name);
+//    }
+
+    return gobj_save_persistent_attrs(gobj, json_string("trace_levels"));
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int save_user_trace(
+    hgobj gobj,
+    const char *name,
+    const char *level,
+    BOOL set,
+    BOOL persistent
+)
+{
+    json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
+
+    if(!kw_has_key(jn_trace_levels, name)) {
+        /*
+         *  Create new row, only if new_bitmask is != 0
+         */
+        if(set) {
+            /*
+             *  Create row
+             */
+            json_object_set_new(jn_trace_levels, name, json_array());
+            json_t *jn_levels = json_object_get(jn_trace_levels, name);
+            json_array_append_new(jn_levels, json_string(level));
+        }
+    } else {
+        json_t *jn_levels = json_object_get(jn_trace_levels, name);
+        if(!set) {
+            /*
+             *  Delete level
+             */
+            int idx = json_list_str_index(jn_levels, level, FALSE);
+            if(idx != -1) {
+                json_array_remove(jn_levels, idx);
+            }
+        } else {
+            /*
+             *  Add level
+             */
+            int idx = json_list_str_index(jn_levels, level, FALSE);
+            if(idx == -1) {
+                json_array_append_new(jn_levels, json_string(level));
+            }
+        }
+    }
+
+    if(persistent) {
+        return gobj_save_persistent_attrs(gobj, json_string("trace_levels"));
+    } else {
+        return 0;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int save_user_no_trace(
+    hgobj gobj,
+    const char *name,
+    const char *level,
+    BOOL set,
+    BOOL persistent
+)
+{
+    json_t *jn_no_trace_levels = gobj_read_json_attr(gobj, "no_trace_levels");
+
+    if(!kw_has_key(jn_no_trace_levels, name)) {
+        /*
+         *  Create new row, only if new_bitmask is != 0
+         */
+        if(set) {
+            /*
+             *  Create row
+             */
+            json_object_set_new(jn_no_trace_levels, name, json_array());
+            json_t *jn_levels = json_object_get(jn_no_trace_levels, name);
+            json_array_append_new(jn_levels, json_string(level));
+        }
+    } else {
+        json_t *jn_no_levels = json_object_get(jn_no_trace_levels, name);
+        if(!set) {
+            /*
+             *  Delete no-level
+             */
+            int idx = json_list_str_index(jn_no_levels, level, FALSE);
+            if(idx != -1) {
+                json_array_remove(jn_no_levels, idx);
+            }
+        } else {
+            /*
+             *  Add no-level
+             */
+            int idx = json_list_str_index(jn_no_levels, level, FALSE);
+            if(idx == -1) {
+                json_array_append_new(jn_no_levels, json_string(level));
+            }
+        }
+    }
+
+    if(persistent) {
+        return gobj_save_persistent_attrs(gobj, json_string("no_trace_levels"));
+    } else {
+        return 0;
+    }
 }
 
 /***************************************************************************
@@ -1384,28 +1613,23 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
  ***************************************************************************/
 PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *attr = kw_get_str(kw, "attr", 0, 0);
-    const char *value = kw_get_str(kw, "value", 0, 0);
-    const char *gclass_name_ = kw_get_str(
-        kw,
-        "gclass_name",
-        kw_get_str(kw, "gclass", "", 0),
-        0
-    );
-    BOOL all = kw_get_bool(kw, "all", 0, KW_WILD_NUMBER);
+    const char *attr = kw_get_str(gobj, kw, "attr", 0, 0);
+    const char *value = kw_get_str(gobj, kw, "value", 0, 0);
+    BOOL all = kw_get_bool(gobj, kw, "all", 0, KW_WILD_NUMBER);
 
-    const char *trace_value = kw_get_str(kw, "set", 0, 0);
+    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
     if(empty_string(trace_value)) {
-        return msg_iev_build_webix(
+        json_t *kw_response = build_command_response(
             gobj,
-            -1,
+            -1,     // result
             json_sprintf(
                 "%s: set or re-set?", gobj_short_name(gobj)
             ),
-            0,
-            0,
-            kw  // owned
+            0,      // jn_schema
+            0       // jn_data
         );
+        JSON_DECREF(kw)
+        return kw_response;
     }
 
     BOOL set;
@@ -1417,41 +1641,51 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         set = atoi(trace_value);
     }
 
-    GCLASS *gclass = 0;
-    gclass = gobj_find_gclass(gclass_name_, FALSE);
-    if(!gclass) {
-        gclass = _get_gclass_from_gobj(gclass_name_);
-        if(!gclass) {
-            return msg_iev_build_webix(
+    const char *gclass_name_ = kw_get_str(
+        gobj,
+        kw,
+        "gclass_name",
+        kw_get_str(gobj, kw, "gclass", "", 0),
+        0
+    );
+    hgclass gclass_ = gclass_find_by_name(gclass_name_);
+    if(!gclass_) {
+        gclass_ = get_gclass_from_gobj(gclass_name_);
+        if(!gclass_) {
+            json_t *kw_response = build_command_response(
                 gobj,
-                -1,
-                json_sprintf(
-                    "%s: what gclass is '%s'?", gobj_short_name(gobj), gclass_name_
-                ),
-                0,
-                0,
-                kw  // owned
+                -1,     // result
+                json_sprintf("what gclass is '%s'?", gclass_name_),
+                0,      // jn_schema
+                0       // jn_data
             );
+            JSON_DECREF(kw)
+            return kw_response;
         }
+        gclass_name_ = gclass_gclass_name(gclass_);
     }
 
     if(empty_string(attr) && (set || !all)) {
-        return msg_iev_build_webix(gobj,
+        json_t *kw_response = build_command_response(
+            gobj,
             -1,
             json_sprintf("what attr?"),
             0,
-            0,
-            kw  // owned
+            0
         );
+        JSON_DECREF(kw)
+        return kw_response;
     }
     if(empty_string(value) && (set || !all)) {
-        return msg_iev_build_webix(gobj,
+        json_t *kw_response = build_command_response(
+            gobj,
             -1,
             json_sprintf("what value?"),
             0,
-            0,
-            kw  // owned
+            0
         );
+        JSON_DECREF(kw)
+        return kw_response;
     }
 
     int ret;
@@ -1467,14 +1701,15 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 
     json_t *jn_filters = gobj_get_trace_filter(gclass); // Return is not YOURS
 
-    return msg_iev_build_webix(
+    json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? log_last_message():""),
-        0,
-        json_incref(jn_filters),
-        kw  // owned
+        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        0,      // jn_schema
+        json_incref(jn_filters)
     );
+    JSON_DECREF(kw)
+    return kw_response;
 }
 
 /***************************************************************************
@@ -1483,39 +1718,40 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *gclass_name_ = kw_get_str(
+        gobj,
         kw,
         "gclass_name",
-        kw_get_str(kw, "gclass", "", 0),
+        kw_get_str(gobj, kw, "gclass", "", 0),
         0
     );
-    GCLASS *gclass = 0;
-    gclass = gobj_find_gclass(gclass_name_, FALSE);
-    if(!gclass) {
-        gclass = _get_gclass_from_gobj(gclass_name_);
-        if(!gclass) {
-            return msg_iev_build_webix(
+    hgclass gclass_ = gclass_find_by_name(gclass_name_);
+    if(!gclass_) {
+        gclass_ = get_gclass_from_gobj(gclass_name_);
+        if(!gclass_) {
+            json_t *kw_response = build_command_response(
                 gobj,
-                -1,
-                json_sprintf(
-                    "%s: what gclass is '%s'?", gobj_short_name(gobj), gclass_name_
-                ),
-                0,
-                0,
-                kw  // owned
+                -1,     // result
+                json_sprintf("what gclass is '%s'?", gclass_name_),
+                0,      // jn_schema
+                0       // jn_data
             );
+            JSON_DECREF(kw)
+            return kw_response;
         }
+        gclass_name_ = gclass_gclass_name(gclass_);
     }
 
     json_t *jn_filters = gobj_get_trace_filter(gclass);
 
-    return msg_iev_build_webix(
+    json_t *kw_response = build_command_response(
         gobj,
         0,
         0,
-        0,
-        json_incref(jn_filters),
-        kw  // owned
+        0,      // jn_schema
+        json_incref(jn_filters)
     );
+    JSON_DECREF(kw)
+    return kw_response;
 }
 
 /***************************************************************************

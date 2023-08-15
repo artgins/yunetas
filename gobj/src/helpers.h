@@ -206,6 +206,12 @@ PUBLIC void split_free2(const char **list);
 PUBLIC const char **split3(const char *str, const char *delim, int *plist_size);
 PUBLIC void split_free3(const char **list);
 
+/**rst**
+    Get a the idx of string value in a strings json list.
+    Return -1 if not exist
+**rst**/
+PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case);
+
 
 #ifdef __cplusplus
 }

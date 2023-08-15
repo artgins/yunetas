@@ -1531,3 +1531,39 @@ PUBLIC void split_free3(const char **list)
         GBMEM_FREE(list);
     }
 }
+
+/***************************************************************************
+    Get a the idx of string value in a strings json list.
+ ***************************************************************************/
+PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case)
+{
+    if(!json_is_array(jn_list)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "list MUST BE a json array",
+            NULL
+        );
+        gobj_trace_json(0, jn_list, "list MUST BE a json array");
+        return 0;
+    }
+
+    size_t idx;
+    json_t *jn_str;
+
+    json_array_foreach(jn_list, idx, jn_str) {
+        if(!json_is_string(jn_str)) {
+            continue;
+        }
+        const char *_str = json_string_value(jn_str);
+        if(ignore_case) {
+            if(strcasecmp(_str, str)==0)
+                return (int)idx;
+        } else {
+            if(strcmp(_str, str)==0)
+                return (int)idx;
+        }
+    }
+
+    return -1;
+}
