@@ -573,7 +573,8 @@ PUBLIC void gobj_end(void)
     gobj_log_info(0, 0,
         "msgset",               "%s", MSGSET_STARTUP,
         "msg",                  "%s", "gobj_end",
-        "hostname",             "%s", node_uuid(),
+        "hostname",             "%s", get_hostname(),
+        "node_uuid",            "%s", node_uuid(),
         NULL
     );
 

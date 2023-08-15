@@ -107,7 +107,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type---------name---------------flag------------default---------description---------- */
 SDATA (DTP_STRING,  "url_udp_log",      SDF_PERSIST,    "",             "UDP Log url"),
 SDATA (DTP_STRING,  "process",          SDF_RD,         "",             "Process name"),
-SDATA (DTP_STRING,  "hostname",         SDF_RD,         "",             "Hostname"),
+SDATA (DTP_STRING,  "hostname",         SDF_PERSIST,    "",             "Hostname"),
 SDATA (DTP_INTEGER, "pid",              SDF_RD,         "",             "pid"),
 SDATA (DTP_STRING,  "node_uuid",        SDF_RD,         "",             "uuid of node"),
 SDATA (DTP_STRING,  "node_owner",       SDF_RD,         "",             "Owner of node"),
