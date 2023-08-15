@@ -4274,6 +4274,15 @@ PUBLIC gclass_name_t gobj_gclass_name(hgobj hgobj)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgclass gobj_gclass(hgobj hgobj)
+{
+    gobj_t *gobj = (gobj_t *)hgobj;
+    return (gobj)? gobj->gclass: NULL;
+}
+
+/***************************************************************************
  *  Return full name
  ***************************************************************************/
 PUBLIC const char * gobj_full_name(hgobj gobj_)

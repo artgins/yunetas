@@ -1316,6 +1316,7 @@ PUBLIC int gobj_walk_gobj_childs_tree(
 PUBLIC hgobj gobj_yuno(void); // Return yuno, the grandfather (Only one yuno per process, single thread)
 PUBLIC const char * gobj_name(hgobj gobj);
 PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj);
+PUBLIC hgclass gobj_gclass(hgobj gobj);
 PUBLIC const char * gobj_full_name(hgobj gobj);
 PUBLIC const char * gobj_short_name(hgobj gobj);
 PUBLIC json_t * gobj_global_variables(void);
