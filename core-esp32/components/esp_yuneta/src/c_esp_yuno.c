@@ -121,6 +121,7 @@ SDATA (DTP_STRING,  "yuno_role",        SDF_RD,         "",             "Yuno Ro
 SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id. Set by agent"),
 SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name. Set by agent"),
 SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno. Set by agent"),
+SDATA (DTP_STRING,  "yuno_release",     SDF_RD,         "",             "Yuno Release. Set by agent"),
 
 SDATA (DTP_STRING,  "yuno_version",     SDF_RD,         "",             "Yuno version (APP_VERSION)"),
 SDATA (DTP_STRING,  "yuneta_version",   SDF_RD,         YUNETA_VERSION, "Yuneta version"),
@@ -129,12 +130,20 @@ SDATA (DTP_STRING,  "appName",          SDF_RD,         "",             "App nam
 SDATA (DTP_STRING,  "appDesc",          SDF_RD,         "",             "App Description"),
 SDATA (DTP_STRING,  "appDate",          SDF_RD,         "",             "App date/time"),
 
+SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
+SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS, "",           "Yuno starting date"),
+SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS, "0",          "Yuno living time"),
+SDATA (DTP_INTEGER, "start_time",       SDF_RD|SDF_STATS,"0",           "Yuno starting time"),
+
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "1000",         "Timeout periodic, in miliseconds"),
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
 SDATA (DTP_INTEGER, "timestamp",        SDF_PERSIST,    "0",            "Time of system, save in nvs each hour"),
-SDATA (DTP_INTEGER, "start_time",       SDF_RD|SDF_STATS,"0",           "Yuno starting time"),
+
+SDATA (DTP_JSON,    "required_services",SDF_RD,         "{}",           "Required services"),
+SDATA (DTP_INTEGER, "watcher_pid",      SDF_RD,         "0",            "Watcher pid"),
+
 SDATA_END()
 };
 

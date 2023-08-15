@@ -136,6 +136,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 #endif
 #ifdef ESP_PLATFORM
+    gobj_write_str_attr(gobj, "__username__", "yuneta");
     is_yuneta = TRUE;
 #endif
     if(!is_yuneta) {

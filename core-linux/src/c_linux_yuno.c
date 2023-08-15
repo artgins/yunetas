@@ -173,7 +173,8 @@ SDATA (DTP_STRING,  "bind_ip",          SDF_RD,         "",             "Bind ip
 SDATA (DTP_BOOLEAN, "yuno_multiple",    SDF_RD,         "0",            "True when yuno can open shared ports. Set by agent"),
 SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
 SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS, "",           "Yuno starting date"),
-SDATA (DTP_INTEGER, "uptime",          SDF_RD|SDF_STATS, "0",           "Yuno living time"),
+SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS, "0",          "Yuno living time"),
+SDATA (DTP_INTEGER, "start_time",       SDF_RD|SDF_STATS,"0",           "Yuno starting time"),
 
 SDATA (DTP_JSON,    "tags",             SDF_RD,         "{}",           "tags"),
 SDATA (DTP_JSON,    "required_services",SDF_RD,         "{}",           "Required services"),
@@ -195,8 +196,6 @@ SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
-SDATA (DTP_STRING,  "start_date",       SDF_STATS,      "",             "Yuno starting date"),
-SDATA (DTP_INTEGER, "start_time",       SDF_STATS,      "0",            "Yuno starting time"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring"),
 SDATA_END()
