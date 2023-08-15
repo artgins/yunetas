@@ -1048,6 +1048,7 @@ PUBLIC int gclass_add_state_with_action_list(
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
 PUBLIC void gclass_unregister(hgclass hgclass);
+PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 
 /*---------------------------------*
  *      Create functions
@@ -1595,6 +1596,40 @@ enum { /* String table in s_global_trace_level */
  *      "gbuffers"
  *      "timer"
  */
+
+/*
+ *  gobj_repr_gclass_trace_levels():
+ *      Return [{gclass:null, trace_levels:[s]}]
+ */
+
+PUBLIC json_t * gobj_repr_global_trace_levels(void);
+/*
+ *  gobj_repr_gclass_trace_levels():
+ *      Return [{gclass:s, trace_levels:[s]}]
+ */
+PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name);
+
+/*
+ *  Return trace level list (internal and user defined)
+ */
+PUBLIC json_t *gobj_trace_level_list(hgclass gclass, BOOL not_internals);
+
+/*
+ *  Get traces set in gclass and gobj (return list of strings)
+ */
+PUBLIC json_t *gobj_get_global_trace_level(void);
+PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass);
+PUBLIC json_t *gobj_get_gclass_no_trace_level(hgclass gclass);
+PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj);
+PUBLIC json_t *gobj_get_gobj_no_trace_level(hgobj gobj);
+
+/*
+ *  Get traces set in tree of gclass or gobj
+ */
+PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass);
+PUBLIC json_t *gobj_get_gclass_no_trace_level_list(hgclass gclass);
+PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj);
+PUBLIC json_t *gobj_get_gobj_no_trace_level_tree(hgobj gobj);
 
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
 PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
