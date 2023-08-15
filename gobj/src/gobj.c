@@ -281,7 +281,6 @@ PRIVATE const char *sdata_flag_names[] = {
 };
 
 PRIVATE char __hostname__[64] = {0};
-PRIVATE char __username__[64] = {0};
 
 PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     "EVF_NO_WARN_SUBS",
@@ -500,16 +499,7 @@ PUBLIC int gobj_start_up(
         (decref_fn_t)gbuffer_decref
     );
 
-#ifdef WIN32
-    long unsigned int bufsize = sizeof(__username__);
-    GetUserNameA(__username__, &bufsize);
-#endif
 #ifdef __linux__
-    uid_t uid = geteuid();
-    struct passwd *pw = getpwuid(uid);
-    if(pw) {
-        snprintf(__username__, sizeof(__username__), "%s", pw->pw_name);
-    }
     gethostname(__hostname__, sizeof(__hostname__));
 #endif
 
@@ -4609,10 +4599,6 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
 PUBLIC const char *get_host_name(void)
 {
     return __hostname__;
-}
-PUBLIC const char *get_user_name(void)  // Who started yuno
-{
-    return __username__;
 }
 
 /***************************************************************************

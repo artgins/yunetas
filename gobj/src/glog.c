@@ -1426,6 +1426,9 @@ PRIVATE char * json_get_buf(hgen_t hgen)
  *****************************************************************/
 PRIVATE void json_add_string(hgen_t hgen, const char *key, const char *str)
 {
+    if(empty_string(key) || !str) {
+        return;
+    }
     ul_buffer_append(hgen, key, str, 1);
 }
 
@@ -1434,6 +1437,9 @@ PRIVATE void json_add_string(hgen_t hgen, const char *key, const char *str)
  *****************************************************************/
 PRIVATE void json_add_null(hgen_t hgen, const char *key)
 {
+    if(empty_string(key)) {
+        return;
+    }
     ul_buffer_append(hgen, key, "null", 0);
 }
 
@@ -1444,6 +1450,9 @@ PRIVATE void json_add_double(hgen_t hgen, const char *key, double number)
 {
     char temp[64];
 
+    if(empty_string(key)) {
+        return;
+    }
     snprintf(temp, sizeof(temp), "%.20g", number);
     if (strspn(temp, "0123456789-") == strlen(temp)) {
         strcat(temp, ".0");
@@ -1458,6 +1467,9 @@ PRIVATE void json_add_integer(hgen_t hgen, const char *key, json_int_t number)
 {
     char temp[64];
 
+    if(empty_string(key)) {
+        return;
+    }
     snprintf(temp, sizeof(temp), "%"JSON_INTEGER_FORMAT, number);
     ul_buffer_append(hgen, key, temp, 0);
 }

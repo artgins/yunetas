@@ -1344,7 +1344,6 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
 PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose);
 
 PUBLIC const char *get_host_name(void);
-PUBLIC const char *get_user_name(void); // Who started yuno
 
 PUBLIC const char **get_sdata_flag_table(void);
 PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with description of gobj's attributes.

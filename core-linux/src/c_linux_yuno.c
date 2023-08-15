@@ -9,6 +9,8 @@
  ****************************************************************************/
 #include <time.h>
 #include <libintl.h>
+#include <pwd.h>
+#include <grp.h>
 #include <locale.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -37,6 +39,8 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
 PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_attrs2(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t* cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -64,6 +68,21 @@ SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj 
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_list_persistent_attrs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj"),
+SDATAPM (DTP_STRING,    "gobj",         0,              0,          "named-gobj or full gobj"),
+SDATAPM (DTP_STRING,    "attribute",    0,              0,          "Attribute to list/remove"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_remove_persistent_attrs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj"),
+SDATAPM (DTP_STRING,    "gobj",         0,              0,          "named-gobj or full gobj"),
+SDATAPM (DTP_STRING,    "attribute",    0,              0,          "Attribute to list/remove"),
+SDATAPM (DTP_BOOLEAN,   "__all__",      0,              0,          "Remove all persistent attrs"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -75,13 +94,11 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_services[] = {"services", "list-services", 0};
 PRIVATE const char *a_read_attrs[] = {"read-attrs", 0};
 PRIVATE const char *a_read_attrs2[] = {"read-attrs2", 0};
+PRIVATE const char *a_pers_attrs[] = {"persistent-attrs", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,       "Command's help"),
-
-//SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,     "Authorization's help"),
-//SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,"View final json configuration"),
 
 SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,"View gclass's register"),
 SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,pm_gclass_name,cmd_view_service_register,"View service's register"),
@@ -90,6 +107,11 @@ SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_writ
 SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,      "View gobj's attrs"),
 SDATACM (DTP_SCHEMA,    "view-attrs2",              a_read_attrs2,pm_gobj_def_name, cmd_view_attrs2,    "View gobj's attrs with details"),
 
+SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
+SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
+
+//SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,     "Authorization's help"),
+//SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,"View final json configuration"),
 
 //SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,      "Info of global trace levels"),
 //SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0,              cmd_get_global_trace,       "Get global trace levels"),
@@ -118,9 +140,6 @@ SDATACM (DTP_SCHEMA,    "view-attrs2",              a_read_attrs2,pm_gobj_def_na
 //SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler,     "Add log handler"),
 //SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler,     "Delete log handler"),
 //SDATACM (DTP_SCHEMA,    "list-log-handler",         0,      0,              cmd_list_log_handler,       "List log handlers"),
-//
-//SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,      pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
-//SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
 
 //SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,            "View gclass description"),
 //SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,            "View gobj"),
@@ -145,6 +164,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,  "url_udp_log",      SDF_PERSIST,    "",             "UDP Log url"),
 SDATA (DTP_STRING,  "process",          SDF_RD,         "",             "Process name"),
 SDATA (DTP_STRING,  "hostname",         SDF_PERSIST,    "",             "Hostname"),
+SDATA (DTP_STRING,  "__username__",     SDF_RD,         "",             "Username"),
 SDATA (DTP_INTEGER, "pid",              SDF_RD,         "",             "pid"),
 SDATA (DTP_STRING,  "node_uuid",        SDF_RD,         "",             "uuid of node"),
 SDATA (DTP_STRING,  "node_owner",       SDF_RD,         "",             "Owner of node"),
@@ -308,10 +328,55 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
-// TODO   set_user_gclass_traces(gobj);
+    /*--------------------------*
+     *     Yuneta user
+     *--------------------------*/
+    BOOL is_yuneta = FALSE;
+#ifdef __linux__
+    struct passwd *pw = getpwuid(getuid());
+    if(strcmp(pw->pw_name, "yuneta")==0) {
+        gobj_write_str_attr(gobj, "__username__", "yuneta");
+        is_yuneta = TRUE;
+    } else {
+        struct group *grp = getgrnam("yuneta");
+        if(grp && grp->gr_mem) {
+            char **gr_mem = grp->gr_mem;
+            while(*gr_mem) {
+                if(strcmp(*gr_mem, pw->pw_name)==0) {
+                    gobj_write_str_attr(gobj, "__username__", "yuneta");
+                    is_yuneta = TRUE;
+                    break;
+                }
+                gr_mem++;
+            }
+        }
+    }
+#endif
+#ifdef ESP_PLATFORM
+    gobj_write_str_attr(gobj, "__username__", "yuneta");
+    is_yuneta = TRUE;
+#endif
+    if(!is_yuneta) {
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "User or group 'yuneta' is needed to run a yuno",
+            NULL
+        );
+        printf("User or group 'yuneta' is needed to run a yuno\n");
+        exit(0);
+    }
+
+    /*------------------------*
+     *  Traces
+     *------------------------*/
+    // TODO   set_user_gclass_traces(gobj);
 //    set_user_trace_filter(gobj);
 //    set_user_gclass_no_traces(gobj);
 
+    /*------------------------*
+     *  Create childs
+     *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     if(gobj_read_integer_attr(gobj, "launch_id")) {
@@ -808,6 +873,133 @@ PRIVATE json_t *cmd_view_attrs2(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0,      // jn_comment
         0,      // jn_schema
         attr2json(gobj2read)
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    const char *attribute = kw_get_str(gobj, kw, "attribute", 0, 0);
+    json_t *jn_attrs = attribute?json_string(attribute):0;
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,      // result
+        0,      // jn_comment
+        0,      // jn_schema
+        gobj_list_persistent_attrs(gobj2read, jn_attrs) // owned
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    const char *attribute = kw_get_str(gobj, kw, "attribute", 0, 0);
+    BOOL all = kw_get_bool(gobj, kw, "__all__", 0, KW_WILD_NUMBER);
+
+    if(empty_string(attribute) && !all) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what attribute?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+    int ret = gobj_remove_persistent_attrs(gobj2read, all?NULL:json_string(attribute));
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        ret,    // result
+        0,      // jn_comment
+        0,      // jn_schema
+        gobj_list_persistent_attrs(gobj2read, 0) // owned
     );
     JSON_DECREF(kw)
     return kw_response;

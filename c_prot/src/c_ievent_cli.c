@@ -11,8 +11,6 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
 #include <kwid.h>
 #include <gobj_environment.h>
 #include <c_timer.h>
@@ -58,7 +56,6 @@ SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to conn
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_JSON,    "extra_info",       SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
-SDATA (DTP_STRING,  "__username__",     SDF_RD,         "",         "Username"),
 SDATA (DTP_INTEGER, "timeout_idack",    SDF_RD,         "5000",     "timeout waiting idAck"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
@@ -113,42 +110,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-
-    BOOL is_yuneta = FALSE;
-#ifdef __linux__
-    struct passwd *pw = getpwuid(getuid());
-    if(strcmp(pw->pw_name, "yuneta")==0) {
-        gobj_write_str_attr(gobj, "__username__", "yuneta");
-        is_yuneta = TRUE;
-    } else {
-        struct group *grp = getgrnam("yuneta");
-        if(grp && grp->gr_mem) {
-            char **gr_mem = grp->gr_mem;
-            while(*gr_mem) {
-                if(strcmp(*gr_mem, pw->pw_name)==0) {
-                    gobj_write_str_attr(gobj, "__username__", "yuneta");
-                    is_yuneta = TRUE;
-                    break;
-                }
-                gr_mem++;
-            }
-        }
-    }
-#endif
-#ifdef ESP_PLATFORM
-    gobj_write_str_attr(gobj, "__username__", "yuneta");
-    is_yuneta = TRUE;
-#endif
-    if(!is_yuneta) {
-        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "User or group 'yuneta' is needed to run a yuno",
-            NULL
-        );
-        printf("User or group 'yuneta' is needed to run a yuno\n");
-        exit(0);
-    }
 
     SET_PRIV(remote_yuno_name,          gobj_read_str_attr)
     SET_PRIV(remote_yuno_role,          gobj_read_str_attr)
@@ -536,8 +497,8 @@ PRIVATE json_t *build_ievent_request(
         "src_yuno", gobj_yuno_name(),
         "src_role", gobj_yuno_role(),
         "src_service", src_service,
-        "user", get_user_name(),
-        "host", get_host_name()
+        "user", gobj_read_str_attr(gobj_yuno(), "__username__"),
+        "host", gobj_read_str_attr(gobj_yuno(), "hostname")
     );
     return jn_ievent_chain;
 }
@@ -568,7 +529,7 @@ PRIVATE int send_identity_card(hgobj gobj)
         "pid", (int)getpid(),
         "watcher_pid", (int)gobj_read_integer_attr(gobj_yuno(), "watcher_pid"),
         "jwt", gobj_read_str_attr(gobj, "jwt"),
-        "username", gobj_read_str_attr(gobj, "__username__"),
+        "username", gobj_read_str_attr(gobj_yuno(), "__username__"),
         "launch_id", launch_id,
         "yuno_startdate", gobj_read_str_attr(gobj_yuno(), "start_date"),
         "id", node_uuid()
@@ -776,8 +737,6 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
     gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
     gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
     gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
-    //const char *username = kw_get_str(kw, "username", "", KW_REQUIRED); // machaco? NO
-    //gobj_write_str_attr(gobj, "__username__", username);
 
     // WARNING comprueba result, ahora puede venir negativo
     int result = kw_get_int(gobj, kw, "result", -1, 0);
