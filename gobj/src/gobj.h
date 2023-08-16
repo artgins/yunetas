@@ -1347,8 +1347,8 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
 
 PUBLIC const char *get_host_name(void);
 
-PUBLIC const char **get_sdata_flag_table(void);
-PUBLIC json_t *attr2json(hgobj gobj);       // Return a list with description of gobj's attributes.
+PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
+PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
 
 /*
  *  gobj_repr_gclass_register():

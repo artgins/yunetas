@@ -4641,25 +4641,11 @@ PUBLIC const char **get_sdata_flag_table(void)
             type: string ("real" | "boolean" | "integer" | "string" | "json"),
             flag: string ("SDF_RD",...),
             description: string,
-            stats: boolean,
-            value: any
-        },
-        {   Metadata:
-            "name", "__state__",
-            "name", "__bottom__",
-            "name", "__shortname__",
-            "name", "__fullname__",
-            "name", "__running__",
-            "name", "__playing__",
-            "name", "__service__",
-            "name", "__unique__",
-            "name", "__disabled__",
-            "name", "__gobj_trace_level__",
-            "name", "__gobj_no_trace_level__"
+            stats: boolean
         }
     ]
  ***************************************************************************/
-PUBLIC json_t *attr2json(hgobj gobj_)
+PUBLIC json_t *get_attrs_schema(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     json_t *jn_data = json_array();
@@ -4700,178 +4686,10 @@ PUBLIC json_t *attr2json(hgobj gobj_)
             );
             GBUFFER_DECREF(gbuf);
 
-            if(it->type == DTP_REAL) {
-                json_object_set_new(
-                    attr_dict,
-                    "value",
-                    json_real(
-                        gobj_read_real_attr(gobj, it->name)
-                    )
-                );
-            } else if(it->type == DTP_INTEGER) {
-                json_object_set_new(
-                    attr_dict,
-                    "value",
-                    json_integer(
-                        gobj_read_integer_attr(gobj, it->name)
-                    )
-                );
-            } else if(it->type == DTP_BOOLEAN) {
-                json_object_set_new(
-                    attr_dict,
-                    "value",
-                    json_boolean(
-                        gobj_read_bool_attr(gobj, it->name)
-                    )
-                );
-            } else if(it->type == DTP_STRING) {
-                json_object_set_new(
-                    attr_dict,
-                    "value",
-                    json_string(
-                        gobj_read_str_attr(gobj, it->name)
-                    )
-                );
-            } else if(it->type == DTP_JSON || it->type == DTP_DICT || it->type == DTP_LIST) {
-                json_t *jn = gobj_read_json_attr(gobj, it->name);
-                char *value = 0;
-                if(jn) {
-                    value = json_dumps(jn, JSON_ENCODE_ANY|JSON_COMPACT);
-                }
-                json_object_set_new(
-                    attr_dict,
-                    "value",
-                    json_string(value?value:"")
-                );
-                if(value) {
-                    jsonp_free(value);
-                }
-            }
-
-            json_array_append_new(jn_data, attr_dict);
+           json_array_append_new(jn_data, attr_dict);
         }
         it++;
     }
-
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
-            "id", (json_int_t)id++,
-            "name", "__state__",
-            "type", "string",
-            "flag", "",
-            "description", "SMachine state of gobj",
-            "stats", 0,
-            "value", gobj_current_state(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
-            "id", (json_int_t)id++,
-            "name", "__bottom__",
-            "type", "string",
-            "flag", "",
-            "description", "Bottom gobj",
-            "stats", 0,
-            "value", gobj->bottom_gobj? gobj_short_name(gobj->bottom_gobj):""
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
-            "id", (json_int_t)id++,
-            "name", "__shortname__",
-            "type", "string",
-            "flag", "",
-            "description", "Full name",
-            "stats", 0,
-            "value", gobj_short_name(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:s}",
-            "id", (json_int_t)id++,
-            "name", "__fullname__",
-            "type", "string",
-            "flag", "",
-            "description", "Full name",
-            "stats", 0,
-            "value", gobj_full_name(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
-            "id", (json_int_t)id++,
-            "name", "__running__",
-            "type", "boolean",
-            "flag", "",
-            "description", "Is running the gobj?",
-            "stats", 0,
-            "value", (json_int_t)(size_t)gobj_is_running(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
-            "id", (json_int_t)id++,
-            "name", "__playing__",
-            "type", "boolean",
-            "flag", "",
-            "description", "Is playing the gobj?",
-            "stats", 0,
-            "value", (json_int_t)(size_t)gobj_is_playing(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
-            "id", (json_int_t)id++,
-            "name", "__service__",
-            "type", "boolean",
-            "flag", "",
-            "description", "Is a service the gobj?",
-            "stats", 0,
-            "value", (json_int_t)(size_t)gobj_is_service(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:I}",
-            "id", (json_int_t)id++,
-            "name", "__disabled__",
-            "type", "boolean",
-            "flag", "",
-            "description", "Is disabled the gobj?",
-            "stats", 0,
-            "value", (json_int_t)(size_t)gobj_is_disabled(gobj)
-        )
-    );
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:o}",
-            "id", (json_int_t)id++,
-            "name", "__gobj_trace_level__",
-            "type", "array",
-            "flag", "",
-            "description", "Current trace level",
-            "stats", 0,
-            "value",  bit2level(
-                s_global_trace_level,
-                gobj->gclass->s_user_trace_level,
-                gobj_trace_level(gobj)
-            )
-        )
-    );
-
-    json_array_append_new(jn_data,
-        json_pack("{s:I, s:s, s:s, s:s, s:s, s:b, s:o}",
-            "id", (json_int_t)id++,
-            "name", "__gobj_no_trace_level__",
-            "type", "array",
-            "flag", "",
-            "description", "Current no trace level",
-            "stats", 0,
-            "value",  bit2level(
-                s_global_trace_level,
-                gobj->gclass->s_user_trace_level,
-                gobj_trace_no_level(gobj)
-            )
-        )
-    );
 
     return jn_data;
 }
