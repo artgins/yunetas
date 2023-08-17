@@ -3266,6 +3266,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
             gobj_shutdown();
             JSON_DECREF(kw)
+            abort();    // relaunch program
             return -1;
         }
     }
