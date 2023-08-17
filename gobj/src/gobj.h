@@ -1683,6 +1683,7 @@ PUBLIC int gobj_log_register_handler(
     loghandler_write_fn_t write_fn,
     loghandler_fwrite_fn_t fwrite_fn
 );
+PUBLIC BOOL gobj_log_exist_handler(const char *handler_name);
 
 PUBLIC int gobj_log_add_handler(
     const char *handler_name,

@@ -17,7 +17,9 @@
 #include <string.h>
 #include <limits.h>
 #include <gobj_environment.h>
+#include <kwid.h>
 #include <command_parser.h>
+#include <log_udp_handler.h>
 #include "yunetas_ev_loop.h"
 #include "yunetas_environment.h"
 #include "c_timer.h"
@@ -39,29 +41,36 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
 PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
-PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 PRIVATE json_t *cmd_info_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_info_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
 PRIVATE json_t *cmd_info_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
-PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -154,6 +163,19 @@ PRIVATE sdata_desc_t pm_set_deep_trace[] = {
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_add_log_handler[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler log name"),
+SDATAPM (DTP_STRING,    "type",         0,              0,          "Handler log type"),
+SDATAPM (DTP_STRING,    "options",      0,              0,          "Handler log options"),
+SDATAPM (DTP_STRING,    "url",          0,              0,          "Url for log 'udp' type"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_del_log_handler[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler name"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -203,11 +225,11 @@ SDATACM (DTP_SCHEMA,    "get-trace-filter",         0,      0, cmd_get_trace_fil
 SDATACM (DTP_SCHEMA,    "reset-all-traces",         0,      pm_reset_all_tr, cmd_reset_all_traces,         "Reset all traces of a named-gobj of gclass"),
 SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
 
-//SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,              cmd_trunk_rotatory_file,    "Trunk rotatory files"),
-//SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,              cmd_reset_log_counters,     "Reset log counters"),
-//SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler,     "Add log handler"),
-//SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler,     "Delete log handler"),
-//SDATACM (DTP_SCHEMA,    "list-log-handler",         0,      0,              cmd_list_log_handler,       "List log handlers"),
+SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,              cmd_trunk_rotatory_file,    "Trunk rotatory files"),
+SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,              cmd_reset_log_counters,     "Reset log counters"),
+SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler,     "Add log handler"),
+SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler,     "Delete log handler"),
+SDATACM (DTP_SCHEMA,    "list-log-handler",         0,      0,              cmd_list_log_handler,       "List log handlers"),
 
 //SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,            "View gclass description"),
 //SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,            "View gobj"),
@@ -2273,6 +2295,225 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
         ),
         0,
         0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    // TODO rotatory_trunk(0); // WARNING trunk all files
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf("%s: Trunk all rotatory files done.", gobj_short_name(gobj)),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    // TODO log_clear_counters();
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf("%s: Log counters reset.", gobj_short_name(gobj)),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *handler_name = kw_get_str(gobj, kw, "name", "", KW_REQUIRED);
+    const char *handler_type = kw_get_str(gobj, kw, "type", "", KW_REQUIRED);
+    const char *handler_options_ = kw_get_str(gobj, kw, "options", "", 0);
+    log_handler_opt_t handler_options = atoi(handler_options_);
+    if(!handler_options) {
+        handler_options = LOG_OPT_ALL;
+    }
+
+    int added = 0;
+
+    if(empty_string(handler_name)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("What name?"),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    /*-------------------------------------*
+     *      Check if already exists
+     *-------------------------------------*/
+    if(gobj_log_exist_handler(handler_name)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("Handler already exists: %s", handler_name),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    if(strcmp(handler_type, "file")==0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("Handler 'file' type not allowed"),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+
+    } else if(strcmp(handler_type, "udp")==0) {
+        const char *url = kw_get_str(gobj, kw, "url", "", KW_REQUIRED);
+        if(empty_string(url)) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,
+                json_sprintf("What url?"),
+                0,
+                0
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+        size_t bf_size = 0;                     // 0 = default 64K
+        size_t udp_frame_size = 0;              // 0 = default 1500
+        output_format_t output_format = 0;       // 0 = default OUTPUT_FORMAT_YUNETA
+        const char *bindip = 0;
+
+        KW_GET(bindip, bindip, kw_get_str)
+        KW_GET(bf_size, bf_size, kw_get_int)
+        KW_GET(udp_frame_size, udp_frame_size, kw_get_int)
+        KW_GET(output_format, output_format, kw_get_int)
+
+        udpc_t udpc = udpc_open(
+            url,
+            bindip,
+            bf_size,
+            udp_frame_size,
+            output_format,
+            TRUE    // exit on failure
+        );
+        if(udpc) {
+            if(gobj_log_add_handler(handler_name, handler_type, handler_options, udpc)==0) {
+                added++;
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "log_add_handler() FAILED",
+                    "handler_type", "%s", handler_type,
+                    "url",          "%s", url,
+                    NULL
+                );
+            }
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "udpc_open() FAILED",
+                "handler_type", "%s", handler_type,
+                "url",          "%s", url,
+                NULL
+            );
+        }
+    } else {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("Unknown '%s' handler type.", handler_type),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        added>0?0:-1,
+        json_sprintf("%s: %d handlers added.", gobj_short_name(gobj), added),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *handler_name = kw_get_str(gobj, kw, "name", "", KW_REQUIRED);
+    if(empty_string(handler_name)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what name?", gobj_short_name(gobj)),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+    int deletions = gobj_log_del_handler(handler_name);
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        deletions>0?0:-1,
+        json_sprintf("%s: %d handlers deleted.", gobj_short_name(gobj), deletions),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        gobj_log_list_handlers() // owned
     );
     JSON_DECREF(kw)
     return kw_response;

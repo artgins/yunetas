@@ -223,7 +223,7 @@ PUBLIC int gobj_log_register_handler(
 /*****************************************************************
  *  Return if handler exists
  *****************************************************************/
-PRIVATE BOOL log_exist_handler(const char *handler_name)
+PUBLIC BOOL gobj_log_exist_handler(const char *handler_name)
 {
     if(empty_string(handler_name)) {
         return FALSE;
@@ -256,7 +256,7 @@ PUBLIC int gobj_log_add_handler(
         return -1;
     }
 
-    if(log_exist_handler(handler_name)) {
+    if(gobj_log_exist_handler(handler_name)) {
         gobj_log_set_last_message("gobj_log_add_handler(): handler name already exists");
         return -1;
     }
