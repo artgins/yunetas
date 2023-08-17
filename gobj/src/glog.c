@@ -51,6 +51,16 @@ PRIVATE const char *priority_names[]={
     "DEBUG"
 };
 
+PRIVATE const char *log_handler_opt_names[]={
+    "LOG_HND_OPT_ALERT",
+    "LOG_HND_OPT_CRITICAL",
+    "LOG_HND_OPT_ERROR",
+    "LOG_HND_OPT_WARNING",
+    "LOG_HND_OPT_INFO",
+    "LOG_HND_OPT_DEBUG",
+    0
+};
+
 typedef struct {
     char handler_type[16+1];
     loghandler_close_fn_t close_fn;
@@ -349,7 +359,11 @@ PUBLIC json_t *gobj_log_list_handlers(void)
         json_array_append_new(jn_array, jn_dict);
         json_object_set_new(jn_dict, "handler_name", json_string(lh->handler_name));
         json_object_set_new(jn_dict, "handler_type", json_string(lh->hr->handler_type));
-        json_object_set_new(jn_dict, "handler_options", json_integer(lh->handler_options));
+        json_object_set_new(
+            jn_dict,
+            "handler_options",
+            bits2jn_strlist(log_handler_opt_names, lh->handler_options)
+        );
 
         /*
          *  Next

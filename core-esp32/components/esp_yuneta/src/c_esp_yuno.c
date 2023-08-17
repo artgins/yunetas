@@ -2530,7 +2530,7 @@ PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw,
  ***************************************************************************/
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    // TODO log_clear_counters();
+    gobj_log_clear_counters();
     json_t *kw_response = build_command_response(
         gobj,
         0,

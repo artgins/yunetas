@@ -6283,16 +6283,6 @@ PUBLIC int gobj_publish_event(
             }
 
             /*
-             *  Apply transformation filters
-             */
-//            if(__config__) { TODO need it?
-//                json_t *jn_trans_filters = kw_get_dict_value(__config__, "__trans_filter__", 0, 0);
-//                if(jn_trans_filters) {
-//                    kw2publish = apply_trans_filters(kw2publish, jn_trans_filters);
-//                }
-//            }
-
-            /*
              *  Add global keys
              */
             if(__global__) {
