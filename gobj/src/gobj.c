@@ -280,13 +280,31 @@ PRIVATE const char *sdata_flag_names[] = {
     0
 };
 
-PRIVATE char __hostname__[64] = {0};
-
 PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     "EVF_NO_WARN_SUBS",
     "EVF_OUTPUT_EVENT",
     "EVF_SYSTEM_EVENT",
     "EVF_PUBLIC_EVENT",
+    0
+};
+
+PRIVATE const char *gclass_flag_names[] = {
+    "gcflag_manual_start",
+    "gcflag_no_check_output_events",
+    "gcflag_ignore_unknown_attrs",
+    "gcflag_required_start_to_play",
+    "gcflag_singleton",
+    0
+};
+
+PRIVATE const char *gobj_flag_names[] = {
+    "gobj_flag_yuno",
+    "gobj_flag_default_service",
+    "gobj_flag_service",
+    "gobj_flag_volatil",
+    "gobj_flag_pure_child",
+    "gobj_flag_autostart",
+    "gobj_flag_autoplay",
     0
 };
 
@@ -344,7 +362,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"periodic_timer",  "Trace periodic timers"},
     {"gbuffers",        "Trace gbuffers"},
     {"timer",           "Trace timers"},
-    {0, 0},
+    {0, 0}
 };
 
 #define __trace_gobj_create_delete__(gobj)  (gobj_trace_level(gobj) & TRACE_CREATE_DELETE)
@@ -499,12 +517,7 @@ PUBLIC int gobj_start_up(
         (decref_fn_t)gbuffer_decref
     );
 
-#ifdef __linux__
-    gethostname(__hostname__, sizeof(__hostname__));
-#endif
-
     __initialized__ = TRUE;
-
 
     return 0;
 }
@@ -4639,14 +4652,6 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PUBLIC const char *get_host_name(void)
-{
-    return __hostname__;
-}
-
-/***************************************************************************
  *  Get names table of sdata flag
  ***************************************************************************/
 PUBLIC const char **get_sdata_flag_table(void)
@@ -4680,7 +4685,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj_)
     int id = 1;
     const sdata_desc_t *it = gobj->gclass->tattr_desc;
     while(it && it->name) {
-        if(it->flag & (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)) {
+        if(it->flag & (SDF_PUBLIC_ATTR)) {
             char *type;
             if(it->type == DTP_REAL) {
                 type = "real";
@@ -4724,7 +4729,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj_)
 /***************************************************************************
  *  Debug print gclass register in json
  ***************************************************************************/
-PUBLIC json_t * gobj_repr_gclass_register(void)
+PUBLIC json_t * gobj_gclass_register(void)
 {
     json_t *jn_register = json_array();
 
@@ -4752,7 +4757,7 @@ PUBLIC json_t * gobj_repr_gclass_register(void)
 /***************************************************************************
  *  Debug print service register in json
  ***************************************************************************/
-PUBLIC json_t * gobj_repr_service_register(const char *gclass_name)
+PUBLIC json_t *gobj_service_register(const char *gclass_name)
 {
     json_t *jn_register = json_array();
 
@@ -4775,6 +4780,229 @@ PUBLIC json_t * gobj_repr_service_register(const char *gclass_name)
     }
 
     return jn_register;
+}
+
+/***************************************************************************
+ *  Return json object with gclass's description.
+ ***************************************************************************/
+PUBLIC json_t *gclass2json(hgclass gclass_)
+{
+    gclass_t *gclass = gclass_;
+
+    json_t *jn_dict = json_object();
+    if(!gclass) {
+        return jn_dict;
+    }
+    json_object_set_new(
+        jn_dict,
+        "id",
+        json_string(gclass->gclass_name)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "gcflag",
+        bits2jn_strlist(gclass_flag_names, gclass->gclass_flag)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "priv_size",
+        json_integer((json_int_t)gclass->priv_size)
+    );
+
+
+    // TODO   json_object_set_new(
+//        jn_dict,
+//        "attrs",
+//        sdatadesc2json2(gclass->tattr_desc, -1, 0)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "commands",
+//        sdatacmd2json(gclass->command_table)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "gclass_methods",
+//        yunetamethods2json(&gclass->gmt)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "internal_methods",
+//        internalmethods2json(gclass->lmt)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "FSM",
+//        fsm2json(gclass->fsm)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "Authzs global",
+//        sdataauth2json(global_authz_table)
+//    );
+//    json_object_set_new(
+//        jn_dict,
+//        "Authzs gclass", // Access Control List
+//        sdataauth2json(gclass->authz_table)
+//    );
+
+    json_object_set_new(
+        jn_dict,
+        "info_gclass_trace",
+        gobj_trace_level_list(gclass)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "gclass_trace_level",
+        gobj_get_gclass_trace_level(gclass)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "gclass_no_trace_level",
+        gobj_get_gclass_no_trace_level(gclass)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "instances",
+        json_integer(gclass->instances)
+    );
+
+    return jn_dict;
+}
+
+/***************************************************************************
+ *  Return a dict with gobj's description.
+ ***************************************************************************/
+PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
+    hgobj gobj,
+    json_t *jn_filter // owned, if null return only fullname, if empty object return all
+) {
+    json_t *jn_dict = json_object();
+
+    json_object_set_new(
+        jn_dict,
+        "shortname",
+        json_string(gobj_short_name(gobj))
+    );
+    if(!jn_filter) {
+        // Without filter only fullname TODO by the moment
+        return jn_dict;
+    }
+    json_object_set_new(
+        jn_dict,
+        "fullname",
+        json_string(gobj_full_name(gobj))
+    );
+    json_object_set_new(
+        jn_dict,
+        "gclass",
+        json_string(gobj_gclass_name(gobj))
+    );
+    json_object_set_new(
+        jn_dict,
+        "name",
+        json_string(gobj_name(gobj))
+    );
+    json_object_set_new(
+        jn_dict,
+        "parent",
+        json_string(gobj_short_name(gobj_parent(gobj)))
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "attrs",
+        gobj_read_attrs(gobj, SDF_PUBLIC_ATTR, gobj)
+    );
+
+    json_object_set(
+        jn_dict,
+        "user_data",
+        gobj_read_user_data(gobj, NULL)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "gobj_flags",
+        bits2jn_strlist(gobj_flag_names, ((gobj_t *)gobj)->gobj_flag)
+    );
+
+    json_object_set_new(
+        jn_dict,
+        "state",
+        json_string(gobj_current_state(gobj))
+    );
+    json_object_set_new(
+        jn_dict,
+        "running",
+        gobj_is_running(gobj)? json_true(): json_false()
+    );
+    json_object_set_new(
+        jn_dict,
+        "playing",
+        gobj_is_playing(gobj)? json_true(): json_false()
+    );
+    json_object_set_new(
+        jn_dict,
+        "service",
+        gobj_is_service(gobj)? json_true(): json_false()
+    );
+    json_object_set_new(
+        jn_dict,
+        "disabled",
+        gobj_is_disabled(gobj)? json_true(): json_false()
+    );
+    json_object_set_new(
+        jn_dict,
+        "gobj_trace_level",
+        gobj_get_gobj_trace_level(gobj)
+    );
+    json_object_set_new(
+        jn_dict,
+        "gobj_trace_no_level",
+        gobj_get_gobj_no_trace_level(gobj)
+    );
+
+    return jn_dict;
+}
+
+/***************************************************************************
+ *  View a gobj tree, with states of running/playing and attributes
+ ***************************************************************************/
+PRIVATE int _add_gobj_tree(
+    json_t *jn_list,
+    gobj_t * gobj,
+    json_t *jn_filter // not owned
+) {
+    json_t *jn_gobj = gobj2json(gobj, json_incref(jn_filter));
+    json_array_append_new(jn_list, jn_gobj);
+
+    if(gobj_child_size(gobj)>0) {
+        json_t *jn_data = json_array();
+        json_object_set_new(jn_gobj, "childs", jn_data);
+
+        gobj_t *child = gobj_first_child(gobj);
+
+        while(child) {
+            _add_gobj_tree(jn_data, child, jn_filter);
+            child = gobj_next_child(child);
+        }
+    }
+    return 0;
+}
+PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
+    hgobj gobj,
+    json_t *jn_filter // owned
+) {
+    json_t *jn_tree = json_array();
+    _add_gobj_tree(jn_tree, gobj, jn_filter);
+    JSON_DECREF(jn_filter)
+    return jn_tree;
 }
 
 
@@ -6425,7 +6653,7 @@ PUBLIC json_t * gobj_repr_global_trace_levels(void)
 /***************************************************************************
  *  Debug print gclass trace levels in json
  ***************************************************************************/
-PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)
+PUBLIC json_t *gobj_repr_gclass_trace_levels(const char *gclass_name)
 {
     json_t *jn_register = json_array();
 
@@ -6441,7 +6669,7 @@ PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)
             json_object_set_new(
                 jn_gclass,
                 "trace_levels",
-                gobj_trace_level_list(gclass, TRUE)
+                gobj_trace_level_list(gclass)
             );
 
             json_array_append_new(jn_register, jn_gclass);
@@ -6460,7 +6688,7 @@ PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)
         json_object_set_new(
             jn_gclass,
             "trace_levels",
-            gobj_trace_level_list(gclass, TRUE)
+            gobj_trace_level_list(gclass)
         );
 
         json_array_append_new(jn_register, jn_gclass);
@@ -6474,22 +6702,11 @@ PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)
  *  Return list of trace levels
  *  Remember decref return
  ****************************************************************************/
-PUBLIC json_t *gobj_trace_level_list(hgclass gclass_, BOOL not_internals)
+PUBLIC json_t *gobj_trace_level_list(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
 
     json_t *jn_dict = json_object();
-    if(!not_internals) {
-        for(int i=0; i<16; i++) {
-            if(!s_global_trace_level[i].name)
-                break;
-            json_object_set_new(
-                jn_dict,
-                s_global_trace_level[i].name,
-                json_string(s_global_trace_level[i].description)
-            );
-        }
-    }
     if(gclass->s_user_trace_level) {
         for(int i=0; i<16; i++) {
             if(!gclass->s_user_trace_level[i].name)

@@ -100,6 +100,26 @@ PUBLIC json_t *create_json_record(
     const json_desc_t *json_desc
 );
 
+/*
+ *  Utilities to manage strict ascendant string tables representing bit values of maximum 64 bits.
+ *  Convert to json list of strings or a gbuffer with string1|string2|...
+ *  The table must be end by NULL
+ *  Example:
+ *
+    typedef enum { // HACK strict ascendant value!, strings in sample_flag_names
+        case1       = 0x0001,
+        case2       = 0x0002,
+        case3       = 0x0004,
+    } sample_flag_t;
+
+    const char *sample_flag_names[] = { // Strings of sample_flag_t type
+        "case1",
+        "case2",
+        "case3",
+        0
+    };
+
+ */
 PUBLIC json_t *bits2jn_strlist(
     const char **string_table,
     uint64_t bits

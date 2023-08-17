@@ -323,7 +323,7 @@ typedef enum {
 /*
  *  SData field flags.
  */
-typedef enum {   // HACK strict ascendent value!, strings in sdata_flag_names[]
+typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     SDF_NOTACCESS   = 0x00000001,   /* snmp/db exposed as not accessible */
     SDF_RD          = 0x00000002,   /* Field only readable by user */
     SDF_WR          = 0x00000004,   /* Field writable (an readable) by user */
@@ -347,9 +347,9 @@ typedef enum {   // HACK strict ascendent value!, strings in sdata_flag_names[]
     SDF_AUTHZ_RS    = 0x00100000,   /* Need Stats '__reset_stats__' authorization */
 } sdata_flag_t;
 
-#define SDF_PUBLIC_ATTR (SDF_WR|SDF_RD|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)
-#define ATTR_WRITABLE (SDF_WR|SDF_PERSIST)
-#define ATTR_READABLE (SDF_RD|SDF_WR|SDF_PERSIST|SDF_STATS|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)
+#define SDF_PUBLIC_ATTR (SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS)
+#define ATTR_WRITABLE   (SDF_WR|SDF_PERSIST)
+#define ATTR_READABLE   SDF_PUBLIC_ATTR
 
 
 #define SDATA_END()                                     \
@@ -454,7 +454,7 @@ typedef struct sdata_desc_s {
     struct sdata_desc_s *schema;
 } sdata_desc_t;
 
-typedef enum { // HACK strict ascendent value!, strings in event_flag_names[]
+typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
     EVF_NO_WARN_SUBS    = 0x0001,   // Don't warn of "Publish event WITHOUT subscribers"
     EVF_OUTPUT_EVENT    = 0x0002,   // Output Event
     EVF_SYSTEM_EVENT    = 0x0004,   // System Event
@@ -893,7 +893,7 @@ typedef struct {
     const char *description;
 } authz_level_t;
 
-typedef enum { // HACK strict ascendant value!, strings in s_gcflag (TODO)
+typedef enum { // HACK strict ascendant value!, strings in gclass_flag_names
     gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start. TODO do same with stop
     gcflag_no_check_output_events   = 0x0002,   // When publishing don't check events in output_event_list.
     gcflag_ignore_unknown_attrs     = 0x0004,   // When creating a gobj, ignore not existing attrs
@@ -901,7 +901,7 @@ typedef enum { // HACK strict ascendant value!, strings in s_gcflag (TODO)
     gcflag_singleton                = 0x0010,   // Can only have one instance
 } gclass_flag_t;
 
-typedef enum { // HACK strict ascendant value!, strings in s_gobj_flag (TODO)
+typedef enum { // HACK strict ascendant value!, strings in gobj_flag_names
     gobj_flag_yuno              = 0x0001,
     gobj_flag_default_service   = 0x0002,
     gobj_flag_service           = 0x0004,   // Interface (events, attrs, commands, stats) available to external access
@@ -1345,21 +1345,29 @@ static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yun
 PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose);
 
-PUBLIC const char *get_host_name(void);
-
 PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
 PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
 
 /*
- *  gobj_repr_gclass_register():
+ *  gobj_gclass_register():
  *      Return [gclass:s}]
  *
- *  gobj_repr_service_register():
+ *  gobj_service_register():
  *      Return [{gclass:s, service:s}]
  *
  */
-PUBLIC json_t * gobj_repr_gclass_register(void);
-PUBLIC json_t * gobj_repr_service_register(const char *gclass_name);
+PUBLIC json_t * gobj_gclass_register(void);
+PUBLIC json_t * gobj_service_register(const char *gclass_name);
+
+PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
+PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
+    hgobj gobj,
+    json_t *jn_filter // owned, if null return only fullname, if empty object return all
+);
+PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
 
 /*--------------------------------------------*
  *          Events and States
@@ -1611,9 +1619,9 @@ PUBLIC json_t * gobj_repr_global_trace_levels(void);
 PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name);
 
 /*
- *  Return trace level list (internal and user defined)
+ *  Return trace level list (user defined)
  */
-PUBLIC json_t *gobj_trace_level_list(hgclass gclass, BOOL not_internals);
+PUBLIC json_t *gobj_trace_level_list(hgclass gclass);
 
 /*
  *  Get traces set in gclass and gobj (return list of strings)

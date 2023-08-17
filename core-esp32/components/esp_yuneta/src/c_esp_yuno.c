@@ -37,6 +37,8 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
+
 #ifdef ESP_PLATFORM
 static void event_loop_callback(
     void *event_handler_arg,
@@ -55,6 +57,14 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
 PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
 PRIVATE json_t* cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
@@ -184,6 +194,12 @@ PRIVATE sdata_desc_t pm_del_log_handler[] = {
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_authzs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -207,6 +223,16 @@ SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,pm_gclass_name,cm
 SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr, "Write a writable attribute)"),
 SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,      "View gobj's attrs"),
 SDATACM (DTP_SCHEMA,    "view-attrs-schema",        a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,    "View gobj's attrs schema"),
+
+SDATACM (DTP_SCHEMA,    "view-config",              0,      0,              cmd_view_config,            "View final json configuration"),
+SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,              cmd_view_mem,               "View yuno memory"),
+
+SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,            "View gclass description"),
+SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,            "View gobj"),
+
+SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_root_name,cmd_view_gobj_tree,       "View gobj tree"),
+
+SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,     "Authorization's help"),
 
 SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
 SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
@@ -611,7 +637,7 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
         0,
         0,
         0,
-        gobj_repr_gclass_register()
+        gobj_gclass_register()
     );
     JSON_DECREF(kw)
     return jn_response;
@@ -635,7 +661,7 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
         0,
         0,
         0,
-        gobj_repr_service_register(gclass_name)
+        gobj_service_register(gclass_name)
     );
     JSON_DECREF(kw)
     return jn_response;
@@ -935,6 +961,218 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,      // jn_comment
         0,      // jn_schema
         get_attrs_schema(gobj2read)
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+// TODO   return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    json_t *kw_response = build_command_response(
+        gobj,
+        -1,     // result
+        json_sprintf("Not yet implemented"),   // jn_comment
+        0,      // jn_schema
+        0       // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = json_object(); // NO CONFIG in esp32, yuneta_json_config();
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = json_object();
+#ifdef ESP_PLATFORM
+    #include <esp_system.h>
+    size_t size = esp_get_free_heap_size();
+    json_object_set_new(jn_data, "HEAP free", json_integer(size));
+#endif
+
+    json_object_set_new(jn_data, "max_system_memory", json_integer((json_int_t)get_max_system_memory()));
+    json_object_set_new(jn_data, "cur_system_memory", json_integer((json_int_t)get_cur_system_memory()));
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Show a gclass description
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *gclass_name_ = kw_get_str(
+        gobj,
+        kw,
+        "gclass_name",
+        kw_get_str(gobj, kw, "gclass", "", 0),
+        0
+    );
+
+    hgclass gclass = 0;
+    if(!empty_string(gclass_name_)) {
+        gclass = gclass_find_by_name(gclass_name_);
+        if(!gclass) {
+            gclass = get_gclass_from_gobj(gclass_name_);
+            if(!gclass) {
+                json_t *kw_response = build_command_response(
+                    gobj,
+                    -1,     // result
+                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    0,      // jn_schema
+                    0       // jn_data
+                );
+                JSON_DECREF(kw)
+                return kw_response;
+            }
+        }
+    }
+
+    json_t *jn_data = gclass2json(gclass);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Show a gobj
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    json_t *jn_data = gobj2json(gobj2read, json_object());
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    json_t *jn_data = view_gobj_tree(gobj2read, 0); // TODO pon opciones, ojo repeated in c_???_yuno
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
