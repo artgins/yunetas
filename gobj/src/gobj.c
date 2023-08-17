@@ -1745,13 +1745,40 @@ PUBLIC int gobj_remove_persistent_attrs(hgobj gobj_, json_t *jn_attrs)
 /***************************************************************************
  *  List persistent attributes
  ***************************************************************************/
-PUBLIC json_t * gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
+PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
 {
+    json_t *jn_dict = json_object();
+
     if(!__global_list_persistent_attrs_fn__) {
         JSON_DECREF(jn_attrs);
-        return 0;
+        return jn_dict;
     }
-    return __global_list_persistent_attrs_fn__(gobj, jn_attrs);
+
+    if(gobj) {
+        json_t *jn_item = __global_list_persistent_attrs_fn__(
+            gobj,
+            json_incref(jn_attrs)
+        );
+        if(jn_item) {
+            json_object_set_new(jn_dict, gobj_short_name(gobj), jn_item);
+        }
+    } else {
+        const char *key; json_t *jn_service;
+        json_object_foreach(jn_services, key, jn_service) {
+            gobj_t *gobj_ = (gobj_t *)(size_t)json_integer_value(jn_service);
+
+            json_t *jn_item = __global_list_persistent_attrs_fn__(
+                gobj_,
+                json_incref(jn_attrs)
+            );
+            if(jn_item) {
+                json_object_set_new(jn_dict, gobj_short_name(gobj_), jn_item);
+            }
+        }
+    }
+
+    JSON_DECREF(jn_attrs);
+    return jn_dict;
 }
 
 /***************************************************************************
@@ -7496,7 +7523,7 @@ PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
-#define CONFIG_TRACK_MEMORY
+//#define CONFIG_TRACK_MEMORY
 
 #ifdef CONFIG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;
@@ -7616,6 +7643,11 @@ PRIVATE void *_mem_malloc(size_t size)
     }
     char *pm = calloc(1, size);
     if(!pm) {
+#ifdef ESP_PLATFORM
+        #include <esp_system.h>
+        printf(On_Red BWhite "ERROR NO MEMORY calloc() failed, size %d, HEAP free %d" Color_Off "\n", (int)size, (int)esp_get_free_heap_size());
+#endif
+
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_MEMORY_ERROR,

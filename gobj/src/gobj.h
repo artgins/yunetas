@@ -1104,8 +1104,8 @@ PUBLIC void gobj_destroy_childs(hgobj gobj);
  *  ONLY unique gobjs can load/save persistent attributes.
  *  gobj_save_persistent_attrs() must be manually executed.
  *
- *  Persistent attrs now can be save/remove individually
- *  attrs can be a string, a list of keys, or a dict with the keys to save/delete
+ *  Persistent attrs now can be saved/removed individually,
+ *  attrs can be a string, a list of keys, or a dict with the keys to saved/deleted
  *  if attrs is empty list/save/remove all attrs
  */
 PUBLIC int gobj_save_persistent_attrs(hgobj gobj, json_t *jn_attrs); // str, list or dict

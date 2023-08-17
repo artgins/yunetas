@@ -56,14 +56,15 @@ PUBLIC json_t * command_parser(
         gobj_trace_json(gobj, kw_cmd, "expanded_command: kw_cmd");
     }
     if(!cnf_cmd) {
-        KW_DECREF(kw);
-        return build_command_response(
+        json_t *kw_response = build_command_response(
             gobj,
             -1,
             kw_cmd,
             0,
             0
         );
+        KW_DECREF(kw);
+        return kw_response;
     }
 
     /*-----------------------------------------------*
@@ -195,17 +196,20 @@ PRIVATE json_t *expand_command(
     str = p = GBMEM_STRDUP(command);
     char *cmd = get_parameter(p, &p);
     if(empty_string(cmd)) {
-        GBMEM_FREE(str);
-        return json_sprintf("%s: No command", gobj_short_name(gobj));
+        json_t *jn_error = json_sprintf("%s: No command", gobj_short_name(gobj));
+        GBMEM_FREE(str)
+        return jn_error;
     }
+
     const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
     if(!cnf_cmd) {
-        GBMEM_FREE(str);
-        return json_sprintf(
+        json_t *jn_error = json_sprintf(
             "%s: command not available: '%s'. Try 'help' command.",
             gobj_short_name(gobj),
             cmd
         );
+        GBMEM_FREE(str)
+        return jn_error;
     }
 
     if(cmd_desc) {
@@ -214,7 +218,8 @@ PRIVATE json_t *expand_command(
 
     int ok = 0;
     json_t *kw_cmd = build_cmd_kw(gobj, cnf_cmd->name, cnf_cmd, p, kw, &ok);
-    GBMEM_FREE(str);
+    GBMEM_FREE(str)
+
     if(ok < 0) {
         if(cmd_desc) {
             *cmd_desc = 0;

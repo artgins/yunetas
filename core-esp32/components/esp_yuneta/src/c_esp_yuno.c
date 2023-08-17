@@ -925,32 +925,10 @@ PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* k
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    if(empty_string(gobj_name_)) {
-        json_t *kw_response = build_command_response(
-            gobj,
-            -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
-            0,      // jn_schema
-            0       // jn_data
-        );
-        JSON_DECREF(kw)
-        return kw_response;
-    }
 
     hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
-        if (!gobj2read) {
-            json_t *kw_response = build_command_response(
-                gobj,
-                -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
-                0,      // jn_schema
-                0       // jn_data
-            );
-            JSON_DECREF(kw)
-            return kw_response;
-        }
     }
 
     const char *attribute = kw_get_str(gobj, kw, "attribute", 0, 0);
@@ -959,12 +937,13 @@ PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* k
     /*
      *  Inform
      */
+    json_t *jn_data = gobj_list_persistent_attrs(gobj2read, jn_attrs);
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
         0,      // jn_comment
         0,      // jn_schema
-        gobj_list_persistent_attrs(gobj2read, jn_attrs) // owned
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
