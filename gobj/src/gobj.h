@@ -1709,6 +1709,7 @@ PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
 PUBLIC void gobj_log_info(hgobj gobj, log_opt_t opt, ...);
 PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...);
 PUBLIC const char *gobj_get_log_priority_name(int priority);
+PUBLIC json_t *gobj_get_log_data(void);
 PUBLIC void gobj_log_clear_counters(void);
 PUBLIC const char *gobj_log_last_message(void);
 PUBLIC void gobj_log_set_last_message(const char *msg, ...) JANSSON_ATTRS((format(printf, 1, 2)));

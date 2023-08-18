@@ -98,6 +98,7 @@ PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
 
 PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -267,6 +268,7 @@ SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cm
 
 SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,              cmd_trunk_rotatory_file,    "Trunk rotatory files"),
 SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,              cmd_reset_log_counters,     "Reset log counters"),
+SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,              cmd_view_log_counters,     "View log counters"),
 SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler,     "Add log handler"),
 SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler,     "Delete log handler"),
 SDATACM (DTP_SCHEMA,    "list-log-handler",         0,      0,              cmd_list_log_handler,       "List log handlers"),
@@ -2553,6 +2555,23 @@ PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, 
         json_sprintf("%s: Log counters reset.", gobj_short_name(gobj)),
         0,
         0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = gobj_get_log_data();
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
