@@ -1199,8 +1199,8 @@ PUBLIC int gobj_stop_childs(hgobj gobj);    // only direct childs
 PUBLIC int gobj_stop_tree(hgobj gobj);      // all tree of childs
 PUBLIC int gobj_play(hgobj gobj);
 PUBLIC int gobj_pause(hgobj gobj);
-PUBLIC int gobj_disable(hgobj gobj); // if not exists mt_disable() then gobj_stop_tree()
-PUBLIC int gobj_enable(hgobj gobj); // if not exists mt_enable() then gobj_start_tree()
+PUBLIC int gobj_enable(hgobj gobj); // exec own mt_enable() or gobj_start_tree()
+PUBLIC int gobj_disable(hgobj gobj); // exec own mt_disable() or gobj_stop_tree()
 
 PUBLIC void gobj_set_yuno_must_die(void);
 PUBLIC BOOL gobj_get_yuno_must_die(void);

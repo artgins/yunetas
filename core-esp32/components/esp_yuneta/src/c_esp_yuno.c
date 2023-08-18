@@ -64,12 +64,13 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
-PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t* cmd_enable_gobj(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_disable_gobj(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 PRIVATE json_t* cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -95,7 +96,6 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
-PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -200,12 +200,6 @@ PRIVATE sdata_desc_t pm_del_log_handler[] = {
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_authzs[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
-SDATA_END()
-};
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -223,54 +217,54 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,       "Command's help"),
 
-SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,              cmd_trunk_rotatory_file,    "Trunk rotatory files"),
-SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,              cmd_reset_log_counters,     "Reset log counters"),
-SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,              cmd_view_log_counters,     "View log counters"),
-SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler,     "Add log handler"),
-SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler,     "Delete log handler"),
-SDATACM (DTP_SCHEMA,    "list-log-handlers",        0,      0,              cmd_list_log_handlers,       "List log handlers"),
+SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,          cmd_reset_log_counters,     "Reset log counters"),
+SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,          cmd_view_log_counters,      "View log counters"),
+SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
+SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler, "Delete log handler"),
+SDATACM (DTP_SCHEMA,    "list-log-handlers",        0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
-SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,"View gclass's register"),
+SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,   "View gclass's register"),
 SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,pm_gclass_name,cmd_view_service_register,"View service's register"),
 
-SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr, "Write a writable attribute)"),
-SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,      "View gobj's attrs"),
-SDATACM (DTP_SCHEMA,    "view-attrs-schema",        a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,    "View gobj's attrs schema"),
+SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
+SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
+SDATACM (DTP_SCHEMA,    "view-attrs-schema",        a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
 
-SDATACM (DTP_SCHEMA,    "view-config",              0,      0,              cmd_view_config,            "View final json configuration"),
-SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,              cmd_view_mem,               "View yuno memory"),
+SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,            "View final json configuration"),
+SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,          cmd_view_mem,               "View yuno memory"),
 
-SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,            "View gclass description"),
-SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,            "View gobj"),
+SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
+SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
 
-SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_root_name,cmd_view_gobj_tree,       "View gobj tree"),
+SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_root_name,cmd_view_gobj_tree,   "View gobj tree"),
 
-SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "enable-gobj",              0,      pm_gobj_def_name,cmd_enable_gobj,       "Enable named-gobj, exec own mt_enable() or gobj_start_tree()"),
+SDATACM (DTP_SCHEMA,    "disable-gobj",             0,      pm_gobj_def_name,cmd_disable_gobj,      "Disable named-gobj, exec own mt_disable() or gobj_stop_tree()"),
 
 SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
 SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
 
-SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,      "Info of global trace levels"),
-SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,      "Info of class's trace levels"),
+SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
+SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
 
-SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0,              cmd_get_global_trace,       "Get global trace levels"),
-SDATACM (DTP_SCHEMA,    "set-global-trace",         0,      pm_set_global_tr,cmd_set_global_trace,      "Set global trace level"),
+SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0,              cmd_get_global_trace,   "Get global trace levels"),
+SDATACM (DTP_SCHEMA,    "set-global-trace",         0,      pm_set_global_tr,cmd_set_global_trace,  "Set global trace level"),
 
-SDATACM (DTP_SCHEMA,    "get-gclass-trace",         0,      pm_gclass_name, cmd_get_gclass_trace,       "Get gclass' trace"),
-SDATACM (DTP_SCHEMA,    "set-gclass-trace",         0,      pm_set_gclass_tr,cmd_set_gclass_trace,      "Set trace of a gclass)"),
-SDATACM (DTP_SCHEMA,    "get-gclass-no-trace",      0,      pm_gclass_name, cmd_get_gclass_no_trace,    "Get no gclass' trace"),
-SDATACM (DTP_SCHEMA,    "set-gclass-no-trace",      0,      pm_set_gclass_tr,cmd_set_no_gclass_trace,   "Set no-trace of a gclass)"),
+SDATACM (DTP_SCHEMA,    "get-gclass-trace",         0,      pm_gclass_name, cmd_get_gclass_trace,   "Get gclass' trace"),
+SDATACM (DTP_SCHEMA,    "set-gclass-trace",         0,      pm_set_gclass_tr,cmd_set_gclass_trace,  "Set trace of a gclass)"),
+SDATACM (DTP_SCHEMA,    "get-gclass-no-trace",      0,      pm_gclass_name, cmd_get_gclass_no_trace,"Get no gclass' trace"),
+SDATACM (DTP_SCHEMA,    "set-gclass-no-trace",      0,      pm_set_gclass_tr,cmd_set_no_gclass_trace,"Set no-trace of a gclass)"),
 
-SDATACM (DTP_SCHEMA,    "get-gobj-trace",           0,      pm_gobj_root_name, cmd_get_gobj_trace,       "Get gobj's trace and his childs"),
-SDATACM (DTP_SCHEMA,    "set-gobj-trace",           0,      pm_set_gobj_tr, cmd_set_gobj_trace,         "Set trace of a named-gobj"),
-SDATACM (DTP_SCHEMA,    "get-gobj-no-trace",        0,      pm_gobj_root_name, cmd_get_gobj_no_trace,    "Get no gobj's trace  and his childs"),
-SDATACM (DTP_SCHEMA,    "set-gobj-no-trace",        0,      pm_set_gobj_tr, cmd_set_no_gobj_trace,      "Set no-trace of a named-gobj"),
+SDATACM (DTP_SCHEMA,    "get-gobj-trace",           0,      pm_gobj_root_name, cmd_get_gobj_trace,   "Get gobj's trace and his childs"),
+SDATACM (DTP_SCHEMA,    "set-gobj-trace",           0,      pm_set_gobj_tr, cmd_set_gobj_trace,      "Set trace of a named-gobj"),
+SDATACM (DTP_SCHEMA,    "get-gobj-no-trace",        0,      pm_gobj_root_name, cmd_get_gobj_no_trace,"Get no gobj's trace  and his childs"),
+SDATACM (DTP_SCHEMA,    "set-gobj-no-trace",        0,      pm_set_gobj_tr, cmd_set_no_gobj_trace,   "Set no-trace of a named-gobj"),
 
-SDATACM (DTP_SCHEMA,    "set-trace-filter",         0,      pm_set_trace_filter, cmd_set_trace_filter,  "Set a gclass trace filter"),
+SDATACM (DTP_SCHEMA,    "set-trace-filter",         0,      pm_set_trace_filter, cmd_set_trace_filter,"Set a gclass trace filter"),
 SDATACM (DTP_SCHEMA,    "get-trace-filter",         0,      0, cmd_get_trace_filter, "Get trace filters"),
 
-SDATACM (DTP_SCHEMA,    "reset-all-traces",         0,      pm_reset_all_tr, cmd_reset_all_traces,         "Reset all traces of a named-gobj of gclass"),
-SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
+SDATACM (DTP_SCHEMA,    "reset-all-traces",         0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
+SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "   Set deep trace, all traces active"),
 
 SDATA_END()
 };
@@ -986,23 +980,6 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-// TODO   return gobj_build_authzs_doc(gobj, cmd, kw, src);
-    json_t *kw_response = build_command_response(
-        gobj,
-        -1,     // result
-        json_sprintf("Not yet implemented"),   // jn_comment
-        0,      // jn_schema
-        0       // jn_data
-    );
-    JSON_DECREF(kw)
-    return kw_response;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *jn_data = json_object(); // NO CONFIG in esp32, yuneta_json_config();
@@ -1190,6 +1167,112 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
         0,          // jn_comment
         0,          // jn_schema
         jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    gobj_enable(gobj2read);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        json_sprintf("%s enabled.", gobj_short_name(gobj2read)),
+        0,          // jn_schema
+        0       // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2read) {
+        gobj2read = gobj_find_gobj(gobj_name_);
+        if (!gobj2read) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    gobj_disable(gobj2read);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        json_sprintf("%s disabled.", gobj_short_name(gobj2read)),
+        0,          // jn_schema
+        0       // jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
@@ -2464,23 +2547,6 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
         json_sprintf(
             "%s: daemon debug set to %d", gobj_short_name(gobj), trace
         ),
-        0,
-        0
-    );
-    JSON_DECREF(kw)
-    return kw_response;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    // TODO rotatory_trunk(0); // WARNING trunk all files
-    json_t *kw_response = build_command_response(
-        gobj,
-        0,
-        json_sprintf("%s: Trunk all rotatory files done.", gobj_short_name(gobj)),
         0,
         0
     );
