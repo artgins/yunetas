@@ -1628,17 +1628,17 @@ PUBLIC json_t *gobj_trace_level_list(hgclass gclass);
  */
 PUBLIC json_t *gobj_get_global_trace_level(void);
 PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass);
-PUBLIC json_t *gobj_get_gclass_no_trace_level(hgclass gclass);
+PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass);
 PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj);
-PUBLIC json_t *gobj_get_gobj_no_trace_level(hgobj gobj);
+PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj);
 
 /*
  *  Get traces set in tree of gclass or gobj
  */
 PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass);
-PUBLIC json_t *gobj_get_gclass_no_trace_level_list(hgclass gclass);
+PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass);
 PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj);
-PUBLIC json_t *gobj_get_gobj_no_trace_level_tree(hgobj gobj);
+PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj);
 
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
 PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
@@ -1654,7 +1654,7 @@ PUBLIC BOOL is_level_not_tracing(hgobj gobj, uint32_t level);
  */
 PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw);
 PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set);
-PUBLIC int gobj_set_deep_tracing(int level); /* 1 all but considering __gobj_no_trace_level__, > 1 all */
+PUBLIC int gobj_set_deep_tracing(int level); /* 1 all but considering __gobj_trace_no_level__, > 1 all */
 PUBLIC int gobj_get_deep_tracing(void);
 PUBLIC int gobj_set_global_trace(const char *level, BOOL set); // If level is empty, set all global traces
 PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set); // If level is empty, set all global traces

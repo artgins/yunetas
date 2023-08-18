@@ -4862,8 +4862,8 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
 
     json_object_set_new(
         jn_dict,
-        "gclass_no_trace_level",
-        gobj_get_gclass_no_trace_level(gclass)
+        "gclass_trace_no_level",
+        gobj_get_gclass_trace_no_level(gclass)
     );
 
     json_object_set_new(
@@ -4965,7 +4965,7 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     json_object_set_new(
         jn_dict,
         "gobj_trace_no_level",
-        gobj_get_gobj_no_trace_level(gobj)
+        gobj_get_gobj_trace_no_level(gobj)
     );
 
     return jn_dict;
@@ -6743,7 +6743,7 @@ PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_get_gclass_no_trace_level(hgclass gclass_)
+PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
 
@@ -6781,7 +6781,7 @@ PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_get_gobj_no_trace_level(hgobj gobj_)
+PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     json_t *jn_list = bit2level(
@@ -6850,14 +6850,14 @@ PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_get_gclass_no_trace_level_list(hgclass gclass_)
+PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
 
     json_t *jn_list = json_array();
 
     if(gclass) {
-        json_t *jn_levels = gobj_get_gclass_no_trace_level(gclass);
+        json_t *jn_levels = gobj_get_gclass_trace_no_level(gclass);
         if(json_array_size(jn_levels)) {
             json_t *jn_gclass = json_object();
             json_object_set_new(
@@ -6879,7 +6879,7 @@ PUBLIC json_t *gobj_get_gclass_no_trace_level_list(hgclass gclass_)
 
     gclass_t *gclass_reg = dl_first(&dl_gclass);
     while(gclass_reg) {
-        json_t *jn_levels = gobj_get_gclass_no_trace_level(gclass_reg);
+        json_t *jn_levels = gobj_get_gclass_trace_no_level(gclass_reg);
         if(json_array_size(jn_levels)) {
             json_t *jn_gclass = json_object();
             json_object_set_new(
@@ -6942,7 +6942,7 @@ PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)
 PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data)
 {
     json_t *jn_list = user_data;
-    json_t *jn_level = gobj_get_gobj_no_trace_level(child);
+    json_t *jn_level = gobj_get_gobj_trace_no_level(child);
     if(json_array_size(jn_level)) {
         json_t *jn_o = json_object();
 
@@ -6962,7 +6962,7 @@ PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data)
     }
     return 0;
 }
-PUBLIC json_t *gobj_get_gobj_no_trace_level_tree(hgobj gobj)
+PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
     cb_set_no_xxx_childs(gobj, jn_list);
@@ -7522,7 +7522,7 @@ PUBLIC int gobj_set_gclass_no_trace(hgclass gclass_, const char *level, BOOL set
 /****************************************************************************
  *  Set or Reset NO gobj trace level
  ****************************************************************************/
-PRIVATE int _set_gobj_no_trace_level(hgobj gobj_, const char *level, BOOL set)
+PRIVATE int _set_gobj_trace_no_level(hgobj gobj_, const char *level, BOOL set)
 {
     gobj_t * gobj = gobj_;
     if(!gobj) {
@@ -7593,7 +7593,7 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
     if(!gobj) {
         return 0;
     }
-    _set_gobj_no_trace_level(gobj, level, set);
+    _set_gobj_trace_no_level(gobj, level, set);
 
     return 0;
 }
