@@ -520,12 +520,12 @@ PUBLIC const char *gobj_get_log_priority_name(int priority)
 PUBLIC json_t *gobj_get_log_data(void)
 {
     json_t *jn_logs = json_object();
-    json_object_set_new(jn_logs, "__debug_count__", json_integer(__debug_count__));
-    json_object_set_new(jn_logs, "__info_count__", json_integer(__info_count__));
-    json_object_set_new(jn_logs, "__warning_count__", json_integer(__warning_count__));
-    json_object_set_new(jn_logs, "__error_count__", json_integer(__error_count__));
-    json_object_set_new(jn_logs, "__critical_count__", json_integer(__critical_count__));
-    json_object_set_new(jn_logs, "__alert_count__", json_integer(__alert_count__));
+    json_object_set_new(jn_logs, "debug", json_integer(__debug_count__));
+    json_object_set_new(jn_logs, "info", json_integer(__info_count__));
+    json_object_set_new(jn_logs, "warning", json_integer(__warning_count__));
+    json_object_set_new(jn_logs, "error", json_integer(__error_count__));
+    json_object_set_new(jn_logs, "critical", json_integer(__critical_count__));
+    json_object_set_new(jn_logs, "alert", json_integer(__alert_count__));
     return jn_logs;
 }
 
