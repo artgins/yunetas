@@ -75,7 +75,6 @@ PUBLIC json_t *load_json_from_file(
     int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
     if(fd<0) {
         gobj_log_critical(0, on_critical_error,
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot open json file",
@@ -89,7 +88,6 @@ PUBLIC json_t *load_json_from_file(
     json_t *jn = json_loadfd(fd, 0, 0);
     if(!jn) {
         gobj_log_critical(0, on_critical_error,
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot load json file, bad json",
@@ -119,7 +117,6 @@ PUBLIC int save_json_to_file(
      *-----------------------------------*/
     if(!directory || !filename) {
         gobj_log_critical(0, on_critical_error|LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Parameter 'directory' or 'filename' NULL",
@@ -139,7 +136,6 @@ PUBLIC int save_json_to_file(
         }
         if(mkrdir(directory, 0, xpermission)<0) {
             gobj_log_critical(0, on_critical_error,
-                "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create directory",
@@ -168,7 +164,6 @@ PUBLIC int save_json_to_file(
     int fp = newfile(full_path, rpermission, create);
     if(fp < 0) {
         gobj_log_critical(0, on_critical_error,
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot create json file",
@@ -183,7 +178,6 @@ PUBLIC int save_json_to_file(
 
     if(json_dumpfd(jn_data, fp, JSON_INDENT(2))<0) {
         gobj_log_critical(0, on_critical_error,
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot write in json file",
@@ -808,6 +802,36 @@ PUBLIC int kw_set_dict_value(
 }
 
 /***************************************************************************
+ *  Like json_object_set but with a path and subdict.
+ ***************************************************************************/
+PUBLIC int kw_set_subdict_value(
+    hgobj gobj,
+    json_t* kw,
+    const char *path,
+    const char *key,
+    json_t *value // owned
+) {
+    json_t *jn_subdict = kw_get_dict(gobj, kw, path, json_object(), KW_CREATE);
+    if(!jn_subdict) {
+        // Error already logged
+        KW_DECREF(value);
+        return -1;
+    }
+    if(json_object_set_new(jn_subdict, key, value)<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "json_object_set_new() FAILED",
+            "path",         "%s", path,
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Delete the value searched by path
  ***************************************************************************/
 PUBLIC int kw_delete(
@@ -856,6 +880,37 @@ PUBLIC int kw_delete(
 
     GBMEM_FREE(s);
     return ret;
+}
+
+/***************************************************************************
+ *   Delete subkey
+ ***************************************************************************/
+PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char *key)
+{
+    json_t *jn_dict = kw_get_dict(gobj, kw, path, 0, 0);
+    if(!jn_dict) {
+        gobj_log_error(gobj,  LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "subdict not found",
+            "subdict",      "%s", path,
+            NULL
+        );
+        return -1;
+    }
+    if(!kw_has_key(jn_dict, key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "key not found",
+            "subdict",      "%s", path,
+            "key",          "%s", key,
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "key not found");
+        return -1;
+    }
+    return json_object_del(jn_dict, key);
 }
 
 /***************************************************************************

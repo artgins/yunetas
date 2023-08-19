@@ -30,7 +30,7 @@ target_link_libraries(${PROJECT_NAME}
     /yuneta/development/outputs/lib/liburing.a
     m
     #z rt m
-    #uuid
+    uuid
     #util
     bfd     # to stacktrace
 )

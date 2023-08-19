@@ -1505,16 +1505,25 @@ PRIVATE int save_global_trace(
  ***************************************************************************/
 PRIVATE int save_trace_filter(hgobj gobj, hgclass gclass_)
 {
-//    json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
-//    json_t *jn_trace_filters = gobj_get_trace_filter(gclass_);
+    json_t *jn_trace_levels = gobj_read_json_attr(gobj, "trace_levels");
+    json_t *jn_trace_filters = gobj_get_trace_filter(gclass_);
 
-// TODO   if(jn_trace_filters) {
-//        kw_set_subdict_value(
-//            jn_trace_levels, "__trace_filter__", gclass->gclass_name, json_incref(jn_trace_filters)
-//        );
-//    } else {
-//        kw_delete_subkey(jn_trace_levels, "__trace_filter__", gclass->gclass_name);
-//    }
+    if(jn_trace_filters) {
+        kw_set_subdict_value(
+            gobj,
+            jn_trace_levels,
+            "__trace_filter__",
+            gclass_gclass_name(gclass_),
+            json_incref(jn_trace_filters)
+        );
+    } else {
+        kw_delete_subkey(
+            gobj,
+            jn_trace_levels,
+            "__trace_filter__",
+            gclass_gclass_name(gclass_)
+        );
+    }
 
     return gobj_save_persistent_attrs(gobj, json_string("trace_levels"));
 }

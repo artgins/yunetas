@@ -148,6 +148,14 @@ PUBLIC int kw_set_dict_value(
     json_t *value // owned
 );
 
+PUBLIC int kw_set_subdict_value(
+    hgobj gobj,
+    json_t* kw,
+    const char *path,
+    const char *key,
+    json_t *value // owned
+);
+
 /**rst**
    Delete value searched by path
 **rst**/
@@ -156,6 +164,12 @@ PUBLIC int kw_delete(
     json_t *kw,
     const char *path
 );
+
+/**rst**
+   Delete sub-key
+**rst**/
+PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char *key);
+
 
 /**rst**
     Get a the idx of string in a json list.
