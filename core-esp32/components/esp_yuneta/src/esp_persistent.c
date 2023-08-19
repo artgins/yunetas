@@ -184,6 +184,9 @@ PRIVATE int save_json(
             "msg",          "%s", "nvs_set_str() FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "esp_error",    "%s", esp_err_to_name(err),
+            "key",          "%s", gobj_name(gobj),
+            "key_size",     "%d", (int)strlen(gobj_name(gobj)),
+            "value",        "%s", s,
             NULL
         );
     }

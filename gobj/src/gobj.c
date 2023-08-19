@@ -658,6 +658,7 @@ PUBLIC hgclass gclass_create(
             "len",          "%d", (int)strlen(gclass_name),
             NULL
         );
+        abort();
     }
 #endif
 
@@ -1095,6 +1096,20 @@ PUBLIC hgobj gobj_create_gobj(
         }
         gobj_flag |= gobj_flag_service;
     }
+
+#ifdef ESP_PLATFORM
+    if(strlen(gobj_name) > 15) {
+        gobj_log_error(NULL, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj_name name TOO LONG for ESP32",
+            "gobj_name",    "%s", gobj_name,
+            "len",          "%d", (int)strlen(gobj_name),
+            NULL
+        );
+        abort();
+    }
+#endif
 
     if(empty_string(gclass_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
