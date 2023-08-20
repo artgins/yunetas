@@ -56,10 +56,6 @@ SDATA (DTP_INTEGER, "txBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages tr
 SDATA (DTP_INTEGER, "rxBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
 SDATA (DTP_INTEGER, "txMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
-SDATA (DTP_INTEGER, "txMsgsec",         SDF_VOLATIL|SDF_STATS, "0", "Messages by second"),
-SDATA (DTP_INTEGER, "rxMsgsec",         SDF_VOLATIL|SDF_STATS, "0", "Messages by second"),
-SDATA (DTP_INTEGER, "maxtxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Messages by second"),
-SDATA (DTP_INTEGER, "maxrxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Messages by second"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
@@ -523,7 +519,6 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                     }
 
                     INCR_ATTR_INTEGER(rxMsgs)
-                    INCR_ATTR_INTEGER(rxMsgsec)
                     INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(yev_event->gbuf))
 
                     GBUFFER_INCREF(yev_event->gbuf)
@@ -733,7 +728,6 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     INCR_ATTR_INTEGER(txMsgs)
-    INCR_ATTR_INTEGER(txMsgsec)
     INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
     /*
