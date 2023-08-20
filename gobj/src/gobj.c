@@ -4053,6 +4053,17 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
             gobj_name_ = (char *)key;
         }
 
+        if(gobj_name_) {
+            if(strcmp(gobj_name_, gobj_name(gobj))==0) {
+                if(!gclass_name_) {
+                    continue;
+                }
+                if(strcmp(gclass_name_, gobj_gclass_name(gobj))==0) {
+                    continue;
+                }
+            }
+        }
+
         json_t *jn_filter = json_pack("{s:s}",
             "__gobj_name__", gobj_name_
         );
