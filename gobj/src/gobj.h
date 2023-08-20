@@ -1360,9 +1360,29 @@ PUBLIC json_t * gobj_gclass_register(void);
 PUBLIC json_t * gobj_service_register(const char *gclass_name);
 
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
+
+/*
+ *  jn_filter of gobj2json and view_gobj_tree: list of strings
+            "fullname",
+            "shortname",
+            "gclass",
+            "name",
+            "parent",
+            "attrs",
+            "user_data",
+            "gobj_flags",
+            "state",
+            "running",
+            "playing",
+            "service",
+            "disabled",
+            "gobj_trace_level",
+            "gobj_trace_no_level",
+
+ */
 PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     hgobj gobj,
-    json_t *jn_filter // owned, if null return only fullname, if empty object return all
+    json_t *jn_filter // owned
 );
 PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
     hgobj gobj,

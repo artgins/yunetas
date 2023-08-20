@@ -4923,6 +4923,13 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             json_string(gobj_full_name(gobj))
         );
     }
+    if(kw_find_str_in_list(gobj, jn_filter, "shortname")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "shortname",
+            json_string(gobj_short_name(gobj))
+        );
+    }
     if(kw_find_str_in_list(gobj, jn_filter, "gclass")!=-1) {
         json_object_set_new(
             jn_dict,
