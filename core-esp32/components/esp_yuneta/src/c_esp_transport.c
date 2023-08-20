@@ -718,7 +718,6 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_write_bool_attr(gobj, "connected", TRUE);
 
     INCR_ATTR_INTEGER(connxs)
-    // gobj_write_integer_attr(gobj, "connxs", gobj_read_integer_attr(gobj, "connxs") + 1);
 
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
