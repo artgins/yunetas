@@ -83,8 +83,6 @@ SDATA (DTP_INTEGER, "maxrxMsgsec",      SDF_VOLATIL|SDF_RSTATS,"0", "Max Message
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         "0",        "Maximum messages in tx queue. Default is 0: no limit."),
-SDATA (DTP_INTEGER, "tx_queue_size",    SDF_RD|SDF_STATS,"0",       "Current messages in tx queue"),
-
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 
@@ -239,23 +237,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
     //IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
     //END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method reading
- ***************************************************************************/
-PRIVATE int mt_reading(hgobj gobj, const char *name)
-{
-#ifdef ESP_PLATFORM
-#ifdef HACK_ESP
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(strcmp(name, "tx_queue_size")==0) {
-        size_t numEvents = esp_event_queue_size(priv->tx_ev_loop_h);
-        gobj_write_integer_attr(gobj, "tx_queue_size", (json_int_t)numEvents);
-    }
-#endif
-#endif
-    return 0;
 }
 
 #ifdef HACK_ESP
@@ -915,7 +896,6 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_writing = mt_writing,
-    .mt_reading = mt_reading,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
