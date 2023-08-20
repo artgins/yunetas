@@ -123,7 +123,7 @@ typedef struct _PRIVATE_DATA {
     BOOL use_ssl;
 } PRIVATE_DATA;
 
-PRIVATE hgclass gclass = 0;
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -927,7 +927,7 @@ GOBJ_DEFINE_GCLASS(C_ESP_TRANSPORT);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    if(gclass) {
+    if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -984,7 +984,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Create the gclass
      *----------------------------------------*/
-    gclass = gclass_create(
+    __gclass__ = gclass_create(
         gclass_name,
         event_types,
         states,
@@ -997,7 +997,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         s_user_trace_level,
         gcflag_manual_start // gclass_flag
     );
-    if(!gclass) {
+    if(!__gclass__) {
         // Error already logged
         return -1;
     }
