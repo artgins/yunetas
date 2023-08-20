@@ -138,7 +138,13 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
                     it->name,
                     json_real(gobj_read_real_attr(gobj, it->name))
                 );
-            } else if(DTP_IS_NUMBER(it->type)) {
+            } else if(DTP_IS_BOOLEAN(it->type)) {
+                json_object_set_new(
+                    jn_data,
+                    it->name,
+                    json_integer(gobj_read_bool_attr(gobj, it->name))
+                );
+            } else if(DTP_IS_INTEGER(it->type)) {
                 json_object_set_new(
                     jn_data,
                     it->name,
