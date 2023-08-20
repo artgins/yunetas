@@ -360,7 +360,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->task_running) {
-        /* A running client cannot be stopped from the MQTT task/event handler */
+        /* A running client cannot be stopped from the task/event handler */
         TaskHandle_t running_task = xTaskGetCurrentTaskHandle();
         if(running_task == priv->rx_task_h) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
