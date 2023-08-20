@@ -3506,26 +3506,30 @@ PUBLIC json_t *gobj_command( // With AUTHZ
         if(__global_command_parser_fn__) {
             return __global_command_parser_fn__(gobj, command, kw, src);
         } else {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Global command parser function not available",
-                "command",      "%s", command?command:"",
-                NULL
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("%s: global command parser function not available",
+                    gobj_short_name(gobj)
+                ),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
             );
             KW_DECREF(kw)
-            return 0;
+            return kw_response;
         }
     } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Command table not available",
-            "command",      "%s", command?command:"",
-            NULL
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s: command table not available",
+                gobj_short_name(gobj)
+            ),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
         );
         KW_DECREF(kw)
-        return 0;
+        return kw_response;
     }
 }
 
@@ -3561,16 +3565,18 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
     if(__global_stats_parser_fn__) {
         return __global_stats_parser_fn__(gobj, stats, kw, src);
     } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Stats parser not available",
-            "stats",        "%s", stats?stats:"",
-            NULL
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("%s, stats parser not available",
+                gobj_short_name(gobj)
+            ),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
         );
         KW_DECREF(kw)
+        return kw_response;
     }
-    return 0;
 }
 
 /***************************************************************************

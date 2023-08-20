@@ -28,7 +28,7 @@
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * stats_parser(hgobj gobj,
+PUBLIC json_t *stats_parser(hgobj gobj,
     const char *stats,
     json_t *kw,
     hgobj src
@@ -47,14 +47,14 @@ PUBLIC json_t * stats_parser(hgobj gobj,
     return build_command_response(
         gobj,
         0,          // result
-        0,          // jn_comment
+        json_sprintf("%s: stats", gobj_short_name(gobj)), // jn_comment
         0,          // jn_schema
-        jn_data    // jn_data, owned
+        jn_data     // jn_data, owned
     );
 }
 
 /****************************************************************************
- *  Build stats from gobj's attributes with SFD_STATS flag.
+ *
  ****************************************************************************/
 PRIVATE int reset_stats_callback(hgobj gobj, json_t *kw, const char *key, json_t *value)
 {
@@ -71,7 +71,11 @@ PRIVATE int reset_stats_callback(hgobj gobj, json_t *kw, const char *key, json_t
     }
     return 0;
 }
-PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+
+/****************************************************************************
+ *  Build stats from gobj's attributes with SFD_STATS... flag.
+ ****************************************************************************/
+PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(!gobj) {
         KW_DECREF(kw);
@@ -128,17 +132,17 @@ PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
             }
         }
         if(it->flag & (SDF_STATS|SDF_RSTATS|SDF_PSTATS)) {
-            if(DTP_IS_NUMBER(it->type)) {
-                json_object_set_new(
-                    jn_data,
-                    it->name,
-                    json_integer(gobj_read_integer_attr(gobj, it->name))
-                );
-            } else if(DTP_IS_REAL(it->type)) {
+            if(DTP_IS_REAL(it->type)) {
                 json_object_set_new(
                     jn_data,
                     it->name,
                     json_real(gobj_read_real_attr(gobj, it->name))
+                );
+            } else if(DTP_IS_NUMBER(it->type)) {
+                json_object_set_new(
+                    jn_data,
+                    it->name,
+                    json_integer(gobj_read_integer_attr(gobj, it->name))
                 );
             } else if(DTP_IS_STRING(it->type)) {
                 json_object_set_new(
@@ -164,6 +168,33 @@ PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
             }
         }
         json_object_set(jn_data, key, v);
+    }
+
+    KW_DECREF(kw)
+    return jn_data;
+}
+
+/****************************************************************************
+ *  Build stats from gobj's attributes with SFD_STATS... flag.
+ ****************************************************************************/
+PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+{
+    json_t *jn_data = json_object();
+    json_object_set_new(
+        jn_data,
+        gobj_short_name(gobj),
+        _build_stats(gobj, stats, json_incref(kw), src)
+    );
+
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    while(gobj_bottom) {
+        json_object_set_new(
+            jn_data,
+            gobj_short_name(gobj_bottom),
+            _build_stats(gobj_bottom, stats, json_incref(kw), src)
+        );
+
+        gobj_bottom = gobj_bottom_gobj(gobj_bottom);
     }
 
     KW_DECREF(kw)
