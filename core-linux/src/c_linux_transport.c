@@ -306,6 +306,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_write_bool_attr(gobj, "connected", TRUE);
     get_peer_and_sock_name(gobj, fd);
 
     /*
@@ -378,6 +379,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     if(gobj_current_state(gobj)==ST_DISCONNECTED) {
         if(gobj_is_running(gobj)) {

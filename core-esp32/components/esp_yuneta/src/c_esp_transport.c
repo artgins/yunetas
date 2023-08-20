@@ -698,6 +698,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_write_bool_attr(gobj, "connected", FALSE);
+
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
 
@@ -731,6 +733,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_bool_attr(gobj, "connected", TRUE);
 
     INCR_ATTR_INTEGER(connxs)
     // gobj_write_integer_attr(gobj, "connxs", gobj_read_integer_attr(gobj, "connxs") + 1);

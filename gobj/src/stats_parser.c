@@ -47,7 +47,7 @@ PUBLIC json_t *stats_parser(hgobj gobj,
     return build_command_response(
         gobj,
         0,          // result
-        json_sprintf("%s: stats", gobj_short_name(gobj)), // jn_comment
+        0,          // jn_comment
         0,          // jn_schema
         jn_data     // jn_data, owned
     );
@@ -169,6 +169,11 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
         }
         json_object_set(jn_data, key, v);
     }
+
+    /*----------------------------*
+     *      Add extra
+     *----------------------------*/
+    json_object_set_new(jn_data, "__state__", json_string(gobj_current_state(gobj)));
 
     KW_DECREF(kw)
     return jn_data;

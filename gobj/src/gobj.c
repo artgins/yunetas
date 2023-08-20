@@ -4901,94 +4901,114 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
  ***************************************************************************/
 PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     hgobj gobj,
-    json_t *jn_filter // owned, if null return only fullname, if empty object return all
+    json_t *jn_filter // owned
 ) {
     json_t *jn_dict = json_object();
 
-    json_object_set_new(
-        jn_dict,
-        "shortname",
-        json_string(gobj_short_name(gobj))
-    );
-    if(!jn_filter) {
-        // Without filter only fullname TODO by the moment
-        return jn_dict;
+    if(kw_find_str_in_list(gobj, jn_filter, "fullname")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "fullname",
+            json_string(gobj_full_name(gobj))
+        );
     }
-    json_object_set_new(
-        jn_dict,
-        "fullname",
-        json_string(gobj_full_name(gobj))
-    );
-    json_object_set_new(
-        jn_dict,
-        "gclass",
-        json_string(gobj_gclass_name(gobj))
-    );
-    json_object_set_new(
-        jn_dict,
-        "name",
-        json_string(gobj_name(gobj))
-    );
-    json_object_set_new(
-        jn_dict,
-        "parent",
-        json_string(gobj_short_name(gobj_parent(gobj)))
-    );
+    if(kw_find_str_in_list(gobj, jn_filter, "gclass")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "gclass",
+            json_string(gobj_gclass_name(gobj))
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "name")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "name",
+            json_string(gobj_name(gobj))
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "parent")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "parent",
+            json_string(gobj_short_name(gobj_parent(gobj)))
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "attrs")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "attrs",
+            gobj_read_attrs(gobj, SDF_PUBLIC_ATTR, gobj)
+        );
+    }
 
-    json_object_set_new(
-        jn_dict,
-        "attrs",
-        gobj_read_attrs(gobj, SDF_PUBLIC_ATTR, gobj)
-    );
+    if(kw_find_str_in_list(gobj, jn_filter, "user_data")!=-1) {
+        json_object_set(
+            jn_dict,
+            "user_data",
+            gobj_read_user_data(gobj, NULL)
+        );
+    }
 
-    json_object_set(
-        jn_dict,
-        "user_data",
-        gobj_read_user_data(gobj, NULL)
-    );
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_flags")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "gobj_flags",
+            bits2jn_strlist(gobj_flag_names, ((gobj_t *) gobj)->gobj_flag)
+        );
+    }
 
-    json_object_set_new(
-        jn_dict,
-        "gobj_flags",
-        bits2jn_strlist(gobj_flag_names, ((gobj_t *)gobj)->gobj_flag)
-    );
+    if(kw_find_str_in_list(gobj, jn_filter, "state")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "state",
+            json_string(gobj_current_state(gobj))
+        );
+    }
 
-    json_object_set_new(
-        jn_dict,
-        "state",
-        json_string(gobj_current_state(gobj))
-    );
-    json_object_set_new(
-        jn_dict,
-        "running",
-        gobj_is_running(gobj)? json_true(): json_false()
-    );
-    json_object_set_new(
-        jn_dict,
-        "playing",
-        gobj_is_playing(gobj)? json_true(): json_false()
-    );
-    json_object_set_new(
-        jn_dict,
-        "service",
-        gobj_is_service(gobj)? json_true(): json_false()
-    );
-    json_object_set_new(
-        jn_dict,
-        "disabled",
-        gobj_is_disabled(gobj)? json_true(): json_false()
-    );
-    json_object_set_new(
-        jn_dict,
-        "gobj_trace_level",
-        gobj_get_gobj_trace_level(gobj)
-    );
-    json_object_set_new(
-        jn_dict,
-        "gobj_trace_no_level",
-        gobj_get_gobj_trace_no_level(gobj)
-    );
+    if(kw_find_str_in_list(gobj, jn_filter, "running")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "running",
+            gobj_is_running(gobj) ? json_true() : json_false()
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "playing")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "playing",
+            gobj_is_playing(gobj) ? json_true() : json_false()
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "service")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "service",
+            gobj_is_service(gobj) ? json_true() : json_false()
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "disabled")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "disabled",
+            gobj_is_disabled(gobj) ? json_true() : json_false()
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_level")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "gobj_trace_level",
+            gobj_get_gobj_trace_level(gobj)
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_no_level")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "gobj_trace_no_level",
+            gobj_get_gobj_trace_no_level(gobj)
+        );
+    }
 
+    JSON_DECREF(jn_filter)
     return jn_dict;
 }
 
@@ -4996,15 +5016,15 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
  *  View a gobj tree, with states of running/playing and attributes
  ***************************************************************************/
 PRIVATE int _add_gobj_tree(
-    json_t *jn_list,
+    json_t *jn_dict,
     gobj_t * gobj,
     json_t *jn_filter // not owned
 ) {
     json_t *jn_gobj = gobj2json(gobj, json_incref(jn_filter));
-    json_array_append_new(jn_list, jn_gobj);
+    json_object_set_new(jn_dict, gobj_short_name(gobj), jn_gobj);
 
     if(gobj_child_size(gobj)>0) {
-        json_t *jn_data = json_array();
+        json_t *jn_data = json_object();
         json_object_set_new(jn_gobj, "childs", jn_data);
 
         gobj_t *child = gobj_first_child(gobj);
@@ -5020,7 +5040,7 @@ PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
     hgobj gobj,
     json_t *jn_filter // owned
 ) {
-    json_t *jn_tree = json_array();
+    json_t *jn_tree = json_object();
     _add_gobj_tree(jn_tree, gobj, jn_filter);
     JSON_DECREF(jn_filter)
     return jn_tree;

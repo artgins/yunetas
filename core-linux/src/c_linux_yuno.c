@@ -156,6 +156,13 @@ SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj 
 SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_gobj_tree[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
+SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
+SDATAPM (DTP_JSON,      "options",      0,              "[\"state\",\"running\"]",       "json list with strings, empty all"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_set_gobj_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
@@ -250,7 +257,7 @@ SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,          cmd_view
 SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
 SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
 
-SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_root_name,cmd_view_gobj_tree,   "View gobj tree"),
+SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_tree,cmd_view_gobj_tree,   "View gobj tree"),
 
 SDATACM (DTP_SCHEMA,    "enable-gobj",              0,      pm_gobj_def_name,cmd_enable_gobj,       "Enable named-gobj, exec own mt_enable() or gobj_start_tree()"),
 SDATACM (DTP_SCHEMA,    "disable-gobj",             0,      pm_gobj_def_name,cmd_disable_gobj,      "Disable named-gobj, exec own mt_disable() or gobj_stop_tree()"),
@@ -1208,7 +1215,8 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
         }
     }
 
-    json_t *jn_data = view_gobj_tree(gobj2read, 0); // TODO pon opciones
+    json_t *jn_options = kw_get_list(gobj, kw, "options", 0, 0);
+    json_t *jn_data = view_gobj_tree(gobj2read, json_incref(jn_options));
 
     json_t *kw_response = build_command_response(
         gobj,
