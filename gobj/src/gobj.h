@@ -1095,6 +1095,9 @@ PUBLIC void gobj_destroy_childs(hgobj gobj);
 #define INCR_ATTR_INTEGER(__name__) \
     gobj_write_integer_attr(gobj, #__name__, gobj_read_integer_attr(gobj, #__name__) + 1);
 
+#define INCR_ATTR_INTEGER2(__name__, __size__) \
+    gobj_write_integer_attr(gobj, #__name__, gobj_read_integer_attr(gobj, #__name__) + (__size__));
+
 #define RESET_ATTR_INTEGER(__name__) \
     gobj_write_integer_attr(gobj, #__name__, 0);
 

@@ -521,6 +521,11 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                             gobj_read_str_attr(gobj, "peername")
                         );
                     }
+
+                    INCR_ATTR_INTEGER(rxMsgs)
+                    INCR_ATTR_INTEGER(rxMsgsec)
+                    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(yev_event->gbuf))
+
                     GBUFFER_INCREF(yev_event->gbuf)
                     json_t *kw = json_pack("{s:I}",
                         "gbuffer", (json_int_t)(size_t)yev_event->gbuf
@@ -726,6 +731,10 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_read_str_attr(gobj, "peername")
         );
     }
+
+    INCR_ATTR_INTEGER(txMsgs)
+    INCR_ATTR_INTEGER(txMsgsec)
+    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
     /*
      *  Transmit

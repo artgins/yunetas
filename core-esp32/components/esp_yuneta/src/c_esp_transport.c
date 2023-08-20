@@ -756,8 +756,9 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
     if(gobj_trace_level(gobj) & TRACE_DUMP_TRAFFIC) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
             gobj_short_name(gobj),
             gobj_read_str_attr(gobj, "sockname"),
@@ -765,6 +766,10 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_read_str_attr(gobj, "peername")
         );
     }
+
+    INCR_ATTR_INTEGER(rxMsgs)
+    INCR_ATTR_INTEGER(rxMsgsec)
+    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(gbuf))
 
     if(gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
@@ -790,6 +795,10 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
+
+    INCR_ATTR_INTEGER(txMsgs)
+    INCR_ATTR_INTEGER(txMsgsec)
+    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
