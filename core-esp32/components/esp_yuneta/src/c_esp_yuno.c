@@ -18,10 +18,8 @@
     #include <rom/gpio.h>
 #endif
 #include <time.h>
-#include <pwd.h>
 #include <grp.h>
 #include <log_udp_handler.h>    // log upd is open when wifi/ethernet is connected
-#include <gobj_environment.h>
 #include <kwid.h>
 #include <command_parser.h>
 #include "c_esp_ethernet.h"
