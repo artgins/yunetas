@@ -62,6 +62,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     char p;
     GHTTP_PARSER *parsing_response;
+    const char *url;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -99,6 +100,8 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_subscribe_event(gobj, NULL, NULL, subscriber);
         }
     }
+
+    SET_PRIV(url,        gobj_read_str_attr)
 }
 
 /***************************************************************************
@@ -106,6 +109,17 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(url,    gobj_read_str_attr)
+        if(!empty_string(priv->url)) {
+            gobj_write_str_attr(
+                gobj_bottom_gobj(gobj),
+                "url",
+                priv->url
+            );
+        }
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************

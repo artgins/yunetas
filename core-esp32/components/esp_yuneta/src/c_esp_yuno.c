@@ -920,12 +920,29 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         }
     }
 
+    json_t *jn_data = json_object();
+    json_object_set_new(
+        jn_data,
+        gobj_short_name(gobj2read),
+        gobj_read_attrs(gobj2read, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+    );
+
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj2read);
+    while(gobj_bottom) {
+        json_object_set_new(
+            jn_data,
+            gobj_short_name(gobj_bottom),
+            gobj_read_attrs(gobj_bottom, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+        );
+        gobj_bottom = gobj_bottom_gobj(gobj_bottom);
+    }
+
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
         0,      // jn_comment
         0,      // jn_schema
-        gobj_read_attrs(gobj2read, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
