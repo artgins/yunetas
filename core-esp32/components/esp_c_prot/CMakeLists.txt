@@ -6,6 +6,7 @@ set(srcs
     src/c_prot_http_cli.c
     src/c_ievent_cli.c
     src/c_prot_tcp4h.c
+    src/c_ota.c
 )
 
 if(CONFIG_YUNETA_MODBUS_MASTER)
