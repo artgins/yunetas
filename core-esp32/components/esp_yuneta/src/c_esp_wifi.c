@@ -901,6 +901,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wifi_wait_ssid_conf[] = { // From start_smartconfig()
         {EV_WIFI_SMARTCONFIG_DONE,      ac_smartconfig_done_save,   0},
         {EV_TIMEOUT,                    ac_timeout_smartconfig,     0},
+        // HACK esp_wifi is child of esp_yuno, suscribe to all (EV_TIMEOUT_PERIODIC)
         {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic_smartconfig, 0},
         {EV_WIFI_STA_STOP,              ac_wifi_stop,               ST_WIFI_WAIT_START},
         {0,0,0}
