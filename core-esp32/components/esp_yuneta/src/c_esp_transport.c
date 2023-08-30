@@ -117,6 +117,7 @@ typedef struct _PRIVATE_DATA {
     volatile int dynamic_read_timeout;
     BOOL inform_disconnection;
     BOOL use_ssl;
+    const char *url;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -143,7 +144,7 @@ PRIVATE void mt_create(hgobj gobj)
     char host[120];
     char port[10];
 
-    parse_url(
+    if(parse_url(
         gobj,
         gobj_read_str_attr(gobj, "url"),
         schema, sizeof(schema),
@@ -152,7 +153,15 @@ PRIVATE void mt_create(hgobj gobj)
         0, 0,
         0, 0,
         FALSE
-    );
+    )<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Parsing url failed",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+    }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
@@ -230,9 +239,36 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    //IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
-    //END_EQ_SET_PRIV()
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(url,     gobj_read_str_attr)
+        if (!empty_string(priv->url)) {
+            char host[120];
+            char port[10];
+
+            if(parse_url(
+                gobj,
+                priv->url,
+                0, 0,
+                host, sizeof(host),
+                port, sizeof(port),
+                0, 0,
+                0, 0,
+                FALSE
+            )<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "Parsing url failed",
+                    "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                    NULL
+                );
+            } else {
+                gobj_write_str_attr(gobj, "host", host);
+                gobj_write_str_attr(gobj, "port", port);
+            }
+        }
+    END_EQ_SET_PRIV()
 }
 
 #ifdef HACK_ESP
