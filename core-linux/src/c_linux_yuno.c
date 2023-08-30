@@ -81,6 +81,7 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 
 PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_autokill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -187,6 +188,11 @@ PRIVATE sdata_desc_t pm_set_deep_trace[] = {
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_set_autokill[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "time",         0,              0,          "Seconds to autokill"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_add_log_handler[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler log name"),
@@ -238,6 +244,7 @@ SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_auth
 SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,          cmd_trunk_rotatory_file,    "Trunk rotatory files"),
 #endif
 
+SDATACM (DTP_SCHEMA,    "set-autokill",             0,      pm_set_autokill,cmd_set_autokill,       "Set time to autokill, in seconds"),
 SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,          cmd_reset_log_counters,     "Reset log counters"),
 SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,          cmd_view_log_counters,      "View log counters"),
 SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
@@ -285,7 +292,7 @@ SDATACM (DTP_SCHEMA,    "set-trace-filter",         0,      pm_set_trace_filter,
 SDATACM (DTP_SCHEMA,    "get-trace-filter",         0,      0, cmd_get_trace_filter, "Get trace filters"),
 
 SDATACM (DTP_SCHEMA,    "reset-all-traces",         0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
-SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "   Set deep trace, all traces active"),
+SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
 
 SDATA_END()
 };
@@ -389,11 +396,12 @@ typedef struct _PRIVATE_DATA {
     size_t t_flush;
     size_t t_stats;
     size_t t_restart;
-    int timeout_flush;
-    int timeout_stats;
-    int timeout_restart;
-    int periodic;
-    int autokill;
+    json_int_t timeout_flush;
+    json_int_t timeout_stats;
+    json_int_t timeout_restart;
+    json_int_t periodic;
+    json_int_t autokill;
+    json_int_t autokill_init;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -519,11 +527,11 @@ PRIVATE void mt_create(hgobj gobj)
         save_pid_in_file(gobj);
     }
 
-    SET_PRIV(periodic,              (int)gobj_read_integer_attr)
-    SET_PRIV(autokill,              (int)gobj_read_integer_attr)
-    SET_PRIV(timeout_stats,         (int)gobj_read_integer_attr)
-    SET_PRIV(timeout_flush,         (int)gobj_read_integer_attr)
-    SET_PRIV(timeout_restart,       (int)gobj_read_integer_attr)
+    SET_PRIV(periodic,              gobj_read_integer_attr)
+    SET_PRIV(autokill,              gobj_read_integer_attr)
+    SET_PRIV(timeout_stats,         gobj_read_integer_attr)
+    SET_PRIV(timeout_flush,         gobj_read_integer_attr)
+    SET_PRIV(timeout_restart,       gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -533,14 +541,15 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(periodic,            (int)gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(periodic,            gobj_read_integer_attr)
         if(gobj_is_running(gobj)) {
             set_timeout_periodic(priv->gobj_timer, priv->periodic);
         }
-    ELIF_EQ_SET_PRIV(autokill,          (int)gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(timeout_stats,     (int)gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(timeout_flush,     (int)gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(timeout_restart,   (int)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(autokill,          gobj_read_integer_attr)
+        priv->autokill_init = 0;
+    ELIF_EQ_SET_PRIV(timeout_stats,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_flush,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_restart,   gobj_read_integer_attr)
         if(priv->timeout_restart > 0) {
             priv->t_restart = start_sectimer(priv->timeout_restart);
         } else {
@@ -2639,6 +2648,41 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t* cmd_set_autokill(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    int time2autokill = (int)kw_get_int(gobj, kw, "time", 0, KW_WILD_NUMBER);
+    if(time2autokill <= 0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf(
+                "%s: What time (in seconds)?", gobj_short_name(gobj)
+            ),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    gobj_write_integer_attr(gobj, "autokill", time2autokill);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf(
+            "%s: time to autokill set to %d seconds", gobj_short_name(gobj), time2autokill
+        ),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     // TODO rotatory_trunk(0); // WARNING trunk all files
@@ -3249,11 +3293,11 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
 PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    static json_int_t i = 0;
-    i++;
+    priv->autokill_init++;
 
     if(priv->autokill > 0) {
-        if(i >= priv->autokill) {
+        if(priv->autokill_init >= priv->autokill) {
+            priv->autokill = 0;
             gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
             gobj_shutdown();
             JSON_DECREF(kw)

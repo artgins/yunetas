@@ -93,6 +93,7 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 
 PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_autokill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -192,6 +193,11 @@ PRIVATE sdata_desc_t pm_set_deep_trace[] = {
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_set_autokill[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "time",         0,              0,          "Seconds to autokill"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_add_log_handler[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler log name"),
@@ -222,6 +228,7 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,       "Command's help"),
 
+SDATACM (DTP_SCHEMA,    "set-autokill",             0,      pm_set_autokill,cmd_set_autokill,       "Set time to  autokill, in seconds"),
 SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,          cmd_reset_log_counters,     "Reset log counters"),
 SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,          cmd_view_log_counters,      "View log counters"),
 SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
@@ -357,6 +364,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     json_int_t periodic;
     json_int_t autokill;
+    json_int_t autokill_init;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -507,6 +515,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic, gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(autokill, gobj_read_integer_attr)
+        priv->autokill_init = 0;
     END_EQ_SET_PRIV()
 }
 
@@ -2589,6 +2598,41 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t* cmd_set_autokill(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    int time2autokill = (int)kw_get_int(gobj, kw, "time", 0, KW_WILD_NUMBER);
+    if(time2autokill <= 0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf(
+                "%s: What time (in seconds)?", gobj_short_name(gobj)
+            ),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    gobj_write_integer_attr(gobj, "autokill", time2autokill);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf(
+            "%s: time to autokill set to %d seconds", gobj_short_name(gobj), time2autokill
+        ),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     gobj_log_clear_counters();
@@ -3320,11 +3364,11 @@ PRIVATE int ac_time_on(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    static json_int_t i = 0;
-    i++;
+    priv->autokill_init++;
 
     if(priv->autokill > 0) {
-        if(i >= priv->autokill) {
+        if(priv->autokill_init >= priv->autokill) {
+            priv->autokill = 0;
             gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
             gobj_shutdown();
             JSON_DECREF(kw)

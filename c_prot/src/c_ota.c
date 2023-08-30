@@ -99,6 +99,34 @@ PRIVATE hgclass __gclass__ = 0;
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*------------------------------*
+     *      Http client
+     *------------------------------*/
+    if(!empty_string(gobj_read_str_attr(gobj, "url_ota"))) {
+        json_t *kw = json_pack("{s:s, s:I}",
+            "url", gobj_read_str_attr(gobj, "url_ota"),
+            "subscriber", (json_int_t)(size_t)gobj
+        );
+        priv->gobj_http_cli_ota = gobj_create_service("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
+        gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
+    }
+
+    /*------------------------------*
+     *      Set cert
+     *------------------------------*/
+    if(priv->gobj_http_cli_ota) {
+        const char *s = gobj_read_str_attr(priv->gobj_http_cli_ota, "cert_pem");
+        if(empty_string(s)) {
+            gobj_write_str_attr(
+                priv->gobj_http_cli_ota,
+                "cert_pem",
+                gobj_read_str_attr(gobj, "cert_pem")
+            );
+        }
+    }
+
     /*------------------------------*
      *      Periodic timeout
      *------------------------------*/
@@ -117,34 +145,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*------------------------------*
-     *      Http client
-     *------------------------------*/
-    if(!empty_string(gobj_read_str_attr(gobj, "url_ota"))) {
-        json_t *kw = json_pack("{s:s, s:I}",
-            "url", gobj_read_str_attr(gobj, "url_ota"),
-            "subscriber", (json_int_t)(size_t)gobj
-        );
-        priv->gobj_http_cli_ota = gobj_create_service("cli_ionodo", C_PROT_HTTP_CL, kw, gobj);
-        gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
-    }
-
-    /*------------------------------*
-     *      Set cert
-     *------------------------------*/
-    if(priv->gobj_http_cli_ota) {
-        const char *s = gobj_read_str_attr(priv->gobj_http_cli_ota, "cert_pem");
-        if(empty_string(s)) {
-            gobj_write_str_attr(
-                priv->gobj_http_cli_ota,
-                "cert_pem",
-                gobj_read_str_attr(gobj, "cert_pem")
-            );
-        }
-    }
-
     return 0;
 }
 

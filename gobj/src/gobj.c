@@ -1053,7 +1053,7 @@ PUBLIC hgobj gobj_create_gobj(
 
     } else {
         if(!parent) {
-            gobj_log_error(0, 0,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "gobj NEEDS a parent!",
@@ -1068,7 +1068,7 @@ PUBLIC hgobj gobj_create_gobj(
 
     if(gobj_flag & (gobj_flag_service)) {
         if(gobj_find_service(gobj_name, FALSE)) {
-            gobj_log_error(0, 0,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "service ALREADY registered!",
@@ -1083,7 +1083,7 @@ PUBLIC hgobj gobj_create_gobj(
 
     if(gobj_flag & (gobj_flag_default_service)) {
         if(gobj_find_service(gobj_name, FALSE) || __default_service__) {
-            gobj_log_error(0, 0,
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "default service ALREADY registered!",
@@ -1099,7 +1099,7 @@ PUBLIC hgobj gobj_create_gobj(
 
 #ifdef ESP_PLATFORM
     if(strlen(gobj_name) > 15) {
-        gobj_log_error(NULL, 0,
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj_name name TOO LONG for ESP32",
