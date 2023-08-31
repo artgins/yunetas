@@ -15,6 +15,10 @@
     #include <execinfo.h>
 #endif
 
+#ifdef ESP_PLATFORM
+    #include <esp_system.h>
+#endif
+
 #include "helpers.h"
 #include "gobj.h"
 
@@ -908,9 +912,14 @@ PUBLIC void trace_vjson(
                 json_string(gobj_full_name(gobj))
             );
         }
-        json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
-        json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
     }
+
+#ifdef ESP_PLATFORM
+    size_t size = esp_get_free_heap_size();
+    json_object_set_new(jn_log, "HEAP free", json_integer(size));
+#endif
+    json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
+    json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
 
     vsnprintf(msg, sizeof(msg), fmt, ap);
     json_object_set_new(jn_log, "msgset", json_string(msgset));
@@ -999,7 +1008,6 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
     }
 
 #ifdef ESP_PLATFORM
-    #include <esp_system.h>
     size_t size = esp_get_free_heap_size();
     json_add_integer(hgen, "HEAP free", size);
 #endif

@@ -63,7 +63,7 @@ PUBLIC json_t * command_parser(
             0,
             0
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return kw_response;
     }
 
@@ -124,10 +124,10 @@ PUBLIC json_t * command_parser(
         else
             event = cnf_cmd->name;
         gobj_send_event(gobj, event, kw_cmd, src);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;   /* asynchronous response */
     }
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return kw_response;  /* can be null if asynchronous response */
 
 }
@@ -599,7 +599,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         if(gobj_command_desc(gobj, NULL, FALSE)) {
             cnf_cmd = command_get_cmd_desc(gobj_command_desc(gobj, NULL, FALSE), cmd);
             if(cnf_cmd) {
-                gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
+                gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
                 gbuffer_printf(gbuf, "%s\n", cmd);
                 int len = (int)strlen(cmd);
                 while(len > 0) {
@@ -614,7 +614,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                 gbuffer_printf(gbuf, "\n");
                 json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
                 gbuffer_decref(gbuf);
-                KW_DECREF(kw);
+                KW_DECREF(kw)
                 return jn_resp;
             }
         }
@@ -628,7 +628,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                 if(gobj_command_desc(child, NULL, FALSE)) {
                     cnf_cmd = command_get_cmd_desc(gobj_command_desc(child, NULL, FALSE), cmd);
                     if(cnf_cmd) {
-                        gbuffer_t *gbuf = gbuffer_create(256, 16*1024);
+                        gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
                         gbuffer_printf(gbuf, "%s\n", cmd);
                         int len = (int)strlen(cmd);
                         while(len > 0) {
@@ -643,7 +643,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                         gbuffer_printf(gbuf, "\n");
                         json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
                         gbuffer_decref(gbuf);
-                        KW_DECREF(kw);
+                        KW_DECREF(kw)
                         return jn_resp;
                     }
                 }
@@ -651,7 +651,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
             }
         }
 
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_sprintf(
             "%s: command '%s' not available.\n",
             gobj_short_name(gobj),
@@ -659,7 +659,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         );
     }
 
-    gbuffer_t *gbuf = gbuffer_create(256, 64*1024);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024);
     gbuffer_printf(gbuf, "Available commands\n");
     gbuffer_printf(gbuf, "==================\n");
 
@@ -717,6 +717,6 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 
     json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
     gbuffer_decref(gbuf);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return jn_resp;
 }

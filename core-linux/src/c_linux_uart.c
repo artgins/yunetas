@@ -582,7 +582,11 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     json_t *kw_conn = json_pack("{s:s}",
         "path",     gobj_read_str_attr(gobj, "path")
     );
-    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    }
 }
 
 /***************************************************************************
@@ -650,7 +654,11 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
      */
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
-        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
+        } else {
+            gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        }
     }
 }
 
@@ -715,7 +723,12 @@ PRIVATE int yev_tty_callback(yev_event_t *yev_event)
                     json_t *kw = json_pack("{s:I}",
                         "gbuffer", (json_int_t)(size_t)yev_event->gbuf
                     );
-                    gobj_publish_event(gobj, EV_RX_DATA, kw);
+
+                    if(gobj_is_pure_child(gobj)) {
+                        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+                    } else {
+                        gobj_publish_event(gobj, EV_RX_DATA, kw);
+                    }
 
                     /*
                      *  Clear buffer
@@ -756,7 +769,12 @@ PRIVATE int yev_tty_callback(yev_event_t *yev_event)
                     if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
                         json_t *kw_tx_ready = json_object();
                         json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+
+                        if(gobj_is_pure_child(gobj)) {
+                            gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                        } else {
+                            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                        }
                     }
                 }
 

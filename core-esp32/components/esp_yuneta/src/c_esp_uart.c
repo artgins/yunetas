@@ -512,7 +512,12 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_short_name(gobj)
         );
     }
-    gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
+    } else {
+        gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+    }
+
     return 0;
 }
 
