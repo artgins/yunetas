@@ -10,7 +10,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <kwid.h>
-#include <helpers.h>
+#include <parse_url.h>
 #include <command_parser.h>
 #include <c_prot_http_cli.h>
 #include "c_ota.h"
@@ -28,7 +28,7 @@ PRIVATE int push_data(
     const char *binary_file
 );
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_print_all_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -39,13 +39,19 @@ SDATAPM (DTP_STRING,    "cmd",          0,              "",         "command abo
 SDATAPM (DTP_INTEGER,   "level",        0,              "",         "command search level in childs"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_download_firmware[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "url_ota",      0,              "",         "url_ota, immediately begin download and install firmware"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              "false",    "Force loading of another yuno_role"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "print-all-data",   0,          0,              cmd_print_all_data,"Print all data"),
+SDATACM (DTP_SCHEMA,    "download-firmware",0,          pm_download_firmware,cmd_download_firmware,"Download and install new firmware. When connected to controlcenter will be validated."),
 SDATA_END()
 };
 
@@ -54,7 +60,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-description---------- */
-SDATA (DTP_STRING,  "url_ota",          SDF_PERSIST,            "",     "OTA url"),
+SDATA (DTP_STRING,  "url_ota",          SDF_WR,                 "",     "OTA url"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,            "",     "SSL server certificate, PEM format"),
 SDATA_END()
 };
@@ -78,7 +84,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_http_cli_ota;
-
+    const char *url_ota;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -104,14 +110,12 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------------*
      *      Http client
      *------------------------------*/
-    if(!empty_string(gobj_read_str_attr(gobj, "url_ota"))) {
-        json_t *kw = json_pack("{s:s, s:I}",
-            "url", gobj_read_str_attr(gobj, "url_ota"),
-            "subscriber", (json_int_t)(size_t)gobj
-        );
-        priv->gobj_http_cli_ota = gobj_create_service("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
-        gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
-    }
+    json_t *kw = json_pack("{s:s, s:I}",
+        "url", "",
+        "subscriber", (json_int_t)(size_t)gobj
+    );
+    priv->gobj_http_cli_ota = gobj_create_service("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
+    gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
 
     /*------------------------------*
      *      Set cert
@@ -138,6 +142,20 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(url_ota,     gobj_read_str_attr)
+        if(priv->gobj_http_cli_ota) {
+            if(!empty_string(priv->url_ota)) {
+                gobj_write_str_attr(
+                    priv->gobj_http_cli_ota,
+                    "url",
+                    priv->url_ota
+                );
+                gobj_start(priv->gobj_http_cli_ota);
+            }
+        }
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -145,6 +163,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    /*
+     *  Entry point can auto-start this.
+     *  We only try to connect and download the firmware when url_ota attribute is written
+     *  The url_ota must include the filename to download, example:
+     *          "https://esp.ota.mulesol.yunetacontrol.com:9999/firmware-example-v1.0.bin"
+     */
     return 0;
 }
 
@@ -191,35 +215,84 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_print_all_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->gobj_http_cli_ota) {
-        gobj_start(priv->gobj_http_cli_ota);
+    if(!priv->gobj_http_cli_ota) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("gobj_http_cli_ota NULL"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        KW_DECREF(kw)
+        return kw_response;
     }
 
-    do {
-        if(src == priv->gobj_http_cli_ota) {
-            if(priv->gobj_http_cli_ota && gobj_current_state(priv->gobj_http_cli_ota)==ST_CONNECTED) {
-                /*
-                 *  Mensaje inicial de conexión de alive
-                 */
-                json_t *jn_message = json_object();
-                json_object_set_new(jn_message, "tm", json_integer((json_int_t)time_in_seconds()));
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+    const char *url_ota = kw_get_str(
+        gobj,
+        kw,
+        "url_ota",
+        "",
+        0
+    );
+    if(empty_string(url_ota)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what url_ota?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
-                push_data(gobj, "alive"); // TODO binary file
-                JSON_DECREF(jn_message)
-            }
-        }
-    } while(0);
+    char schema[16];
+    char host[120];
+    char port[10];
+    char path[80];
+
+    if(parse_url(
+        gobj,
+        url_ota,
+        schema, sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        path, sizeof(path),
+        0, 0,
+        FALSE
+    )<0) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Parsing url_ota failed: %s", url_ota),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    // TODO parse path, must match yuno_role, add force parameter to let another role
+    if(force) {
+        // TODO
+    }
+
+    /*
+     *  At writing the url_ota attr the operation will begin
+     */
+    gobj_write_str_attr(gobj, "url_ota", url_ota);
 
     json_t *kw_response = build_command_response(
         gobj,
         0,
+        json_sprintf("Downloading %s ...", path),   // jn_comment
         0,
-        0,
-        json_array() // TODO
+        0
     );
     KW_DECREF(kw)
     return kw_response;

@@ -113,11 +113,13 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(url,    gobj_read_str_attr)
         if(!empty_string(priv->url)) {
-            gobj_write_str_attr(
-                gobj_bottom_gobj(gobj),
-                "url",
-                priv->url
-            );
+            if(gobj_bottom_gobj(gobj)) {
+                gobj_write_str_attr(
+                    gobj_bottom_gobj(gobj),
+                    "url",
+                    priv->url
+                );
+            }
         }
     END_EQ_SET_PRIV()
 }
