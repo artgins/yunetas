@@ -38,6 +38,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "Access token"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
+SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "false",    "Publish raw partial data of body or full body at the end"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -84,12 +85,26 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->parsing_response = ghttp_parser_create(
-        gobj,
-        HTTP_RESPONSE,
-        EV_ON_MESSAGE,
-        gobj_is_pure_child(gobj)?TRUE:FALSE
-    );
+    BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
+    if(!raw_body_data) {
+        priv->parsing_response = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,          // http_parser_type
+            NULL,                   // on_header_event
+            NULL,                   // on_body_event
+            EV_ON_MESSAGE,          // on_message_event
+            gobj_is_pure_child(gobj)?TRUE:FALSE
+        );
+    } else {
+        priv->parsing_response = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,          // http_parser_type
+            EV_ON_HEADER,           // on_header_event
+            EV_ON_MESSAGE,          // on_body_event
+            NULL,                   // on_message_event
+            gobj_is_pure_child(gobj)?TRUE:FALSE
+        );
+    }
 
     if(!gobj_is_pure_child(gobj)) {
         /*
@@ -525,6 +540,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,     EVF_OUTPUT_EVENT},
+        {EV_ON_HEADER,      EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,        EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,       EVF_OUTPUT_EVENT},
         {0, 0}

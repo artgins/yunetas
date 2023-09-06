@@ -16,6 +16,7 @@
 /****************************************************************
  *         Constants
  ****************************************************************/
+#define RX_GBUFFER_SIZE (4*1024)
 
 /****************************************************************
  *         Structures
@@ -51,7 +52,9 @@ PRIVATE http_parser_settings settings = {
 PUBLIC GHTTP_PARSER *ghttp_parser_create(
     hgobj gobj,
     enum http_parser_type type,
-    gobj_event_t on_message_event,    // Event to publish or send
+    gobj_event_t on_header_event,       // Event to publish or send when the header is completed
+    gobj_event_t on_body_event,         // Event to publish or send when the body is receiving
+    gobj_event_t on_message_event,      // Event to publish or send when the message is completed
     BOOL send_event  // TRUE: use gobj_send_event(), FALSE: use gobj_publish_event()
 )
 {
@@ -66,14 +69,14 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "no memory for sizeof(GHTTP_PARSER)",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "sizeof(GHTTP_PARSER)",  "%d", sizeof(GHTTP_PARSER),
             NULL);
         return 0;
     }
     parser->gobj = gobj;
     parser->type = type;
+    parser->on_header_event = on_header_event;
+    parser->on_body_event = on_body_event;
     parser->on_message_event = on_message_event;
     parser->send_event = send_event;
 
@@ -101,7 +104,8 @@ PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser)
     parser->message_completed = 0;
     parser->body_size = 0;
     GBMEM_FREE(parser->url);
-    GBMEM_FREE(parser->body);
+    //GBMEM_FREE(parser->body);
+    GBUFFER_DECREF(parser->gbuf_body)
     JSON_DECREF(parser->jn_headers);
     GBMEM_FREE(parser->cur_key);
     GBMEM_FREE(parser->last_key);
@@ -170,11 +174,111 @@ PRIVATE int on_message_begin(http_parser* http_parser)
 PRIVATE int on_headers_complete(http_parser* http_parser)
 {
     GHTTP_PARSER *parser = http_parser->data;
+    hgobj gobj = parser->gobj;
 
     parser->headers_completed = 1;
+    if(!parser->jn_headers) {
+        parser->jn_headers = json_object();
+    }
+    if(parser->on_header_event) {
+        json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
+            "http_parser_type",     (int)parser->type,
+            "url",                  parser->url?parser->url:"",
+            "response_status_code", (int)parser->http_parser.status_code,
+            "request_method",       (int)parser->http_parser.method,
+            "headers",              parser->jn_headers
+        );
+        if(parser->send_event) {
+            gobj_send_event(gobj_parent(gobj), parser->on_header_event, kw_http, gobj);
+        } else {
+            gobj_publish_event(gobj, parser->on_header_event, kw_http);
+        }
+    }
     return 0;
 }
 
+/***************************************************************************
+ *  Callbacks must return 0 on success.
+ *  Returning a non-zero value indicates error to the parser,
+ *  making it exit immediately.
+ ***************************************************************************/
+PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
+{
+    GHTTP_PARSER *parser = http_parser->data;
+    hgobj gobj = parser->gobj;
+
+    if(parser->on_body_event) {
+        gbuffer_t *gbuf = gbuffer_create(length, length);
+        if(!gbuf) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "no memory for header",
+                "body_size",    "%d", parser->body_size,
+                "more length",  "%d", length,
+                NULL
+            );
+            return -1;
+        }
+        gbuffer_append(gbuf, (void *)at, length);
+        json_t *kw_http = json_pack("{s:i, s:I}",
+            "response_status_code", (int)parser->http_parser.status_code,
+            "gbuffer", (json_int_t)(size_t)gbuf
+        );
+        if(parser->send_event) {
+            gobj_send_event(gobj_parent(gobj), parser->on_body_event, kw_http, gobj);
+        } else {
+            gobj_publish_event(gobj, parser->on_body_event, kw_http);
+        }
+    }
+
+    if(parser->on_message_event) {
+        /*
+         *  If on_message_event is defined, then accumulate data in body variable
+         */
+
+// Old code
+//        if(parser->body) {
+//            parser->body = gobj_realloc_func()(
+//                parser->body,
+//                parser->body_size + length + 1
+//            );
+//        } else {
+//            parser->body = gobj_malloc_func()(length + 1);
+//        }
+//
+//        if(!parser->body) {
+//            gobj_log_error(gobj, 0,
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+//                "msg",          "%s", "no memory for body",
+//                "body_size",    "%d", parser->body_size,
+//                "length",       "%d", length,
+//                NULL);
+//            return -1;
+//        }
+//        memcpy(parser->body + parser->body_size, at, length);
+
+        if(!parser->gbuf_body) {
+            parser->gbuf_body = gbuffer_create(RX_GBUFFER_SIZE, gobj_get_maximum_block());
+            if(!parser->gbuf_body) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msg",          "%s", "no memory for body",
+                    "body_size",    "%d", parser->body_size,
+                    "more length",  "%d", length,
+                    NULL
+                );
+                return -1;
+            }
+        }
+        gbuffer_append(parser->gbuf_body, (void *)at, length);
+        parser->body_size += length;
+    }
+
+    return 0;
+}
 /***************************************************************************
  *  Callbacks must return 0 on success.
  *  Returning a non-zero value indicates error to the parser,
@@ -189,35 +293,58 @@ PRIVATE int on_message_complete(http_parser* http_parser)
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
     }
+
+    if(parser->on_body_event) {
+        json_t *kw_http = json_pack("{s:i}",
+            "response_status_code", (int)parser->http_parser.status_code
+        );
+        if(parser->send_event) {
+            gobj_send_event(gobj_parent(gobj), parser->on_body_event, kw_http, gobj);
+        } else {
+            gobj_publish_event(gobj, parser->on_body_event, kw_http);
+        }
+    }
+
     if(parser->on_message_event) {
-        if(parser->message_completed) {
-            /*
-             *  The cur_request (with the body) is ready to use.
-             */
-            json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
-                "http_parser_type",     (int)parser->type,
-                "url",                  parser->url?parser->url:"",
-                "response_status_code", (int)parser->http_parser.status_code,
-                "request_method",       (int)parser->http_parser.method,
-                "headers",              parser->jn_headers
-            );
-            const char *content_type = kw_get_str(gobj, parser->jn_headers, "CONTENT-TYPE", "", 0);
-            if(!parser->body) {
-                json_object_set_new(kw_http, "body", json_string(""));
-            } else {
-                if(strcasestr(content_type, "application/json")) {
-                    json_t *jn_body = anystring2json(parser->body, parser->body_size, TRUE);
-                    json_object_set_new(kw_http, "body", jn_body);
-                } else {
-                    json_object_set_new(kw_http, "body", json_string(parser->body));
-                }
+        /*
+         *  The cur_request (with the body) is ready to use.
+         */
+        json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
+            "http_parser_type",     (int)parser->type,
+            "url",                  parser->url?parser->url:"",
+            "response_status_code", (int)parser->http_parser.status_code,
+            "request_method",       (int)parser->http_parser.method,
+            "headers",              parser->jn_headers
+        );
+        const char *content_type = kw_get_str(gobj, parser->jn_headers, "CONTENT-TYPE", "", 0);
+        if(!parser->gbuf_body) {
+            json_object_set_new(kw_http, "body", json_string(""));
+        } else {
+            char *body = gbuffer_cur_rd_pointer(parser->gbuf_body);
+            size_t body_len = gbuffer_leftbytes(parser->gbuf_body);
+            if(body_len != parser->body_size) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msg",          "%s", "NO MATCH in body size",
+                    "body_size",    "%d", (int)parser->body_size,
+                    "body_len",     "%d", (int)body_len,
+                    NULL
+                );
             }
-            ghttp_parser_reset(parser);
-            if(parser->send_event) {
-                gobj_send_event(gobj, parser->on_message_event, kw_http, gobj);
+            if(strcasestr(content_type, "application/json")) {
+                json_t *jn_body = anystring2json(body, body_len, TRUE);
+                json_object_set_new(kw_http, "body", jn_body);
             } else {
-                gobj_publish_event(gobj, parser->on_message_event, kw_http);
+                json_object_set_new(kw_http, "gbuffer", json_integer((json_int_t)(size_t)parser->gbuf_body));
+                parser->gbuf_body = 0;
             }
+        }
+        ghttp_parser_reset(parser);
+        if(parser->send_event) {
+            gobj_send_event(gobj_parent(gobj), parser->on_message_event, kw_http, gobj);
+        } else {
+            gobj_publish_event(gobj, parser->on_message_event, kw_http);
         }
     }
     return 0;
@@ -249,8 +376,6 @@ PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "no memory for url",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "length",       "%d", length,
             NULL
         );
@@ -278,8 +403,6 @@ PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t len
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "no memory for url",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "length",       "%d", length,
             NULL
         );
@@ -301,8 +424,6 @@ PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t len
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "no memory for header field",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "length",       "%d", length,
             NULL);
         return -1;
@@ -327,8 +448,6 @@ PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t len
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "jn_headers NULL",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "length",       "%d", length,
             NULL);
         return -1;
@@ -345,8 +464,6 @@ PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t len
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "cur_key NULL",
-                "gclass",       "%s", gobj_gclass_name(gobj),
-                "name",         "%s", gobj_name(gobj),
                 NULL);
             return -1;
         }
@@ -373,10 +490,9 @@ PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t len
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "no memory for header value",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
             "length",       "%d", length,
-            NULL);
+            NULL
+        );
         return -1;
     }
     memcpy(value+pos, at, length);
@@ -389,42 +505,5 @@ PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t len
     }
     parser->last_key = parser->cur_key;
     parser->cur_key = 0;
-    return 0;
-}
-
-/***************************************************************************
- *  Callbacks must return 0 on success.
- *  Returning a non-zero value indicates error to the parser,
- *  making it exit immediately.
- ***************************************************************************/
-PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
-{
-    GHTTP_PARSER *parser = http_parser->data;
-    hgobj gobj = parser->gobj;
-
-    if(parser->body) {
-        parser->body = gobj_realloc_func()(
-            parser->body,
-            parser->body_size + length + 1
-        );
-    } else {
-        parser->body = gobj_malloc_func()(length + 1);
-    }
-
-    if(!parser->body) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "no memory for body",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
-            "body_size",    "%d", parser->body_size,
-            "length",       "%d", length,
-            NULL);
-        return -1;
-    }
-    memcpy(parser->body + parser->body_size, at, length);
-    parser->body_size += length;
-
     return 0;
 }

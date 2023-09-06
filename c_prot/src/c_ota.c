@@ -13,6 +13,8 @@
 #include <parse_url.h>
 #include <command_parser.h>
 #include <c_prot_http_cli.h>
+#include <helpers.h>
+#include <unistd.h>
 #include "c_ota.h"
 
 
@@ -23,7 +25,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int push_data(
+PRIVATE int get_binary_file(
     hgobj gobj,
     const char *binary_file
 );
@@ -85,6 +87,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_http_cli_ota;
     const char *url_ota;
+    char binary_file[80];
+    json_int_t content_length;
+    size_t content_received;
+#ifdef __linux__
+    int fp;
+#endif
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -110,11 +118,12 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------------*
      *      Http client
      *------------------------------*/
-    json_t *kw = json_pack("{s:s, s:I}",
+    json_t *kw = json_pack("{s:b, s:s, s:I}",
+        "raw_body_data", TRUE,
         "url", "",
         "subscriber", (json_int_t)(size_t)gobj
     );
-    priv->gobj_http_cli_ota = gobj_create_service("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
+    priv->gobj_http_cli_ota = gobj_create_pure_child("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
     gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
 
     /*------------------------------*
@@ -254,7 +263,6 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
     char schema[16];
     char host[120];
     char port[10];
-    char path[80];
 
     if(parse_url(
         gobj,
@@ -262,7 +270,7 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         schema, sizeof(schema),
         host, sizeof(host),
         port, sizeof(port),
-        path, sizeof(path),
+        priv->binary_file, sizeof(priv->binary_file),
         0, 0,
         FALSE
     )<0) {
@@ -270,6 +278,18 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
             gobj,
             -1,     // result
             json_sprintf("Parsing url_ota failed: %s", url_ota),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    if(strlen(priv->binary_file)<1) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what binary file?"),   // jn_comment
             0,      // jn_schema
             0       // jn_data
         );
@@ -290,7 +310,7 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        json_sprintf("Downloading %s ...", path),   // jn_comment
+        json_sprintf("Downloading %s ...", priv->binary_file),   // jn_comment
         0,
         0
     );
@@ -311,20 +331,21 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int push_data(
+PRIVATE int get_binary_file(
     hgobj gobj,
     const char *binary_file
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_headers = json_pack("{s:s, s:s}",
-        "Content-Type", "application/json; charset=utf-8",
-        "Connection", "keep-alive" // TODO review
+    json_t *jn_headers = json_pack("{s:s, s:s, s:s}",
+        "Accept", "*/*",
+        "Content-Type", "application/octet-stream",
+        "Accept-Ranges", "bytes"
     );
 
     json_t *query = json_pack("{s:s, s:s, s:s, s:o}",
-        "method", "POST", // TODO review to download a file
-        "resource", "/",
+        "method", "GET",
+        "resource", binary_file,
         "query", "",
         "headers", jn_headers
     );
@@ -351,10 +372,6 @@ PRIVATE int push_data(
 
 
 
-// TODO subscribe NETWORK_OFF?
-//if(priv->gobj_http_cli_ota) {
-//    gobj_stop(priv->gobj_http_cli_ota);
-//}
 
 /***************************************************************************
  *  Http connected
@@ -369,6 +386,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_http_cli_ota) {
         gobj_change_state(gobj, ST_SESSION);
+        get_binary_file(gobj, priv->binary_file);
     }
 
     JSON_DECREF(kw)
@@ -392,6 +410,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 break;
             }
             gobj_change_state(gobj, ST_DISCONNECTED);
+            gobj_stop(priv->gobj_http_cli_ota);
         }
     } while(0);
 
@@ -400,31 +419,101 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Message from http connection: ack
+ *  Message from http connection: response header
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, kw, "%s <== %s",
+        gobj_trace_json(gobj, kw, "%s <== HEADER %s",
             gobj_short_name(gobj),
             gobj_short_name(src)
         );
     }
 
     if(src == priv->gobj_http_cli_ota) {
-        // Respuesta al POST
-        int status = (int)kw_get_int(gobj, kw, "body`status", -1, KW_REQUIRED);
-        if(status != 0) {
+        priv->content_length = kw_get_int(gobj, kw, "headers`CONTENT-LENGTH", -1, KW_WILD_NUMBER);
+        priv->content_received = 0;
+
+#ifdef __linux__
+        const char *filename = basename(priv->binary_file);
+        priv->fp = newfile(filename, 02770, TRUE);
+#endif
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "source unknown",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "source unknown");
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Message from http connection: response message or partial body
+ ***************************************************************************/
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, kw, "%s <== BODY %s",
+            gobj_short_name(gobj),
+            gobj_short_name(src)
+        );
+    }
+
+    if(src == priv->gobj_http_cli_ota) {
+        int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
+        if(response_status_code != 200) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Status NOT zero",
-                "status",       "%d", status,
+                "msg",          "%s", "BAD HTTP Status",
+                "status",       "%d", response_status_code,
                 NULL
             );
         }
+
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        if(gbuf) {
+            priv->content_received += gbuffer_leftbytes(gbuf);
+
+            gobj_trace_dump_gbuf(gobj, gbuf, "partial body");
+
+            printf("===========> Total %d, acumulado %d, faltan %d\n", // TODO TEST
+                   (int)priv->content_length,
+                   (int)priv->content_received,
+                   (int)priv->content_length - (int)priv->content_received
+            );
+
+#ifdef __linux__
+            if(priv->fp > 0) {
+                write(priv->fp, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
+            }
+#endif
+        } else {
+            /*
+             *  End of message
+             */
+            printf("===========> END of message\n");
+#ifdef __linux__
+            if(priv->fp > 0) {
+                close(priv->fp);
+                priv->fp = 0;
+            }
+#endif
+
+            gobj_send_event(priv->gobj_http_cli_ota, EV_DROP, 0, gobj);
+        }
+
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -498,9 +587,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_session[] = {
+        {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_ON_HEADER,              ac_on_header,               0},
         {EV_ON_OPEN,                0,                          0},
         {EV_ON_CLOSE,               ac_on_close,                0},
-        {EV_ON_MESSAGE,             ac_on_message,              0},
         {0,0,0}
     };
     states_t states[] = {

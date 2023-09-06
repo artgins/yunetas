@@ -935,6 +935,9 @@ PUBLIC void trace_vjson(
         jsonp_free(s);
     } else {
         print_json2(On_Red BWhite "ERROR json_dumps()" Color_Off, jn_log);
+        if(show_backtrace_fn) {
+            show_backtrace_fn(stdout_fwrite, stdout);
+        }
     }
     json_decref(jn_log);
 
