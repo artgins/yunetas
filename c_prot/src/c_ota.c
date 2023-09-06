@@ -297,9 +297,20 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         return kw_response;
     }
 
-    // TODO parse path, must match yuno_role, add force parameter to let another role
-    if(force) {
-        // TODO
+    int same = strncasecmp(gobj_yuno_role(), basename(priv->binary_file), strlen(gobj_yuno_role()));
+    if(same!=0 && !force) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Binary yuno role NOT MATCH, me: %s, other: %s",
+                gobj_yuno_role(),
+                basename(priv->binary_file)
+            ),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
     }
 
     /*
@@ -485,15 +496,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
             priv->content_received += gbuffer_leftbytes(gbuf);
-
-            gobj_trace_dump_gbuf(gobj, gbuf, "partial body");
-
-            printf("===========> Total %d, acumulado %d, faltan %d\n", // TODO TEST
-                   (int)priv->content_length,
-                   (int)priv->content_received,
-                   (int)priv->content_length - (int)priv->content_received
-            );
-
+            //gobj_trace_dump_gbuf(gobj, gbuf, "partial body");
 #ifdef __linux__
             if(priv->fp > 0) {
                 write(priv->fp, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
@@ -503,7 +506,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*
              *  End of message
              */
-            printf("===========> END of message\n");
 #ifdef __linux__
             if(priv->fp > 0) {
                 close(priv->fp);
