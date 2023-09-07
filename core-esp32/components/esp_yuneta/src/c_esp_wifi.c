@@ -726,7 +726,7 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
  *  Timeout esperando configuración teniendo alguna guardada,
  *  reintenta conectar
  ***************************************************************************/
-PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_smartconfig(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -753,7 +753,7 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *  Timeout intermitente esperando configuracion
  ***************************************************************************/
-PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);

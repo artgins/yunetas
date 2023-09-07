@@ -813,7 +813,7 @@ PRIVATE int yev_tty_callback(yev_event_t *yev_event)
 /***************************************************************************
  *  Timeout to start connection
  ***************************************************************************/
-PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj, EV_CONNECT, 0, gobj);
 
@@ -824,7 +824,7 @@ PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int fd = open_tty(gobj);
     if(fd < 0) {

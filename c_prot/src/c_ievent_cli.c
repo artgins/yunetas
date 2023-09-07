@@ -14,6 +14,7 @@
 #include <kwid.h>
 #include <gobj_environment.h>
 #include <c_timer.h>
+#include <helpers.h>
 #include <parse_url.h>
 #include <comm_prot.h>
 #include "msg_ievent.h"
@@ -309,7 +310,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 /***************************************************************************
  *      Framework Method inject_event
  ***************************************************************************/
-PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -359,7 +360,8 @@ PRIVATE int send_remote_subscription(
     hgobj gobj,
     json_t *subs)
 {
-    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED);
+    // const char *event
+    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
     if(empty_string(event)) {
         // HACK only resend explicit subscriptions
         return -1;
@@ -635,6 +637,8 @@ PRIVATE int resend_subscriptions(hgobj gobj)
 {
     json_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
 
+print_json2("subs", dl_subs); // TODO TEST
+
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
         send_remote_subscription(gobj, subs);
@@ -699,7 +703,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_idAck(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_idAck(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
@@ -710,7 +714,7 @@ PRIVATE int ac_timeout_wait_idAck(hgobj gobj, const char *event, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -784,7 +788,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
@@ -1019,7 +1023,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Play yuno
  ***************************************************************************/
-PRIVATE int ac_play_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int ret = gobj_play(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
@@ -1043,7 +1047,7 @@ PRIVATE int ac_play_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Pause yuno
  ***************************************************************************/
-PRIVATE int ac_pause_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int ret = gobj_pause(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
@@ -1062,7 +1066,7 @@ PRIVATE int ac_pause_yuno(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  remote ask for stats
  ***************************************************************************/
-PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *      __MESSAGE__
@@ -1129,7 +1133,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  remote ask for command
  ***************************************************************************/
-PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *      __MESSAGE__
@@ -1196,7 +1200,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  For asynchronous responses
  ***************************************************************************/
-PRIVATE int ac_send_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     return send_static_iev(gobj,
         EV_MT_COMMAND_ANSWER,
@@ -1208,7 +1212,7 @@ PRIVATE int ac_send_command_answer(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
@@ -1219,7 +1223,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Child stopped
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

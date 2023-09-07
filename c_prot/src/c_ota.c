@@ -301,6 +301,19 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    int ota_state = (int)gobj_read_integer_attr(gobj, "ota_state");
+    if(ota_state == 1) { //ESP_OTA_IMG_PENDING_VERIFY
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Ota image pending of verify"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        KW_DECREF(kw)
+        return kw_response;
+    }
+
     if(!priv->gobj_http_cli_ota) {
         json_t *kw_response = build_command_response(
             gobj,
@@ -451,11 +464,11 @@ PRIVATE int get_binary_file(
 /***************************************************************************
  *
  ***************************************************************************/
+#ifdef ESP_PLATFORM
 PRIVATE BOOL check_image(hgobj gobj, gbuffer_t *gbuf)
 {
     BOOL image_checked = FALSE;
 
-#ifdef ESP_PLATFORM
     size_t data_read = gbuffer_leftbytes(gbuf);
     char *ota_write_data = gbuffer_cur_rd_pointer(gbuf);
     esp_app_desc_t new_app_info;
@@ -512,10 +525,10 @@ PRIVATE BOOL check_image(hgobj gobj, gbuffer_t *gbuf)
     }
 
     image_checked = true;
-#endif
 
     return image_checked;
 }
+#endif
 
 /***************************************************************************
  *
