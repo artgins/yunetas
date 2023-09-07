@@ -29,7 +29,7 @@
  ***************************************************************/
 PRIVATE int send_static_iev(
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw, // owned and serialized,
     hgobj src
 );
@@ -409,6 +409,8 @@ PRIVATE int mt_subscription_added(
     hgobj gobj,
     json_t *subs)
 {
+    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+
     if(gobj_current_state(gobj) != ST_SESSION) {
         // on_open will send all subscriptions
         return 0;
@@ -423,12 +425,14 @@ PRIVATE int mt_subscription_deleted(
     hgobj gobj,
     json_t *subs)
 {
+    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+
     if(gobj_current_state(gobj) != ST_SESSION) {
         // Nothing to do. On open this subscription will be not sent.
         return -1;
     }
 
-    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED);
+    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
     if(empty_string(event)) {
         // HACK only resend explicit subscriptions
         return -1;
@@ -582,7 +586,7 @@ PRIVATE int send_identity_card(hgobj gobj)
  ***************************************************************************/
 PRIVATE int send_static_iev(
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw, // owned and serialized,
     hgobj src
 )
@@ -635,9 +639,9 @@ PRIVATE int send_static_iev(
  ***************************************************************************/
 PRIVATE int resend_subscriptions(hgobj gobj)
 {
-    json_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
+    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
-print_json2("subs", dl_subs); // TODO TEST
+    json_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
