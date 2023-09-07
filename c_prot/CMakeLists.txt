@@ -15,7 +15,7 @@ set (SRCS
     src/c_prot_modbus_master.c
     src/c_ievent_cli.c
     src/c_prot_tcp4h.c
-    src/c_ota.c # TODO remove
+    src/c_ota.c
 )
 
 
@@ -26,7 +26,7 @@ set (HDRS
     src/c_prot_modbus_master.h
     src/c_ievent_cli.h
     src/c_prot_tcp4h.h
-    src/c_ota.h # TODO remove
+    src/c_ota.h
 )
 
 

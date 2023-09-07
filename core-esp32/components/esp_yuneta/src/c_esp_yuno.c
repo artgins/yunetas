@@ -325,7 +325,7 @@ SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace l
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "1000",         "Timeout periodic, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats"),
-SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
+SDATA (DTP_INTEGER, "autokill",         SDF_WR,         "0",            "Timeout (>0) to autokill in seconds"),
 
 SDATA_END()
 };

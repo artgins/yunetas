@@ -19,6 +19,7 @@ set(include
 
 set(requires
     esp_yuneta
+    app_update
 )
 
 #------------------------------------------------------#
