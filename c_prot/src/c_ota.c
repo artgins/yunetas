@@ -31,6 +31,18 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#ifdef __linux__
+/// OTA_DATA states for checking operability of the app.
+typedef enum {
+    ESP_OTA_IMG_NEW             = 0x0U,         /*!< Monitor the first boot. In bootloader this state is changed to ESP_OTA_IMG_PENDING_VERIFY. */
+    ESP_OTA_IMG_PENDING_VERIFY  = 0x1U,         /*!< First boot for this app was. If while the second boot this state is then it will be changed to ABORTED. */
+    ESP_OTA_IMG_VALID           = 0x2U,         /*!< App was confirmed as workable. App can boot and work without limits. */
+    ESP_OTA_IMG_INVALID         = 0x3U,         /*!< App was confirmed as non-workable. This app will not selected to boot at all. */
+    ESP_OTA_IMG_ABORTED         = 0x4U,         /*!< App could not confirm the workable or non-workable. In bootloader IMG_PENDING_VERIFY state will be changed to IMG_ABORTED. This app will not selected to boot at all. */
+    ESP_OTA_IMG_UNDEFINED       = 0xFFFFFFFFU,  /*!< Undefined. App can boot and work without limits. */
+} esp_ota_img_states_t;
+
+#endif
 
 /***************************************************************
  *              Prototypes
@@ -146,6 +158,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_http_cli_ota = gobj_create_pure_child("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
     gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);
 
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
     /*------------------------------*
      *      Set cert
      *------------------------------*/
@@ -198,11 +212,8 @@ PRIVATE int mt_reading(hgobj gobj, const char *name)
         const esp_partition_t *running = esp_ota_get_running_partition();
         esp_ota_img_states_t ota_state;
         if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
-            gobj_write_integer_attr(gobj, name, 0);
+            gobj_write_integer_attr(gobj, name, ota_state);
         }
-#endif
-#ifdef __linux__
-        gobj_write_integer_attr(gobj, name, 0);
 #endif
     }
     return 0;
@@ -220,20 +231,22 @@ PRIVATE int mt_start(hgobj gobj)
      *          "https://esp.ota.mulesol.yunetacontrol.com:9999/firmware-example-v1.0.bin"
      */
 
-    int ota_state = (int)gobj_read_integer_attr(gobj, "ota_state");
-    gobj_trace_msg(gobj, "🌀 ota_state %d\n", (int)ota_state);
-
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_timer);
+
+#ifdef __linux__
+    gobj_write_integer_attr(gobj, "ota_state", ESP_OTA_IMG_PENDING_VERIFY); // To TEST
+#endif
+
+    esp_ota_img_states_t ota_state = (esp_ota_img_states_t)gobj_read_integer_attr(gobj, "ota_state");
+    gobj_trace_msg(gobj, "🌀 ota_state %d", (int)ota_state);
 
     switch(ota_state) {
         case ESP_OTA_IMG_NEW: /*!< Monitor the first boot. In bootloader this state is changed to ESP_OTA_IMG_PENDING_VERIFY. */
             break;
         case ESP_OTA_IMG_PENDING_VERIFY: /*!< First boot for this app was. If while the second boot this state is then it will be changed to ABORTED. */
-            {
-                priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-                set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_validate"));
-            }
+            set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_validate"));
             break;
         case ESP_OTA_IMG_VALID: /*!< App was confirmed as workable. App can boot and work without limits. */
         case ESP_OTA_IMG_INVALID: /*!< App was confirmed as non-workable. This app will not selected to boot at all. */
@@ -249,7 +262,6 @@ PRIVATE int mt_start(hgobj gobj)
             );
             break;
     }
-#endif
 
     return 0;
 }
@@ -259,6 +271,9 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_timer);
     return 0;
 }
 
@@ -301,8 +316,8 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int ota_state = (int)gobj_read_integer_attr(gobj, "ota_state");
-    if(ota_state == 1) { //ESP_OTA_IMG_PENDING_VERIFY
+    esp_ota_img_states_t ota_state = (esp_ota_img_states_t)gobj_read_integer_attr(gobj, "ota_state");
+    if(ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -535,26 +550,25 @@ PRIVATE BOOL check_image(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int check_and_validate_new_image(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    esp_ota_img_states_t ota_state;
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    if(esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
-        if(ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_STARTUP,
-                "msg",          "%s", "OTA image verified",
-                "msg2",         "%s", "🌀🌀🌀 ✅OTA image verified",
-                NULL
-            );
-            esp_ota_mark_app_valid_cancel_rollback();
-            clear_timeout(priv->gobj_timer);
-            gobj_stop(priv->gobj_timer);
-        }
-    }
+    esp_ota_img_states_t ota_state = (esp_ota_img_states_t)gobj_read_integer_attr(gobj, "ota_state");
+    if(ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_STARTUP,
+            "msg",          "%s", "OTA image verified",
+            "msg2",         "%s", "🌀🌀🌀 ✅OTA image verified",
+            NULL
+        );
+#ifdef ESP_PLATFORM
+        esp_ota_mark_app_valid_cancel_rollback();
 #endif
+#ifdef __linux__
+        gobj_write_integer_attr(gobj, "ota_state", ESP_OTA_IMG_UNDEFINED);
+#endif
+        clear_timeout(priv->gobj_timer);
+    }
     return 0;
 }
 
@@ -888,6 +902,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     );
 #ifdef ESP_PLATFORM
     esp_ota_mark_app_invalid_rollback_and_reboot();
+#endif
+#ifdef __linux__
+    gobj_write_integer_attr(gobj, "ota_state", ESP_OTA_IMG_UNDEFINED);
 #endif
     return 0;
 }
