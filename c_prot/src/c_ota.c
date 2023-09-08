@@ -341,6 +341,18 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         return kw_response;
     }
 
+    if(gobj_is_running(priv->gobj_http_cli_ota)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("gobj_http_cli_ota is ALREADY running"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        KW_DECREF(kw)
+        return kw_response;
+    }
+
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
     const char *url_ota = kw_get_str(
         gobj,
@@ -425,7 +437,12 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         0,
         json_sprintf("Downloading %s ...", priv->binary_file),   // jn_comment
         0,
-        0
+        json_pack("{s:s, s:s, s:s, s:s}",
+            "schema", schema,
+            "host", host,
+            "port", port,
+            "file", priv->binary_file
+        )
     );
     KW_DECREF(kw)
     return kw_response;
@@ -480,12 +497,10 @@ PRIVATE int get_binary_file(
  *
  ***************************************************************************/
 #ifdef ESP_PLATFORM
-PRIVATE BOOL check_image(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
 {
     BOOL image_checked = FALSE;
 
-    size_t data_read = gbuffer_leftbytes(gbuf);
-    char *ota_write_data = gbuffer_cur_rd_pointer(gbuf);
     esp_app_desc_t new_app_info;
     if (data_read < sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
         gobj_log_error(gobj, 0,
@@ -523,8 +538,8 @@ PRIVATE BOOL check_image(hgobj gobj, gbuffer_t *gbuf)
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "Ok to new firmware",
-        "msg2",         "%s", "🌀 ✅Ok to new firmware",
+        "msg",          "%s", "Ok to download new firmware",
+        "msg2",         "%s", "🌀 ✅Ok to download new firmware",
         "current",      "%s", gobj_yuno_role(),
         "new",          "%s", new_app_info.project_name,
         "force",        "%d", force,
@@ -617,7 +632,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(src == priv->gobj_http_cli_ota) {
-
 #ifdef ESP_PLATFORM
         if(priv->update_handle) {
             // If update_handle is not zero then the firmware downloading was not successful
@@ -628,7 +642,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->update_handle = 0;
         priv->image_header_was_checked = FALSE;
 #endif
-
         gobj_change_state(gobj, ST_DISCONNECTED);
         gobj_stop(priv->gobj_http_cli_ota);
     }
@@ -686,28 +699,6 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *filename = basename(priv->binary_file);
         priv->fp = newfile(filename, 02770, TRUE);
 #endif
-
-#ifdef ESP_PLATFORM
-        priv->update_partition = esp_ota_get_next_update_partition(NULL);
-
-        const esp_partition_t *configured = esp_ota_get_boot_partition();
-        const esp_partition_t *running = esp_ota_get_running_partition();
-
-        if (configured != running) {
-            gobj_trace_msg(gobj,
-                "🌀👎Configured OTA boot partition at offset 0x%08"PRIx32", but running from offset 0x%08"PRIx32,
-                 configured->address,
-                 running->address
-             );
-        }
-        gobj_trace_msg(gobj,
-            "🌀Running partition type %d subtype %d (offset 0x%08"PRIx32")",
-            running->type,
-            running->subtype,
-            running->address
-        );
-#endif
-
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -752,13 +743,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         }
 
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-        if(gbuf) {
+        char *ota_write_data = (char *)(size_t)kw_get_int(gobj, kw, "__pbf__", 0, 0);
+        if(ota_write_data) {
             /*---------------------------------------------*
              *          Receiving file
              *---------------------------------------------*/
-            char *ota_write_data = gbuffer_cur_rd_pointer(gbuf);
-            size_t data_read = gbuffer_leftbytes(gbuf);
+            size_t data_read = (size_t)kw_get_int(gobj, kw, "__pbf_size__", 0, 0);
             priv->content_received += data_read;
 #ifdef __linux__
             if(priv->fp > 0) {
@@ -767,7 +757,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 #endif
 #ifdef ESP_PLATFORM
             if(!priv->image_header_was_checked) {
-                priv->image_header_was_checked = check_image(gobj, gbuf);
+                priv->image_header_was_checked = check_image(gobj, ota_write_data, data_read);
                 if(!priv->image_header_was_checked) {
                     // Error already logged
                     gobj_send_event(priv->gobj_http_cli_ota, EV_DROP, 0, gobj);
@@ -776,7 +766,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
                 priv->update_partition = esp_ota_get_next_update_partition(NULL);
                 esp_err_t err = esp_ota_begin(
-                    priv->update_partition, OTA_WITH_SEQUENTIAL_WRITES, &priv->update_handle
+                    priv->update_partition,
+                    OTA_WITH_SEQUENTIAL_WRITES, //priv->content_length,
+                    &priv->update_handle
                 );
                 if (err != ESP_OK) {
                     gobj_log_error(gobj, 0,
@@ -818,6 +810,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 KW_DECREF(kw)
                 return 0;
             }
+            gobj_trace_msg(gobj, "🌀esp_ota_write() total:%lu, partial:%lu, rx %lu bytes",
+                (unsigned long)priv->content_length,
+                (unsigned long)priv->content_received,
+                (unsigned long)data_read
+            );
 #endif
         } else {
             /*---------------------------------------------*

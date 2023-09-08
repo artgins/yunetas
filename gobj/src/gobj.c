@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <errno.h>
 
 #ifdef __linux__
     #include <pwd.h>
@@ -7914,7 +7915,6 @@ PRIVATE void *_mem_malloc(size_t size)
         #include <esp_system.h>
         printf(On_Red BWhite "ERROR NO MEMORY calloc() failed, size %d, HEAP free %d" Color_Off "\n", (int)size, (int)esp_get_free_heap_size());
 #endif
-
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_MEMORY_ERROR,

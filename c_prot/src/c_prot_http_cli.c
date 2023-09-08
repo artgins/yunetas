@@ -92,7 +92,7 @@ PRIVATE void mt_create(hgobj gobj)
             HTTP_RESPONSE,          // http_parser_type
             NULL,                   // on_header_event
             NULL,                   // on_body_event
-            EV_ON_MESSAGE,          // on_message_event
+            EV_ON_MESSAGE,          // on_message_event ==> publish full message in a gbuffer
             gobj_is_pure_child(gobj)?TRUE:FALSE
         );
     } else {
@@ -100,7 +100,7 @@ PRIVATE void mt_create(hgobj gobj)
             gobj,
             HTTP_RESPONSE,          // http_parser_type
             EV_ON_HEADER,           // on_header_event
-            EV_ON_MESSAGE,          // on_body_event
+            EV_ON_MESSAGE,          // on_body_event  ==> publish partial message with original buffer pointer
             NULL,                   // on_message_event
             gobj_is_pure_child(gobj)?TRUE:FALSE
         );

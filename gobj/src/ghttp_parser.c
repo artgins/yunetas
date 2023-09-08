@@ -208,22 +208,10 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
     hgobj gobj = parser->gobj;
 
     if(parser->on_body_event) {
-        gbuffer_t *gbuf = gbuffer_create(length, length);
-        if(!gbuf) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "no memory for header",
-                "body_size",    "%d", parser->body_size,
-                "more length",  "%d", length,
-                NULL
-            );
-            return -1;
-        }
-        gbuffer_append(gbuf, (void *)at, length);
-        json_t *kw_http = json_pack("{s:i, s:I}",
+        json_t *kw_http = json_pack("{s:i, s:I, s:I}",
             "response_status_code", (int)parser->http_parser.status_code,
-            "gbuffer", (json_int_t)(size_t)gbuf
+            "__pbf__", (json_int_t)(size_t)at,
+            "__pbf_size__", (json_int_t)length
         );
         if(parser->send_event) {
             gobj_send_event(gobj_parent(gobj), parser->on_body_event, kw_http, gobj);
@@ -295,6 +283,9 @@ PRIVATE int on_message_complete(http_parser* http_parser)
     }
 
     if(parser->on_body_event) {
+        /*
+         *  HACK: The last event without "__buffer__" key will indicate that all message is completed
+         */
         json_t *kw_http = json_pack("{s:i}",
             "response_status_code", (int)parser->http_parser.status_code
         );

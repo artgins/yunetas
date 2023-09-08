@@ -510,46 +510,53 @@ PRIVATE void rx_task(void *pv)
                 break;
 
             case TASK_TRANSPORT_DISCONNECTED:
-                err = esp_transport_connect(
-                    priv->transport,
-                    gobj_read_str_attr(gobj, "host"),
-                    atoi(gobj_read_str_attr(gobj, "port")),
-                    (int)gobj_read_integer_attr(gobj, "timeout_waiting_connected")
-                );
-                if(err < 0) {
-                    int actual_errno = esp_transport_get_errno(priv->transport);
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "esp_transport_connect() FAILED",
-                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                        "host",         "%s", gobj_read_str_attr(gobj, "host"),
-                        "port",         "%d", (int)gobj_read_integer_attr(gobj, "port"),
-                        "err",          "%d", err,
-                        "errno",        "%d", actual_errno,
-                        "serrno",       "%s", strerror(actual_errno),
-                        NULL
+                {
+                    const char *host = gobj_read_str_attr(gobj, "host");
+                    int port = atoi(gobj_read_str_attr(gobj, "port"));
+                    int timeout_ms = (int)gobj_read_integer_attr(gobj, "timeout_waiting_connected");
+                    err = esp_transport_connect(
+                        priv->transport,
+                        host,
+                        port,
+                        timeout_ms
                     );
-                    esp_abort_connection(gobj);
-                    gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
-                    break;
-                }
+                    if(err < 0) {
+                        int actual_errno = esp_transport_get_errno(priv->transport);
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                            "msg",          "%s", "esp_transport_connect() FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "schema",       "%s", gobj_read_str_attr(gobj, "schema"),
+                            "host",         "%s", host,
+                            "port",         "%d", port,
+                            "timeout_ms",   "%d", timeout_ms,
+                            "err",          "%d", err,
+                            "errno",        "%d", actual_errno,
+                            "serrno",       "%s", strerror(actual_errno),
+                            NULL
+                        );
+                        esp_abort_connection(gobj);
+                        gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
+                        break;
+                    }
 
-                int s = esp_transport_get_socket(priv->transport);
-                struct sockaddr_in addr;
-                socklen_t addrlen = sizeof(addr);
-                char temp[64];
-                if(getpeername(s, (struct sockaddr *)&addr, &addrlen)==0) {
-                    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                    gobj_write_str_attr(gobj, "peername", temp);
-                }
-                if(getsockname(s, (struct sockaddr *)&addr, &addrlen)==0) {
-                    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-                    gobj_write_str_attr(gobj, "sockname", temp);
-                }
+                    int s = esp_transport_get_socket(priv->transport);
+                    struct sockaddr_in addr;
+                    socklen_t addrlen = sizeof(addr);
+                    char temp[64];
+                    if(getpeername(s, (struct sockaddr *)&addr, &addrlen)==0) {
+                        snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                        gobj_write_str_attr(gobj, "peername", temp);
+                    }
+                    if(getsockname(s, (struct sockaddr *)&addr, &addrlen)==0) {
+                        snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                        gobj_write_str_attr(gobj, "sockname", temp);
+                    }
 
-                priv->transport_state = TASK_TRANSPORT_CONNECTED;
-                gobj_post_event(gobj, EV_CONNECTED, 0, gobj);
+                    priv->transport_state = TASK_TRANSPORT_CONNECTED;
+                    gobj_post_event(gobj, EV_CONNECTED, 0, gobj);
+                }
                 break;
 
             case TASK_TRANSPORT_CONNECTED:

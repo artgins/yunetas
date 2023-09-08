@@ -56,8 +56,13 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
             }
         */
     gobj_event_t on_body_event,         // Event to publish or send when the body is receiving
-        /* kw of event:
-            "gbuffer": gbuffer with the partial body received
+        /*
+           kw of event:
+            {
+                "__pbf__":              (uint8_t *)(size_t) (int) pointer to buffer with the partial body received,
+                "__pbf_size__":         (size_t) (int) size of buffer
+            }
+            HACK: The last event without "__pbf__" key will indicate that all message is completed
         */
 
     gobj_event_t on_message_event,      // Event to publish or send when the message is completed
