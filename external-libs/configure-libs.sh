@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #  Exit immediately if a command exits with a non-zero status.
-# set -e
+set -e
 
 export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 
@@ -16,79 +16,17 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DO
 make
 make install
 cd ..
-
 cd ../..
 
-
 #------------------------------------------
-#   Libunwind
+#   liburing
 #------------------------------------------
-# echo "===================== UNWIND ======================="
-# cd build/libunwind-1.7.0
-# autoreconf -i
-# ./configure --prefix=/yuneta/development/outputs
-# make
-# make install
-# cd ../..
-
-
-#------------------------------------------
-#   Libuv
-#------------------------------------------
-# echo "===================== LIBUV ======================="
-# cd build/libuv-1.45.0-gines
-# sh autogen.sh
-# ./configure --prefix=/yuneta/development/outputs
-# make
-# make install
-# cd ../..
-
-#------------------------------------------
-#   libncurses
-#------------------------------------------
-# echo "===================== NCURSES ======================="
-# cd build/ncurses-6.4
-#
-# # HACK in recents gcc ncurses will fail.
-# # WARNING **Before** make configure_ncurses.sh do:
-# export CPPFLAGS="-P" #Fallo arreglado con la version ncurses-6.4 ?
-#
-# ./configure \
-#     --prefix=/yuneta/development/outputs \
-#     --datarootdir=/yunetas/bin/ncurses \
-#     --enable-sp-funcs
-# #         --enable-term-driver \
-# #         --enable-ext-putwin
-# make
-# make install
-# cd ../..
-
-#------------------------------------------
-#   PCRE
-#------------------------------------------
-# HACK WARNING en redhat usa ./configure
-# echo "===================== PCRE ======================="
-# cd build/pcre2-10.42
-# ./configure --prefix=/yuneta/development/outputs \
-#     --enable-jit
-# make
-# make install
-# cd ../..
-
-#------------------------------------------
-#   nginx
-#------------------------------------------
-# # HACK sudo yum install pcre-devel.x86_64 zlib-devel.x86_64
-# echo "===================== NGINX ======================="
-# cd build/nginx-1.24.0
-# ./configure \
-#     --prefix=/yunetas/bin/nginx \
-#     --with-http_ssl_module \
-#     --with-stream \
-#     --with-stream_ssl_module
-# make
-# make install
-# cd ../..
+echo "===================== liburing ======================="
+cd build/liburing-liburing-2.4
+./configure --prefix=/yuneta/development/outputs
+make
+make install
+cd ../..
 
 #------------------------------------------
 #   mbedtls
@@ -102,16 +40,69 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
 make
 make install
 cd ..
-
 cd ../..
 
 
 #------------------------------------------
-#   liburing WARNING  master version!
+#   openssl
 #------------------------------------------
-echo "===================== liburing ======================="
-cd build/liburing-liburing-2.4
-./configure --prefix=/yuneta/development/outputs
+echo "===================== OPENSSL ======================="
+cd build/openssl-3.1.2
+./config \
+    --prefix=/yuneta/development/outputs \
+    --openssldir=/yuneta/bin/ssl3 \
+    --libdir=lib \
+    no-tests \
+    enable-ssl-trace
 make
 make install
 cd ../..
+
+
+#------------------------------------------
+#   PCRE
+#------------------------------------------
+echo "===================== PCRE ======================="
+cd build/pcre2-10.42
+./configure --prefix=/yuneta/development/outputs \
+    --enable-jit
+make
+make install
+cd ../..
+
+
+#------------------------------------------
+#   nginx
+#------------------------------------------
+echo "===================== NGINX ======================="
+cd build/nginx-1.24.0
+./configure \
+    --prefix=/yuneta/bin/nginx \
+    --with-http_ssl_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
+    --with-pcre-jit \
+    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.1.2 \
+    --with-openssl-opt=no-tests
+make
+make install
+cd ../..
+
+
+#------------------------------------------
+#   libjwt
+#------------------------------------------
+#echo "===================== libjwt ======================="
+#cd build/libjwt-1.16.0
+#mkdir build
+#cd build
+#cmake -G "Ninja" -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+#      -DUSE_INSTALLED_JANSSON=OFF \
+#      -DJANSSON_BUILD_DOCS=OFF \
+#      ..
+#
+#ninja
+#ninja install
+#cd ..
+#cd ../..

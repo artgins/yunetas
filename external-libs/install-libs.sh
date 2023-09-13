@@ -6,6 +6,7 @@ set -e
 #------------------------------------------
 #   Jansson
 #------------------------------------------
+echo "===================== JANSSON ======================="
 cd build/jansson-2.14-gines
 cd build
 make install
@@ -13,45 +14,17 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   unwind
+#   liburing WARNING  master version!
 #------------------------------------------
-# cd build/libunwind-1.7.0
-# make install
-# cd ../..
-
-#------------------------------------------
-#   Libuv
-#------------------------------------------
-# cd build/libuv-1.45.0-gines
-# make install
-# cd ../..
-
-#------------------------------------------
-#   libncurses WARNING falla en kubuntu,
-#   pero da igual, kubuntu ya tiene la 6.0
-#   (Debian y RedHat no)
-#------------------------------------------
-# cd build/ncurses-6.4
-# make install
-# cd ../..
-
-#------------------------------------------
-#   PCRE
-#------------------------------------------
-# cd build/pcre2-10.42
-# make install
-# cd ../..
-
-#------------------------------------------
-#   Nginx
-#------------------------------------------
-# cd build/nginx-1.24.0
-# make install
-# cd ../..
+echo "===================== liburing ======================="
+cd build/liburing-liburing-2.4
+make install
+cd ../..
 
 #------------------------------------------
 #   mbedtls
 #------------------------------------------
+echo "===================== MBEDTLS ======================="
 cd build/mbedtls-3.4.0
 cd build
 make install
@@ -60,8 +33,29 @@ cd ../..
 
 
 #------------------------------------------
-#   liburing WARNING  master version!
+#   openssl
 #------------------------------------------
-cd build/liburing-liburing-2.4
+echo "===================== OPENSSL ======================="
+cd build/openssl-3.1.2
+make install
+cd ../..
+
+
+#------------------------------------------
+#   PCRE
+#------------------------------------------
+# HACK WARNING en redhat usa ./configure
+echo "===================== PCRE ======================="
+cd build/pcre2-10.42
+make install
+cd ../..
+
+
+#------------------------------------------
+#   nginx
+#------------------------------------------
+# HACK sudo yum install pcre-devel.x86_64 zlib-devel.x86_64
+echo "===================== NGINX ======================="
+cd build/nginx-1.24.0
 make install
 cd ../..

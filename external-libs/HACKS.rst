@@ -3,33 +3,21 @@ Hacks of External libraries
 
 Para encontrar el código modificado, comparar los tar.gz originales con los de gines.tar.gz
 
-Hackeo de libuv:
-================
+Hackeo de jansson
+=================
 
-No me aceptaron al parche de añadir uv_accept(), así que me toca hackear libuv.
-
-Despues de uv_accept():
-
-libuv-?.?.?/include/uv.h
-------------------------
-
-UV_EXTERN int uv_not_accept(uv_stream_t* server);
-
-libuv-?.?.?/src/unix/stream.c
------------------------------
-
-int uv_not_accept(uv_stream_t* server) {
-  if (server->accepted_fd == -1)
-    return -EAGAIN;
-  uv__close(server->accepted_fd);
-  server->accepted_fd = -1;
-  return 0;
-}
-
-Hackeo de pcre2
-===============
-Hay que añadir a pcre2posix.h
-
-    #pragma once    /* GMS */
+diff -r jansson-2.14/src/jansson.h jansson-2.14-gines/src/jansson.h
+316a317,318
+> json_int_t *json_integer_value_pointer(const json_t *integer);
+>
+diff -r jansson-2.14/src/value.c jansson-2.14-gines/src/value.c
+901a902,908
+> json_int_t *json_integer_value_pointer(const json_t *json) {
+>     if (!json_is_integer(json))
+>         return 0;
+>
+>     return &(json_to_integer(json)->value);
+> }
+>
 
 
