@@ -8,7 +8,7 @@ project(yunos C)
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(test_frigo)
+#add_subdirectory(test_frigo)
 add_subdirectory(test_esteriliz)
 add_subdirectory(test_sonda)
 

@@ -1188,7 +1188,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gbuffer_create() FAILED",
+            "msg",          "%s", "b64_decode() FAILED",
             "len",          "%d", (int)output_len,
             NULL
         );

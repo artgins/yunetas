@@ -867,6 +867,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             }
             break;
 
+        case DTP_REAL:
         case DTP_INTEGER:
             {
                 if(DTP_IS_INTEGER(type)) {
