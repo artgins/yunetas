@@ -1,9 +1,9 @@
 Yunetas
 =======
 
-Yuneta Simplified, a complete asynchronous C development framework.
+Yuneta Simplified, a complete asynchronous C development framework for Linux and ESP32.
 
-Inherited from `ginsfms <https://pypi.org/project/ginsfsm/>`_ and `Yuneta <http://yuneta.io>`_.
+Inherited from `ginsfsm <https://pypi.org/project/ginsfsm/>`_ and `Yuneta <http://yuneta.io>`_.
 
 Directories
 -----------
@@ -13,19 +13,22 @@ Directories
     attributes based in json, a wide table of class methods,
     and an api to let communicate between objects through events,
     with publish/subscribe pattern integrated.
+
 - core-esp32:
     Core for esp32 microcontroller (`esp-idf <https://docs.espressif.com/projects/esp-idf/>`_).
     List of components order by dependency (bottom higher dependency) ::
         - esp_jansson
         - esp_gobj          (depends of esp_jansson)
         - esp_yuneta        (depends of esp_gobj)
-        - esp_gc_prot       (depends of esp_yuneta)
+        - esp_c_prot        (depends of esp_yuneta)
 
     It's only necessary to include the component with higher dependency
 
 - core-linux:
-    Core for linux (TODO).
-- gc_prot
+    Core for linux, based in `io_uring <https://github.com/axboe/liburing>`_.
+
+- c_prot
     Collection of gclasses working with protocols.
+
 - yunos:
     Full applications or utilities built with yunetas (TODO).
