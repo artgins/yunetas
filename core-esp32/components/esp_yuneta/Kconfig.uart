@@ -1,0 +1,65 @@
+menu "Yuneta UART"
+    source "/yuneta/development/yuneta/yunetas/core-esp32/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+
+    choice YUNETA_SERIAL_PORT
+        prompt "Select Serial port"
+        #default YUNETA_USE_DB9
+        help
+            Select the serial port: USB or external DB9 conector
+        config YUNETA_USE_USB
+            bool "USB port [To change set 'Console output' to Default: UART0)]"
+            depends on ESP_CONSOLE_NONE=y
+        config YUNETA_USE_DB9
+            bool "DB9 port [To change set 'Console output' to None]"
+            depends on ESP_CONSOLE_NONE=n
+    endchoice # YUNETA_SERIAL_PORT
+
+    if YUNETA_USE_DB9
+        config YUNETA_UART_BAUDRATE
+            int "Baud Rate"
+            default 9600
+            help
+                Set the UART baudrate (default 9600)
+        #config YUNETA_UART_NUMBER
+        #    int "UART Number"
+        #    default 3
+        #    help
+        #        Set the UART number used to RS232, default 3
+        #config YUNETA_UART_TX
+        #    int "GPIO TX"
+        #    default 17
+        #    help
+        #        Set the GPIO number used to UART TX, default 17
+        #config YUNETA_UART_RX
+        #    int "GPIO RX"
+        #    default 16
+        #    help
+        #        Set the GPIO number used to UART RX, default 16
+
+    endif # YUNETA_USE_DB9
+
+    if YUNETA_USE_USB
+        config YUNETA_UART_BAUDRATE
+            int "Baud Rate"
+            default 9600
+            help
+                Set the UART baudrate (default 9600)
+        #config YUNETA_UART_NUMBER
+        #    int "UART Number"
+        #    default 0
+        #    help
+        #        Set the UART number used to RS232, default 0
+        #config YUNETA_UART_TX
+        #    int "GPIO TX"
+        #    default 1
+        #    help
+        #        Set the GPIO number used to UART TX, default 1
+        #config YUNETA_UART_RX
+        #    int "GPIO RX"
+        #    default 3
+        #    help
+        #        Set the GPIO number used to UART RX, default 3
+
+    endif # YUNETA_USE_USB
+
+endmenu
