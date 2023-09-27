@@ -3,14 +3,14 @@ menu "Yuneta UART"
 
     choice YUNETA_SERIAL_PORT
         prompt "Select Serial port"
-        #default YUNETA_USE_DB9
+        #default YUNETA_USE_DB9 # changed by configuration of 'Console output'
         help
             Select the serial port: USB or external DB9 conector
         config YUNETA_USE_USB
-            bool "USB port [To change set 'Console output' to Default: UART0)]"
+            bool "USB port [To change you must configure 'Console output' to Default: UART0)]"
             depends on ESP_CONSOLE_NONE=y
         config YUNETA_USE_DB9
-            bool "DB9 port [To change set 'Console output' to None]"
+            bool "DB9 port [To change you must configure 'Console output' to None]"
             depends on ESP_CONSOLE_NONE=n
     endchoice # YUNETA_SERIAL_PORT
 
