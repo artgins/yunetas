@@ -9,11 +9,11 @@ set(srcs
     src/esp_persistent.c
 )
 
-if(CONFIG_YUNETA_UART)
+if(CONFIG_INCLUDE_YUNETA_UART)
     list(APPEND srcs "src/c_esp_uart.c")
 endif()
 
-if(CONFIG_YUNETA_ETHERNET)
+if(CONFIG_INCLUDE_YUNETA_ETHERNET)
     list(APPEND srcs "src/c_esp_ethernet.c")
 endif()
 

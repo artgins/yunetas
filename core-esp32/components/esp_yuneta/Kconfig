@@ -1,17 +1,18 @@
 menu "Yuneta"
+    source "/yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/Kconfig.protocols"
+
     config INCLUDE_YUNETA_UART
-        bool "Include Yuneta UART"
+        bool "Include Yuneta UART c_esp_uart.c"
         default y
         help
             Include Yuneta UART
 
     if INCLUDE_YUNETA_UART
         source "/yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/Kconfig.uart"
-        source "/yuneta/development/yuneta/yunetas/core-esp32/components/esp_c_prot/Kconfig.protocols"
     endif
 
     config INCLUDE_YUNETA_ETHERNET
-        bool "Include Yuneta ETHERNET"
+        bool "Include Yuneta ETHERNET c_esp_ethernet.c"
         default y
         help
             Include Yuneta ETHERNET
