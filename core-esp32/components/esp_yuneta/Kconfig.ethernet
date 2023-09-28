@@ -81,6 +81,7 @@ if YUNETA_USE_INTERNAL_ETHERNET
                 LAN8742A is a small footprint RMII 10/100 Ethernet Transceiver with HP Auto-MDIX and
                     flexPWR® Technology.
                 Goto https://www.microchip.com for more information about them.
+                Used by Olimex Gateway
 
         config YUNETA_ETH_PHY_DP83848
             bool "DP83848"

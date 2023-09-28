@@ -900,6 +900,26 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
     return jn;
 }
 
+// TODO formula corregida // From: https://programming.guide/worlds-most-copied-so-snippet.html
+// TODO cuando esté migrada a C copiala en /yuneta/development/yuneta/^gobj-ecosistema/ghelpers/src/01_gstrings.c
+static int TODO;
+
+//public static strictfp String humanReadableByteCount(long bytes, boolean si) {
+//    int unit = si ? 1000 : 1024;
+//    long absBytes = bytes == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(bytes);
+//    if (absBytes < unit) return bytes + " B";
+//    int exp = (int) (Math.log(absBytes) / Math.log(unit));
+//    long th = (long) Math.ceil(Math.pow(unit, exp) * (unit - 0.05));
+//    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) exp++;
+//    String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
+//    if (exp > 4) {
+//        bytes /= unit;
+//        exp -= 1;
+//    }
+//    return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
+//}
+//
+
 /***************************************************************************
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
  *  https://www.mbeckler.org/blog/?p=114

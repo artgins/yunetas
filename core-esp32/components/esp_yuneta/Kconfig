@@ -18,7 +18,7 @@ menu "Yuneta"
             Include Yuneta ETHERNET
 
     if INCLUDE_YUNETA_ETHERNET
-        source "/yuneta/development/yuneta/yunetas/core-esp32/common_components/olimex-gateway/Kconfig.ethernet"
+        source "/yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/Kconfig.ethernet"
     endif
 
 endmenu
