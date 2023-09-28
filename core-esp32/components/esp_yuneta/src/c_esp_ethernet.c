@@ -11,23 +11,22 @@
 #include <stdio.h>
 #include <string.h>
 
-
 #ifdef ESP_PLATFORM
-  #include <freertos/FreeRTOS.h>
-  #include <freertos/event_groups.h>
-  #include <esp_netif.h>
-  #include <esp_log.h>
-  #include <esp_event.h>
-  #include <esp_eth.h>
-  #include <esp_mac.h>
-  #include <driver/gpio.h>
-  #include <sdkconfig.h>
-  #if CONFIG_ETH_USE_SPI_ETHERNET
-    #include <driver/spi_master.h>
-    #if CONFIG_YUNETA_USE_ENC28J60
-      #include "esp_eth_enc28j60.h"
-    #endif //CONFIG_YUNETA_USE_ENC28J60
-  #endif // CONFIG_ETH_USE_SPI_ETHERNET
+      #include <freertos/FreeRTOS.h>
+      #include <freertos/event_groups.h>
+      #include <esp_netif.h>
+      #include <esp_log.h>
+      #include <esp_event.h>
+      #include <esp_eth.h>
+      #include <esp_mac.h>
+      #include <driver/gpio.h>
+      #include <sdkconfig.h>
+      #if CONFIG_ETH_USE_SPI_ETHERNET
+            #include <driver/spi_master.h>
+            #if CONFIG_YUNETA_USE_ENC28J60
+                #include "esp_eth_enc28j60.h"
+            #endif //CONFIG_YUNETA_USE_ENC28J60
+      #endif // CONFIG_ETH_USE_SPI_ETHERNET
 #endif // ESP_PLATFORM
 
 #include "c_esp_yuno.h"
