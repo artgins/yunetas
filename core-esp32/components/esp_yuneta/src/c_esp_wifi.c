@@ -22,7 +22,7 @@
 
 #include <helpers.h>
 #include <kwid.h>
-#include <c_timer.h>
+#include "c_timer.h"
 #include "c_esp_yuno.h"
 #include "c_esp_wifi.h"
 
@@ -102,6 +102,7 @@ PRIVATE void mt_create(hgobj gobj)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, gobj));
+    // WARNING: duplicate in c_esp_ethernet.c :
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &event_handler, gobj));
     ESP_ERROR_CHECK(esp_event_handler_register(SC_EVENT, ESP_EVENT_ANY_ID, &event_handler, gobj));
 
@@ -193,9 +194,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     hgobj gobj = arg;
     json_t *kw = 0;
     BOOL processed = FALSE;
-    uint8_t ssid[32+1];
-    char ip[20];
-    memset(ssid, 0, sizeof(ssid));
 
     if(event_base == WIFI_EVENT) {
         wifi_event_sta_disconnected_t *wifi_event_sta_disconnected;
@@ -242,15 +240,20 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                 processed = TRUE;
                 break;
             case WIFI_EVENT_STA_CONNECTED:
-                wifi_event_sta_connected = event_data;
-                memcpy(ssid, wifi_event_sta_connected->ssid, wifi_event_sta_connected->ssid_len);
-                kw = json_pack("{s:s, s:i, s:i}",
-                    "ssid", ssid,
-                    "channel", (int)wifi_event_sta_connected->channel,
-                    "authmode", (int)wifi_event_sta_connected->authmode
-                );
-                gobj_post_event(gobj, EV_WIFI_STA_CONNECTED, kw, gobj); // from esp_wifi_connect()
-                processed = TRUE;
+                {
+                    uint8_t ssid[32+1];
+                    memset(ssid, 0, sizeof(ssid));
+
+                    wifi_event_sta_connected = event_data;
+                    memcpy(ssid, wifi_event_sta_connected->ssid, wifi_event_sta_connected->ssid_len);
+                    kw = json_pack("{s:s, s:i, s:i}",
+                        "ssid", ssid,
+                        "channel", (int)wifi_event_sta_connected->channel,
+                        "authmode", (int)wifi_event_sta_connected->authmode
+                    );
+                    gobj_post_event(gobj, EV_WIFI_STA_CONNECTED, kw, gobj); // from esp_wifi_connect()
+                    processed = TRUE;
+                }
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
                 /*
@@ -261,15 +264,20 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                  *
                  *  WARNING: sockets must be closed and recreated
                  */
-                wifi_event_sta_disconnected = event_data;
-                memcpy(ssid, wifi_event_sta_disconnected->ssid, wifi_event_sta_disconnected->ssid_len);
-                kw = json_pack("{s:s, s:i, s:i}",
-                    "ssid", ssid,
-                    "reason", (int)wifi_event_sta_disconnected->reason,
-                    "rssi", (int)wifi_event_sta_disconnected->rssi
-                );
-                gobj_post_event(gobj, EV_WIFI_STA_DISCONNECTED, kw, gobj);
-                processed = TRUE;
+                {
+                    uint8_t ssid[32+1];
+                    memset(ssid, 0, sizeof(ssid));
+
+                    wifi_event_sta_disconnected = event_data;
+                    memcpy(ssid, wifi_event_sta_disconnected->ssid, wifi_event_sta_disconnected->ssid_len);
+                    kw = json_pack("{s:s, s:i, s:i}",
+                        "ssid", ssid,
+                        "reason", (int)wifi_event_sta_disconnected->reason,
+                        "rssi", (int)wifi_event_sta_disconnected->rssi
+                    );
+                    gobj_post_event(gobj, EV_WIFI_STA_DISCONNECTED, kw, gobj);
+                    processed = TRUE;
+                }
                 break;
             case WIFI_EVENT_STA_BEACON_TIMEOUT:
                 // This happens when wifi is shutdown
@@ -283,6 +291,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 
     } else if(event_base == IP_EVENT) {
         ip_event_got_ip_t *ip_event_got_ip;
+        char ip[20];
         switch(event_id) {
             case IP_EVENT_STA_GOT_IP:
                 /*
