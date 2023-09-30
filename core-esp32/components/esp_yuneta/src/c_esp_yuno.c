@@ -489,8 +489,12 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create childs
      *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
-    gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
+
+//    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj); TODO repon
+//    gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
+
+    priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
+    gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
 
     char timestamp[90];
     current_timestamp(timestamp, sizeof(timestamp));
@@ -543,7 +547,12 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  Start wifi/ethernet and wait to connect some network before playing the default_service
      */
-    gobj_start(priv->gobj_wifi);
+    if(priv->gobj_wifi) {
+        gobj_start(priv->gobj_wifi);
+    }
+    if(priv->gobj_ethernet) {
+        gobj_start(priv->gobj_ethernet);
+    }
 
     set_timeout_periodic(priv->gobj_timer, priv->periodic);
 
@@ -3266,7 +3275,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
  *  Now we have network IP by wifi
  *  Sockets can be open
  ***************************************************************************/
-PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_netif_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *  Wait to have time to play the default service
@@ -3304,7 +3313,7 @@ PRIVATE int ac_wifi_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  *  Now we have NOT network IP by wifi
  *  Sockets must be close
  ***************************************************************************/
-PRIVATE int ac_wifi_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_netif_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *  save current time in nvs
@@ -3460,18 +3469,21 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_network_off[] = {
-        {EV_WIFI_ON_OPEN,           ac_wifi_on_open,        ST_YUNO_NETWORK_ON},
+        {EV_WIFI_ON_OPEN,           ac_netif_on_open,       ST_YUNO_NETWORK_ON},
+        {EV_ETHERNET_ON_OPEN,       ac_netif_on_open,       ST_YUNO_NETWORK_ON},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_network_on[] = {
-        {EV_WIFI_ON_CLOSE,          ac_wifi_on_close,       ST_YUNO_NETWORK_OFF},
+        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
+        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
         {EV_YUNO_TIME_ON,           ac_time_on,             ST_YUNO_TIME_ON},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_time_on[] = {
-        {EV_WIFI_ON_CLOSE,          ac_wifi_on_close,       ST_YUNO_NETWORK_OFF},
+        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
+        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
         {EV_YUNO_TIME_ON,           ac_time_on,             0},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}

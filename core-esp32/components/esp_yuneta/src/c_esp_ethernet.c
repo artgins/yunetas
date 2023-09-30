@@ -21,10 +21,11 @@
     #include <esp_mac.h>
     #include <driver/gpio.h>
     #include <sdkconfig.h>
+    #include <esp_eth_mac.h>
     #if CONFIG_ETH_USE_SPI_ETHERNET
         #include <driver/spi_master.h>
         #if CONFIG_YUNETA_USE_ENC28J60
-            #include "esp_eth_enc28j60.h"
+            #include <esp_eth_enc28j60.h>
         #endif //CONFIG_YUNETA_USE_ENC28J60
     #endif // CONFIG_ETH_USE_SPI_ETHERNET
 #endif // ESP_PLATFORM
@@ -38,22 +39,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#if CONFIG_YUNETA_USE_SPI_ETHERNET
-#define INIT_SPI_ETH_MODULE_CONFIG(eth_module_config, num)                                      \
-    do {                                                                                        \
-        eth_module_config[num].spi_cs_gpio = CONFIG_YUNETA_ETH_SPI_CS ##num## _GPIO;           \
-        eth_module_config[num].int_gpio = CONFIG_YUNETA_ETH_SPI_INT ##num## _GPIO;             \
-        eth_module_config[num].phy_reset_gpio = CONFIG_YUNETA_ETH_SPI_PHY_RST ##num## _GPIO;   \
-        eth_module_config[num].phy_addr = CONFIG_YUNETA_ETH_SPI_PHY_ADDR ##num;                \
-    } while(0)
-
-typedef struct {
-    uint8_t spi_cs_gpio;
-    uint8_t int_gpio;
-    int8_t phy_reset_gpio;
-    uint8_t phy_addr;
-}spi_eth_module_config_t;
-#endif
+#define OLIMEX_LED_PIN      33  /* TODO move to configuration, code repeated */
 
 /***************************************************************
  *              Prototypes
@@ -84,11 +70,10 @@ typedef struct _PRIVATE_DATA {
 #ifdef ESP_PLATFORM
     esp_netif_t *eth_netif;
     esp_eth_handle_t s_eth_handle ;
-    esp_eth_mac_t *s_mac;
-    esp_eth_phy_t *s_phy;
+    esp_eth_mac_t *mac;
+    esp_eth_phy_t *phy;
     esp_eth_netif_glue_handle_t s_eth_glue;
 #endif
-    hgobj gobj_timer;
     hgobj gobj_periodic_timer;
     BOOL on_open_published;
     BOOL light_on;
@@ -113,8 +98,7 @@ PRIVATE hgclass gclass = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->gobj_timer = gobj_create_pure_child("ethernet_once", C_TIMER, 0, gobj);
-    priv->gobj_periodic_timer = gobj_create_pure_child("ethernet_periodic", C_TIMER, 0, gobj);
+    priv->gobj_periodic_timer = gobj_create_pure_child("eth_periodic", C_TIMER, 0, gobj);
 
 //    SET_PRIV(periodic,          gobj_read_bool_attr)
 }
@@ -124,7 +108,7 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
 //    IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
 //    END_EQ_SET_PRIV()
@@ -135,7 +119,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_periodic_timer);
     start_ethernet(gobj);
+
     return 0;
 }
 
@@ -144,7 +132,12 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->gobj_periodic_timer);
+    gobj_stop(priv->gobj_periodic_timer);
     stop_ethernet(gobj);
+
     return 0;
 }
 
@@ -218,11 +211,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                 break;
             case ETHERNET_EVENT_DISCONNECTED:
                 /*
-                 *  From esp_ethernet_disconnect() or esp_ethernet_stop()
-                 *      - in this case, do not re-call esp_ethernet_connect()
-                 *  From esp_ethernet_connect() when scan fails or the authentication times out
-                 *      - in this case you can re-call esp_ethernet_connect()
-                 *
                  *  WARNING: sockets must be closed and recreated
                  */
                 {
@@ -307,45 +295,48 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int start_ethernet(hgobj gobj)
+#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
+PRIVATE int eth_configure_internal(
+    hgobj gobj,
+    eth_mac_config_t *mac_config,
+    eth_phy_config_t *phy_config
+)
 {
-#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-    priv->eth_netif = esp_netif_new(&cfg);
-    if(!priv->eth_netif) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "esp_netif_new() FAILED",
-            NULL
-        );
-        return -1;
-    }
-    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
-    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-    phy_config.phy_addr = CONFIG_YUNETA_ETH_PHY_ADDR;
-    phy_config.reset_gpio_num = CONFIG_YUNETA_ETH_PHY_RST_GPIO;
-
-#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
     eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
     esp32_emac_config.smi_mdc_gpio_num = CONFIG_YUNETA_ETH_MDC_GPIO;
     esp32_emac_config.smi_mdio_gpio_num = CONFIG_YUNETA_ETH_MDIO_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+    priv->mac = esp_eth_mac_new_esp32(&esp32_emac_config, mac_config);
+
 #if CONFIG_YUNETA_ETH_PHY_IP101
-    esp_eth_phy_t *phy = esp_eth_phy_new_ip101(&phy_config);
+    priv->phy = esp_eth_phy_new_ip101(phy_config);
 #elif CONFIG_YUNETA_ETH_PHY_RTL8201
-    esp_eth_phy_t *phy = esp_eth_phy_new_rtl8201(&phy_config);
+    priv->phy = esp_eth_phy_new_rtl8201(phy_config);
 #elif CONFIG_YUNETA_ETH_PHY_LAN87XX
-    esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
+    priv->phy = esp_eth_phy_new_lan87xx(phy_config);
 #elif CONFIG_YUNETA_ETH_PHY_DP83848
-    esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phy_config);
+    priv->phy = esp_eth_phy_new_dp83848(phy_config);
 #elif CONFIG_YUNETA_ETH_PHY_KSZ80XX
-    esp_eth_phy_t *phy = esp_eth_phy_new_ksz80xx(&phy_config);
+    priv->phy = esp_eth_phy_new_ksz80xx(phy_config);
 #endif
 
-#elif CONFIG_ETH_USE_SPI_ETHERNET   /* else CONFIG_YUNETA_USE_INTERNAL_ETHERNET */
+    return 0;
+}
+#endif /* CONFIG_YUNETA_USE_INTERNAL_ETHERNET */
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+#if CONFIG_YUNETA_USE_SPI_ETHERNET
+PRIVATE int eth_configure_spi(
+    hgobj gobj,
+    eth_mac_config_t *mac_config,
+    eth_phy_config_t *phy_config
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gpio_install_isr_service(0);
     spi_bus_config_t buscfg = {
         .miso_io_num = CONFIG_YUNETA_ETH_SPI_MISO_GPIO,
@@ -362,38 +353,99 @@ PRIVATE int start_ethernet(hgobj gobj)
         .spics_io_num = CONFIG_YUNETA_ETH_SPI_CS_GPIO,
         .queue_size = 20
     };
+
 #if CONFIG_YUNETA_USE_KSZ8851SNL
     eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
     ksz8851snl_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_ksz8851snl(&phy_config);
+    priv->mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
+    priv->phy = esp_eth_phy_new_ksz8851snl(&phy_config);
 #elif CONFIG_YUNETA_USE_DM9051
     eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
     dm9051_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_dm9051(&phy_config);
+    priv->mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
+    priv->phy = esp_eth_phy_new_dm9051(&phy_config);
 #elif CONFIG_YUNETA_USE_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
     w5500_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
-    esp_eth_phy_t *phy = esp_eth_phy_new_w5500(&phy_config);
+    priv->mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+    priv->phy = esp_eth_phy_new_w5500(&phy_config);
 #elif CONFIG_YUNETA_USE_ENC28J60
     spi_devcfg.cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time(CONFIG_YUNETA_ETH_SPI_CLOCK_MHZ);
     eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(CONFIG_YUNETA_ETH_SPI_HOST, &spi_devcfg);
     enc28j60_config.int_gpio_num = CONFIG_YUNETA_ETH_SPI_INT_GPIO;
-    esp_eth_mac_t *mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
+    priv->mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
     phy_config.autonego_timeout_ms = 0; // ENC28J60 doesn't support auto-negotiation
     phy_config.reset_gpio_num = -1; // ENC28J60 doesn't have a pin to reset internal PHY
-    esp_eth_phy_t *phy = esp_eth_phy_new_enc28j60(&phy_config);
+    priv->phy = esp_eth_phy_new_enc28j60(&phy_config);
 #endif
 
-#elif CONFIG_EXAMPLE_USE_OPENETH
-    phy_config.autonego_timeout_ms = 100;
-    s_mac = esp_eth_mac_new_openeth(&mac_config);
-    s_phy = esp_eth_phy_new_dp83848(&phy_config);
-#endif // CONFIG_EXAMPLE_USE_OPENETH CONFIG_ETH_USE_SPI_ETHERNET
+    return 0;
+}
+#endif /* CONFIG_YUNETA_USE_SPI_ETHERNET */
 
-    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+/***************************************************************************
+ *
+ ***************************************************************************/
+#if CONFIG_YUNETA_USE_OPENETH
+PRIVATE int eth_configure_openeth(
+    hgobj gobj,
+    eth_mac_config_t *mac_config,
+    eth_phy_config_t *phy_config
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    phy_config->autonego_timeout_ms = 100;
+    priv->mac = esp_eth_mac_new_openeth(mac_config);
+    priv->phy = esp_eth_phy_new_dp83848(phy_config);
+
+    return 0;
+}
+#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int start_ethernet(hgobj gobj)
+{
+#ifdef ESP_PLATFORM
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    priv->eth_netif = esp_netif_new(&cfg);
+    if(!priv->eth_netif) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "esp_netif_new() FAILED",
+            NULL
+        );
+        return -1;
+    }
+
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+    //mac_config.rx_task_stack_size = CONFIG_EXAMPLE_ETHERNET_EMAC_TASK_STACK_SIZE;
+
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    phy_config.phy_addr = CONFIG_YUNETA_ETH_PHY_ADDR;
+    phy_config.reset_gpio_num = CONFIG_YUNETA_ETH_PHY_RST_GPIO;
+
+
+#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
+    eth_configure_internal(gobj, &mac_config, &phy_config);
+
+#elif CONFIG_YUNETA_USE_SPI_ETHERNET
+    eth_configure_spi(gobj, &mac_config, &phy_config);
+
+#elif CONFIG_YUNETA_USE_OPENETH
+    eth_configure_openeth(gobj, &mac_config, &phy_config);
+
+#else
+    ESP_LOGE(TAG, "no Ethernet device selected to init");
+    abort();
+#endif
+
+    esp_eth_config_t config = ETH_DEFAULT_CONFIG(priv->mac, priv->phy);
     ESP_ERROR_CHECK(esp_eth_driver_install(&config, &priv->s_eth_handle));
 
 #if !CONFIG_YUNETA_USE_INTERNAL_ETHERNET
@@ -403,10 +455,6 @@ PRIVATE int start_ethernet(hgobj gobj)
     ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_MAC_ADDR, (uint8_t[]) {
         0x02, 0x00, 0x00, 0x12, 0x34, 0x56
     }));
-#endif
-#if CONFIG_YUNETA_USE_ENC28J60 && CONFIG_YUNETA_ENC28J60_DUPLEX_FULL
-    eth_duplex_t duplex = ETH_DUPLEX_FULL;
-    ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_DUPLEX_MODE, &duplex));
 #endif
 
     priv->s_eth_glue = esp_eth_new_netif_glue(priv->s_eth_handle);
@@ -418,11 +466,7 @@ PRIVATE int start_ethernet(hgobj gobj)
 
     ESP_ERROR_CHECK(esp_eth_start(priv->s_eth_handle));
 
-#if CONFIG_YUNETA_USE_ENC28J60 && CONFIG_YUNETA_ENC28J60_DUPLEX_FULL
-    enc28j60_set_phy_duplex(phy, ETH_DUPLEX_FULL);
-#endif
-
-#endif
+#endif /* ESP_PLATFORM */
 
     return 0;
 }
@@ -451,8 +495,15 @@ PRIVATE int stop_ethernet(hgobj gobj)
         priv->s_eth_handle = NULL;
     }
 
-//    ESP_ERROR_CHECK(s_phy->del(s_phy));
-//    ESP_ERROR_CHECK(s_mac->del(s_mac));
+    if(priv->phy) {
+        priv->phy->del(priv->phy);
+        priv->phy = NULL;
+    }
+
+    if(priv->mac) {
+        priv->mac->del(priv->mac);
+        priv->mac = NULL;
+    }
 
     if(priv->eth_netif) {
         esp_netif_destroy(priv->eth_netif);
@@ -505,13 +556,6 @@ PRIVATE int ac_ethernet_stop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
- *  From esp_ethernet_disconnect() or esp_ethernet_stop()
- *      - in this case, do not re-call esp_ethernet_connect()
- *  From esp_ethernet_connect() when scan fails or the authentication times out
- *      - in this case you can re-call esp_ethernet_connect()
- *
- *  Do connect_station() or start_smartconfig()
- *
  *  WARNING: sockets must be closed and recreated
  ***************************************************************************/
 PRIVATE int ac_ethernet_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -519,94 +563,37 @@ PRIVATE int ac_ethernet_disconnected(hgobj gobj, gobj_event_t event, json_t *kw,
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//    ethernet_err_reason_t reason = (int)kw_get_int(gobj, kw, "reason", 0, 0);
-//    int rssi = (int)kw_get_int(gobj, kw, "rssi", 0, 0);
-//
-//    gobj_log_info(gobj, 0,
-//        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//        "msg",          "%s", "ethernet_disconnected",
-//        "ssid",         "%s", kw_get_str(gobj, kw, "ssid", "", 0),
-//        "reason",       "%d", reason,
-//        "rssi",         "%d", rssi,
-//        NULL
-//    );
-//
-//    esp_ethernet_disconnect();
-//
-//    if(priv->on_open_published) {
-//        priv->on_open_published =  FALSE;
-//        if(!gobj_is_shutdowning()) {
-//            gobj_publish_event(gobj, EV_ETHERNET_ON_CLOSE, json_incref(kw));
-//        }
-//    }
-//
-//    switch(reason) {
-//        case ETHERNET_REASON_AUTH_EXPIRE:
-//        case ETHERNET_REASON_AUTH_FAIL:
-//        case ETHERNET_REASON_NOT_AUTHED:
-//        case ETHERNET_REASON_4WAY_HANDSHAKE_TIMEOUT: // password incorrect
-//        case ETHERNET_REASON_HANDSHAKE_TIMEOUT:
-//            gobj_log_info(gobj, 0,
-//                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                "msg",          "%s", "ethernet_disconnected by WRONG PASSWORD",
-//                "ssid",         "%s", kw_get_str(gobj, kw, "ssid", "", 0),
-//                "reason",       "%d", reason,
-//                "rssi",         "%d", rssi,
-//                NULL
-//            );
-//            break;
-//
-//        case ETHERNET_REASON_NO_AP_FOUND: // ethernet shutdown
-//        default:
-//            break;
-//    }
-//
-//    if(gobj_is_running(gobj)) {
-//        /*
-//         *  Si ha dado la vuelta a todas las configuraciones, entra en smartconfig
-//         */
-//        json_t *jn_ethernet_list = gobj_read_json_attr(gobj, "ethernet_list");
-//        int max_ethernet_list = (int)json_array_size(jn_ethernet_list);
-//
-//        if(reason == ETHERNET_REASON_NO_AP_FOUND && max_ethernet_list == 1) {
-//            start_smartconfig(gobj);    // change to ST_ETHERNET_WAIT_SSID_CONF if empty ethernet list, wait forever
-//        } else {
-//            if(max_ethernet_list==0 || priv->idx_ethernet_list == 0) {
-//                start_smartconfig(gobj); // change to ST_ETHERNET_WAIT_SSID_CONF if empty ethernet list, wait forever
-//            } else {
-//                connect_station(gobj);  // change to ST_ETHERNET_WAIT_CONNECTED, wait forever
-//            }
-//        }
-//    }
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "ethernet_disconnected",
+        NULL
+    );
+
+    if(priv->on_open_published) {
+        priv->on_open_published =  FALSE;
+        if(!gobj_is_shutdowning()) {
+            gobj_publish_event(gobj, EV_ETHERNET_ON_CLOSE, json_incref(kw));
+        }
+    }
 #endif
+    clear_timeout(priv->gobj_periodic_timer);
 
     JSON_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
- *  Timeout intermitente esperando configuracion
+ *
  ***************************************************************************/
-PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//    if(gobj_current_state(gobj) == ST_ETHERNET_WAIT_SSID_CONF) {
-//        if(priv->light_on) {
-//            gpio_set_level(OLIMEX_LED_PIN, 0);
-//            priv->light_on = 0;
-//
-//        } else {
-//            gpio_set_level(OLIMEX_LED_PIN, 1);
-//            priv->light_on = 1;
-//        }
-//    } else {
-//        if(priv->light_on) {
-//            gpio_set_level(OLIMEX_LED_PIN, 0);
-//            priv->light_on = 0;
-//        }
-//    }
+    if(gobj_current_state(gobj) == ST_ETHERNET_IP_ASSIGNED) {
+        gpio_set_level(OLIMEX_LED_PIN, 1);
+        priv->light_on = 1;
+    }
 #endif
 
     JSON_DECREF(kw)
@@ -618,15 +605,13 @@ PRIVATE int ac_timeout_periodic_smartconfig(hgobj gobj, gobj_event_t event, json
  ***************************************************************************/
 PRIVATE int ac_ethernet_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "ethernet connected",
         NULL
     );
-
-//    get_rssi(gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -644,6 +629,8 @@ PRIVATE int ac_ethernet_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         "msg",          "%s", "got ip",
         NULL
     );
+
+    set_timeout_periodic(priv->gobj_periodic_timer, 500);
 
     priv->on_open_published = TRUE;
     gobj_publish_event(gobj, EV_ETHERNET_ON_OPEN, json_incref(kw)); // Wait to play default_service until get time
@@ -682,6 +669,7 @@ GOBJ_DEFINE_GCLASS(C_ETHERNET);
  *      States
  *------------------------*/
 GOBJ_DEFINE_STATE(ST_ETHERNET_WAIT_START);
+GOBJ_DEFINE_STATE(ST_ETHERNET_WAIT_CONNECTED);
 GOBJ_DEFINE_STATE(ST_ETHERNET_WAIT_IP);
 GOBJ_DEFINE_STATE(ST_ETHERNET_IP_ASSIGNED);
 
@@ -721,23 +709,31 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_ethernet_wait_start[] = {
-        {EV_ETHERNET_START,             ac_ethernet_start,              ST_ETHERNET_WAIT_IP},
+        {EV_ETHERNET_START,             ac_ethernet_start,              ST_ETHERNET_WAIT_CONNECTED},
+        {0,0,0}
+    };
+    ev_action_t st_ethernet_wait_connected[] = { // From connect_station()
+        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       0},
+        {EV_ETHERNET_CONNECTED,         ac_ethernet_connected,          ST_ETHERNET_WAIT_IP},
+        {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_ethernet_wait_ip[] = {
         {EV_ETHERNET_GOT_IP,            ac_ethernet_got_ip,             ST_ETHERNET_IP_ASSIGNED},
-        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       0},
+        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       ST_ETHERNET_WAIT_CONNECTED},
         {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_ethernet_ip_assigned[] = {
-        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       0},
+        {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic,            0},
+        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       ST_ETHERNET_WAIT_CONNECTED},
         {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
 
     states_t states[] = {
         {ST_ETHERNET_WAIT_START,            st_ethernet_wait_start},
+        {ST_ETHERNET_WAIT_CONNECTED,        st_ethernet_wait_connected},
         {ST_ETHERNET_WAIT_IP,               st_ethernet_wait_ip},
         {ST_ETHERNET_IP_ASSIGNED,           st_ethernet_ip_assigned},
         {0, 0}
@@ -761,7 +757,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     gclass = gclass_create(
         gclass_name,
-        0,  // event_types
+        event_types,
         states,
         &gmt,
         0,  // lmt,
