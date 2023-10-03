@@ -66,7 +66,8 @@ typedef struct {
     uint32_t counter;
     struct sockaddr_in si_other;
     char schema[32], host[64], port[32];
-    char bindip[64];
+    char bindip[32];
+    char ifr_name[IFNAMSIZ+1];
     BOOL exit_on_fail;
     BOOL disabled;
 #ifdef ESP_PLATFORM
@@ -142,6 +143,7 @@ PUBLIC void udpc_end(void)
 PUBLIC udpc_t udpc_open(
     const char *url,
     const char *bindip,
+    const char *ifr_name, // interface name
     size_t bfsize,
     size_t udp_frame_size,
     output_format_t output_format,
@@ -185,9 +187,13 @@ PUBLIC udpc_t udpc_open(
         return 0;
     }
     memset(uc, 0, sizeof(udp_client_t));
-    if(bindip) {
-        strncpy(uc->bindip, bindip, sizeof(uc->bindip)-1);
+    if(!empty_string(bindip)) {
+        snprintf(uc->bindip, sizeof(uc->bindip), "%s", bindip);
     }
+    if(!empty_string(ifr_name)) {
+        snprintf(uc->ifr_name, sizeof(uc->ifr_name), "%s", ifr_name);
+    }
+
     uc->buffer_size = bfsize;
     uc->udp_frame_size = udp_frame_size;
     uc->output_format = output_format;
@@ -538,15 +544,7 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
         return -1;
     }
 
-    char temp[80];
-    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(uc->si_other.sin_addr), ntohs(uc->si_other.sin_port));
-    #ifdef ESP_PLATFORM
-        ESP_LOGE("LOG_UDP_HANDLER", "socket(%d), host %s ==============================> %s",
-            uc->_s, uc->host, temp
-        );
-    #endif
-
-    if(*uc->bindip) {
+    if(!empty_string(uc->bindip)) {
         static struct sockaddr_in si_bind;
         memset((char *) &si_bind, 0, sizeof(si_bind));
         si_bind.sin_family = AF_INET;
@@ -567,6 +565,21 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
             #endif
         }
     }
+
+    if(!empty_string(uc->ifr_name)) {
+        ESP_LOGI("LOG_UDP", "Bind [sock=%d] to interface %s", uc->_s, uc->ifr_name);
+        if (setsockopt(uc->_s, SOL_SOCKET, SO_BINDTODEVICE,  uc->ifr_name, IFNAMSIZ) != 0) {
+            ESP_LOGE("LOG_UDP", "Bind [sock=%d] to interface %s fail", uc->_s, uc->ifr_name);
+        }
+    }
+
+    char temp[80];
+    snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(uc->si_other.sin_addr), ntohs(uc->si_other.sin_port));
+    #ifdef ESP_PLATFORM
+        ESP_LOGI("LOG_UDP_HANDLER", "socket(%d), ifr_name %s ==============================> %s",
+            uc->_s, uc->ifr_name, temp
+        );
+    #endif
 
     return 0;
 }

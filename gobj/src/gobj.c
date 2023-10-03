@@ -5137,13 +5137,13 @@ PUBLIC int gobj_send_event(
         if(dst->gclass->gmt->mt_inject_event) {
             __inside__ --;
             if(tracea) {
-                trace_machine("🔃 mach(%s%s^%s), st: %s, ev: %s, from(%s%s^%s)",
+                trace_machine("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
                     (!dst->running)?"!!":"",
-                    gobj_gclass_name(dst), gobj_name(dst),
+                    gobj_short_name(dst),
                     state->state_name,
                     event?event:"",
                     (src && !src->running)?"!!":"",
-                    gobj_gclass_name(src), gobj_name(src)
+                    gobj_short_name(src)
                 );
                 if(kw) {
                     if(__trace_gobj_ev_kw__(dst)) {
@@ -6354,9 +6354,10 @@ PUBLIC int gobj_publish_event(
              *  Send event
              */
             if(tracea) {
-                trace_machine("🔝🔄 mach(%s%s), ev: %s, from(%s%s)",
+                trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
                     (!subscriber->running)?"!!":"",
                     gobj_short_name(subscriber),
+                    gobj_current_state(subscriber),
                     event?event:"",
                     (publisher && !publisher->running)?"!!":"",
                     gobj_short_name(publisher)

@@ -68,6 +68,7 @@ PUBLIC void udpc_end(void); // Close all handlers
 PUBLIC udpc_t udpc_open(
     const char *url,
     const char *bindip,
+    const char *ifr_name,
     size_t bf_size,                 // 0 = default 256K
     size_t udp_frame_size,          // 0 = default 1500
     output_format_t output_format,   // 0 = default OUTPUT_FORMAT_YUNETA

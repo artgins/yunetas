@@ -337,10 +337,10 @@ SDATA_END()
  *  in s_user_trace_level
  *---------------------------------------------*/
 enum {
-    TRACE_TRAFFIC           = 0x0001,
+    TRACE_MESSAGES           = 0x0001,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-    {"traffic",             "Trace dump traffic"},
+    {"messages",             "Trace all messages"},
     {0, 0},
 };
 
@@ -490,8 +490,8 @@ PRIVATE void mt_create(hgobj gobj)
      *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-//    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj); TODO repon
-//    gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
+    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
+    gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
 
     priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
     gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
@@ -2753,6 +2753,7 @@ PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         udpc_t udpc = udpc_open(
             url,
             bindip,
+            NULL, // TODO make available the list of if_names
             bf_size,
             udp_frame_size,
             output_format,
@@ -3272,7 +3273,43 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
 
 
 /***************************************************************************
- *  Now we have network IP by wifi
+ *
+ ***************************************************************************/
+PRIVATE int ac_ethernet_link_up(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_wifi) {
+        if(gobj_is_running(priv->gobj_wifi)) {
+            gobj_stop(priv->gobj_wifi);
+            if(gobj_is_playing(gobj_default_service())) {
+                gobj_pause(gobj_default_service());
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_ethernet_link_down(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_wifi) {
+        if(!gobj_is_running(priv->gobj_wifi)) {
+            if(gobj_is_playing(gobj_default_service())) {
+                gobj_pause(gobj_default_service());
+            }
+            gobj_start(priv->gobj_wifi);
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Now we have network IP by wifi or ethernet
  *  Sockets can be open
  ***************************************************************************/
 PRIVATE int ac_netif_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -3281,6 +3318,8 @@ PRIVATE int ac_netif_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Wait to have time to play the default service
      */
 #ifdef ESP_PLATFORM
+    const char *ifr_name = kw_get_str(gobj, kw, "ifr_name", "", 0);
+
     #define SNTP_TIME_SERVER "pool.ntp.org"
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(SNTP_TIME_SERVER);
     config.sync_cb = time_sync_notification_cb;     // Note: This is only needed if we want
@@ -3294,6 +3333,7 @@ PRIVATE int ac_netif_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     udpc_t udpc = udpc_open(
         gobj_read_str_attr(gobj, "url_udp_log"),
         NULL,   // bindip
+        ifr_name,
         8*1024, // bfsize
         0,      // udp_frame_size
         0,      // output_format
@@ -3310,11 +3350,31 @@ PRIVATE int ac_netif_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
- *  Now we have NOT network IP by wifi
+ *  Now we have NOT network IP by wifi or ethernet
  *  Sockets must be close
  ***************************************************************************/
 PRIVATE int ac_netif_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_wifi) {
+        // Wifi disconnected
+        if(gobj_current_state(priv->gobj_ethernet) == ST_ETHERNET_IP_ASSIGNED) {
+            // If ethernet is connected, then ignore event
+            JSON_DECREF(kw)
+            return 0;
+        }
+    } else if(src == priv->gobj_ethernet) {
+        // Ethernet disconnected
+        if(gobj_current_state(priv->gobj_wifi) == ST_WIFI_IP_ASSIGNED) {
+            // If wifi is connected, then ignore event
+            JSON_DECREF(kw)
+            return 0;
+        }
+    }
+
+    gobj_change_state(gobj, ST_YUNO_NETWORK_OFF);
+
     /*
      *  save current time in nvs
      */
@@ -3469,21 +3529,27 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_network_off[] = {
+        {EV_ETHERNET_LINK_UP,       ac_ethernet_link_up,    0},
+        {EV_ETHERNET_LINK_DOWN,     ac_ethernet_link_down,  0},
         {EV_WIFI_ON_OPEN,           ac_netif_on_open,       ST_YUNO_NETWORK_ON},
         {EV_ETHERNET_ON_OPEN,       ac_netif_on_open,       ST_YUNO_NETWORK_ON},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_network_on[] = {
-        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
-        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
+        {EV_ETHERNET_LINK_UP,       ac_ethernet_link_up,    0},
+        {EV_ETHERNET_LINK_DOWN,     ac_ethernet_link_down,  0},
+        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      0},
+        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      0},
         {EV_YUNO_TIME_ON,           ac_time_on,             ST_YUNO_TIME_ON},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}
     };
     ev_action_t st_time_on[] = {
-        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
-        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      ST_YUNO_NETWORK_OFF},
+        {EV_ETHERNET_LINK_UP,       ac_ethernet_link_up,    0},
+        {EV_ETHERNET_LINK_DOWN,     ac_ethernet_link_down,  0},
+        {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      0},
+        {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      0},
         {EV_YUNO_TIME_ON,           ac_time_on,             0},
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
         {0,0,0}

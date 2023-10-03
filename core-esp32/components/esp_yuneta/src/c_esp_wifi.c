@@ -16,6 +16,7 @@
     #include <esp_event.h>
     #include <esp_log.h>
     #include <esp_netif.h>
+#include <esp_transport_tcp.h>
     #include <esp_smartconfig.h>
     #include <driver/gpio.h>
 #endif
@@ -54,6 +55,20 @@ SDATA (DTP_INTEGER, "timeout_smartconfig",SDF_PERSIST|SDF_STATS,"30",       "Tim
 
 SDATA (DTP_JSON,    "wifi_list",        SDF_PERSIST,            "[]",       "List of wifis (ssid/passw)"),
 SDATA_END()
+};
+
+/*---------------------------------------------*
+ *      GClass trace levels
+ *  HACK strict ascendant value!
+ *  required paired correlative strings
+ *  in s_user_trace_level
+ *---------------------------------------------*/
+enum {
+    TRACE_MESSAGES           = 0x0001,
+};
+PRIVATE const trace_level_t s_user_trace_level[16] = {
+    {"messages",             "Trace all messages"},
+    {0, 0},
 };
 
 /*---------------------------------------------*
@@ -290,8 +305,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         }
 
     } else if(event_base == IP_EVENT) {
-        ip_event_got_ip_t *ip_event_got_ip;
-        char ip[20];
         switch(event_id) {
             case IP_EVENT_STA_GOT_IP:
                 /*
@@ -299,20 +312,63 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                  *  Upon receiving this event, the application needs to close all sockets
                  *  and recreate the application when the IPV4 changes to a valid one.
                  */
-                ip_event_got_ip = (ip_event_got_ip_t*)event_data;
-                snprintf(ip, sizeof(ip), IPSTR, IP2STR(&ip_event_got_ip->ip_info.ip));
-                kw = json_pack("{s:s, s:i}",
-                    "ip", ip,
-                    "ip_changed", (int)ip_event_got_ip->ip_changed
-                );
-                gobj_post_event(gobj, EV_WIFI_GOT_IP, kw, gobj);
-                processed = TRUE;
+                {
+                    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+                    const esp_netif_ip_info_t *ip_info = &event->ip_info;
+                    esp_netif_t *esp_netif = event->esp_netif;
+
+                    char ip[32], mask[32], gateway[32];
+
+                    snprintf(ip, sizeof(ip), IPSTR, IP2STR(&ip_info->ip));
+                    snprintf(mask, sizeof(mask), IPSTR, IP2STR(&ip_info->netmask));
+                    snprintf(gateway, sizeof(gateway), IPSTR, IP2STR(&ip_info->gw));
+
+                    char ifr_name[IFNAMSIZ]={0};
+                    if(esp_netif_get_netif_impl_name(esp_netif, ifr_name) != ESP_OK) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "esp_netif_get_netif_impl_name() FAILED",
+                            NULL
+                        );
+                    }
+
+                    gobj_log_info(gobj, 0,
+                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                        "msg",          "%s", "Wifi Got IP Address",
+                        "msg2",         "%s", "Wifi Got IP Address 🌏🌏🌏",
+                        "ip",           "%s", ip,
+                        "mask",         "%s", mask,
+                        "gateway",      "%s", gateway,
+                        "ifr_name",     "%s", ifr_name,
+                        "ip_changed",   "%d", (int)event->ip_changed,
+                        NULL
+                    );
+
+                    kw = json_pack("{s:s, s:s, s:s, s:s, s:i}",
+                        "ip", ip,
+                        "mask", mask,
+                        "gateway", gateway,
+                        "ifr_name", ifr_name,
+                        "ip_changed", (int)event->ip_changed
+                    );
+                    gobj_post_event(gobj, EV_WIFI_GOT_IP, kw, gobj);
+                    processed = TRUE;
+                }
                 break;
 
             case IP_EVENT_STA_LOST_IP:
                 // It seems that may be ignored, only to debug
                 gobj_post_event(gobj, EV_WIFI_LOST_IP, 0, gobj);
                 processed = TRUE;
+                break;
+
+            case IP_EVENT_ETH_GOT_IP:
+            case IP_EVENT_ETH_LOST_IP:
+                // Ignore ethernet
+                processed = TRUE;
+                break;
+
             default:
                 break;
         }
@@ -439,7 +495,9 @@ PRIVATE int connect_station(hgobj gobj)
     }
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
-    gobj_trace_json(gobj, jn_wifi_list, "connect_station----------->wifi_list"); // TODO TEST
+    if((gobj_trace_level(gobj) & TRACE_MESSAGES) || 1) {
+        gobj_trace_json(gobj, jn_wifi_list, "connect_station -> wifi_list");
+    }
 
     int max_wifi_list = (int)json_array_size(jn_wifi_list);
     if(max_wifi_list == 0) {
@@ -471,7 +529,10 @@ PRIVATE int connect_station(hgobj gobj)
     priv->idx_wifi_list = next;
 
     json_t *jn_wifi = json_array_get(jn_wifi_list, idx_now);
-    gobj_trace_json(gobj, jn_wifi, "Using %d----------->wifi_list, next %d", idx_now, next); // TODO TEST
+
+    if((gobj_trace_level(gobj) & TRACE_MESSAGES) || 1) {
+        gobj_trace_json(gobj, jn_wifi, "Using %d----------->wifi_list, next %d", idx_now, next);
+    }
 
 #ifdef ESP_PLATFORM
     wifi_config_t wifi_config;
@@ -671,7 +732,9 @@ PRIVATE int ac_scan_done(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "msg",          "%s", "scan done",
         NULL
     );
-//    gobj_trace_json(gobj, kw, "scan done"); TODO repon
+    if((gobj_trace_level(gobj) & TRACE_MESSAGES) || 1) {
+        gobj_trace_json(gobj, kw, "scan done");
+    }
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     if(json_array_size(jn_wifi_list) > 0) {
@@ -818,6 +881,7 @@ PRIVATE int ac_wifi_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "got ip",
+        "kw",           "%j", kw,
         NULL
     );
 
@@ -971,7 +1035,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,
-        0,  // s_user_trace_level
+        s_user_trace_level,
         gcflag_singleton   // gcflag_t
     );
     if(!gclass) {

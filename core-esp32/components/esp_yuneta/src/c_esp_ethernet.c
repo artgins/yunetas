@@ -19,6 +19,7 @@
     #include <esp_event.h>
     #include <esp_eth.h>
     #include <esp_mac.h>
+    #include <esp_transport_tcp.h>
     #include <driver/gpio.h>
     #include <sdkconfig.h>
     #include <esp_eth_mac.h>
@@ -205,7 +206,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                     kw = json_pack("{s:s}",
                         "mac", temp
                     );
-                    gobj_post_event(gobj, EV_ETHERNET_CONNECTED, kw, gobj);
+                    gobj_post_event(gobj, EV_ETHERNET_LINK_UP, kw, gobj);
                     processed = TRUE;
                 }
                 break;
@@ -221,7 +222,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                     );
 
                     kw = json_object();
-                    gobj_post_event(gobj, EV_ETHERNET_DISCONNECTED, kw, gobj);
+                    gobj_post_event(gobj, EV_ETHERNET_LINK_DOWN, kw, gobj);
                     processed = TRUE;
                 }
                 break;
@@ -241,26 +242,41 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                 {
                     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
                     const esp_netif_ip_info_t *ip_info = &event->ip_info;
+                    esp_netif_t *esp_netif = event->esp_netif;
+
                     char ip[32], mask[32], gateway[32];
 
                     snprintf(ip, sizeof(ip), IPSTR, IP2STR(&ip_info->ip));
                     snprintf(mask, sizeof(mask), IPSTR, IP2STR(&ip_info->netmask));
                     snprintf(gateway, sizeof(gateway), IPSTR, IP2STR(&ip_info->gw));
 
+                    char ifr_name[IFNAMSIZ]={0};
+                    if(esp_netif_get_netif_impl_name(esp_netif, ifr_name) != ESP_OK) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "esp_netif_get_netif_impl_name() FAILED",
+                            NULL
+                        );
+                    }
+
                     gobj_log_info(gobj, 0,
                         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                         "msg",          "%s", "Ethernet Got IP Address",
-                        "Ip",           "%s", ip,
-                        "Mask",         "%s", mask,
-                        "Gateway",      "%s", gateway,
+                        "msg2",         "%s", "Ethernet Got IP Address 🌏🌏🌏",
+                        "ip",           "%s", ip,
+                        "mask",         "%s", mask,
+                        "gateway",      "%s", gateway,
+                        "ifr_name",     "%s", ifr_name,
                         "ip_changed",   "%d", (int)event->ip_changed,
                         NULL
                     );
 
-                    kw = json_pack("{s:s, s:s, s:s, s:i}",
+                    kw = json_pack("{s:s, s:s, s:s, s:s, s:i}",
                         "ip", ip,
                         "mask", mask,
                         "gateway", gateway,
+                        "ifr_name", ifr_name,
                         "ip_changed", (int)event->ip_changed
                     );
                     gobj_post_event(gobj, EV_ETHERNET_GOT_IP, kw, gobj);
@@ -271,6 +287,12 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
             case IP_EVENT_ETH_LOST_IP:
                 // It seems that may be ignored, only to debug
                 gobj_post_event(gobj, EV_ETHERNET_LOST_IP, 0, gobj);
+                processed = TRUE;
+                break;
+
+            case IP_EVENT_STA_GOT_IP:
+            case IP_EVENT_STA_LOST_IP:
+                // Ignore wifi
                 processed = TRUE;
                 break;
 
@@ -556,18 +578,40 @@ PRIVATE int ac_ethernet_stop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_ethernet_link_up(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "ethernet link up",
+        NULL
+    );
+
+    gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  WARNING: sockets must be closed and recreated
  ***************************************************************************/
-PRIVATE int ac_ethernet_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_ethernet_link_down(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "ethernet_disconnected",
+        "msg",          "%s", "ethernet link down",
         NULL
     );
+    clear_timeout(priv->gobj_periodic_timer);
+
+    gobj_publish_event(gobj, EV_ETHERNET_LINK_DOWN, json_incref(kw));
 
     if(priv->on_open_published) {
         priv->on_open_published =  FALSE;
@@ -576,7 +620,29 @@ PRIVATE int ac_ethernet_disconnected(hgobj gobj, gobj_event_t event, json_t *kw,
         }
     }
 #endif
-    clear_timeout(priv->gobj_periodic_timer);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_ethernet_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "got ip",
+        "kw",           "%j", kw,
+        NULL
+    );
+
+    set_timeout_periodic(priv->gobj_periodic_timer, 1000);
+
+    priv->on_open_published = TRUE;
+    gobj_publish_event(gobj, EV_ETHERNET_ON_OPEN, json_incref(kw)); // Wait to play default_service until get time
 
     JSON_DECREF(kw)
     return 0;
@@ -595,45 +661,6 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         priv->light_on = 1;
     }
 #endif
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_ethernet_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "ethernet connected",
-        NULL
-    );
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_ethernet_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "got ip",
-        NULL
-    );
-
-    set_timeout_periodic(priv->gobj_periodic_timer, 500);
-
-    priv->on_open_published = TRUE;
-    gobj_publish_event(gobj, EV_ETHERNET_ON_OPEN, json_incref(kw)); // Wait to play default_service until get time
 
     JSON_DECREF(kw)
     return 0;
@@ -679,8 +706,8 @@ GOBJ_DEFINE_STATE(ST_ETHERNET_IP_ASSIGNED);
 // Systems events, defined in gobj.c
 GOBJ_DEFINE_EVENT(EV_ETHERNET_START);
 GOBJ_DEFINE_EVENT(EV_ETHERNET_STOP);
-GOBJ_DEFINE_EVENT(EV_ETHERNET_CONNECTED);
-GOBJ_DEFINE_EVENT(EV_ETHERNET_DISCONNECTED);
+GOBJ_DEFINE_EVENT(EV_ETHERNET_LINK_UP);
+GOBJ_DEFINE_EVENT(EV_ETHERNET_LINK_DOWN);
 GOBJ_DEFINE_EVENT(EV_ETHERNET_GOT_IP);
 GOBJ_DEFINE_EVENT(EV_ETHERNET_LOST_IP);
 GOBJ_DEFINE_EVENT(EV_ETHERNET_ON_OPEN);
@@ -713,20 +740,20 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_ethernet_wait_connected[] = { // From connect_station()
-        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       0},
-        {EV_ETHERNET_CONNECTED,         ac_ethernet_connected,          ST_ETHERNET_WAIT_IP},
+        {EV_ETHERNET_LINK_DOWN,         ac_ethernet_link_down,          0},
+        {EV_ETHERNET_LINK_UP,           ac_ethernet_link_up,            ST_ETHERNET_WAIT_IP},
         {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_ethernet_wait_ip[] = {
         {EV_ETHERNET_GOT_IP,            ac_ethernet_got_ip,             ST_ETHERNET_IP_ASSIGNED},
-        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       ST_ETHERNET_WAIT_CONNECTED},
+        {EV_ETHERNET_LINK_DOWN,         ac_ethernet_link_down,          ST_ETHERNET_WAIT_CONNECTED},
         {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
     ev_action_t st_ethernet_ip_assigned[] = {
         {EV_TIMEOUT_PERIODIC,           ac_timeout_periodic,            0},
-        {EV_ETHERNET_DISCONNECTED,      ac_ethernet_disconnected,       ST_ETHERNET_WAIT_CONNECTED},
+        {EV_ETHERNET_LINK_DOWN,         ac_ethernet_link_down,          ST_ETHERNET_WAIT_CONNECTED},
         {EV_ETHERNET_STOP,              ac_ethernet_stop,               ST_ETHERNET_WAIT_START},
         {0,0,0}
     };
@@ -742,8 +769,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ETHERNET_START,             0},
         {EV_ETHERNET_STOP,              0},
-        {EV_ETHERNET_CONNECTED,         0},
-        {EV_ETHERNET_DISCONNECTED,      0},
+        {EV_ETHERNET_LINK_UP,           EVF_OUTPUT_EVENT},
+        {EV_ETHERNET_LINK_DOWN,         EVF_OUTPUT_EVENT},
         {EV_ETHERNET_GOT_IP,            0},
         {EV_ETHERNET_LOST_IP,           0},
         {EV_ETHERNET_ON_OPEN,           EVF_OUTPUT_EVENT},

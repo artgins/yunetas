@@ -56,6 +56,8 @@ PRIVATE sdata_desc_t tattr_desc[] = { // WARNING repeated in c_linux_transport/c
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
+
+SDATA (DTP_STRING,  "ifr_name",         SDF_RD,         "",         "Interface to use"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
 SDATA (DTP_STRING,  "host",             SDF_RD,         "",         "host, decoded from url. Set internally"),
@@ -111,6 +113,7 @@ typedef struct _PRIVATE_DATA {
     transport_state_t transport_state;
     TaskHandle_t  rx_task_h;                // Task to read/connect
     esp_event_loop_handle_t tx_ev_loop_h;   // event loop with task to tx messages through task's callback
+    struct ifreq ifr;   /* only has ifr_name as field, of 6 bytes length */
     char buf_rx[1024];
 #endif
     volatile BOOL task_running;
@@ -173,7 +176,6 @@ PRIVATE void mt_create(hgobj gobj)
 #ifdef ESP_PLATFORM
     if(priv->use_ssl) {
         priv->transport = esp_transport_ssl_init();
-        //esp_transport_tcp_set_interface_name(priv->ssl, if_name);
 
         const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
         if(!empty_string(cert_pem)) {
@@ -184,7 +186,6 @@ PRIVATE void mt_create(hgobj gobj)
         }
     } else {
         priv->transport = esp_transport_tcp_init();
-        //esp_transport_tcp_set_interface_name(priv->tcp, if_name);
     }
 
     int keep_alive = (int)gobj_read_integer_attr(gobj, "keep_alive");
@@ -204,7 +205,7 @@ PRIVATE void mt_create(hgobj gobj)
         .queue_size = 8,
         .task_name = "trans-tx-queue", // task will be created
         .task_priority = tskIDLE_PRIORITY,
-        .task_stack_size = 2*1024,  // esp32 stack size
+        .task_stack_size = 4*1024,  // esp32 stack size
         .task_core_id = tskNO_AFFINITY
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&loop_handle_args, &priv->tx_ev_loop_h));
@@ -343,28 +344,37 @@ PRIVATE int mt_start(hgobj gobj)
     priv->dynamic_read_timeout = 100;
 
 #ifdef ESP_PLATFORM
-    if(!priv->rx_task_h) {
-        portBASE_TYPE ret = xTaskCreate(
-            rx_task,
-            "trans-rx-task",
-            4*1024, // esp32 stack size
-            gobj,
-            tskIDLE_PRIORITY,
-            &priv->rx_task_h
-        );
-        if(ret != pdPASS) {
-            gobj_log_error(gobj, 0,
+
+    const char *ifr_name = gobj_read_str_attr(gobj, "ifr_name");
+    if(!empty_string(ifr_name)) {
+        memmove(priv->ifr.ifr_name, ifr_name, MIN(sizeof(priv->ifr.ifr_name), strlen(ifr_name)));
+        esp_transport_tcp_set_interface_name(priv->transport, &priv->ifr);
+
+        if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+            gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot create Transport Task",
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Using ifr_name",
+                "msg2",         "%s", "Using ifr_name 🌏 ✅",
+                "ifr_name",     "%s", ifr_name,
                 NULL
             );
         }
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    }
+
+    portBASE_TYPE ret = xTaskCreate(
+        rx_task,
+        "trans-rx-task",
+        4*1024, // esp32 stack size
+        gobj,
+        tskIDLE_PRIORITY,
+        &priv->rx_task_h
+    );
+    if(ret != pdPASS) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Transport Task Already exists",
+            "msg",          "%s", "Cannot create Transport Task",
             NULL
         );
     }
