@@ -55,6 +55,8 @@ PUBLIC int rmrcontentdir(const char *root_dir);
 PUBLIC char *delete_right_char(char *s, char x);
 PUBLIC char *delete_left_char(char *s, char x);
 PUBLIC char *build_path(char *bf, size_t bfsize, ...);
+PUBLIC char *get_last_segment(char *path);
+PUBLIC char *pop_last_segment(char *path); // WARNING path modified
 
 /*------------------------------------*
  *          Json
