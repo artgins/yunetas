@@ -900,33 +900,13 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
     return jn;
 }
 
-// TODO formula corregida // From: https://programming.guide/worlds-most-copied-so-snippet.html
-// TODO cuando esté migrada a C copiala en /yuneta/development/yuneta/^gobj-ecosistema/ghelpers/src/01_gstrings.c
-static int TODO;
-
-//public static strictfp String humanReadableByteCount(long bytes, boolean si) {
-//    int unit = si ? 1000 : 1024;
-//    long absBytes = bytes == Long.MIN_VALUE ? Long.MAX_VALUE : Math.abs(bytes);
-//    if (absBytes < unit) return bytes + " B";
-//    int exp = (int) (Math.log(absBytes) / Math.log(unit));
-//    long th = (long) Math.ceil(Math.pow(unit, exp) * (unit - 0.05));
-//    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) exp++;
-//    String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
-//    if (exp > 4) {
-//        bytes /= unit;
-//        exp -= 1;
-//    }
-//    return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
-//}
-//
-
 /***************************************************************************
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
  *  https://www.mbeckler.org/blog/?p=114
  ***************************************************************************/
-PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes)
+PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes)
 {
-    const char* suffixes[7];
+    const char *suffixes[7];
     suffixes[0] = "B";
     suffixes[1] = "Thousands";
     suffixes[2] = "Millions";
@@ -945,6 +925,37 @@ PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes)
         snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
     else
         snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
+}
+
+/***************************************************************************
+ *  Print a byte count in a human readable format
+ *  https://programming.guide/worlds-most-copied-so-snippet.html
+ ***************************************************************************/
+PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si)
+{
+    size_t unit = si ? 1000 : 1024;
+    size_t absBytes = bytes;
+
+    if (absBytes < unit) {
+        snprintf(bf, bfsize, "%zu B", bytes);
+        return; // bytes + " B";
+    }
+
+    int exp = (int) (log((double)absBytes) / log((double)unit));
+    size_t th = (size_t) ceil(pow((double)unit, exp) * ((double)unit - 0.05));
+
+    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) {
+        exp++;
+    }
+
+    char *sufijos = (si ? "kMGTPE" : "KMGTPE");
+    char pre = sufijos[exp - 1];
+
+    if (exp > 4) {
+        bytes /= unit;
+        exp -= 1;
+    }
+    snprintf(bf, bfsize, "%.1f %c%sB", (double)bytes / pow((double)unit, exp), pre, (si ? "" : "i"));
 }
 
 /***************************************************************************
