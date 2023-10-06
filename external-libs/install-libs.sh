@@ -7,7 +7,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-2.14-gines
+cd build/jansson-gines-2.14
 cd build
 make install
 cd ..
@@ -36,7 +36,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.1.2
+cd build/openssl-3.1.3
 make install
 cd ../..
 

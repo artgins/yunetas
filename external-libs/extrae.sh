@@ -8,7 +8,7 @@ mkdir build
 cd build
 
 echo "extrae jansson"
-tar xzf ../sources/jansson-2.14-gines.tar.gz
+tar xzf ../sources/jansson-gines-2.14.tar.gz
 
 echo "extrae liburing"
 tar xzf ../sources/liburing-liburing-2.4.tar.gz
@@ -17,7 +17,7 @@ echo "extrae mbedtls"
 tar xzf ../sources/mbedtls-3.4.0.tar.gz
 
 echo "extrae openssl"
-tar xzf ../sources/openssl-3.1.2.tar.gz
+tar xzf ../sources/openssl-3.1.3.tar.gz
 
 echo "extrae pcre2"
 tar xzf ../sources/pcre2-10.42.tar.gz

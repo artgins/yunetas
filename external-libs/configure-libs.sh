@@ -9,7 +9,7 @@ export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-2.14-gines
+cd build/jansson-gines-2.14
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
@@ -47,7 +47,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.1.2
+cd build/openssl-3.1.3
 ./config \
     --prefix=/yuneta/development/outputs \
     --openssldir=/yuneta/bin/ssl3 \
@@ -83,7 +83,7 @@ cd build/nginx-1.24.0
     --with-stream_ssl_module \
     --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
     --with-pcre-jit \
-    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.1.2 \
+    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.1.3 \
     --with-openssl-opt=no-tests
 make
 make install

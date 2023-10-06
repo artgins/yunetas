@@ -18,6 +18,7 @@
 #ifdef __linux__
 #include <fcntl.h>
 #include <syslog.h>
+#include <linux/if.h>
 #endif
 #ifdef ESP_PLATFORM
 #include <esp_event.h>
@@ -67,7 +68,7 @@ typedef struct {
     struct sockaddr_in si_other;
     char schema[32], host[64], port[32];
     char bindip[32];
-    char ifr_name[IFNAMSIZ+1];
+    char if_name[IFNAMSIZ+1];
     BOOL exit_on_fail;
     BOOL disabled;
 #ifdef ESP_PLATFORM
@@ -143,7 +144,7 @@ PUBLIC void udpc_end(void)
 PUBLIC udpc_t udpc_open(
     const char *url,
     const char *bindip,
-    const char *ifr_name, // interface name
+    const char *if_name, // interface name
     size_t bfsize,
     size_t udp_frame_size,
     output_format_t output_format,
@@ -190,8 +191,8 @@ PUBLIC udpc_t udpc_open(
     if(!empty_string(bindip)) {
         snprintf(uc->bindip, sizeof(uc->bindip), "%s", bindip);
     }
-    if(!empty_string(ifr_name)) {
-        snprintf(uc->ifr_name, sizeof(uc->ifr_name), "%s", ifr_name);
+    if(!empty_string(if_name)) {
+        snprintf(uc->if_name, sizeof(uc->if_name), "%s", if_name);
     }
 
     uc->buffer_size = bfsize;
@@ -566,10 +567,14 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
         }
     }
 
-    if(!empty_string(uc->ifr_name)) {
-        ESP_LOGI("LOG_UDP", "Bind [sock=%d] to interface %s", uc->_s, uc->ifr_name);
-        if (setsockopt(uc->_s, SOL_SOCKET, SO_BINDTODEVICE,  uc->ifr_name, IFNAMSIZ) != 0) {
-            ESP_LOGE("LOG_UDP", "Bind [sock=%d] to interface %s fail", uc->_s, uc->ifr_name);
+    if(!empty_string(uc->if_name)) {
+#ifdef ESP_PLATFORM
+        ESP_LOGI("LOG_UDP", "Bind [sock=%d] to interface %s", uc->_s, uc->if_name);
+#endif
+        if (setsockopt(uc->_s, SOL_SOCKET, SO_BINDTODEVICE,  uc->if_name, IFNAMSIZ) != 0) {
+#ifdef ESP_PLATFORM
+            ESP_LOGE("LOG_UDP", "Bind [sock=%d] to interface %s fail", uc->_s, uc->if_name);
+#endif
         }
     }
 

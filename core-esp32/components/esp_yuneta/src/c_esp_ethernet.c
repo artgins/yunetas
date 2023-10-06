@@ -498,6 +498,7 @@ PRIVATE int start_ethernet(hgobj gobj)
  ***************************************************************************/
 PRIVATE int stop_ethernet(hgobj gobj)
 {
+#ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ESP_ERROR_CHECK(esp_event_handler_unregister(ETH_EVENT, ESP_EVENT_ANY_ID, &event_handler));
@@ -531,6 +532,7 @@ PRIVATE int stop_ethernet(hgobj gobj)
         esp_netif_destroy(priv->eth_netif);
         priv->eth_netif = NULL;
     }
+#endif
     return 0;
 }
 
