@@ -31,6 +31,7 @@
     #define syslog(priority, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR, "yuneta", format, ##__VA_ARGS__)
 #endif
 
+#include "kwid.h"
 #include "helpers.h"
 
 /*****************************************************************
@@ -525,6 +526,335 @@ PUBLIC char *pop_last_segment(char *path) // WARNING path modified
     }
     *p = 0;
     return p+1;
+}
+
+/***************************************************************************
+ *  If exclusive then let file opened and return the fd, else close the file
+ ***************************************************************************/
+PUBLIC json_t *load_persistent_json(
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error,
+    int *pfd,
+    BOOL exclusive,
+    BOOL silence  // HACK to silence TRUE you MUST set on_critical_error=LOG_NONE
+)
+{
+    if(pfd) {
+        *pfd = -1;
+    }
+
+    /*
+     *  Full path
+     */
+    char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), directory, filename);
+
+    if(access(full_path, 0)!=0) {
+        if(!(silence && on_critical_error == LOG_NONE)) {
+            gobj_log_critical(NULL, on_critical_error,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Cannot load json, file not exist.",
+                "path",         "%s", full_path,
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    int fd;
+    if(exclusive) {
+        fd = open_exclusive(full_path, O_RDONLY|O_NOFOLLOW, 0);
+#ifdef __linux__
+        fcntl(fd, F_SETFD, FD_CLOEXEC); // Que no vaya a los child
+#endif
+    } else {
+        fd = open(full_path, O_RDONLY|O_NOFOLLOW);
+    }
+    if(fd<0) {
+        if(!(silence && on_critical_error == LOG_NONE)) {
+            gobj_log_critical(NULL, on_critical_error,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot open json file",
+                "path",         "%s", full_path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    json_t *jn = json_loadfd(fd, 0, 0);
+    if(!jn) {
+        gobj_log_critical(NULL, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msg",          "%s", "Cannot load json file, bad json",
+            NULL
+        );
+        close(fd);
+        return 0;
+    }
+    if(!exclusive) {
+        close(fd);
+    } else {
+        if(pfd) {
+            *pfd = fd;
+        }
+    }
+    return jn;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *load_json_from_file(
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error
+)
+{
+    /*
+     *  Full path
+     */
+    char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), directory, filename, NULL);
+
+    if(access(full_path, 0)!=0) {
+        return 0;
+    }
+
+    int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
+    if(fd<0) {
+        gobj_log_critical(0, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot open json file",
+            "path",         "%s", full_path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return 0;
+    }
+
+    json_t *jn = json_loadfd(fd, 0, 0);
+    if(!jn) {
+        gobj_log_critical(0, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msg",          "%s", "Cannot load json file, bad json",
+            NULL
+        );
+    }
+    close(fd);
+    return jn;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int save_json_to_file(
+    const char *directory,
+    const char *filename,
+    int xpermission,
+    int rpermission,
+    log_opt_t on_critical_error,
+    BOOL create,        // Create file if not exists or overwrite.
+    BOOL only_read,
+    json_t *jn_data     // owned
+)
+{
+    /*-----------------------------------*
+     *  Check parameters
+     *-----------------------------------*/
+    if(!directory || !filename) {
+        gobj_log_critical(0, on_critical_error|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Parameter 'directory' or 'filename' NULL",
+            NULL
+        );
+        JSON_DECREF(jn_data);
+        return -1;
+    }
+
+    /*-----------------------------------*
+     *  Create directory if not exists
+     *-----------------------------------*/
+    if(!is_directory(directory)) {
+        if(!create) {
+            JSON_DECREF(jn_data);
+            return -1;
+        }
+        if(mkrdir(directory, 0, xpermission)<0) {
+            gobj_log_critical(0, on_critical_error,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create directory",
+                "directory",    "%s", directory,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            JSON_DECREF(jn_data);
+            return -1;
+        }
+    }
+
+    /*
+     *  Full path
+     */
+    char full_path[PATH_MAX];
+    if(empty_string(filename)) {
+        snprintf(full_path, sizeof(full_path), "%s", directory);
+    } else {
+        snprintf(full_path, sizeof(full_path), "%s/%s", directory, filename);
+    }
+
+    /*
+     *  Create file
+     */
+    int fp = newfile(full_path, rpermission, create);
+    if(fp < 0) {
+        gobj_log_critical(0, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot create json file",
+            "filename",     "%s", full_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        JSON_DECREF(jn_data);
+        return -1;
+    }
+
+    if(json_dumpfd(jn_data, fp, JSON_INDENT(2))<0) {
+        gobj_log_critical(0, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msg",          "%s", "Cannot write in json file",
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        JSON_DECREF(jn_data);
+        return -1;
+    }
+    close(fp);
+    if(only_read) {
+        chmod(full_path, 0440);
+    }
+    JSON_DECREF(jn_data);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  fields: DESC str array with: key, type, defaults
+ *  type can be: str, int, real, bool, null, dict, list
+ ***************************************************************************/
+PUBLIC json_t *create_json_record(
+    const json_desc_t *json_desc
+)
+{
+    if(!json_desc) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "DESC null",
+            NULL
+        );
+        return 0;
+    }
+    json_t *jn = json_object();
+
+    while(json_desc->name) {
+        if(empty_string(json_desc->name)) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "DESC without key field",
+                NULL
+            );
+            break;
+        }
+        if(empty_string(json_desc->type)) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "DESC without type field",
+                NULL
+            );
+            break;
+        }
+        const char *name = json_desc->name;
+        const char *defaults = json_desc->defaults;
+
+        SWITCHS(json_desc->type) {
+            CASES("str")
+            CASES("string")
+                json_object_set_new(jn, name, json_string(defaults));
+                break;
+            CASES("int")
+            CASES("integer")
+                unsigned long v=0;
+                if(*defaults == '0') {
+                    v = strtoul(defaults, 0, 8);
+                } else if(*defaults == 'x') {
+                    v = strtoul(defaults, 0, 16);
+                } else {
+                    v = strtoul(defaults, 0, 10);
+                }
+                json_object_set_new(jn, name, json_integer(v));
+                break;
+            CASES("real")
+                json_object_set_new(jn, name, json_real(strtod(defaults, NULL)));
+                break;
+            CASES("bool")
+            CASES("boolean")
+                if(strcasecmp(defaults, "true")==0) {
+                    json_object_set_new(jn, name, json_true());
+                } else if(strcasecmp(defaults, "false")==0) {
+                    json_object_set_new(jn, name, json_false());
+                } else {
+                    json_object_set_new(jn, name, atoi(defaults)?json_true():json_false());
+                }
+                break;
+            CASES("null")
+                json_object_set_new(jn, name, json_null());
+                break;
+            CASES("dict")
+                char desc_name[80+1];
+                if(sscanf(defaults, "{%80s}", desc_name)==1) {
+                    //get_fields(db_tranger_desc, desc_name, TRUE); // only to test fields
+                } else if(!empty_string(defaults)) {
+                    //get_fields(db_tranger_desc, defaults, TRUE); // only to test fields
+                }
+                json_object_set_new(jn, name, json_object());
+                break;
+            CASES("list")
+                char desc_name[80+1];
+                if(sscanf(defaults, "{%80s}", desc_name)==1) {
+                    //get_fields(db_tranger_desc, desc_name, TRUE); // only to test fields
+                }
+                json_object_set_new(jn, name, json_array());
+                break;
+            DEFAULTS
+                gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "Type UNKNOWN",
+                    "type",         "%s", json_desc->type,
+                    NULL
+                );
+                break;
+        } SWITCHS_END;
+
+        json_desc++;
+    }
+
+    return jn;
 }
 
 /***************************************************************************

@@ -183,7 +183,7 @@ PUBLIC json_t *tranger_startup(
         json_decref(tranger);
         return 0;
     }
-    kw_set_dict_value(tranger, "path", json_string(path));
+    kw_set_dict_value(gobj, tranger, "path", json_string(path));
 
     const char *database = kw_get_str(gobj, tranger, "database", "", 0);
     if(empty_string(database)) {
@@ -245,8 +245,7 @@ PUBLIC json_t *tranger_startup(
                 TRUE // silence
             );
             if(jn_disk_tranger) {
-                gobj_log_warning(NULL, 0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER_ERROR,
                     "msg",          "%s", "Open as not master, __timeranger__.json locked",
@@ -254,8 +253,7 @@ PUBLIC json_t *tranger_startup(
                     NULL
                 );
             } else {
-                gobj_log_error(NULL, 0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER_ERROR,
                     "msg",          "%s", "Cannot open __timeranger__",
@@ -270,8 +268,7 @@ PUBLIC json_t *tranger_startup(
         json_decref(jn_disk_tranger);
     } else {
         if(!master) {
-            gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Cannot startup TimeRanger. Not found and not master",
@@ -322,8 +319,7 @@ PUBLIC json_t *tranger_startup(
             );
 
             if(jn_disk_tranger) {
-                gobj_log_warning(NULL, 0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER_ERROR,
                     "msg",          "%s", "Open as not master, __timeranger__.json locked",
@@ -331,8 +327,7 @@ PUBLIC json_t *tranger_startup(
                     NULL
                 );
             } else {
-                gobj_log_error(NULL, 0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER_ERROR,
                     "msg",          "%s", "Cannot open __timeranger__",
@@ -368,16 +363,18 @@ PUBLIC int tranger_shutdown(json_t *tranger)
 {
     const char *key;
     json_t *jn_value;
-    json_t *opened_files = kw_get_dict(tranger, "fd_opened_files", 0, KW_REQUIRED);
+
+    hgobj gobj = (hgobj)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
-        int fd = kw_get_int(opened_files, key, 0, KW_REQUIRED);
+        int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
     }
 
     void *temp;
-    json_t *jn_topics = kw_get_dict(tranger, "topics", 0, KW_REQUIRED);
+    json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_foreach_safe(jn_topics, temp, key, jn_value) {
         tranger_close_topic(tranger, key);
     }
@@ -421,7 +418,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
     json_t *jn_var      // owned
 )
 {
-    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*-------------------------------*
      *      Some checks
@@ -439,11 +437,10 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         tkey = "";
     }
     if(empty_string(topic_name)) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "database",     "%s", kw_get_str(tranger, "directory", "", KW_REQUIRED),
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "msg",          "%s", "tranger_create_topic(): What topic name?",
             NULL
         );
@@ -451,18 +448,18 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         JSON_DECREF(jn_var);
         return 0;
     }
-    json_int_t topic_new_version = kw_get_int(jn_var, "topic_version", 0, KW_WILD_NUMBER);
+    json_int_t topic_new_version = kw_get_int(gobj, jn_var, "topic_version", 0, KW_WILD_NUMBER);
     json_int_t topic_old_version = 0;
 
     /*-------------------------------*
      *      Check directory
      *-------------------------------*/
-    char directory[PATH_MAX-30];
+    char directory[PATH_MAX];
     snprintf(
         directory,
         sizeof(directory),
         "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
@@ -471,8 +468,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
          *  Create topic if master
          *-------------------------------*/
         if(!master) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "directory",    "%s", directory,
@@ -483,9 +479,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             JSON_DECREF(jn_var);
             return 0;
         }
-        if(mkrdir(directory, 0, kw_get_int(tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(NULL, kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-                "gobj",         "%s", __FILE__,
+        if(mkrdir(directory, 0, kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", directory,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -503,10 +498,9 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             directory,
             "topic_idx.md"
         );
-        int fp = newfile(full_path, kw_get_int(tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+        int fp = newfile(full_path, kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
-            log_error(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create topic_idx.md file.",
@@ -524,9 +518,9 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
          *      Create topic_desc.json
          *----------------------------------------*/
         json_t *jn_topic_desc = json_object();
-        kw_get_str(jn_topic_desc, "topic_name", topic_name, KW_CREATE);
-        kw_get_str(jn_topic_desc, "pkey", pkey, KW_CREATE);
-        kw_get_str(jn_topic_desc, "tkey", tkey, KW_CREATE);
+        kw_get_str(gobj, jn_topic_desc, "topic_name", topic_name, KW_CREATE);
+        kw_get_str(gobj, jn_topic_desc, "pkey", pkey, KW_CREATE);
+        kw_get_str(gobj, jn_topic_desc, "tkey", tkey, KW_CREATE);
 
         system_flag &= ~NOT_INHERITED_MASK;
         system_flag_t system_flag_key_type = system_flag & KEY_TYPE_MASK;
@@ -544,9 +538,9 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         save_json_to_file(
             directory,
             "topic_desc.json",
-            kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-            kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
-            kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+            kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+            kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+            kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             master? TRUE:FALSE, //create
             TRUE,  //only_read
             topic_desc  // owned
@@ -561,8 +555,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             topic_name,
             jn_cols
         );
-        log_info(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Creating topic_cols.json",
@@ -580,12 +573,11 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             topic_name,
             jn_var
         );
-        log_info(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Creating topic_var.json",
-            "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+            "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
             "topic",        "%s", topic_name,
             NULL
         );
@@ -597,8 +589,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             directory
         );
         if(mkrdir(full_path, 0, kw_get_int(tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-                "gobj",         "%s", __FILE__,
+            gobj_log_critical(gobj, kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -614,7 +605,6 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
          *      topic_version
          *      topic_cols.json
          *---------------------------------------------*/
-        char directory[PATH_MAX];
         snprintf(
             directory,
             sizeof(directory),
@@ -649,8 +639,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 topic_name,
                 jn_var
             );
-            log_info(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Re-Creating topic_var.json",
@@ -670,8 +659,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 topic_name,
                 jn_cols
             );
-            log_info(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Re-Creating topic_cols.json",
