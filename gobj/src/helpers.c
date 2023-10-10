@@ -861,15 +861,15 @@ PUBLIC json_t *create_json_record(
  *
  ***************************************************************************/
 PUBLIC json_t *bits2jn_strlist(
-    const char **string_table,
+    const char **strings_table,
     uint64_t bits
 ) {
     json_t *jn_list = json_array();
 
-    for(uint64_t i=0; string_table[i]!=NULL && i<sizeof(i); i++) {
+    for(uint64_t i=0; strings_table[i]!=NULL && i<sizeof(i); i++) {
         uint64_t bitmask = 1 << i;
         if (bits & bitmask) {
-            json_array_append_new(jn_list, json_string(string_table[i]));
+            json_array_append_new(jn_list, json_string(strings_table[i]));
         }
     }
 
@@ -880,7 +880,7 @@ PUBLIC json_t *bits2jn_strlist(
  *
  ***************************************************************************/
 PUBLIC gbuffer_t *bits2gbuffer(
-    const char **string_table,
+    const char **strings_table,
     uint64_t bits
 ) {
     gbuffer_t *gbuf = gbuffer_create(256, 1024);
@@ -890,18 +890,73 @@ PUBLIC gbuffer_t *bits2gbuffer(
     }
     BOOL add_sep = FALSE;
 
-    for(uint64_t i=0; string_table[i]!=NULL && i<sizeof(i); i++) {
+    for(uint64_t i=0; strings_table[i]!=NULL && i<sizeof(i); i++) {
         uint64_t bitmask = 1 << i;
         if (bits & bitmask) {
             if(add_sep) {
                 gbuffer_append(gbuf, "|", 1);
             }
-            gbuffer_append_string(gbuf, string_table[i]);
+            gbuffer_append_string(gbuf, strings_table[i]);
             add_sep = TRUE;
         }
     }
 
     return gbuf;
+}
+
+/***************************************************************************
+ *  Convert strings
+ *      by default separators are "|, "
+ *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them1
+ *  into bits according the string table
+ *  The strings table must be end by NULL
+ ***************************************************************************/
+PUBLIC uint64_t strings2bits(
+    const char **strings_table,
+    const char *str,
+    const char *separators
+) {
+    uint64_t bitmask = 0;
+    if(empty_string(separators)) {
+        separators = "|, ";
+    }
+    int list_size;
+    const char **names = split2(str, separators, &list_size);
+
+    for(int i=0; i<list_size; i++) {
+        int idx = idx_in_list(strings_table, *(names +i), TRUE);
+        if(idx >= 0) {
+            bitmask |= 1 << (idx);
+        }
+    }
+
+    split_free2(names);
+
+    return bitmask;
+}
+
+/***************************************************************************
+ *  Return idx of str in string list.
+    Return -1 if not exist
+ ***************************************************************************/
+PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case)
+{
+    int (*cmp_fn)(const char *s1, const char *s2)=0;
+    if(ignore_case) {
+        cmp_fn = strcasecmp;
+    } else {
+        cmp_fn = strcmp;
+    }
+
+    int i = 0;
+    while(*list) {
+        if(cmp_fn(str, *list)==0) {
+            return i;
+        }
+        i++;
+        list++;
+    }
+    return -1;
 }
 
 

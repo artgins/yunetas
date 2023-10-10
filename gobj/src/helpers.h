@@ -114,7 +114,7 @@ PUBLIC json_t *create_json_record(
     const json_desc_t *json_desc
 );
 
-/*
+/***
  *  Utilities to manage strict ascendant string tables representing bit values of maximum 64 bits.
  *  Convert to json list of strings or a gbuffer with string1|string2|...
  *  The table must be end by NULL
@@ -135,13 +135,32 @@ PUBLIC json_t *create_json_record(
 
  */
 PUBLIC json_t *bits2jn_strlist(
-    const char **string_table,
+    const char **strings_table,
     uint64_t bits
 );
 PUBLIC gbuffer_t *bits2gbuffer(
-    const char **string_table,
+    const char **strings_table,
     uint64_t bits
 );
+
+/**
+ *  Convert strings
+ *      by default separators are "|, "
+ *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them1
+ *  into bits according the string table
+ *  The strings table must be end by NULL
+*/
+PUBLIC uint64_t strings2bits(
+    const char **strings_table,
+    const char *str,
+    const char *separators
+);
+
+/**rst**
+    Return idx of str in string list.
+    Return -1 if not exist
+**rst**/
+PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
 
 /*---------------------------------*
  *      Utilities functions
@@ -246,7 +265,6 @@ PUBLIC void split_free3(const char **list);
     Return -1 if not exist
 **rst**/
 PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case);
-
 
 #ifdef __cplusplus
 }

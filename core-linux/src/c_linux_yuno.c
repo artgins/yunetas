@@ -2811,6 +2811,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         udpc_t udpc = udpc_open(
             url,
             bindip,
+            NULL,   // if_name,
             bf_size,
             udp_frame_size,
             output_format,

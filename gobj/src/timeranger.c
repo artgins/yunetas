@@ -91,6 +91,7 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
+#ifdef PEPE
 PRIVATE int _get_record_for_wr(
     json_t *tranger,
     json_t *topic,
@@ -99,6 +100,7 @@ PRIVATE int _get_record_for_wr(
     BOOL verbose
 );
 PRIVATE int get_topic_idx_fd(json_t *tranger, json_t *topic, BOOL verbose);
+#endif
 
 /***************************************************************
  *              Data
@@ -404,6 +406,7 @@ PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
     return bitmask;
 }
 
+#ifdef PEPE
 /***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
@@ -3965,3 +3968,4 @@ PUBLIC void tranger_set_trace_level(
 {
     json_object_set_new(tranger, "trace_level", json_integer(trace_level));
 }
+#endif
