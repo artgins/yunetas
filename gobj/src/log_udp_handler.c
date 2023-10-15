@@ -582,7 +582,7 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
     snprintf(temp, sizeof(temp), "%s:%d", inet_ntoa(uc->si_other.sin_addr), ntohs(uc->si_other.sin_port));
     #ifdef ESP_PLATFORM
         ESP_LOGI("LOG_UDP_HANDLER", "socket(%d), ifr_name %s ==============================> %s",
-            uc->_s, uc->ifr_name, temp
+            uc->_s, uc->if_name, temp
         );
     #endif
 

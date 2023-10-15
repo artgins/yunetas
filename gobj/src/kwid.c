@@ -1148,6 +1148,33 @@ PUBLIC json_t *kw_get_dict_value(
 }
 
 /***************************************************************************
+    Return a new kw only with the keys got by path.
+    It's not a deep copy, new keys are the paths.
+    Not valid with lists.
+    If paths are empty return kw
+ ***************************************************************************/
+PUBLIC json_t *kw_clone_by_path(
+    hgobj gobj,
+    json_t *kw,         // owned
+    const char **paths
+)
+{
+    if(!paths || !*paths) {
+        return kw;
+    }
+    json_t *kw_clone = json_object();
+    while(*paths) {
+        json_t *jn_value = kw_get_dict_value(gobj, kw, *paths, 0, 0);
+        if(jn_value) {
+            json_object_set(kw_clone, *paths, jn_value);
+        }
+        paths++;
+    }
+    KW_DECREF(kw);
+    return kw_clone;
+}
+
+/***************************************************************************
     Return a new kw only with the keys got by dict's keys or list's keys (strings).
     Keys:
         "$key"

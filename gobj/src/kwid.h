@@ -282,7 +282,29 @@ PUBLIC json_t *kw_get_dict_value(
     kw_flag_t flag
 );
 
-/***************************************************************************
+/************************************************************************
+    WARNING
+
+    **duplicate** is a copy with new references
+            to duplicate you must use json_deep_copy()
+
+    **clone** is a copy with incref references
+
+ ************************************************************************/
+
+/**rst**
+    Return a new kw only with the keys got by path.
+    It's not a deep copy, new keys are the paths.
+    Not valid with lists.
+    If paths are empty return kw
+**rst**/
+PUBLIC json_t *kw_clone_by_path(
+    hgobj gobj,
+    json_t *kw,     // owned
+    const char **paths
+);
+
+/**rst**
     Return a new kw only with the keys got by dict's keys or list's keys (strings).
     Keys:
         "$key"
@@ -291,7 +313,7 @@ PUBLIC json_t *kw_get_dict_value(
 
     It's not a deep copy, new keys are the paths.
     If paths are empty return kw
- ***************************************************************************/
+**rst**/
 PUBLIC json_t *kw_clone_by_keys(
     hgobj gobj,
     json_t *kw,     // owned
@@ -299,7 +321,7 @@ PUBLIC json_t *kw_clone_by_keys(
     BOOL verbose
 );
 
-/***************************************************************************
+/**rst**
     Return a new kw except the keys got by dict's keys or list's keys (strings).
     Keys:
         "$key"
@@ -307,8 +329,8 @@ PUBLIC json_t *kw_clone_by_keys(
         {"$key1":*, "$key2":*, ...}
 
     It's not a deep copy, new keys are the paths.
-    If paths are empty return empty
- ***************************************************************************/
+    If paths are empty return kw
+**rst**/
 PUBLIC json_t *kw_clone_by_not_keys(
     hgobj gobj,
     json_t *kw,     // owned

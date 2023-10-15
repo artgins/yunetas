@@ -125,7 +125,7 @@ PUBLIC json_t *tranger_startup(
 
     char path[PATH_MAX];
     const char *path_ = kw_get_str(gobj, tranger, "path", "", 0);
-    build_path(path, sizeof(path), path_, ""); // I want modify path
+    build_path(path, sizeof(path), path_, ""); // I want to modify the path
     if(empty_string(path)) {
         gobj_log_error(NULL, 0,
             "gobj",         "%s", __FILE__,
@@ -323,7 +323,7 @@ PUBLIC int tranger_shutdown(json_t *tranger)
     const char *key;
     json_t *jn_value;
 
-    hgobj gobj = (hgobj)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)(size_t)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
     json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
         int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
@@ -351,7 +351,6 @@ PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
     return bitmask;
 }
 
-#ifdef PEPE
 /***************************************************************************
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
@@ -366,7 +365,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
     json_t *jn_var      // owned
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)(size_t)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*-------------------------------*
@@ -441,7 +440,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_idx.md
          *----------------------------------------*/
-        char full_path[PATH_MAX];
+        char full_path[PATH_MAX+24];
         snprintf(full_path, sizeof(full_path), "%s/%s",
             directory,
             "topic_idx.md"
@@ -477,13 +476,15 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 system_flag |= sf_int_key;
             }
         }
-        kw_get_int(jn_topic_desc, "system_flag", system_flag, KW_CREATE);
+        kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
 
         json_t *topic_desc = kw_clone_by_path(
+            gobj,
             jn_topic_desc, // owned
             topic_fieds
         );
         save_json_to_file(
+            gobj,
             directory,
             "topic_desc.json",
             kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
@@ -497,7 +498,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_cols.json
          *----------------------------------------*/
-        JSON_INCREF(jn_cols);
+        JSON_INCREF(jn_cols)
         tranger_write_topic_cols(
             tranger,
             topic_name,
@@ -507,7 +508,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Creating topic_cols.json",
-            "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+            "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
             "topic",        "%s", topic_name,
             NULL
         );
@@ -515,7 +516,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_var.json
          *----------------------------------------*/
-        JSON_INCREF(jn_var);
+        JSON_INCREF(jn_var)
         tranger_write_topic_var(
             tranger,
             topic_name,
@@ -536,8 +537,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         snprintf(full_path, sizeof(full_path), "%s/data",
             directory
         );
-        if(mkrdir(full_path, 0, kw_get_int(tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+        if(mkrdir(full_path, 0, kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -557,7 +558,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             directory,
             sizeof(directory),
             "%s/%s",
-            kw_get_str(tranger, "directory", "", KW_REQUIRED),
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             topic_name
         );
 
@@ -566,10 +567,12 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
              *      Check topic_version
              *----------------------------------------*/
             json_t *topic_var = load_json_from_file(
+                gobj,
                 directory,
-                "topic_var.json"
+                "topic_var.json",
+                LOG_OPT_TRACE_STACK
             );
-            topic_old_version = kw_get_int(topic_var, "topic_version", 0, KW_WILD_NUMBER);
+            topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
             JSON_DECREF(topic_var);
             if(topic_new_version > topic_old_version) {
                 file_remove(directory, "topic_cols.json");
@@ -591,7 +594,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Re-Creating topic_var.json",
-                "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
                 "topic",        "%s", topic_name,
                 NULL
             );
@@ -611,7 +614,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Re-Creating topic_cols.json",
-                "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
                 "topic",        "%s", topic_name,
                 NULL
             );
@@ -624,6 +627,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
     return tranger_open_topic(tranger, topic_name, TRUE);
 }
 
+#ifdef PEPE
 /***************************************************************************
  *
  ***************************************************************************/
