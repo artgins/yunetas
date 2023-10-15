@@ -159,7 +159,8 @@ PUBLIC json_t *tranger_startup(
 PUBLIC int tranger_shutdown(json_t *tranger);
 
 /**rst**
-   Convert string (..|..|...) to system_flag_t integer
+   Convert string "s|s|s" or "s s s" or "s,s,s"
+   or any combinations of them to system_flag_t integer
 **rst**/
 PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag);
 

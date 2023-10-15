@@ -42,6 +42,7 @@ PRIVATE void save_uuid(const char *uuid_)
     json_object_set_new(jn_uuid, "uuid", json_string(uuid_));
 
     save_json_to_file(
+        NULL,
         directory,
         "uuid.json",
         02770,
@@ -61,6 +62,7 @@ PRIVATE void save_uuid(const char *uuid_)
 PRIVATE const char *read_node_uuid(void)
 {
    json_t *jn_uuid = load_json_from_file(
+       NULL,
         "/yuneta/store/agent/uuid",
         "uuid.json",
         0

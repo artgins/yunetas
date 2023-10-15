@@ -107,54 +107,6 @@ PRIVATE int get_topic_idx_fd(json_t *tranger, json_t *topic, BOOL verbose);
  ***************************************************************/
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *load_variable_json(
-    const char *directory,
-    const char *filename
-)
-{
-    /*
-     *  Full path
-     */
-    char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename);
-
-    if(access(full_path, 0)!=0) {
-        return 0;
-    }
-
-    int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
-    if(fd<0) {
-        gobj_log_critical(NULL, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot open json file",
-            "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        return 0;
-    }
-
-    json_t *jn = json_loadfd(fd, 0, 0);
-    if(!jn) {
-        gobj_log_critical(NULL, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
-            "msg",          "%s", "Cannot load json file, bad json",
-            NULL
-        );
-        close(fd);
-        return 0;
-    }
-    close(fd);
-    return jn;
-}
-
-/***************************************************************************
  *  Startup TimeRanger database
  ***************************************************************************/
 PUBLIC json_t *tranger_startup(
@@ -163,11 +115,11 @@ PUBLIC json_t *tranger_startup(
 )
 {
     /*
-     *  Como parámetro de entrada "jn_tanger",
+     *  Como parámetro de entrada "jn_tranger",
      *  se clona para no joder el original,
      *  y porque se añaden campos de instancia, por ejemplo "fd_opened_files"
      */
-    json_t *tranger = create_json_record(tranger_json_desc); // no master by default
+    json_t *tranger = create_json_record(gobj, tranger_json_desc); // no master by default
     json_object_update_existing(tranger, jn_tranger);
     JSON_DECREF(jn_tranger);
 
@@ -230,6 +182,7 @@ PUBLIC json_t *tranger_startup(
     int fd = -1;
     if(file_exists(directory, "__timeranger__.json")) {
         json_t *jn_disk_tranger = load_persistent_json(
+            gobj,
             directory,
             "__timeranger__.json",
             on_critical_error,
@@ -239,6 +192,7 @@ PUBLIC json_t *tranger_startup(
         );
         if(!jn_disk_tranger) {
             jn_disk_tranger = load_persistent_json(
+                gobj,
                 directory,
                 "__timeranger__.json",
                 on_critical_error,
@@ -292,6 +246,7 @@ PUBLIC json_t *tranger_startup(
         kw_get_int(gobj, jn_tranger, "rpermission", rpermission, KW_CREATE);
         kw_get_int(gobj, jn_tranger, "xpermission", xpermission, KW_CREATE);
         save_json_to_file(
+            gobj,
             directory,
             "__timeranger__.json",
             xpermission,
@@ -303,6 +258,7 @@ PUBLIC json_t *tranger_startup(
         );
         // Re-open
         json_t *jn_disk_tranger = load_persistent_json(
+            gobj,
             directory,
             "__timeranger__.json",
             on_critical_error,
@@ -312,6 +268,7 @@ PUBLIC json_t *tranger_startup(
         );
         if(!jn_disk_tranger) {
             jn_disk_tranger = load_persistent_json(
+                gobj,
                 directory,
                 "__timeranger__.json",
                 on_critical_error,
@@ -385,24 +342,12 @@ PUBLIC int tranger_shutdown(json_t *tranger)
 }
 
 /***************************************************************************
-   Convert string (..|..|...) to system_flag_t integer
+   Convert string "s|s|s" or "s s s" or "s,s,s"
+   or any combinations of them to system_flag_t integer
  ***************************************************************************/
 PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
 {
-    uint32_t bitmask = 0;
-
-    int list_size;
-    const char **names = split2(system_flag, "|, ", &list_size);
-
-    for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(sf_names, *(names +i), TRUE);
-        if(idx > 0) {
-            bitmask |= 1 << (idx-1);
-        }
-    }
-
-    split_free2(names);
-
+    uint32_t bitmask = (uint32_t)strings2bits(sf_names, system_flag, NULL);
     return bitmask;
 }
 
@@ -620,7 +565,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             /*----------------------------------------*
              *      Check topic_version
              *----------------------------------------*/
-            json_t *topic_var = load_variable_json(
+            json_t *topic_var = load_json_from_file(
                 directory,
                 "topic_var.json"
             );
@@ -835,6 +780,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
      *  topic_desc
      */
     topic = load_persistent_json(
+        gobj,
         directory,
         "topic_desc.json",
         kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
@@ -846,7 +792,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  topic_var
      */
-    json_t *topic_var = load_variable_json(
+    json_t *topic_var = load_json_from_file(
         directory,
         "topic_var.json"
     );
@@ -857,7 +803,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  topic_cols
      */
-    json_t *topic_cols = load_variable_json(
+    json_t *topic_cols = load_json_from_file(
         directory,
         "topic_cols.json"
     );
@@ -1264,6 +1210,7 @@ PUBLIC json_t *tranger_backup_topic(
      *  topic_desc
      */
     json_t *topic_desc = load_persistent_json(
+        gobj,
         directory,
         "topic_desc.json",
         0,
@@ -1285,7 +1232,7 @@ PUBLIC json_t *tranger_backup_topic(
     /*
      *  topic_cols
      */
-    json_t *topic_cols = load_variable_json(
+    json_t *topic_cols = load_json_from_file(
         directory,
         "topic_cols.json"
     );
@@ -1293,7 +1240,7 @@ PUBLIC json_t *tranger_backup_topic(
     /*
      *  topic_var
      */
-    json_t *jn_topic_var = load_variable_json(
+    json_t *jn_topic_var = load_json_from_file(
         directory,
         "topic_var.json"
     );
@@ -1397,7 +1344,7 @@ PUBLIC int tranger_write_topic_var(
         topic_name
     );
 
-    json_t *topic_var = load_variable_json(
+    json_t *topic_var = load_json_from_file(
         directory,
         "topic_var.json"
     );

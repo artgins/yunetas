@@ -65,6 +65,7 @@ PUBLIC char *pop_last_segment(char *path); // WARNING path modified
  *  If exclusive then let file opened and return the fd, else close the file
  */
 PUBLIC json_t *load_persistent_json(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     log_opt_t on_critical_error,
@@ -74,12 +75,14 @@ PUBLIC json_t *load_persistent_json(
 );
 
 PUBLIC json_t *load_json_from_file(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     log_opt_t on_critical_error
 );
 
 PUBLIC int save_json_to_file(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     int xpermission,
@@ -111,6 +114,7 @@ typedef struct {
 } json_desc_t;
 
 PUBLIC json_t *create_json_record(
+    hgobj gobj,
     const json_desc_t *json_desc
 );
 
@@ -146,7 +150,7 @@ PUBLIC gbuffer_t *bits2gbuffer(
 /**
  *  Convert strings
  *      by default separators are "|, "
- *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them1
+ *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them
  *  into bits according the string table
  *  The strings table must be end by NULL
 */

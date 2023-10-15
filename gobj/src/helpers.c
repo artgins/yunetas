@@ -532,6 +532,7 @@ PUBLIC char *pop_last_segment(char *path) // WARNING path modified
  *  If exclusive then let file opened and return the fd, else close the file
  ***************************************************************************/
 PUBLIC json_t *load_persistent_json(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     log_opt_t on_critical_error,
@@ -552,7 +553,7 @@ PUBLIC json_t *load_persistent_json(
 
     if(access(full_path, 0)!=0) {
         if(!(silence && on_critical_error == LOG_NONE)) {
-            gobj_log_critical(NULL, on_critical_error,
+            gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Cannot load json, file not exist.",
@@ -574,7 +575,7 @@ PUBLIC json_t *load_persistent_json(
     }
     if(fd<0) {
         if(!(silence && on_critical_error == LOG_NONE)) {
-            gobj_log_critical(NULL, on_critical_error,
+            gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open json file",
@@ -588,7 +589,7 @@ PUBLIC json_t *load_persistent_json(
 
     json_t *jn = json_loadfd(fd, 0, 0);
     if(!jn) {
-        gobj_log_critical(NULL, on_critical_error,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot load json file, bad json",
@@ -611,6 +612,7 @@ PUBLIC json_t *load_persistent_json(
  *
  ***************************************************************************/
 PUBLIC json_t *load_json_from_file(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     log_opt_t on_critical_error
@@ -623,12 +625,19 @@ PUBLIC json_t *load_json_from_file(
     build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(access(full_path, 0)!=0) {
+        gobj_log_critical(gobj, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "json file not found",
+            "path",         "%s", full_path,
+            NULL
+        );
         return 0;
     }
 
     int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
     if(fd<0) {
-        gobj_log_critical(0, on_critical_error,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot open json file",
@@ -641,7 +650,7 @@ PUBLIC json_t *load_json_from_file(
 
     json_t *jn = json_loadfd(fd, 0, 0);
     if(!jn) {
-        gobj_log_critical(0, on_critical_error,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot load json file, bad json",
@@ -656,6 +665,7 @@ PUBLIC json_t *load_json_from_file(
  *
  ***************************************************************************/
 PUBLIC int save_json_to_file(
+    hgobj gobj,
     const char *directory,
     const char *filename,
     int xpermission,
@@ -670,7 +680,7 @@ PUBLIC int save_json_to_file(
      *  Check parameters
      *-----------------------------------*/
     if(!directory || !filename) {
-        gobj_log_critical(0, on_critical_error|LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, on_critical_error|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Parameter 'directory' or 'filename' NULL",
@@ -689,7 +699,7 @@ PUBLIC int save_json_to_file(
             return -1;
         }
         if(mkrdir(directory, 0, xpermission)<0) {
-            gobj_log_critical(0, on_critical_error,
+            gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create directory",
@@ -717,7 +727,7 @@ PUBLIC int save_json_to_file(
      */
     int fp = newfile(full_path, rpermission, create);
     if(fp < 0) {
-        gobj_log_critical(0, on_critical_error,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot create json file",
@@ -731,7 +741,7 @@ PUBLIC int save_json_to_file(
     }
 
     if(json_dumpfd(jn_data, fp, JSON_INDENT(2))<0) {
-        gobj_log_critical(0, on_critical_error,
+        gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot write in json file",
@@ -755,11 +765,12 @@ PUBLIC int save_json_to_file(
  *  type can be: str, int, real, bool, null, dict, list
  ***************************************************************************/
 PUBLIC json_t *create_json_record(
+    hgobj gobj,
     const json_desc_t *json_desc
 )
 {
     if(!json_desc) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "DESC null",
@@ -771,7 +782,7 @@ PUBLIC json_t *create_json_record(
 
     while(json_desc->name) {
         if(empty_string(json_desc->name)) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "DESC without key field",
@@ -780,7 +791,7 @@ PUBLIC json_t *create_json_record(
             break;
         }
         if(empty_string(json_desc->type)) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "DESC without type field",
@@ -841,7 +852,7 @@ PUBLIC json_t *create_json_record(
                 json_object_set_new(jn, name, json_array());
                 break;
             DEFAULTS
-                gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "Type UNKNOWN",
@@ -907,7 +918,7 @@ PUBLIC gbuffer_t *bits2gbuffer(
 /***************************************************************************
  *  Convert strings
  *      by default separators are "|, "
- *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them1
+ *          "s|s|s" or "s s s" or "s,s,s" or any combinations of them
  *  into bits according the string table
  *  The strings table must be end by NULL
  ***************************************************************************/
@@ -925,7 +936,7 @@ PUBLIC uint64_t strings2bits(
 
     for(int i=0; i<list_size; i++) {
         int idx = idx_in_list(strings_table, *(names +i), TRUE);
-        if(idx >= 0) {
+        if(idx >= 0 && idx < (int)sizeof(uint64_t)) {
             bitmask |= 1 << (idx);
         }
     }
