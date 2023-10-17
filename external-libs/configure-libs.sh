@@ -89,6 +89,15 @@ make
 make install
 cd ../..
 
+#------------------------------------------
+#   criterion
+#------------------------------------------
+echo "===================== Criterion ======================="
+cd build/Criterion-2.4.2
+meson setup --prefix=/yuneta/development/outputs --libdir=/yuneta/development/outputs/lib build
+ninja -C build install
+cd ../..
+
 
 #------------------------------------------
 #   libjwt

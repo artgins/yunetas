@@ -34,4 +34,7 @@ tar xzf ../sources/libjwt-1.16.0.tar.gz
 echo "extrae ngx-http-auth-jwt-module"
 tar xzf ../sources/ngx-http-auth-jwt-module-2.0.2.tar.gz
 
+echo "extrae criterion"
+tar xzf ../sources/Criterion-2.4.2.tar.gz
+
 cd ..
