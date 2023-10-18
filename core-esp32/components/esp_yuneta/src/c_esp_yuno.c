@@ -493,8 +493,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
     gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
 
-    priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
-    gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
+//    priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
+//    gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
 
     char timestamp[90];
     current_timestamp(timestamp, sizeof(timestamp));
