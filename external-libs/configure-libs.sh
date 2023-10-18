@@ -46,17 +46,17 @@ cd ../..
 #------------------------------------------
 #   openssl
 #------------------------------------------
-echo "===================== OPENSSL ======================="
-cd build/openssl-3.1.3
-./config \
-    --prefix=/yuneta/development/outputs \
-    --openssldir=/yuneta/bin/ssl3 \
-    --libdir=lib \
-    no-tests \
-    enable-ssl-trace
-make
-make install
-cd ../..
+#echo "===================== OPENSSL ======================="
+#cd build/openssl-3.1.3
+#./config \
+#    --prefix=/yuneta/development/outputs \
+#    --openssldir=/yuneta/bin/ssl3 \
+#    --libdir=lib \
+#    no-tests \
+#    enable-ssl-trace
+#make
+#make install
+#cd ../..
 
 
 #------------------------------------------
