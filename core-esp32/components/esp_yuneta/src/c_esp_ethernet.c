@@ -592,7 +592,9 @@ PRIVATE int ac_ethernet_link_up(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         NULL
     );
 
-    gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
+    // TODO parece que recibe link up sin estar conectado el cable ethernet, ocurre en saniki
+    // TODO paso la publicación de EV_ETHERNET_LINK_UP a cuando se recibe la ip
+    // gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
 
     JSON_DECREF(kw)
     return 0;
@@ -640,6 +642,8 @@ PRIVATE int ac_ethernet_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         "kw",           "%j", kw,
         NULL
     );
+
+    gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
 
     set_timeout_periodic(priv->gobj_periodic_timer, 1000);
 

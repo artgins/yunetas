@@ -21,10 +21,10 @@ add_subdirectory(core-esp32)
 add_subdirectory(c_prot)
 add_subdirectory(yunos)
 
-message("Default Search Paths:")
-foreach(path ${CMAKE_SYSTEM_PREFIX_PATH})
-    message("  ${path}")
-endforeach()
+#message("Default Search Paths:")
+#foreach(path ${CMAKE_SYSTEM_PREFIX_PATH})
+#    message("  ${path}")
+#endforeach()
 
 if (ENABLE_TESTS)
     # Check for criterion
