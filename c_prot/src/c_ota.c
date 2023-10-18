@@ -12,7 +12,6 @@
 #include <kwid.h>
 #include <parse_url.h>
 #include <command_parser.h>
-#include <c_prot_http_cli.h>
 #include <c_timer.h>
 #ifdef __linux__
     #include <helpers.h>
@@ -25,6 +24,7 @@
     #include <esp_image_format.h>
 #endif
 #include <unistd.h>
+#include "c_prot_http_cli.h"
 #include "c_ota.h"
 
 
