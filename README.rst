@@ -32,3 +32,6 @@ Directories
 
 - yunos:
     Full applications or utilities built with yunetas (TODO).
+
+Tests
+-----
