@@ -17,6 +17,12 @@ menu "Yuneta"
         help
             Include Yuneta ETHERNET
 
+    config INCLUDE_YUNETA_WIFI
+        bool "Include Yuneta WIFI c_esp_wifi.c"
+        default y
+        help
+            Include Yuneta WIFI
+
     if INCLUDE_YUNETA_ETHERNET
         source "/yuneta/development/yuneta/yunetas/core-esp32/components/esp_yuneta/Kconfig.ethernet"
     endif

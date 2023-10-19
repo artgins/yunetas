@@ -326,6 +326,8 @@ SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trac
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "1000",         "Timeout periodic, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats"),
 SDATA (DTP_INTEGER, "autokill",         SDF_WR,         "0",            "Timeout (>0) to autokill in seconds"),
+SDATA (DTP_BOOLEAN, "ethernet_enabled", SDF_PERSIST,    "1",            "True enable ethernet, restart needed"),
+SDATA (DTP_BOOLEAN, "wifi_enabled",     SDF_PERSIST,    "1",            "True enable wifi, restart needed"),
 
 SDATA_END()
 };
@@ -490,13 +492,28 @@ PRIVATE void mt_create(hgobj gobj)
      *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
-    gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
-
-#ifdef CONFIG_INCLUDE_YUNETA_ETHERNET
-    priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
-    gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
+    BOOL ethernet_enabled = gobj_read_bool_attr(gobj, "ethernet_enabled");
+    BOOL wifi_enabled = gobj_read_bool_attr(gobj, "wifi_enabled");
+#ifndef CONFIG_INCLUDE_YUNETA_ETHERNET
+    wifi_enabled = TRUE;
+    ethernet_enabled = FALSE;
+#elifndef CONFIG_INCLUDE_YUNETA_WIFI
+    wifi_enabled = FALSE;
+    ethernet_enabled = TRUE;
 #endif
+
+    if(!(ethernet_enabled || wifi_enabled)) {
+        wifi_enabled = TRUE; // give more priority to wifi
+    }
+
+    if(wifi_enabled) {
+        priv->gobj_wifi = gobj_create_service("wifi", C_WIFI, 0, gobj);
+        gobj_subscribe_event(priv->gobj_wifi, NULL, NULL, gobj);
+    }
+    if(ethernet_enabled) {
+        priv->gobj_ethernet = gobj_create_service("ethernet", C_ETHERNET, 0, gobj);
+        gobj_subscribe_event(priv->gobj_ethernet, NULL, NULL, gobj);
+    }
 
     char timestamp[90];
     current_timestamp(timestamp, sizeof(timestamp));
@@ -3361,14 +3378,14 @@ PRIVATE int ac_netif_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     if(src == priv->gobj_wifi) {
         // Wifi disconnected
-        if(gobj_current_state(priv->gobj_ethernet) == ST_ETHERNET_IP_ASSIGNED) {
+        if(priv->gobj_ethernet && gobj_current_state(priv->gobj_ethernet) == ST_ETHERNET_IP_ASSIGNED) {
             // If ethernet is connected, then ignore event
             JSON_DECREF(kw)
             return 0;
         }
     } else if(src == priv->gobj_ethernet) {
         // Ethernet disconnected
-        if(gobj_current_state(priv->gobj_wifi) == ST_WIFI_IP_ASSIGNED) {
+        if(priv->gobj_wifi && gobj_current_state(priv->gobj_wifi) == ST_WIFI_IP_ASSIGNED) {
             // If wifi is connected, then ignore event
             JSON_DECREF(kw)
             return 0;

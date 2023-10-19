@@ -71,7 +71,7 @@ SDATA (DTP_BOOLEAN, "character_device", SDF_RD,         "false",    "Char device
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
 
 SDATA (DTP_INTEGER, "timeout_waiting_connected", SDF_WR|SDF_PERSIST, "60000", "Timeout waiting connected in miliseconds"),
-SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
+SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "6000", "Idle timeout to wait between attempts of connection, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in miliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
@@ -479,19 +479,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  *
  ***************************************************************************/
 #ifdef ESP_PLATFORM
-PRIVATE void esp_abort_connection(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    esp_transport_close(priv->transport);
-    priv->transport_state = TASK_TRANSPORT_WAIT_RECONNECT;
-}
-#endif
-
-/***************************************************************************
- *
- ***************************************************************************/
-#ifdef ESP_PLATFORM
 PRIVATE void rx_task(void *pv)
 {
     hgobj gobj = pv;
@@ -516,7 +503,8 @@ PRIVATE void rx_task(void *pv)
                     "msg",          "%s", "wrong TRANSPORT_STOPPED state",
                     NULL
                 );
-                esp_abort_connection(gobj);
+                // esp_abort_connection
+                esp_transport_close(priv->transport);
                 break;
 
             case TASK_TRANSPORT_DISCONNECTED:
@@ -546,7 +534,10 @@ PRIVATE void rx_task(void *pv)
                             "serrno",       "%s", strerror(actual_errno),
                             NULL
                         );
-                        esp_abort_connection(gobj);
+                        // esp_abort_connection
+                        esp_transport_close(priv->transport);
+                        priv->transport_state = TASK_TRANSPORT_WAIT_RECONNECT;
+
                         gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
                         break;
                     }
@@ -593,7 +584,11 @@ PRIVATE void rx_task(void *pv)
                             NULL
                         );
                         priv->dynamic_read_timeout = 20;
-                        esp_abort_connection(gobj);
+
+                        // esp_abort_connection
+                        esp_transport_close(priv->transport);
+                        priv->transport_state = TASK_TRANSPORT_WAIT_RECONNECT;
+
                         gobj_post_event(gobj, EV_DISCONNECTED, 0, gobj);
                         break;
                     } else if(read_len == 0) {
