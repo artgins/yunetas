@@ -47,7 +47,7 @@ PRIVATE int start_smartconfig(hgobj gobj);
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-----description---------- */
 SDATA (DTP_STRING,  "mac_address",      SDF_RD|SDF_STATS,       "",         "Wifi mac address"),
 SDATA (DTP_INTEGER, "rssi",             SDF_RD|SDF_STATS,       "",         "Wifi RSSI"),

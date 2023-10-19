@@ -45,7 +45,7 @@ PRIVATE json_t *build_ievent_request(
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "wanted_yuno_role", SDF_RD,         "",         "wanted yuno role"),
 SDATA (DTP_STRING,  "wanted_yuno_name", SDF_RD,         "",         "wanted yuno name"),

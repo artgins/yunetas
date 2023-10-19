@@ -57,13 +57,13 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE sdata_desc_t pm_help[] = {
+PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              "",         "command about you want help."),
 SDATAPM (DTP_INTEGER,   "level",        0,              "",         "command search level in childs"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_download_firmware[] = {
+PRIVATE const sdata_desc_t pm_download_firmware[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "url_ota",      0,              "",         "url_ota, immediately begin download and install firmware"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              "false",    "Force loading of another yuno_role"),
@@ -72,7 +72,7 @@ SDATA_END()
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
-PRIVATE sdata_desc_t command_table[] = {
+PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
 SDATACM (DTP_SCHEMA,    "download-firmware",0,          pm_download_firmware,cmd_download_firmware,"Download and install new firmware. When connected to controlcenter will be validated."),
@@ -82,7 +82,7 @@ SDATA_END()
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------------------default-description---------- */
 SDATA (DTP_STRING,  "url_ota",          SDF_WR,                 "",     "OTA url"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,            "",     "SSL server certificate, PEM format"),

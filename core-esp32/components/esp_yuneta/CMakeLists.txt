@@ -9,13 +9,13 @@ set(srcs
     src/esp_persistent.c
 )
 
-if(CONFIG_INCLUDE_YUNETA_UART)
+#if(CONFIG_INCLUDE_YUNETA_UART) ## source needed for define of events
     list(APPEND srcs "src/c_esp_uart.c")
-endif()
+#endif()
 
-if(CONFIG_INCLUDE_YUNETA_ETHERNET)
+#if(CONFIG_INCLUDE_YUNETA_ETHERNET)  ## source needed for define of events
     list(APPEND srcs "src/c_esp_ethernet.c")
-endif()
+#endif()
 
 set(include
     src

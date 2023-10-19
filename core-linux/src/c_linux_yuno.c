@@ -96,13 +96,13 @@ PRIVATE json_t* cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE char pidfile[PATH_MAX] = {0};
 
-PRIVATE sdata_desc_t pm_gclass_name[] = {
+PRIVATE const sdata_desc_t pm_gclass_name[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_wr_attr[] = {
+PRIVATE const sdata_desc_t pm_wr_attr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
@@ -110,20 +110,20 @@ SDATAPM (DTP_STRING,    "attribute",    0,              0,          "attribute n
 SDATAPM (DTP_STRING,    "value",        0,              0,          "value"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_gobj_def_name[] = {
+PRIVATE const sdata_desc_t pm_gobj_def_name[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_list_persistent_attrs[] = {
+PRIVATE const sdata_desc_t pm_list_persistent_attrs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj"),
 SDATAPM (DTP_STRING,    "gobj",         0,              0,          "named-gobj or full gobj"),
 SDATAPM (DTP_STRING,    "attribute",    0,              0,          "Attribute to list/remove"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_remove_persistent_attrs[] = {
+PRIVATE const sdata_desc_t pm_remove_persistent_attrs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj"),
 SDATAPM (DTP_STRING,    "gobj",         0,              0,          "named-gobj or full gobj"),
@@ -131,13 +131,13 @@ SDATAPM (DTP_STRING,    "attribute",    0,              0,          "Attribute t
 SDATAPM (DTP_BOOLEAN,   "__all__",      0,              0,          "Remove all persistent attrs"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_global_tr[] = {
+PRIVATE const sdata_desc_t pm_set_global_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "level",        0,              0,          "attribute name"),
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_gclass_tr[] = {
+PRIVATE const sdata_desc_t pm_set_gclass_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
@@ -145,26 +145,26 @@ SDATAPM (DTP_STRING,    "level",        0,              0,          "attribute n
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_reset_all_tr[] = {
+PRIVATE const sdata_desc_t pm_reset_all_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj",         0,              "",         "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_gobj_root_name[] = {
+PRIVATE const sdata_desc_t pm_gobj_root_name[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_gobj_tree[] = {
+PRIVATE const sdata_desc_t pm_gobj_tree[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
 SDATAPM (DTP_JSON,      "options",      0,              "[\"fullname\",\"state\",\"running\"]",       "json list with strings, empty all"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_gobj_tr[] = {
+PRIVATE const sdata_desc_t pm_set_gobj_tr[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "",         "named-gobj or full gobj name"),
@@ -173,7 +173,7 @@ SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
 
-PRIVATE sdata_desc_t pm_set_trace_filter[] = {
+PRIVATE const sdata_desc_t pm_set_trace_filter[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
@@ -183,17 +183,17 @@ SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATAPM (DTP_BOOLEAN,   "all",          0,              0,          "Remove all filters"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_deep_trace[] = {
+PRIVATE const sdata_desc_t pm_set_deep_trace[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "set",          0,              0,          "value"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_set_autokill[] = {
+PRIVATE const sdata_desc_t pm_set_autokill[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "time",         0,              0,          "Seconds to autokill"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_add_log_handler[] = {
+PRIVATE const sdata_desc_t pm_add_log_handler[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler log name"),
 SDATAPM (DTP_STRING,    "type",         0,              0,          "Handler log type"),
@@ -201,18 +201,18 @@ SDATAPM (DTP_STRING,    "options",      0,              0,          "Handler log
 SDATAPM (DTP_STRING,    "url",          0,              0,          "Url for log 'udp' type"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_del_log_handler[] = {
+PRIVATE const sdata_desc_t pm_del_log_handler[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Handler name"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_authzs[] = {
+PRIVATE const sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
 SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_help[] = {
+PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
 SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
@@ -225,7 +225,7 @@ PRIVATE const char *a_read_attrs[] = {"read-attrs", 0};
 PRIVATE const char *a_read_attrs2[] = {"read-attrs2", 0};
 PRIVATE const char *a_pers_attrs[] = {"persistent-attrs", 0};
 
-PRIVATE sdata_desc_t command_table[] = {
+PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,       "Command's help"),
 
@@ -300,7 +300,7 @@ SDATA_END()
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type---------name---------------flag------------default---------description---------- */
 SDATA (DTP_STRING,  "url_udp_log",      SDF_PERSIST,    "",             "UDP Log url"),
 SDATA (DTP_STRING,  "process",          SDF_RD,         "",             "Process name"),
@@ -378,7 +378,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 /*---------------------------------------------*
  *      GClass authz levels
  *---------------------------------------------*/
-PRIVATE sdata_desc_t authz_table[] = {
+PRIVATE const sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
 //SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
 //SDATAAUTHZ (DTP_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),

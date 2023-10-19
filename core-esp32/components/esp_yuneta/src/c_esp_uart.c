@@ -40,7 +40,7 @@ PRIVATE void uart_tx_ev_loop_callback(
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "mode",             SDF_PERSIST,    "0",        "0 UART, 1 RS485_HALF_DUPLEX, 2 IRDA, 3 RS485_COLLISION_DETECT, 4 RS485_APP_CTRL"),
 SDATA (DTP_INTEGER, "uart_number",      SDF_PERSIST,    "0",        "Uart number"),

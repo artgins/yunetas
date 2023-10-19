@@ -45,7 +45,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-#ifdef ESP_PLATFORM
+#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
 PRIVATE void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 #endif
 PRIVATE int start_ethernet(hgobj gobj);
@@ -57,7 +57,7 @@ PRIVATE int stop_ethernet(hgobj gobj);
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default---------description---------- */
 //SDATA (DTP_BOOLEAN, "periodic",         SDF_RD,         "0",            "True for periodic timeouts"),
 //SDATA (DTP_INTEGER, "msec",             SDF_RD,         "0",            "Timeout in miliseconds"),
@@ -163,7 +163,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-#ifdef ESP_PLATFORM
+#if CONFIG_YUNETA_USE_INTERNAL_ETHERNET
 /***************************************************************************
  *
  ***************************************************************************/
@@ -430,7 +430,7 @@ PRIVATE int eth_configure_openeth(
  ***************************************************************************/
 PRIVATE int start_ethernet(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
+#ifdef CONFIG_INCLUDE_YUNETA_ETHERNET
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
@@ -498,7 +498,7 @@ PRIVATE int start_ethernet(hgobj gobj)
  ***************************************************************************/
 PRIVATE int stop_ethernet(hgobj gobj)
 {
-#ifdef ESP_PLATFORM
+#ifdef CONFIG_INCLUDE_YUNETA_ETHERNET
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ESP_ERROR_CHECK(esp_event_handler_unregister(ETH_EVENT, ESP_EVENT_ANY_ID, &event_handler));

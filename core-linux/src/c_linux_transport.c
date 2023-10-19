@@ -32,7 +32,7 @@ PRIVATE int yev_transport_callback(yev_event_t *event);
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = { // WARNING repeated in c_linux_transport/c_esp_transport
+PRIVATE const sdata_desc_t tattr_desc[] = { // WARNING repeated in c_linux_transport/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),

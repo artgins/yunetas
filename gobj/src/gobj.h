@@ -442,16 +442,16 @@ typedef json_t *(*json_function_t)(
 );
 
 typedef struct sdata_desc_s {
-    data_type_t type;
+    const data_type_t type;
     const char *name;
     const char **alias;
-    sdata_flag_t flag;
+    const sdata_flag_t flag;
     const char *default_value;
     const char *header;
-    uint8_t fillspace;
+    const uint8_t fillspace;
     const char *description;
-    json_function_t json_fn;
-    struct sdata_desc_s *schema;
+    const json_function_t json_fn;
+    const struct sdata_desc_s *schema;
 } sdata_desc_t;
 
 typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
