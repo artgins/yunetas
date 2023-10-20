@@ -3,6 +3,7 @@
 ##############################################
 cmake_minimum_required(VERSION 3.0)
 include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
+get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 ##############################################
 #   Source
@@ -15,8 +16,6 @@ set(SRCS
 ##############################################
 #   Tests
 ##############################################
-get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-
 foreach(test ${SRCS})
     set(binary "${test}.bin")
     add_executable(${binary} ${test})
