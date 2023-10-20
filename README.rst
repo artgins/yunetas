@@ -49,7 +49,7 @@ Directories
 Build
 -----
 
-To build with tests::
+To build and install, with tests::
 
    mkdir build && cd build
    cmake ..
@@ -62,3 +62,6 @@ To build without tests::
    mkdir build && cd build
    cmake -D ENABLE_TESTS=OFF ..
    cmake --build .  --target install
+
+By default the installation directory of include files,
+libraries and binaries is ``/yuneta/development/outputs/``
