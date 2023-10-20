@@ -54,7 +54,7 @@ To build with tests::
    mkdir build && cd build
    cmake ..
    cmake --build .  --target install
-   ctest    # only if you want to test
+   ctest    # to run tests
 
 
 To build without tests::
