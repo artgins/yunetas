@@ -13,8 +13,10 @@ set(SRCS
 )
 
 ##############################################
-#   Test Executables
+#   Tests
 ##############################################
+get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+
 foreach(test ${SRCS})
     set(binary "${test}.bin")
     add_executable(${binary} ${test})
@@ -33,7 +35,6 @@ foreach(test ${SRCS})
         #util
         bfd     # to stacktrace
     )
-    get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
