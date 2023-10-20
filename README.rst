@@ -53,7 +53,7 @@ To build and install, with tests::
 
    mkdir build && cd build
    cmake ..
-   cmake --build .  --target install
+   cmake --build .  --target install    # OR make && make install
    ctest    # to run tests
 
 
