@@ -30,8 +30,35 @@ Directories
 - c_prot
     Collection of gclasses working with protocols.
 
+- external-libs:
+    Dependencies of Yunetas
+
 - yunos:
     Full applications or utilities built with yunetas (TODO).
 
-Tests
+- tools:
+    Auxiliary tools: cmake files,...
+
+- tests:
+    Tests built with Criterion
+
+- performance:
+    Benchmarks
+
+
+Build
 -----
+
+To build with tests::
+
+   mkdir build && cd build
+   cmake ..
+   cmake --build .  --target install
+   ctest    # only if you want to test
+
+
+To build without tests::
+
+   mkdir build && cd build
+   cmake -D ENABLE_TESTS=OFF ..
+   cmake --build .  --target install
