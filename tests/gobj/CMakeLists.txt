@@ -33,6 +33,7 @@ foreach(test ${SRCS})
         #util
         bfd     # to stacktrace
     )
-    add_test("gobj/${test}" ${binary})
+    get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+    add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
