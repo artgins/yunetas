@@ -185,7 +185,19 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
         jn_stack = json_array();
         json_object_set_new(md_iev, stack, jn_stack);
     }
-    return json_array_insert_new(jn_stack, 0, jn_data);
+    if(json_is_array(jn_stack)) {
+        return json_array_insert_new(jn_stack, 0, jn_data);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "jn_stack is not a list",
+            "stack",        "%s", stack,
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "jn_stack is not a list");
+        return -1;
+    }
 }
 
 /***************************************************************************
