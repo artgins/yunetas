@@ -188,6 +188,10 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
 );
 
 /*----------------------------------------------------------*
+ *  TODO msg_iev_write_key() msg_iev_read_key() msg_iev_delete_key()
+ *-----------------------------------------------------------*/
+
+/*----------------------------------------------------------*
  *  Set iev metadata back in a response reversing src/dst
  *
  *  Implicitly:
