@@ -138,7 +138,7 @@ typedef struct { // Size: 96 bytes
    Startup TimeRanger database
 **rst**/
 static const json_desc_t tranger_json_desc[] = {
-// Name                 Type    Default
+// Name                 Type    Default     Fillspace
 {"path",                "str",  "",         ""}, // If database exists then only needs (path,[database]) params
 {"database",            "str",  "",         ""}, // If null, path must contains the 'database'
 {"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
@@ -429,7 +429,7 @@ typedef int (*tranger_load_record_callback_t)(
     Open list, load records in memory
 **rst**/
 static const json_desc_t list_json_desc[] = {
-// Name                     Type        Default
+// Name                     Type        Default     Fillspace
 {"topic_name",              "str",      "",         ""},
 {"match_cond",              "dict",     "{}",       ""},
 {"load_record_callback",    "int",      "",         ""},

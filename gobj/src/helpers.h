@@ -102,10 +102,10 @@ PUBLIC int save_json_to_file(
 
 static json_desc_t jn_xxx_desc[] = {
     // Name         Type        Default
-    {"string",      "str",      ""},
-    {"string2",     "str",      "Pepe"},
-    {"integer",     "int",      "0660"},     // beginning with "0":octal,"x":hexa, others: integer
-    {"boolean",     "bool",     "false"},
+    {"string",      "str",      "",         "10"},
+    {"string2",     "str",      "Pepe",     "20"},
+    {"integer",     "int",      "0660",     "8"},     // beginning with "0":octal,"x":hexa, others: integer
+    {"boolean",     "bool",     "false",    "8"},
     {0}   // HACK important, final null
 };
  ***************************************************************************/
