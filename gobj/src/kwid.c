@@ -1616,11 +1616,10 @@ PUBLIC int kw_walk(
 
 /***************************************************************************
     Utility for databases.
-    Get a json item walking by the tree (routed by path)
-    options:  "verbose", "backward"
+    Get a json list or dict, get the **first** record that match `id`
     Convention:
-        - all arrays are list of records (dicts) with "id" field as primary key
-        - delimiter are '`' by default, can be changed by kw_set_path_delimiter
+        - If it's a list of dict: the records have "id" field as primary key
+        - If it's a dict, the key is the `id`
  ***************************************************************************/
 PUBLIC json_t *kwid_get(
     hgobj gobj,
@@ -1709,7 +1708,7 @@ PUBLIC json_t *kwid_get(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "kw must be an array or a list",
+            "msg",          "%s", "kw must be dict or list",
             "id",           "%s", id,
             NULL
         );
