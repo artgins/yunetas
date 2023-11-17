@@ -67,3 +67,12 @@ echo "===================== Criterion ======================="
 cd build/Criterion-2.4.2
 ninja -C build install
 cd ../..
+
+#------------------------------------------
+#   libjwt
+#------------------------------------------
+cd build/libjwt-1.16.0
+cd build
+ninja install
+cd ..
+cd ../..

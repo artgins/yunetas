@@ -102,16 +102,17 @@ cd ../..
 #------------------------------------------
 #   libjwt
 #------------------------------------------
-#echo "===================== libjwt ======================="
-#cd build/libjwt-1.16.0
-#mkdir build
-#cd build
-#cmake -G "Ninja" -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
-#      -DUSE_INSTALLED_JANSSON=OFF \
-#      -DJANSSON_BUILD_DOCS=OFF \
-#      ..
-#
-#ninja
-#ninja install
-#cd ..
-#cd ../..
+echo "===================== libjwt ======================="
+cd build/libjwt-1.16.0
+mkdir build
+cd build
+cmake -G "Ninja" \
+    -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/output \
+    -DCMAKE_PREFIX_PATH:PATH=/yuneta/development/output \
+    -DBUILD_EXAMPLES=OFF \
+    ..
+
+ninja
+ninja install
+cd ..
+cd ../..

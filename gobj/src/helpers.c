@@ -760,10 +760,11 @@ PUBLIC int save_json_to_file(
     return 0;
 }
 
-/***************************************************************************
+/*******************************************************************************
  *  fields: DESC str array with: key, type, defaults
- *  type can be: str, int, real, bool, null, dict, list
- ***************************************************************************/
+ *  type can be:
+ *  str|string, int|integer, real, bool|boolean, null, dict|object, list|array
+ *******************************************************************************/
 PUBLIC json_t *create_json_record(
     hgobj gobj,
     const json_desc_t *json_desc
@@ -835,6 +836,7 @@ PUBLIC json_t *create_json_record(
             CASES("null")
                 json_object_set_new(jn, name, json_null());
                 break;
+            CASES("object")
             CASES("dict")
                 char desc_name[80+1];
                 if(sscanf(defaults, "{%80s}", desc_name)==1) {
@@ -844,6 +846,7 @@ PUBLIC json_t *create_json_record(
                 }
                 json_object_set_new(jn, name, json_object());
                 break;
+            CASES("array")
             CASES("list")
                 char desc_name[80+1];
                 if(sscanf(defaults, "{%80s}", desc_name)==1) {
@@ -866,6 +869,56 @@ PUBLIC json_t *create_json_record(
     }
 
     return jn;
+}
+
+/***************************************************************************
+ *
+ *  Convert a json record desc to a topic schema
+ *
+    json_record
+    {
+        name: string
+        type: string
+        defaults: string
+        fillspace: string
+    }
+
+    schema
+    {
+        id: string
+        header: string
+        type: string
+        fillspace: integer
+    }
+
+ ***************************************************************************/
+PUBLIC json_t *json_record_to_schema(const json_desc_t *json_desc)
+{
+    json_t *jn_schema = json_array();
+
+    const json_desc_t *p1 = json_desc;
+    while(p1 && p1->name) {
+        json_t *schema_item = json_object();
+        json_object_set_new(schema_item, "id", json_string(p1->name));
+        json_object_set_new(schema_item, "header", json_string(p1->name));
+        const char *type = p1->type;
+        if(strcmp(type, "int")==0) {
+            type = "integer";
+        }
+        if(strcmp(type, "str")==0) {
+            type = "string";
+        }
+        if(strcmp(type, "bool")==0) {
+            type = "boolean";
+        }
+        json_object_set_new(schema_item, "type", json_string(type));
+        int fillspace = empty_string(p1->fillspace)?20:atoi(p1->fillspace);
+        json_object_set_new(schema_item, "fillspace", json_integer(fillspace));
+        json_array_append_new(jn_schema, schema_item);
+        p1++;
+    }
+
+    return jn_schema;
 }
 
 /***************************************************************************
