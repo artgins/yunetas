@@ -139,13 +139,13 @@ typedef struct { // Size: 96 bytes
 **rst**/
 static const json_desc_t tranger_json_desc[] = {
 // Name                 Type    Default
-{"path",                "str",  ""}, // If database exists then only needs (path,[database]) params
-{"database",            "str",  ""}, // If null, path must contains the 'database'
-{"filename_mask",       "str",  "%Y-%m-%d"}, // Organization of tables (file name format, see strftime())
-{"xpermission" ,        "int",  "02770"}, // Use in creation, default 02770;
-{"rpermission",         "int",  "0660"}, // Use in creation, default 0660;
-{"on_critical_error",   "int",  "2"},  // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
-{"master",              "bool", "false"}, // Volatil, the master is the only that can write.
+{"path",                "str",  "",         ""}, // If database exists then only needs (path,[database]) params
+{"database",            "str",  "",         ""}, // If null, path must contains the 'database'
+{"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
+{"xpermission" ,        "int",  "02770",    ""}, // Use in creation, default 02770;
+{"rpermission",         "int",  "0660",     ""}, // Use in creation, default 0660;
+{"on_critical_error",   "int",  "2",        ""},  // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
+{"master",              "bool", "false",    ""}, // Volatil, the master is the only that can write.
 {0}
 };
 PUBLIC json_t *tranger_startup(
@@ -430,9 +430,9 @@ typedef int (*tranger_load_record_callback_t)(
 **rst**/
 static const json_desc_t list_json_desc[] = {
 // Name                     Type        Default
-{"topic_name",              "str",      ""},
-{"match_cond",              "dict",     "{}"},
-{"load_record_callback",    "int",      ""},
+{"topic_name",              "str",      "",         ""},
+{"match_cond",              "dict",     "{}",       ""},
+{"load_record_callback",    "int",      "",         ""},
 {0}
 };
 PUBLIC json_t *tranger_open_list(
