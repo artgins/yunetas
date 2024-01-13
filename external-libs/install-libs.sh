@@ -17,7 +17,7 @@ cd ../..
 #   liburing WARNING  master version!
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing-liburing-2.4
+cd build/liburing-liburing-2.5
 make install
 cd ../..
 
@@ -25,7 +25,7 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls-3.4.0
+cd build/mbedtls-3.5.1
 cd build
 make install
 cd ..
@@ -36,7 +36,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.1.3
+cd build/openssl-3.2.0
 make install
 cd ../..
 

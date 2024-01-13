@@ -22,7 +22,7 @@ cd ../..
 #   liburing
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing-liburing-2.4
+cd build/liburing-liburing-2.5
 ./configure --prefix=/yuneta/development/outputs
 make
 make install
@@ -32,7 +32,7 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls-3.4.0
+cd build/mbedtls-3.5.1
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
@@ -47,7 +47,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.1.3
+cd build/openssl-3.2.0
 ./config \
     --prefix=/yuneta/development/outputs \
     --openssldir=/yuneta/bin/ssl3 \
@@ -83,7 +83,7 @@ cd build/nginx-1.24.0
     --with-stream_ssl_module \
     --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
     --with-pcre-jit \
-    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.1.3 \
+    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.2.0 \
     --with-openssl-opt=no-tests
 make
 make install

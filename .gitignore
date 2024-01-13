@@ -1,6 +1,7 @@
 external-libs/liburing/
 external-libs/projects_with_liburing/
 external-libs/jansson-gines/
+external-libs/jansson-artgins/
 
 .vscode/
 cmake-build-release/
