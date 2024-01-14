@@ -9,8 +9,8 @@ export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-gines-2.14
-mkdir build
+cd build/jansson-artgins
+mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
 make
@@ -33,7 +33,7 @@ cd ../..
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
 cd build/mbedtls-3.5.1
-mkdir build
+mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
   -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
@@ -53,6 +53,8 @@ cd build/openssl-3.2.0
     --openssldir=/yuneta/bin/ssl3 \
     --libdir=lib \
     no-tests \
+    no-shared \
+    no-docs \
     enable-ssl-trace
 make
 make install
@@ -65,9 +67,44 @@ cd ../..
 echo "===================== PCRE ======================="
 cd build/pcre2-10.42
 ./configure --prefix=/yuneta/development/outputs \
+    --disable-shared \
+    --enable-pcre2-16 \
+    --enable-pcre2-32 \
     --enable-jit
 make
 make install
+cd ../..
+
+
+#------------------------------------------
+#   criterion
+#------------------------------------------
+echo "===================== Criterion ======================="
+cd build/Criterion-2.4.2
+meson setup \
+    --prefix=/yuneta/development/outputs \
+    --libdir=/yuneta/development/outputs/lib \
+    --default-library=static \
+    build
+ninja -C build install
+cd ../..
+
+
+#------------------------------------------
+#   libjwt
+#------------------------------------------
+echo "===================== libjwt ======================="
+cd build/libjwt-1.16.0
+mkdir -p build
+cd build
+cmake -G "Ninja" \
+    -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+    -DBUILD_EXAMPLES=OFF \
+    ..
+
+ninja
+ninja install
+cd ..
 cd ../..
 
 
@@ -81,38 +118,19 @@ cd build/nginx-1.24.0
     --with-http_ssl_module \
     --with-stream \
     --with-stream_ssl_module \
-    --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
+    --with-http_stub_status_module \
     --with-pcre-jit \
+    --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
     --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.2.0 \
-    --with-openssl-opt=no-tests
+    --with-openssl-opt=no-tests \
+    --with-openssl-opt=no-shared \
+    --with-openssl-opt=no-docs \
+    --with-http_v2_module \
+    --with-http_gzip_static_module \
+    --with-ld-opt="-static" \
+    --with-ld-opt="/yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a" \
+    --add-module=/yuneta/development/yuneta/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins
+
 make
 make install
-cd ../..
-
-#------------------------------------------
-#   criterion
-#------------------------------------------
-echo "===================== Criterion ======================="
-cd build/Criterion-2.4.2
-meson setup --prefix=/yuneta/development/outputs --libdir=/yuneta/development/outputs/lib build
-ninja -C build install
-cd ../..
-
-
-#------------------------------------------
-#   libjwt
-#------------------------------------------
-echo "===================== libjwt ======================="
-cd build/libjwt-1.16.0
-mkdir build
-cd build
-cmake -G "Ninja" \
-    -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/output \
-    -DCMAKE_PREFIX_PATH:PATH=/yuneta/development/output \
-    -DBUILD_EXAMPLES=OFF \
-    ..
-
-ninja
-ninja install
-cd ..
 cd ../..

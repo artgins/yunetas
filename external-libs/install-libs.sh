@@ -7,7 +7,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-gines-2.14
+cd build/jansson-artgins
 cd build
 make install
 cd ..
@@ -50,16 +50,6 @@ cd build/pcre2-10.42
 make install
 cd ../..
 
-
-#------------------------------------------
-#   nginx
-#------------------------------------------
-# HACK sudo yum install pcre-devel.x86_64 zlib-devel.x86_64
-echo "===================== NGINX ======================="
-cd build/nginx-1.24.0
-make install
-cd ../..
-
 #------------------------------------------
 #   criterion
 #------------------------------------------
@@ -75,4 +65,13 @@ cd build/libjwt-1.16.0
 cd build
 ninja install
 cd ..
+cd ../..
+
+#------------------------------------------
+#   nginx
+#------------------------------------------
+# HACK sudo yum install pcre-devel.x86_64 zlib-devel.x86_64
+echo "===================== NGINX ======================="
+cd build/nginx-1.24.0
+make install
 cd ../..

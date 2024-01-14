@@ -1,7 +1,6 @@
 Hacks of External libraries
 ===========================
 
-Para encontrar el código modificado, comparar los tar.gz originales con los de gines.tar.gz
 
 Hackeo de jansson
 =================
