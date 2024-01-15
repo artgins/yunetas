@@ -114,7 +114,7 @@ cd ../..
 echo "===================== NGINX ======================="
 cd build/nginx-1.24.0
 ./configure \
-    --prefix=/yuneta/bin/nginx \
+    --prefix=/yuneta/bin/nginx-1.24.0 \
     --with-http_ssl_module \
     --with-stream \
     --with-stream_ssl_module \
@@ -127,9 +127,8 @@ cd build/nginx-1.24.0
     --with-openssl-opt=no-docs \
     --with-http_v2_module \
     --with-http_gzip_static_module \
-    --with-ld-opt="-static" \
-    --with-ld-opt="/yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a" \
-    --add-module=/yuneta/development/yuneta/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins
+    --add-module=/yuneta/development/yuneta/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins \
+    --with-ld-opt="-static /yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a"
 
 make
 make install

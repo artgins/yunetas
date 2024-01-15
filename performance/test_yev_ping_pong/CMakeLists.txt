@@ -1,8 +1,8 @@
 ##############################################
 #   CMake
 ##############################################
-cmake_minimum_required(VERSION 3.0)
-include(/yuneta/development/yuneta/yunetas/tools/cmake/project.cmake)
+cmake_minimum_required(VERSION 3.5)
+include(/yuneta/development/yunetas/tools/cmake/project.cmake)
 project(test_yev_ping_pong C)
 
 include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/projects/frigo/esp/esp_frigo/main)
