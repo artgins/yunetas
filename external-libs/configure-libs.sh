@@ -114,21 +114,21 @@ cd ../..
 echo "===================== NGINX ======================="
 cd build/nginx-1.24.0
 ./configure \
-    --prefix=/yuneta/bin/nginx-1.24.0 \
+    --prefix=/yuneta/bin/nginx \
     --with-http_ssl_module \
     --with-stream \
     --with-stream_ssl_module \
     --with-http_stub_status_module \
     --with-pcre-jit \
-    --with-pcre=/yuneta/development/yuneta/yunetas/external-libs/build/pcre2-10.42 \
-    --with-openssl=/yuneta/development/yuneta/yunetas/external-libs/build/openssl-3.2.0 \
+    --with-pcre=/yuneta/development/yunetas/external-libs/build/pcre2-10.42 \
+    --with-openssl=/yuneta/development/yunetas/external-libs/build/openssl-3.2.0 \
     --with-openssl-opt=no-tests \
     --with-openssl-opt=no-shared \
     --with-openssl-opt=no-docs \
     --with-http_v2_module \
     --with-http_gzip_static_module \
-    --add-module=/yuneta/development/yuneta/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins \
-    --with-ld-opt="-static /yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a"
+    --add-module=/yuneta/development/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins \
+    --with-ld-opt="/yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a"
 
 make
 make install
