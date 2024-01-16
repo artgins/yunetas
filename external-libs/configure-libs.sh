@@ -68,6 +68,8 @@ echo "===================== PCRE ======================="
 cd build/pcre2-10.42
 ./configure --prefix=/yuneta/development/outputs \
     --disable-shared \
+    --enable-pcre2-16 \
+    --enable-pcre2-32 \
     --enable-jit
 make
 make install
