@@ -62,21 +62,6 @@ cd ../..
 
 
 #------------------------------------------
-#   PCRE
-#------------------------------------------
-echo "===================== PCRE ======================="
-cd build/pcre2-10.42
-./configure --prefix=/yuneta/development/outputs \
-    --disable-shared \
-    --enable-pcre2-16 \
-    --enable-pcre2-32 \
-    --enable-jit
-make
-make install
-cd ../..
-
-
-#------------------------------------------
 #   criterion
 #------------------------------------------
 echo "===================== Criterion ======================="
@@ -130,6 +115,21 @@ cd build/nginx-1.24.0
     --add-module=/yuneta/development/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins \
     --with-ld-opt="/yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a"
 
+make
+make install
+cd ../..
+
+
+#------------------------------------------
+#   PCRE
+#------------------------------------------
+echo "===================== PCRE ======================="
+cd build/pcre2-10.42
+./configure --prefix=/yuneta/development/outputs \
+    --disable-shared \
+    --enable-pcre2-16 \
+    --enable-pcre2-32 \
+    --enable-jit
 make
 make install
 cd ../..
