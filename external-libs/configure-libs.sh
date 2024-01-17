@@ -155,5 +155,4 @@ gmake
 gmake install
 cd ../..
 
-# REMEMBER add in your .bashrc:  export PATH=/yuneta/bin/openresty/bin:$PATH
 /yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc
