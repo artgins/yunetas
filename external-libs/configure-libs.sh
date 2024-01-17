@@ -9,7 +9,7 @@ export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-artgins
+cd build/jansson-artgins-2.14a
 mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
@@ -62,6 +62,21 @@ cd ../..
 
 
 #------------------------------------------
+#   PCRE
+#------------------------------------------
+echo "===================== PCRE ======================="
+cd build/pcre2-10.42
+./configure --prefix=/yuneta/development/outputs \
+    --disable-shared \
+    --enable-pcre2-16 \
+    --enable-pcre2-32 \
+    --enable-jit
+make
+make install
+cd ../..
+
+
+#------------------------------------------
 #   criterion
 #------------------------------------------
 echo "===================== Criterion ======================="
@@ -105,15 +120,12 @@ cd build/nginx-1.24.0
     --with-stream_ssl_module \
     --with-http_stub_status_module \
     --with-pcre-jit \
-    --with-pcre=/yuneta/development/yunetas/external-libs/build/pcre2-10.42 \
     --with-openssl=/yuneta/development/yunetas/external-libs/build/openssl-3.2.0 \
     --with-openssl-opt=no-tests \
     --with-openssl-opt=no-shared \
     --with-openssl-opt=no-docs \
     --with-http_v2_module \
-    --with-http_gzip_static_module \
-    --add-module=/yuneta/development/yunetas/external-libs/build/ngx-http-auth-jwt-module-artgins \
-    --with-ld-opt="/yuneta/development/outputs/lib/libjwt.a /yuneta/development/outputs/lib/libjansson.a"
+    --with-http_gzip_static_module
 
 make
 make install
@@ -121,15 +133,27 @@ cd ../..
 
 
 #------------------------------------------
-#   PCRE
+#   openresty
 #------------------------------------------
-echo "===================== PCRE ======================="
-cd build/pcre2-10.42
-./configure --prefix=/yuneta/development/outputs \
-    --disable-shared \
-    --enable-pcre2-16 \
-    --enable-pcre2-32 \
-    --enable-jit
-make
-make install
+echo "===================== OPENRESTY ======================="
+cd build/openresty-1.25.3.1
+./configure \
+    --prefix=/yuneta/bin/openresty \
+    --with-http_ssl_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-http_stub_status_module \
+    --with-pcre-jit \
+    --with-openssl=/yuneta/development/yunetas/external-libs/build/openssl-3.2.0 \
+    --with-openssl-opt=no-tests \
+    --with-openssl-opt=no-shared \
+    --with-openssl-opt=no-docs \
+    --with-http_v2_module \
+    --with-http_gzip_static_module
+
+gmake
+gmake install
 cd ../..
+
+# REMEMBER add in your .bashrc:  export PATH=/yuneta/bin/openresty/bin:$PATH
+/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc

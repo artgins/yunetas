@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sudo apt -y install libpcre2-dev
+
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
@@ -7,8 +9,8 @@ rm -rf build/
 mkdir build
 cd build
 
-echo "copy jansson"
-cp -a ../jansson-artgins .
+echo "extrae jansson-artgins"
+tar xzf ../sources/jansson-artgins-2.14a.tar.gz
 
 echo "extrae liburing"
 tar xzf ../sources/liburing-liburing-2.5.tar.gz
@@ -28,10 +30,11 @@ tar xzf ../sources/Criterion-2.4.2.tar.gz
 echo "extrae libjwt"
 tar xzf ../sources/libjwt-1.16.0.tar.gz
 
-echo "copy ngx-http-auth-jwt-module-artgins"
-cp -a ../ngx-http-auth-jwt-module-artgins .
-
 echo "extrae nginx"
 tar xzf ../sources/nginx-1.24.0.tar.gz
+
+echo "extrae openresty"
+tar xzf ../sources/openresty-1.25.3.1.tar.gz
+
 
 cd ..

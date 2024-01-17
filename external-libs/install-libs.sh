@@ -7,7 +7,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-artgins
+cd build/jansson-artgins-2.14a
 cd build
 make install
 cd ..
@@ -42,6 +42,15 @@ cd ../..
 
 
 #------------------------------------------
+#   PCRE
+#------------------------------------------
+echo "===================== PCRE ======================="
+cd build/pcre2-10.42
+make install
+cd ../..
+
+
+#------------------------------------------
 #   criterion
 #------------------------------------------
 echo "===================== Criterion ======================="
@@ -67,9 +76,11 @@ make install
 cd ../..
 
 #------------------------------------------
-#   PCRE
+#   openresty
 #------------------------------------------
-echo "===================== PCRE ======================="
-cd build/pcre2-10.42
+echo "===================== OPENRESTY ======================="
+cd build/openresty-1.25.3.1
 make install
 cd ../..
+
+/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc
