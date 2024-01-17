@@ -6,7 +6,7 @@ set -e
 ##########################################
 #       gobj
 ##########################################
-cd /yuneta/development/yuneta/yunetas/gobj
+cd /yuneta/development/yunetas/gobj
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
@@ -14,7 +14,7 @@ make install
 ##########################################
 #       core-linux
 ##########################################
-cd /yuneta/development/yuneta/yunetas/core-linux
+cd /yuneta/development/yunetas/core-linux
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
@@ -22,7 +22,7 @@ make install
 ##########################################
 #       core-linux
 ##########################################
-cd /yuneta/development/yuneta/yunetas/core-esp32
+cd /yuneta/development/yunetas/core-esp32
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
@@ -30,7 +30,7 @@ make install
 ##########################################
 #       c_prot
 ##########################################
-cd /yuneta/development/yuneta/yunetas/c_prot
+cd /yuneta/development/yunetas/c_prot
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
@@ -38,7 +38,7 @@ make install
 ##########################################
 #       all
 ##########################################
-cd /yuneta/development/yuneta/yunetas
+cd /yuneta/development/yunetas
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
