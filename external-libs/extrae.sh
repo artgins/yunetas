@@ -31,7 +31,7 @@ echo "extrae libjwt"
 tar xzf ../sources/libjwt-1.16.0.tar.gz
 
 echo "extrae nginx"
-tar xzf ../sources/nginx-1.24.0.tar.gz
+tar xzf ../sources/nginx-1.25.3.tar.gz
 
 echo "extrae openresty"
 tar xzf ../sources/openresty-1.25.3.1.tar.gz

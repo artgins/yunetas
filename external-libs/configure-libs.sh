@@ -112,7 +112,7 @@ cd ../..
 #   nginx
 #------------------------------------------
 echo "===================== NGINX ======================="
-cd build/nginx-1.24.0
+cd build/nginx-1.25.3
 ./configure \
     --prefix=/yuneta/bin/nginx \
     --with-http_ssl_module \

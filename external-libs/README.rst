@@ -1,16 +1,22 @@
 External libraries
 ==================
 
-The `gobj-ecosistema <https://bitbucket.org/account/user/yuneta/projects/GOBJ>`_ are based
-in the great C libraries:
+Libraries used by Yunetas:
 
-    - `libuv <http://libuv.org/>`_
-    - `jansson <http://www.digip.org/jansson/>`_
+    - `Criterion <https://github.com/Snaipe/Criterion>`_
+    - `jansson <https://github.com/akheron/jansson>`_
+    - `libjwt <https://github.com/benmcollins/libjwt>`_
+    - `liburing <https://github.com/axboe/liburing>`_
+    - `openssl <https://github.com/openssl/openssl>`_
+    - `mbedtls <https://github.com/Mbed-TLS/mbedtls>`_
+    - `pcre2 <https://github.com/PCRE2Project/pcre2>`_
+    - `http-parser <https://github.com/nodejs/http-parser>`_
     - `linenoise <https://github.com/antirez/linenoise>`_
-    - `http-parser <http://github.com/joyent/http-parser>`_
-    - `pcre2 <www.pcre.org/>`_
-    - `unwind <http://www.nongnu.org/libunwind/>`_
-    - ...
+
+Utilities used by Yunetas:
+
+    - `openresty <https://github.com/openresty/openresty>`_
+    - `nginx <https://github.com/nginx>`_
 
 The external libraries will be integrated in the yuneta kernel as static libraries.
 
@@ -23,4 +29,3 @@ Build with the next scripts::
     * extrae.sh
     * configure-libs.sh
     * install-libs.sh
-
