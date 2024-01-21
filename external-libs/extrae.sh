@@ -1,6 +1,7 @@
 #!/bin/bash
 
 sudo apt -y install libpcre2-dev
+# TODO check if ldconfig is available
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
