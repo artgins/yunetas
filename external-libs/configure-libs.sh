@@ -32,7 +32,7 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls-3.5.1
+cd build/mbedtls-3.5.2
 mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \

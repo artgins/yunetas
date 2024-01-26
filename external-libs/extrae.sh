@@ -17,7 +17,7 @@ echo "extrae liburing"
 tar xzf ../sources/liburing-liburing-2.5.tar.gz
 
 echo "extrae mbedtls"
-tar xzf ../sources/mbedtls-3.5.1.tar.gz
+tar xzf ../sources/mbedtls-3.5.2.tar.gz
 
 echo "extrae openssl"
 tar xzf ../sources/openssl-3.2.0.tar.gz

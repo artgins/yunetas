@@ -25,7 +25,7 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls-3.5.1
+cd build/mbedtls-3.5.2
 cd build
 make install
 cd ..
