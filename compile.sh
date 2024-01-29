@@ -6,7 +6,7 @@ set -e
 ##########################################
 #       gobj
 ##########################################
-cd /yuneta/development/yunetas/gobj
+cd /yuneta/development/yunetas/kernel/gobj-c
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
@@ -14,7 +14,7 @@ make install
 ##########################################
 #       core-linux
 ##########################################
-cd /yuneta/development/yunetas/core-linux
+cd /yuneta/development/yunetas/kernel/root-c-linux
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
@@ -22,7 +22,7 @@ make install
 ##########################################
 #       core-linux
 ##########################################
-cd /yuneta/development/yunetas/core-esp32
+cd /yuneta/development/yunetas/kernel/root-c-esp32
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
@@ -30,7 +30,7 @@ make install
 ##########################################
 #       c_prot
 ##########################################
-cd /yuneta/development/yunetas/c_prot
+cd /yuneta/development/yunetas/libs/c_prot
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install

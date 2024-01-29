@@ -16,11 +16,11 @@ option (ENABLE_PERFORMANCE "Build performance" ON)
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(gobj)
-add_subdirectory(core-linux)
-add_subdirectory(core-esp32)
-add_subdirectory(c_prot)
-add_subdirectory(yunos)
+add_subdirectory(kernel/gobj-c)
+add_subdirectory(kernel/root-c-linux)
+add_subdirectory(kernel/root-c-esp32)
+add_subdirectory(libs/c_prot)
+add_subdirectory(yunos/c)
 
 if (ENABLE_TESTS)
     # Check for criterion
@@ -28,11 +28,11 @@ if (ENABLE_TESTS)
 
     # Add tests
     enable_testing ()
-    add_subdirectory(tests)
+    add_subdirectory(tests/c)
 endif ()
 
 if (ENABLE_PERFORMANCE)
-    add_subdirectory(performance)
+    add_subdirectory(performance/c)
 endif ()
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
