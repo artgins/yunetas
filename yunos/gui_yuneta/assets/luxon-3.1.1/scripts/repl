@@ -1,0 +1,2 @@
+#!/bin/bash
+LANG=en-US.utf8 node -i -r "./scripts/bootstrap.js"

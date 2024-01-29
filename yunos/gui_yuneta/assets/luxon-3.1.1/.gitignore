@@ -1,0 +1,11 @@
+node_modules
+.tern-port
+/build
+#*
+.#*
+coverage/
+.DS_Store
+.external-ecmascript.js
+.idea
+.vscode
+test/scratch.test.js

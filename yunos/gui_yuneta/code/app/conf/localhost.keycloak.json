@@ -1,0 +1,8 @@
+{
+  "realm": "mulesol",
+  "auth-server-url": "https://auth2.miyuneta.ovh:8641/auth/",
+  "ssl-required": "external",
+  "resource": "yunetacontrol",
+  "public-client": true,
+  "confidential-port": 0
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <title>Yuneta GUI</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <link rel="manifest" href="site.webmanifest">
+        <link rel="apple-touch-icon" href="icon.png">
+        <!-- Place favicon.ico in the root directory -->
+
+        <meta name="application-name" content="Yuneta GUI">
+        <meta name="description" content="Yuneta GUI">
+        <meta name="keywords" content="yuneta gui">
+
+        <link rel="stylesheet" href="static/h5bp/css/normalize.css">
+        <link rel="stylesheet" href="static/jsoneditor/themes/jse-theme-default.css">
+        <link rel="stylesheet" href="static/jsoneditor/themes/jse-theme-dark.css">
+        <link rel="stylesheet" href="static/w2ui/w2ui.css">
+        <link rel="stylesheet" href="static/yuneta-icon-font/yuneta-icon-font.css">
+        <link rel="stylesheet" href="static/app/yuneta_gui.scss.css?92de1fd8">
+
+        <script type="module" src="static/yuneta/widgets2/modules/jsoneditor.js"></script>
+
+        <script src="static/h5bp/js/modernizr.js"></script>
+        <script src="static/h5bp/js/plugins.js"></script>
+        <script src="static/i18next/i18next.js"></script>
+        <script src="static/luxon/luxon.js"></script>
+        <script src="static/canvas/konva/konva.js"></script>
+        <script src="static/w2ui/w2ui.js"></script>
+        <script src="static/yuneta-icon-font/yuneta-icon-font.js"></script>
+        <script src="static/yuneta/sprintf.js"></script>
+        <script src="static/yuneta/utils.js"></script>
+        <script src="static/yuneta/gobj.js"></script>
+        <script src="static/yuneta/yuno.js"></script>
+        <script src="static/yuneta/ievent.js"></script>
+        <script src="static/yuneta/dbsimple.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_main.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_utils.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_scrollview.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_link.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_button.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_port.js"></script>
+        <script src="static/yuneta/widgets2/konva/ka_photon.js"></script>
+        <script src="static/yuneta/widgets2/konva/sw_display_message.js"></script>
+        <script src="static/yuneta/widgets2/konva/sw_menu.js"></script>
+        <script src="static/yuneta/widgets2/konva/sw_toolbar.js"></script>
+        <script src="static/yuneta/widgets2/konva/sw_multiview.js"></script>
+        <script src="static/yuneta/widgets2/konva/sw_graph.js"></script>
+        <script src="static/yuneta/widgets2/konva/ne_base.js"></script>
+        <script src="static/yuneta/widgets2/konva/shape_label_with_icon.js"></script>
+        <script src="static/yuneta/widgets2/w2/w2_jsoneditor.js"></script>
+    </head>
+    <body>
+        <div id="loading-message"
+            style="border: 1px solid blue; margin: 1em; padding: 2em; background-color: #f8f1fd;">
+            <strong>Loading application. Wait please...</strong>
+        </div>
+
+        <!--  z-index 2 and 3 busy by login form -->
+        <div style="z-index:1;" id="gui_canvas"></div>
+
+        <script src="static/app/locales/en.js"></script>
+        <script src="static/app/locales/es.js"></script>
+        <script src="static/app/conf/urls.js"></script>
+        <script src="static/app/yuneta_gui.js"></script>
+        <script src="static/app/login.js"></script>
+        <script src="static/app/ui/ui_header.js"></script>
+        <script src="static/app/gf/gf_agents.js"></script>
+        <script src="static/app/__yuno__.js"></script>
+
+    </body>
+</html>

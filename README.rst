@@ -1,20 +1,42 @@
 Yunetas
 =======
 
-Yuneta Simplified, a complete asynchronous C development framework for Linux and ESP32.
+Yuneta Simplified is a complete asynchronous development framework.
 
-Inherited from `ginsfsm <https://pypi.org/project/ginsfsm/>`_ and `Yuneta <http://yuneta.io>`_.
+For Linux and RTOS/ESP32.
+
+It can be transport to any language.
+
+Versions in C, Javascript, [soon Python].
+
 
 Directories
------------
+===========
 
-- gobj:
+Top folders:
+
+    - kernel
+
+    - libs
+
+    - performance
+
+    - tests
+
+    - tools
+
+    - yunos
+
+Folder kernel
+-------------
+
+- gobj-c:
     G-Objects, implementation of classes and objects based in a simple Finite State Machine,
     attributes based in json, a wide table of class methods,
     and an api to let communicate between objects through events,
     with publish/subscribe pattern integrated.
 
-- core-esp32:
+- root-esp32-c:
     Core for esp32 microcontroller (`esp-idf <https://docs.espressif.com/projects/esp-idf/>`_).
     List of components order by dependency (bottom higher dependency) ::
         - esp_jansson
@@ -24,30 +46,44 @@ Directories
 
     It's only necessary to include the component with higher dependency
 
-- core-linux:
+- root-linux-c:
     Core for linux, based in `io_uring <https://github.com/axboe/liburing>`_.
+
+- root-linux-c-ext-libs:
+    External libraries used by root-linux-c, static and self compiled.
+
+
+Folder libs
+-----------
 
 - c_prot
     Collection of gclasses working with protocols.
 
-- external-libs:
-    Dependencies of Yunetas
+Folder performance
+------------------
 
-- yunos:
-    Full applications or utilities built with yunetas (TODO).
+Benchmarks
 
-- tools:
-    Auxiliary tools: cmake files,...
+Folder tests
+------------
 
-- tests:
-    Tests built with Criterion
+Tests.
 
-- performance:
-    Benchmarks
+C test is using Criterion.
+
+Folder yunos
+------------
+
+Full applications or utilities built with yunetas (TODO).
+
+Folder tools
+------------
+
+Auxiliary tools: cmake files,...
 
 
-Build
------
+Folder build
+------------
 
 To build and install, with tests::
 
@@ -65,3 +101,4 @@ To build without tests::
 
 By default the installation directory of include files,
 libraries and binaries is ``/yuneta/development/outputs/``
+
