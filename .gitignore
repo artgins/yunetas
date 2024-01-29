@@ -8,6 +8,7 @@ external-libs/ngx-http-auth-jwt-module-artgins
 cmake-build-release/
 cmake-build-debug/
 release/
+node_modules/
 debug/
 .idea/
 a.out
