@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   version="1.1"
+   viewBox="0 0 400 512"
+   id="svg4"
+   sodipodi:docname="bolt-lightning-solid.svg"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   width="400"
+   height="512"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs8" />
+  <sodipodi:namedview
+     id="namedview6"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     inkscape:zoom="1.2578125"
+     inkscape:cx="-75.925466"
+     inkscape:cy="228.17391"
+     inkscape:window-width="1920"
+     inkscape:window-height="991"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0" />
+  <path
+     d="M 84.66991,233.76649 176.84149,21.119176 C 183.30968,6.1965572 195.27683,-2.5461468 204.80409,0.73303422 L 303.95794,34.860769 c 8.82154,3.036277 11.93549,17.076928 6.97425,31.446416 -1.05838,3.06549 -2.50271,6.105327 -4.14188,8.756564 l -68.04347,108.841021 81.92251,28.19687 c 11.87964,4.08885 16.15903,23.1394 9.44483,42.58612 -2.44754,7.08895 -6.12277,13.54099 -10.61036,18.5344 L 113.53041,503.50579 c -6.31425,7.04423 -13.70564,9.96638 -19.76308,7.88147 l -1.70549,-0.587 c -9.23321,-3.17796 -12.52732,-18.03089 -7.33455,-33.07095 0.76071,-2.2033 1.69786,-4.34591 2.81147,-6.42779 L 177.59178,300.04703 92.90519,270.89876 C 82.49581,267.31597 78.81566,250.72248 84.66991,233.76649 Z"
+     id="path2"
+     style="stroke-width:0.793933" />
+</svg>

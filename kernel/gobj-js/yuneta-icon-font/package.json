@@ -1,0 +1,16 @@
+{
+  "name": "icons",
+  "version": "1.0.0",
+  "title": "Icons font for Yuneta",
+  "description": "Icons font for Yuneta",
+  "license": "MIT",
+  "repository": "https://github.com/yuneta/yuno_gui",
+  "main": "",
+  "style": "",
+  "scripts": {},
+  "devDependencies": {
+    "gulp": "^4.0.2",
+    "gulp-iconfont": "^11.0.1",
+    "svgicons2svgfont": "^12.0.0"
+  }
+}

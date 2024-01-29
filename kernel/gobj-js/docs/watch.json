@@ -1,0 +1,15 @@
+{
+    "yuno":{
+        "traceMcEn": false,
+        "traceMcAl": false
+    },
+    "global":{
+        "Fs.info": false,
+        "Root.info": false,
+        "Root.command":"make html",
+        "Root.path":".",
+        "Root.recursive":true,
+        "Root.patterns":".*\\.py;.*\\.rst;",
+        "Root.ignore_renamed_event":true
+    }
+}
