@@ -1,0 +1,61 @@
+Metadata-Version: 2.1
+Name: web-skeleton3
+Version: 2.0.3
+Summary: Static html code generator.
+Home-page: https://github.com/yuneta/web-skeleton3
+Author: ginsmar
+Author-email: niyamaka@yuneta.io
+License: MIT License
+Keywords: html static generator mako webassets scss sass compass yuneta
+Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Software Development :: Libraries
+Description-Content-Type: text/x-rst
+License-File: LICENSE.txt
+
+web-skeleton3
+=============
+
+Generator of static html/css/js code tree.
+
+Based on:
+    - mako_
+    - webassets_
+
+.. _mako: https://pypi.python.org/pypi/Mako
+.. _webassets: https://pypi.python.org/pypi/webassets
+
+Install
+-------
+
+Install with::
+
+    pip3 install web-skeleton3
+
+Remember install::
+
+    sudo apt-get install ruby-dev ruby-rubygems
+    sudo gem install compass
+    sudo pip3 install scour
+    sudo pip3 install cssutils
+    sudo pip3 install rjsmin
+
+Upload to pypi
+--------------
+
+python setup.py sdist bdist_wheel
+python -m twine upload dist/*
+
+License
+-------
+
+Licensed under the  `The MIT License <http://www.opensource.org/licenses/mit-license>`_.
+See LICENSE.txt in the source distribution for details.
+
+

@@ -1,0 +1,4 @@
+prune .hg
+exclude push.sh
+include *.txt *.ini *.cfg *.rst
+recursive-include web_skeleton3 *

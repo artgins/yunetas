@@ -1,0 +1,8 @@
+/**
+ *  Sample
+ */
+
+(function() {
+    var sample;
+}());
+

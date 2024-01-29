@@ -1,0 +1,18 @@
+{
+    "title": "MyWeb",
+    "metadata": {
+        "application-name": "MyWeb",
+        "description": "My web",
+        "keywords": "myweb"
+    },
+    "css_or_scss": [
+        "h5bp/css/normalize.css"
+    ],
+    "top_js": [
+        "h5bp/js/modernizr.js",
+        "h5bp/js/plugins.js"
+    ],
+    "bottom_js": [
+        "app/sample.js"
+    ]
+}

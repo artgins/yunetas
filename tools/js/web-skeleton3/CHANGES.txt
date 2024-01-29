@@ -1,0 +1,36 @@
+1.0.0
+-----
+
+Initial version
+
+1.1.0
+-----
+
+Include forgotten directories.
+
+1.4.0
+-----
+
+Fixed bug with scss files
+
+1.5.0
+-----
+
+Removed app and scss-mixins directories.
+The js/sccs code can be created with yuno-skeleton (js_yuno).
+
+1.7.0
+-----
+
+Using cssutils and rjsmin to compress css and js files.
+
+1.7.1
+-----
+
+Update README
+
+1.7.2
+-----
+
+In debug mode don't comprise css, references fails
+Fix verbose mode
