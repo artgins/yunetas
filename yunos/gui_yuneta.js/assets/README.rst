@@ -17,6 +17,9 @@ List of assets used by Yuneta GUI
         - https://html5boilerplate.com/
         - ``npm install html5-boilerplate --save``
 
+    - w2ui, JavaScript UI Library
+        - https://github.com/artgins/w2ui-artgins
+
     - Konva, 2d canvas js library
         - https://konvajs.org/
         - ``npm install konva --save``
