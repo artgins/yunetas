@@ -20,7 +20,7 @@ add_subdirectory(kernel/gobj-c)
 add_subdirectory(kernel/root-c-linux)
 add_subdirectory(kernel/root-c-esp32)
 add_subdirectory(libs/c_prot)
-add_subdirectory(yunos/c)
+#add_subdirectory(yunos/c)
 
 if (ENABLE_TESTS)
     # Check for criterion

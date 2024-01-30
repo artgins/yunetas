@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "cytoscape": "^3.28.1",
+    "echarts": "^5.4.3",
+    "force-graph": "^1.43.4",
+    "html5-boilerplate": "^9.0.0",
+    "i18next": "^23.8.1",
+    "konva": "^9.3.2",
+    "luxon": "^3.4.4",
+    "uplot": "^1.6.30",
+    "vanilla-jsoneditor": "^0.21.4"
+  }
+}

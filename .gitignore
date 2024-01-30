@@ -21,6 +21,7 @@ core.*
 /.hg/*
 
 tests/output/bin/
+package-lock.json
 
 *~
 *.o

@@ -29,6 +29,7 @@ tests/reports/
 config.log
 config.status
 libtool
+package-lock.json
 
 \.kdev4$
 
