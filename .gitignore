@@ -30,6 +30,7 @@ tests/output/bin/
 *.pyc
 *.pc
 build/
+_build/
 *.exe
 
 *.swp
