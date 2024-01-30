@@ -1,0 +1,13 @@
+{
+    "global":{
+        "Fs.info": false,
+        "Watchfs.kw": {
+            "info": false,
+            "command":"make html",
+            "path":".",
+            "recursive":true,
+            "patterns":".*\\.py;.*\\.mako;.*\\.js;.*\\.css;.*\\.scss;.*\\.rst;.*\\.json;",
+            "ignore_renamed_event":true
+        }
+    }
+}

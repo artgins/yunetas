@@ -15,6 +15,8 @@ Directories
 
 Top folders:
 
+    - doc
+
     - kernel
 
     - libs
@@ -26,6 +28,11 @@ Top folders:
     - tools
 
     - yunos
+
+Folder doc
+----------
+
+YunetaS Documentation implemented with sphinx.
 
 Folder kernel
 -------------
