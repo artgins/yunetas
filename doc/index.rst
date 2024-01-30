@@ -3,8 +3,16 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Yuneta Simplified
-=================
+YunetaS Documentation
+=====================
+
+Yuneta Simplified is a asynchronous C development framework for Linux and ESP32.
+
+Also partially available for next languages:
+
+   - Javascript
+   - Python
+
 
 .. toctree::
    :maxdepth: 2

@@ -14,11 +14,13 @@ release = '7.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = [
+    'sphinx.ext.todo',
+    'sphinx.ext.viewcode',
+]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -26,3 +28,13 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'alabaster'
 html_static_path = ['_static']
+
+html_theme_options = {
+    'logo': 'yuneta.png',
+    #    'description': "V. 1.1",
+    'fixed_sidebar': True,
+    'page_width': '1200px',
+    'sidebar_width': '300px',
+}
+
+# html_favicon = '_static/favicon.ico'
