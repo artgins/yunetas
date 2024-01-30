@@ -47,7 +47,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.2.0
+cd build/openssl-3.2.1
 ./config \
     --prefix=/yuneta/development/outputs \
     --openssldir=/yuneta/bin/ssl3 \
@@ -120,7 +120,7 @@ cd build/nginx-1.25.3
     --with-stream_ssl_module \
     --with-http_stub_status_module \
     --with-pcre-jit \
-    --with-openssl=/yuneta/development/yunetas/external-libs/build/openssl-3.2.0 \
+    --with-openssl=../openssl-3.2.1 \
     --with-openssl-opt=no-tests \
     --with-openssl-opt=no-shared \
     --with-openssl-opt=no-docs \
@@ -144,7 +144,7 @@ cd build/openresty-1.25.3.1
     --with-stream_ssl_module \
     --with-http_stub_status_module \
     --with-pcre-jit \
-    --with-openssl=/yuneta/development/yunetas/external-libs/build/openssl-3.2.0 \
+    --with-openssl=../openssl-3.2.1 \
     --with-openssl-opt=no-tests \
     --with-openssl-opt=no-shared \
     --with-openssl-opt=no-docs \

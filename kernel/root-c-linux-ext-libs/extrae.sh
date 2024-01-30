@@ -20,7 +20,7 @@ echo "extrae mbedtls"
 tar xzf ../sources/mbedtls-3.5.2.tar.gz
 
 echo "extrae openssl"
-tar xzf ../sources/openssl-3.2.0.tar.gz
+tar xzf ../sources/openssl-3.2.1.tar.gz
 
 echo "extrae pcre2"
 tar xzf ../sources/pcre2-10.42.tar.gz

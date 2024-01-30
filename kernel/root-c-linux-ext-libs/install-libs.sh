@@ -36,7 +36,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.2.0
+cd build/openssl-3.2.1
 make install
 cd ../..
 
