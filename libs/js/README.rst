@@ -17,6 +17,8 @@ To compile JS and CSS, run::
     gulp
 
 
+If you add/modify icons in src/less/icons/svg/*, you will need to regenerate the font and corresponding CSS files ::
 
+    gulp icons
 
 
