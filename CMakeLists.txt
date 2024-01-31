@@ -16,10 +16,10 @@ option (ENABLE_PERFORMANCE "Build performance" ON)
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(kernel/gobj-c)
-add_subdirectory(kernel/root-c-linux)
-add_subdirectory(kernel/root-c-esp32)
-add_subdirectory(libs/c_prot)
+add_subdirectory(kernel/c/gobj-c)
+add_subdirectory(kernel/c/root-linux)
+add_subdirectory(kernel/c/root-esp32)
+add_subdirectory(libs/c/c_prot)
 #add_subdirectory(yunos/c)
 
 if (ENABLE_TESTS)
