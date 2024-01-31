@@ -1,0 +1,3 @@
+[submodule "libs/js/w2ui-artgins"]
+	path = libs/js/w2ui-artgins
+	url = git@github.com:artgins/w2ui-artgins.git

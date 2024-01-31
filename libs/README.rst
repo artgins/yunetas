@@ -1,7 +1,6 @@
 README
 ======
 
-Each folder contains a group of gclasses.
+Libraries in several languages
 
-    - c_prot: Inter-Events and some basic Protocols
 
