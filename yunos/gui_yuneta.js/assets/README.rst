@@ -1,7 +1,27 @@
 Assets
 ======
 
-List of assets used by Yuneta GUI
+Modules used by the js yuno.
+
+Install
+-------
+
+Once time: to update all js packages, install the module::
+
+    npm install -g npm-check-updates
+
+To download new releases::
+
+    ncu -u
+
+And to install the new versions::
+
+    npm install
+
+Depedencies
+-----------
+
+List of assets used by Yuneta GUI (some in the future)
 
     - canvas-samples: folder with samples of canvas.
 
