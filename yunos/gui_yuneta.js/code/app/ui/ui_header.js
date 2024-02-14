@@ -145,7 +145,7 @@
 
         let login_template = sprintf(`
             <div tabindex="1" id="_wrapper_login_form" style="overflow: hidden;color: black; z-index: 2; position: absolute; left: 0px; top: 0px; width: 100%%; height: 100%%;visibility: hidden; background-color: rgba(0,0,0,%(background_opacity)f);">
-            
+
             <span style="visibility: hidden;font-family: 'FontAwesome', 'Font Awesome 6 Brands Regular', 'Font Awesome 6 Free Regular', 'Font Awesome 6 Free Solid', sans-serif;">\u{f039} \u{f2b9} \u{e080}</span> <!-- hack to quick load of fontawesome? --> 
             <form action="" method="dialog" id="_login_form" style="overflow: hidden;background: rgb(238, 238, 238);color: black;font-family: %(fontfamily)s !important; font-size: %(fontsize)dpx; padding: %(padding)dpx; border-radius: .50rem; border: 1px solid rgba(0,0,0,%(border_opacity)f); z-index: 3; position: absolute; left: %(form_left)dpx; top: %(form_top)dpx; width: %(form_width)dpx; height: %(form_height)dpx;visibility: hidden;">
                 <div>
@@ -676,9 +676,9 @@
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
