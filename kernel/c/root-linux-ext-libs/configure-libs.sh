@@ -58,7 +58,6 @@ make install
 cd ..
 cd ../..
 
-
 #------------------------------------------
 #   openssl
 #------------------------------------------
@@ -79,7 +78,6 @@ git checkout "$TAG_OPENSSL"
 make
 make install
 cd ../..
-
 
 #------------------------------------------
 #   PCRE
@@ -106,7 +104,6 @@ make install
 cd ..
 cd ../..
 
-
 #------------------------------------------
 #   criterion
 #------------------------------------------
@@ -128,10 +125,15 @@ cd ../..
 #------------------------------------------
 #   libjwt
 #------------------------------------------
-echo "===================== libjwt ======================="
-cd build/libjwt-1.16.0
+echo "===================== LIBJWT ======================="
+cd build/libjwt
 mkdir -p build
 cd build
+
+TAG_LIBJWT="v1.16.0"
+git checkout "$TAG_LIBJWT"
+
+CFLAGS="-I/yuneta/development/outputs/include ${CFLAGS}"
 cmake -G "Ninja" \
     -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
     -DBUILD_EXAMPLES=OFF \
@@ -142,36 +144,18 @@ ninja install
 cd ..
 cd ../..
 
-
-#------------------------------------------
-#   nginx
-#------------------------------------------
-echo "===================== NGINX ======================="
-cd build/nginx-1.25.3
-./configure \
-    --prefix=/yuneta/bin/nginx \
-    --with-http_ssl_module \
-    --with-stream \
-    --with-stream_ssl_module \
-    --with-http_stub_status_module \
-    --with-pcre-jit \
-    --with-openssl=../openssl-3.2.1 \
-    --with-openssl-opt=no-tests \
-    --with-openssl-opt=no-shared \
-    --with-openssl-opt=no-docs \
-    --with-http_v2_module \
-    --with-http_gzip_static_module
-
-make
-make install
-cd ../..
-
-
 #------------------------------------------
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
-cd build/openresty-1.25.3.1
+cd build/openresty
+
+export TAG_OPENRESTY="1.25.3.1"
+git checkout "v$TAG_OPENRESTY"
+
+make
+cd "openresty-$TAG_OPENRESTY"
+
 ./configure \
     --prefix=/yuneta/bin/openresty \
     --with-http_ssl_module \
@@ -179,7 +163,7 @@ cd build/openresty-1.25.3.1
     --with-stream_ssl_module \
     --with-http_stub_status_module \
     --with-pcre-jit \
-    --with-openssl=../openssl-3.2.1 \
+    --with-openssl=../../openssl \
     --with-openssl-opt=no-tests \
     --with-openssl-opt=no-shared \
     --with-openssl-opt=no-docs \
@@ -188,6 +172,7 @@ cd build/openresty-1.25.3.1
 
 gmake
 gmake install
+cd ..
 cd ../..
 
 /yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5

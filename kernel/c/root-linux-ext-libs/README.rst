@@ -16,7 +16,6 @@ Libraries used by Yunetas:
 Utilities used by Yunetas:
 
     - `openresty <https://github.com/openresty/openresty>`_
-    - `nginx <https://github.com/nginx>`_
 
 The external libraries will be integrated in the yuneta kernel as static libraries.
 

@@ -59,27 +59,23 @@ cd ../..
 #------------------------------------------
 #   libjwt
 #------------------------------------------
-cd build/libjwt-1.16.0
+cd build/libjwt
 cd build
 ninja install
 cd ..
 cd ../..
 
 #------------------------------------------
-#   nginx
-#------------------------------------------
-echo "===================== NGINX ======================="
-cd build/nginx-1.25.3
-make install
-cd ../..
-
-#------------------------------------------
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
-cd build/openresty-1.25.3.1
+cd build/openresty
+cd "openresty-$TAG_OPENRESTY"
+
 make install
+cd ..
 cd ../..
 
+# Fix these old dependencies, the new cause errors
 /yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
 /yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install bungle/lua-resty-session=3.10

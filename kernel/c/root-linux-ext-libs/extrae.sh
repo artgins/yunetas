@@ -1,6 +1,8 @@
 #!/bin/bash
 
-sudo apt -y install libpcre2-dev
+sudo apt -y install libjansson-dev          # required for libjwt
+sudo apt -y install libpcre2-dev            # required by openresty
+sudo apt -y install perl dos2unix mercurial # required by openresty
 
 if ! command -v ldconfig >/dev/null 2>&1; then
     echo "ldconfig is not available in PATH. Exiting. Add /usr/sbin/ to PATH"
@@ -44,13 +46,10 @@ echo "extrae criterion"
 git clone https://github.com/Snaipe/Criterion.git
 
 echo "extrae libjwt"
-tar xzf ../sources/libjwt-1.16.0.tar.gz
-
-echo "extrae nginx"
-tar xzf ../sources/nginx-1.25.3.tar.gz
+git clone https://github.com/benmcollins/libjwt.git
 
 echo "extrae openresty"
-tar xzf ../sources/openresty-1.25.3.1.tar.gz
+git clone https://github.com/openresty/openresty.git
 
 
 cd ..
