@@ -3,7 +3,7 @@
 ##############################################
 cmake_minimum_required(VERSION 3.5)
 include(/yuneta/development/yunetas/tools/cmake/project.cmake)
-project(test_yev_timer C)
+project(perf_yev_ping_pong C)
 
 include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/projects/frigo/esp/esp_frigo/main)
 
@@ -12,7 +12,7 @@ include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/proje
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/test_yev_timer.c
+    src/perf_yev_ping_pong.c
 )
 SET (YUNO_HDRS
 )

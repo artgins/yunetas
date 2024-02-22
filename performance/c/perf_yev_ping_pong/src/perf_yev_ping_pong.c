@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yev_ping_pong
+ *          perf_yev_ping_pong
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.

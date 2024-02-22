@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yev_timer
+ *          perf_yev_timer
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
