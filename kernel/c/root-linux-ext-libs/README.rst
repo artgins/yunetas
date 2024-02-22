@@ -3,12 +3,12 @@ External libraries
 
 Libraries used by Yunetas:
 
-    - `Criterion <https://github.com/Snaipe/Criterion>`_
-    - `jansson <https://github.com/akheron/jansson>`_
-    - `libjwt <https://github.com/benmcollins/libjwt>`_
+    - `jansson <https://github.com/artgins/jansson-artgins>`_
     - `liburing <https://github.com/axboe/liburing>`_
+    - `libjwt <https://github.com/benmcollins/libjwt>`_
     - `openssl <https://github.com/openssl/openssl>`_
     - `mbedtls <https://github.com/Mbed-TLS/mbedtls>`_
+    - `Criterion <https://github.com/Snaipe/Criterion>`_
     - `pcre2 <https://github.com/PCRE2Project/pcre2>`_
     - `http-parser <https://github.com/nodejs/http-parser>`_
     - `linenoise <https://github.com/antirez/linenoise>`_

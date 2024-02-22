@@ -7,7 +7,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-artgins-2.14a
+cd build/jansson-artgins
 cd build
 make install
 cd ..

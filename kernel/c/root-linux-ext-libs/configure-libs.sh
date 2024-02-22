@@ -9,7 +9,7 @@ export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-artgins-2.14a
+cd build/jansson-artgins
 mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..

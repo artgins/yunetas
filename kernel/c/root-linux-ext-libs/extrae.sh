@@ -1,7 +1,12 @@
 #!/bin/bash
 
 sudo apt -y install libpcre2-dev
-# TODO check if ldconfig is available
+
+if ! command -v ldconfig >/dev/null 2>&1; then
+    echo "ldconfig is not available in PATH. Exiting. Add /usr/sbin/ to PATH"
+    exit 1
+fi
+
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
@@ -10,11 +15,11 @@ rm -rf build/
 mkdir build
 cd build
 
-echo "extrae jansson-artgins"
-tar xzf ../sources/jansson-artgins-2.14a.tar.gz
+echo "getting jansson-artgins"
+git clone https://github.com/artgins/jansson-artgins.git
 
-echo "extrae liburing"
-tar xzf ../sources/liburing-liburing-2.5.tar.gz
+echo "getting liburing"
+git clone https://github.com/axboe/liburing.git
 
 echo "extrae mbedtls"
 tar xzf ../sources/mbedtls-3.5.2.tar.gz
