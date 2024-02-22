@@ -16,6 +16,10 @@ echo "===================== JANSSON ======================="
 cd build/jansson-artgins
 mkdir -p build
 cd build
+
+TAG_JANSSON="2.14a"
+git checkout "$TAG_JANSSON"
+
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
 make
 make install
@@ -27,8 +31,10 @@ cd ../..
 #------------------------------------------
 echo "===================== liburing ======================="
 cd build/liburing
+
 TAG_LIBURING="liburing-2.5"
 git checkout "$TAG_LIBURING"
+
 ./configure --prefix=/yuneta/development/outputs
 make
 make install
@@ -38,9 +44,13 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls-3.5.2
+cd build/mbedtls
 mkdir -p build
 cd build
+
+TAG_MBEDTLS="v3.5.2"
+git checkout "$TAG_MBEDTLS"
+
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
   -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
 make
@@ -53,7 +63,11 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl-3.2.1
+cd build/openssl
+
+TAG_OPENSSL="openssl-3.2.1"
+git checkout "$TAG_OPENSSL"
+
 ./config \
     --prefix=/yuneta/development/outputs \
     --openssldir=/yuneta/bin/ssl3 \
@@ -70,15 +84,26 @@ cd ../..
 #------------------------------------------
 #   PCRE
 #------------------------------------------
-echo "===================== PCRE ======================="
-cd build/pcre2-10.42
-./configure --prefix=/yuneta/development/outputs \
-    --disable-shared \
-    --enable-pcre2-16 \
-    --enable-pcre2-32 \
-    --enable-jit
+echo "===================== PCRE2 ======================="
+cd build/pcre2
+
+TAG_PCRE2="pcre2-10.43"
+git checkout "$TAG_PCRE2"
+
+mkdir -p build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+    -DBUILD_STATIC_LIBS=ON \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DPCRE2_BUILD_PCRE2_16=ON \
+    -DPCRE2_BUILD_PCRE2_32=ON \
+    -DPCRE2_STATIC_PIC=ON \
+    -DPCRE2_SUPPORT_JIT=ON \
+    ..
+
 make
 make install
+cd ..
 cd ../..
 
 

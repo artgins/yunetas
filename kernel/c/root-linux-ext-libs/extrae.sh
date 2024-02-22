@@ -22,13 +22,13 @@ echo "getting liburing"
 git clone https://github.com/axboe/liburing.git
 
 echo "extrae mbedtls"
-tar xzf ../sources/mbedtls-3.5.2.tar.gz
+git clone https://github.com/Mbed-TLS/mbedtls.git
 
 echo "extrae openssl"
-tar xzf ../sources/openssl-3.2.1.tar.gz
+git clone https://github.com/openssl/openssl.git
 
 echo "extrae pcre2"
-tar xzf ../sources/pcre2-10.42.tar.gz
+git clone https://github.com/PCRE2Project/pcre2.git
 
 echo "extrae criterion"
 tar xzf ../sources/Criterion-2.4.2.tar.gz
