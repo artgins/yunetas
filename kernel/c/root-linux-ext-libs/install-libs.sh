@@ -17,7 +17,7 @@ cd ../..
 #   liburing WARNING  master version!
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing-liburing-2.5
+cd build/liburing
 make install
 cd ../..
 

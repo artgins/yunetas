@@ -6,6 +6,10 @@ set -e
 export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 
 #------------------------------------------
+#   VERSIONS
+#------------------------------------------
+
+#------------------------------------------
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
@@ -22,7 +26,9 @@ cd ../..
 #   liburing
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing-liburing-2.5
+cd build/liburing
+TAG_LIBURING="liburing-2.5"
+git checkout "$TAG_LIBURING"
 ./configure --prefix=/yuneta/development/outputs
 make
 make install
