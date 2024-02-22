@@ -3,7 +3,7 @@
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
+export CFLAGS="-Wno-error=char-subscripts -g3 -ggdb -fPIC"
 
 #------------------------------------------
 #   VERSIONS
