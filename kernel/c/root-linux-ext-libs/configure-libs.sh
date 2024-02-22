@@ -8,6 +8,14 @@ export CFLAGS="-Wno-error=char-subscripts -O0 -g3 -ggdb"
 #------------------------------------------
 #   VERSIONS
 #------------------------------------------
+TAG_JANSSON="2.14a"
+TAG_LIBURING="liburing-2.5"
+TAG_MBEDTLS="v3.5.2"
+TAG_OPENSSL="openssl-3.2.1"
+TAG_PCRE2="pcre2-10.43"
+TAG_CRITERION="v2.4.2"
+TAG_LIBJWT="v1.16.0"
+export TAG_OPENRESTY="1.25.3.1"
 
 #------------------------------------------
 #   Jansson
@@ -17,7 +25,6 @@ cd build/jansson-artgins
 mkdir -p build
 cd build
 
-TAG_JANSSON="2.14a"
 git checkout "$TAG_JANSSON"
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
@@ -32,7 +39,6 @@ cd ../..
 echo "===================== liburing ======================="
 cd build/liburing
 
-TAG_LIBURING="liburing-2.5"
 git checkout "$TAG_LIBURING"
 
 ./configure --prefix=/yuneta/development/outputs
@@ -48,7 +54,6 @@ cd build/mbedtls
 mkdir -p build
 cd build
 
-TAG_MBEDTLS="v3.5.2"
 git checkout "$TAG_MBEDTLS"
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
@@ -64,7 +69,6 @@ cd ../..
 echo "===================== OPENSSL ======================="
 cd build/openssl
 
-TAG_OPENSSL="openssl-3.2.1"
 git checkout "$TAG_OPENSSL"
 
 ./config \
@@ -85,7 +89,6 @@ cd ../..
 echo "===================== PCRE2 ======================="
 cd build/pcre2
 
-TAG_PCRE2="pcre2-10.43"
 git checkout "$TAG_PCRE2"
 
 mkdir -p build
@@ -110,7 +113,6 @@ cd ../..
 echo "===================== CRITERION ======================="
 cd build/Criterion
 
-TAG_CRITERION="v2.4.2"
 git checkout "$TAG_CRITERION"
 
 meson setup \
@@ -130,7 +132,6 @@ cd build/libjwt
 mkdir -p build
 cd build
 
-TAG_LIBJWT="v1.16.0"
 git checkout "$TAG_LIBJWT"
 
 CFLAGS="-I/yuneta/development/outputs/include ${CFLAGS}"
@@ -150,7 +151,6 @@ cd ../..
 echo "===================== OPENRESTY ======================="
 cd build/openresty
 
-export TAG_OPENRESTY="1.25.3.1"
 git checkout "v$TAG_OPENRESTY"
 
 make
