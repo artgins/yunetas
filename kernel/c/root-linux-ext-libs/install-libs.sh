@@ -52,7 +52,7 @@ cd ../..
 #   criterion
 #------------------------------------------
 echo "===================== Criterion ======================="
-cd build/Criterion-2.4.2
+cd build/Criterion
 ninja -C build install
 cd ../..
 

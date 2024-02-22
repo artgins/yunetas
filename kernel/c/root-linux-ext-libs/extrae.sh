@@ -7,6 +7,16 @@ if ! command -v ldconfig >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v meson >/dev/null 2>&1; then
+    echo "meson is not available in PATH. Exiting. Run 'sudo apt install meson'"
+    exit 1
+fi
+
+if ! command -v ninja >/dev/null 2>&1; then
+    echo "ninja is not available in PATH. Exiting. Run 'sudo apt install ninja-build'"
+    exit 1
+fi
+
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
@@ -31,7 +41,7 @@ echo "extrae pcre2"
 git clone https://github.com/PCRE2Project/pcre2.git
 
 echo "extrae criterion"
-tar xzf ../sources/Criterion-2.4.2.tar.gz
+git clone https://github.com/Snaipe/Criterion.git
 
 echo "extrae libjwt"
 tar xzf ../sources/libjwt-1.16.0.tar.gz

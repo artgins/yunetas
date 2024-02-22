@@ -110,8 +110,12 @@ cd ../..
 #------------------------------------------
 #   criterion
 #------------------------------------------
-echo "===================== Criterion ======================="
-cd build/Criterion-2.4.2
+echo "===================== CRITERION ======================="
+cd build/Criterion
+
+TAG_CRITERION="v2.4.2"
+git checkout "$TAG_CRITERION"
+
 meson setup \
     --prefix=/yuneta/development/outputs \
     --libdir=/yuneta/development/outputs/lib \

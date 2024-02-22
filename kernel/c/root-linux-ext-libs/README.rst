@@ -8,8 +8,8 @@ Libraries used by Yunetas:
     - `mbedtls <https://github.com/Mbed-TLS/mbedtls>`_
     - `openssl <https://github.com/openssl/openssl>`_
     - `pcre2 <https://github.com/PCRE2Project/pcre2>`_
-    - `libjwt <https://github.com/benmcollins/libjwt>`_
     - `Criterion <https://github.com/Snaipe/Criterion>`_
+    - `libjwt <https://github.com/benmcollins/libjwt>`_
     - `http-parser <https://github.com/nodejs/http-parser>`_
     - `linenoise <https://github.com/antirez/linenoise>`_
 
