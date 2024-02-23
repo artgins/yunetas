@@ -2,13 +2,12 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(yunetas C)
 include(/yuneta/development/yunetas/tools/cmake/project.cmake)
+project(yunetas C)
 
 # Add tools/cmake to the module path
 list(APPEND CMAKE_MODULE_PATH "/yuneta/development/yunetas/tools/cmake")
 list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/yuneta/development/outputs")
-
 
 option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
