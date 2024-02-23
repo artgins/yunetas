@@ -2,8 +2,8 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-include(/yuneta/development/yunetas/tools/cmake/project.cmake)
 project(yunetas C)
+include(/yuneta/development/yunetas/tools/cmake/project.cmake)
 
 # Add tools/cmake to the module path
 list(APPEND CMAKE_MODULE_PATH "/yuneta/development/yunetas/tools/cmake")
