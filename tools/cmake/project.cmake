@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
+# TODO set in kconfig
 #set(CMAKE_C_COMPILER "/usr/bin/musl-gcc")
-set(CMAKE_C_COMPILER "/usr/bin/clang")
+#set(CMAKE_C_COMPILER "/usr/bin/clang")
 
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
@@ -35,6 +36,6 @@ else()
     MESSAGE("=================> NOT CLang")
 endif()
 
-MESSAGE(${CMAKE_CURRENT_SOURCE_DIR})
-MESSAGE(${CMAKE_C_COMPILER_ID})
-MESSAGE(${CMAKE_C_COMPILER})
+MESSAGE(STATUS "DIR ${CMAKE_CURRENT_SOURCE_DIR}")
+MESSAGE(STATUS "COMPILER_ID ${CMAKE_C_COMPILER_ID}")
+MESSAGE(STATUS "COMPILER ${CMAKE_C_COMPILER}")
