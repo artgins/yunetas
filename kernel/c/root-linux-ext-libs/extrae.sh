@@ -4,6 +4,8 @@ sudo apt -y install libjansson-dev          # required for libjwt
 sudo apt -y install libpcre2-dev            # required by openresty
 sudo apt -y install perl dos2unix mercurial # required by openresty
 
+sudo apt -y install kconfig-frontends       # required by yunetas, configuration tool
+
 if ! command -v ldconfig >/dev/null 2>&1; then
     echo "ldconfig is not available in PATH. Exiting. Add /usr/sbin/ to PATH"
     exit 1
