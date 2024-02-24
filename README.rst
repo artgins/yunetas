@@ -9,20 +9,71 @@ It can be transport to any language.
 
 Versions in C, Javascript, [soon Python].
 
+Getting Started
+===============
+
+Install dependencies
+--------------------
+
+Use ``apt`` to install the required dependencies:
+
+ .. code-block:: bash
+
+    sudo apt install --no-install-recommends \
+      git mercurial make cmake ninja-build \
+      gcc musl musl-dev musl-tools clang \
+      python3-dev python3-pip python3-setuptools python3-tk python3-wheel \
+      libjansson-dev libpcre2-dev perl dos2unix \
+      kconfig-frontends
+
+Configuring (Kconfig)
+---------------------
+
+Configuration options are defined in ``Kconfig`` file.
+The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
+
+You can use any of this utilities to modify the Kconfig file:
+
+     - ``kconfig-conf Kconfig``
+     - ``kconfig-mconf Kconfig``
+     - ``kconfig-nconf Kconfig``
+     - ``kconfig-qconf Kconfig``
+
+Compiling and Installing
+------------------------
+
+To build and install, with debug and tests::
+
+    mkdir build && cd build
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+    ninja
+    ninja install
+    ctest    # to run tests
+
+
+To build without debug::
+
+    mkdir build && cd build
+    cmake -GNinja ..
+    ninja
+    ninja install
+    ctest    # to run tests
+
+By default the installation directory of include files,
+libraries and binaries is ``/yuneta/development/outputs/``
+
 
 Directories
 ===========
 
 Top folders:
-    - :ref:`my-reference-label`
+    - doc
     - kernel
     - libs
     - performance
     - tests
     - tools
     - yunos
-
-.. _my-reference-label:
 
 Folder doc
 ----------
@@ -82,23 +133,3 @@ Folder yunos
 ------------
 
 Full applications or utilities built with yunetas (TODO).
-
-Folder build
-------------
-
-To build and install, with tests::
-
-   mkdir build && cd build
-   cmake ..
-   cmake --build . --target install    # OR make && make install
-   ctest    # to run tests
-
-
-To build without tests::
-
-   mkdir build && cd build
-   cmake -D ENABLE_TESTS=OFF ..
-   cmake --build . --target install
-
-By default the installation directory of include files,
-libraries and binaries is ``/yuneta/development/outputs/``

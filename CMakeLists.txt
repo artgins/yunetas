@@ -9,6 +9,46 @@ project(yunetas C)
 list(APPEND CMAKE_MODULE_PATH "/yuneta/development/yunetas/tools/cmake")
 list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/yuneta/development/outputs")
 
+
+
+
+
+# Initialize the header content
+set(CONFIG_H_CONTENT "/* Automatically generated file. DO NOT EDIT. Use 'kconfig-mconf Kconfig' or 'kconfig-nconf Kconfig' to edit */\n")
+
+
+# Read .config file and append definitions to CONFIG_H_CONTENT
+file(STRINGS ${CMAKE_SOURCE_DIR}/.config CONFIG_LINES)
+foreach(line ${CONFIG_LINES})
+    if(line MATCHES "^#.*" OR line MATCHES "^$")
+        # Skip comments and empty lines
+    else()
+        # Extract configuration key and value
+        string(REPLACE "=" ";" CONFIG_PAIR ${line})
+        list(GET CONFIG_PAIR 0 CONFIG_KEY)
+        list(GET CONFIG_PAIR 1 CONFIG_VALUE)
+        # Remove possible quotes from string values
+        string(REPLACE "\"" "" CONFIG_VALUE ${CONFIG_VALUE})
+
+        # Append the configuration to the header content
+        if("${CONFIG_VALUE}" STREQUAL "y")
+            set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} 1\n")
+        elseif("${CONFIG_VALUE}" MATCHES "^[0-9]+$")
+            set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n")
+        else()
+            set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n")
+        endif()
+    endif()
+endforeach()
+
+# Write the content to config.h
+file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${CONFIG_H_CONTENT})
+
+
+
+
+
+
 option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
 
