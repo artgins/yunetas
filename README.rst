@@ -14,20 +14,15 @@ Directories
 ===========
 
 Top folders:
-
-    - doc
-
+    - :ref:`my-reference-label`
     - kernel
-
     - libs
-
     - performance
-
     - tests
-
     - tools
-
     - yunos
+
+.. _my-reference-label:
 
 Folder doc
 ----------
@@ -78,16 +73,15 @@ Tests.
 
 C test is using Criterion.
 
-Folder yunos
-------------
-
-Full applications or utilities built with yunetas (TODO).
-
 Folder tools
 ------------
 
 Auxiliary tools: cmake files,...
 
+Folder yunos
+------------
+
+Full applications or utilities built with yunetas (TODO).
 
 Folder build
 ------------
@@ -108,4 +102,3 @@ To build without tests::
 
 By default the installation directory of include files,
 libraries and binaries is ``/yuneta/development/outputs/``
-

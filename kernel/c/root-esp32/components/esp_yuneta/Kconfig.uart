@@ -1,5 +1,5 @@
 menu "Yuneta UART"
-    source "/yuneta/development/yuneta/yunetas/core-esp32/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+    source "/yuneta/development/yuneta/yunetas/kernel/c/root-esp32/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
 
     choice YUNETA_SERIAL_PORT
         prompt "Select Serial port"

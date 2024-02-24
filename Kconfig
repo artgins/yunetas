@@ -1,0 +1,14 @@
+menu "Yunetas Menu"
+
+config USE_CLANG
+    bool "Use Clang"
+    help
+        Select this option to use Clang as the compiler.
+
+config USE_GCC
+    bool "Use GCC"
+    default y
+    help
+        Select this option to use GCC as the compiler.
+
+endmenu
