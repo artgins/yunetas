@@ -1,0 +1,25 @@
+menu "Yunetas Configuration"
+
+choice
+    prompt "Compiler Selection"
+    default USE_COMPILER_GCC
+
+config USE_COMPILER_GCC
+    bool "Use GCC compiler"
+    help
+        Select this option to use GCC as the compiler.
+
+config USE_COMPILER_CLANG
+    bool "Use Clang compiler"
+    help
+        Select this option to use Clang as the compiler.
+
+config USE_COMPILER_MUSL
+    bool "Use Musl compiler"
+    help
+        Select this option to use Musl as the compiler.
+
+endchoice
+
+
+endmenu
