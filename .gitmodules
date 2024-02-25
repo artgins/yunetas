@@ -1,6 +1,6 @@
-[submodule "libs/js/w2ui-artgins"]
-	path = libs/js/w2ui-artgins
-	url = git@github.com:artgins/w2ui-artgins.git
+[submodule "modules/js/w2ui-artgins"]
+	path = modules/js/w2ui-artgins
+	url = https://github.com/artgins/w2ui-artgins.git
 [submodule "kernel/c/root-linux-ext-libs/jansson-artgins"]
 	path = kernel/c/root-linux-ext-libs/jansson-artgins
-	url = git@github.com:artgins/jansson-artgins.git
+	url = https://github.com/artgins/jansson-artgins.git
