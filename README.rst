@@ -26,6 +26,17 @@ Use ``apt`` to install the required dependencies:
       libjansson-dev libpcre2-dev perl dos2unix \
       kconfig-frontends
 
+Clone
+-----
+
+Clone with submodules::
+
+    git clone --recurse-submodules https://github.com/artgins/yunetas.git
+
+Get submodules if not got::
+
+    git submodule update --init --recursive
+
 Configuring (Kconfig)
 ---------------------
 

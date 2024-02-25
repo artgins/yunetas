@@ -17,6 +17,34 @@ option (ENABLE_PERFORMANCE "Build performance" ON)
 
 
 #-----------------------------------------------------#
+#   Check if not exist .config
+#-----------------------------------------------------#
+# Specify the path to the .config file
+set(CONFIG_FILE "${CMAKE_SOURCE_DIR}/.config")
+set(KCONFIG_COMMAND "/usr/bin/kconfig-conf --alldefconfig Kconfig")
+
+if(NOT EXISTS ${CONFIG_FILE})
+    # The .config file does not exist
+    # Run a Kconfig command to create or configure the .config file.
+    # For example, using `make menuconfig` or a similar command to generate the .config
+    message(STATUS "No .config file found, generating default configuration...")
+
+    # Execute a command in the source directory
+    execute_process(
+        COMMAND "${KCONFIG_COMMAND}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
+
+    # Check if the .config file was successfully created
+    if(EXISTS ${CONFIG_FILE})
+        message(STATUS "default .config file successfully created.")
+    else()
+        message(FATAL_ERROR "Failed to create ${CONFIG_FILE} file.\n In upper directory execute manually:\n   ${KCONFIG_COMMAND}\n or other kconfig-? command (See README.rst)")
+        exit()
+    endif()
+endif()
+
+#-----------------------------------------------------#
 #   Generate yuneta_config.h from .config (Kconfig)
 #-----------------------------------------------------#
 set(CONFIG_H_CONTENT
@@ -34,7 +62,7 @@ set(CONFIG_H_CONTENT
 )
 
 # Read file and append definitions to CONFIG_H_CONTENT
-file(STRINGS ${CMAKE_SOURCE_DIR}/.config CONFIG_LINES)
+file(STRINGS ${CONFIG_FILE} CONFIG_LINES)
 kconfig2include("${CONFIG_H_CONTENT}" "${CONFIG_LINES}")
 # Write the content to .h
 file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${CONFIG_H_CONTENT})
