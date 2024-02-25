@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 
-# TODO set in kconfig
-#set(CMAKE_C_COMPILER "/usr/bin/musl-gcc")
-#set(CMAKE_C_COMPILER "/usr/bin/clang")
-
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 
