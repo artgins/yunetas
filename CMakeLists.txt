@@ -14,7 +14,7 @@ list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/yuneta/development/outputs")
 
 
 # Initialize the header content
-set(CONFIG_H_CONTENT "/* Automatically generated file. DO NOT EDIT. Use 'kconfig-mconf Kconfig' or 'kconfig-nconf Kconfig' to edit */\n")
+set(CONFIG_H_CONTENT "/*\n *  Automatically generated file. DO NOT EDIT.\n *  Use 'kconfig-mconf Kconfig' or 'kconfig-nconf Kconfig' in Yuneta directory.\n */\n\n")
 
 
 # Read .config file and append definitions to CONFIG_H_CONTENT
