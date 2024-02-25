@@ -3,6 +3,9 @@ syntax:regexp
 external-libs/liburing/
 external-libs/projects_with_liburing/
 
+\.config
+\.config.old
+
 \.vscode/
 cmake-build-release/
 cmake-build-debug/

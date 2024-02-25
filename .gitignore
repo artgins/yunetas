@@ -4,6 +4,9 @@ external-libs/jansson-gines/
 external-libs/jansson-artgins/
 external-libs/ngx-http-auth-jwt-module-artgins
 
+.config
+.config.old
+
 .vscode/
 cmake-build-release/
 cmake-build-debug/
