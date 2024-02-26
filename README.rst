@@ -26,22 +26,35 @@ Use ``apt`` to install the required dependencies:
       libjansson-dev libpcre2-dev perl dos2unix
 
 
+Create a new virtual environment
+--------------------------------
+
+Create a new virtual environment ::
+
+    python3 -m venv ~/yunetaproject/.yuneta
+
+Activate the virtual environment: ::
+
+    source ~/yunetaproject/.yuneta/bin/activate
+
+
 Clone
 -----
 
 Clone with submodules::
 
-    cd ~
+    cd ~/yunetaproject
+
     git clone --recurse-submodules https://github.com/artgins/yunetas.git
 
-Get submodules if not got them ::
+Install additional Python dependencies
+--------------------------------------
 
-    git submodule update --init --recursive
+Install additional Python dependencies::
 
-Create a new virtual environment
---------------------------------
+    cd ~/yunetaproject/yunetas/scripts
 
-
+    pip install -r ~/yunetaproject/yunetas/scripts/requirements.txt
 
 Configuring (Kconfig)
 ---------------------
