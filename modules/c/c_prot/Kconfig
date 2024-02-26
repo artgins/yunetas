@@ -1,0 +1,100 @@
+# Copyright (c) 2023 Fabian Blatz <fabianblatz@gmail.com>
+# Copyright 2023 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config C_PROT_MODULE
+    bool
+
+config C_PROT
+    bool "C_PROT support"
+    help
+      This option enables the C_PROT library.
+
+if C_PROT
+
+config LV_USE_MONKEY
+    bool
+
+config LV_DPI_DEF
+    int
+
+config LV_CONF_SKIP
+    bool
+    default n
+
+config LV_USE_LOG
+    bool
+
+config LV_LOG_LEVEL_NONE
+    bool
+
+config LV_LOG_LEVEL_ERROR
+    bool
+
+config LV_LOG_LEVEL_WARN
+    bool
+
+config LV_LOG_LEVEL_INFO
+    bool
+
+config LV_LOG_LEVEL_USER
+    bool
+
+config LV_LOG_LEVEL_TRACE
+    bool
+
+config LV_Z_LOG_LEVEL
+    int
+    default 0 if LV_LOG_LEVEL_NONE || !LV_USE_LOG
+    default 1 if LV_LOG_LEVEL_ERROR
+    default 2 if LV_LOG_LEVEL_WARN
+    default 3 if LV_LOG_LEVEL_INFO
+    default 3 if LV_LOG_LEVEL_USER
+    default 4 if LV_LOG_LEVEL_TRACE
+
+config APP_LINK_WITH_LVGL
+    bool "Link 'app' with C_PROT"
+    default y
+    help
+      Add C_PROT header files to the 'app' include path. It may be
+      disabled if the include paths for C_PROT are causing aliasing
+      issues for 'app'.
+
+config LV_Z_USE_FILESYSTEM
+    bool "C_PROT file system support"
+    depends on FILE_SYSTEM
+    default y if FILE_SYSTEM
+    help
+      Enable LittlevGL file system
+
+choice LV_COLOR_DEPTH
+    default LV_COLOR_DEPTH_16
+    prompt "Color depth (bits per pixel)"
+
+    config LV_COLOR_DEPTH_32
+        bool "32: ARGB8888"
+    config LV_COLOR_DEPTH_16
+        bool "16: RGB565"
+    config LV_COLOR_DEPTH_8
+        bool "8: RGB232"
+    config LV_COLOR_DEPTH_1
+        bool "1: monochrome"
+endchoice
+
+config LV_COLOR_16_SWAP
+    bool
+
+config LV_Z_FLUSH_THREAD
+    bool "Flush C_PROT frames in a separate thread"
+    help
+      Flush C_PROT frames in a separate thread, while the primary thread
+      renders the next C_PROT frame. Can be disabled if the performance
+      gain this approach offers is not required
+
+
+rsource "Kconfig.memory"
+rsource "Kconfig.input"
+rsource "Kconfig.shell"
+
+
+endif

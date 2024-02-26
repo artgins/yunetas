@@ -1,0 +1,3 @@
+comment "Available modules."
+
+source "modules/c/c_prot/Kconfig"
