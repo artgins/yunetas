@@ -47,7 +47,8 @@ Clone with submodules::
 
     git clone --recurse-submodules https://github.com/artgins/yunetas.git
 
-    source ~/yunetaproject/yunetas/yunetas-env.sh
+    cd ~/yunetaproject/yunetas
+    source yunetas-env.sh
 
 Install additional Python dependencies
 --------------------------------------
@@ -55,6 +56,16 @@ Install additional Python dependencies
 Install additional Python dependencies::
 
     pip install -r ~/yunetaproject/yunetas/scripts/requirements.txt
+
+Configure .bashrc
+-----------------
+
+Next times to activate yunetas environment,
+(you can add these lines to ``~/.bashrc`` ::
+
+    source ~/yunetaproject/.yuneta/bin/activate
+    cd ~/yunetaproject/yunetas
+    source yunetas-env.sh
 
 Configuring (Kconfig)
 ---------------------
