@@ -15,7 +15,7 @@ TAG_OPENSSL="openssl-3.2.1"
 TAG_PCRE2="pcre2-10.43"
 TAG_CRITERION="v2.4.2"
 TAG_LIBJWT="v1.16.0"
-export TAG_OPENRESTY="1.25.3.1"
+export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in install-libs.sh
 
 #------------------------------------------
 #   Jansson
@@ -75,6 +75,7 @@ git checkout "$TAG_OPENSSL"
     --prefix=/yuneta/development/outputs \
     --openssldir=/yuneta/bin/ssl3 \
     --libdir=lib \
+    -fPIC \
     no-tests \
     no-shared \
     no-docs \

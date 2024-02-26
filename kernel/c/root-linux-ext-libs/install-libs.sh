@@ -69,6 +69,7 @@ cd ../..
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
+export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in configure-libs.sh
 cd build/openresty
 cd "openresty-$TAG_OPENRESTY"
 

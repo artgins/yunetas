@@ -37,13 +37,18 @@ Get submodules if not got::
 
     git submodule update --init --recursive
 
+    or?
+
+    git submodule init
+    git submodule update
+
 Configuring (Kconfig)
 ---------------------
 
 Configuration options are defined in ``Kconfig`` file.
 The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
 
-You can use any of this utilities to modify the Kconfig file:
+You can use any of this utilities to edit the Kconfig file:
 
      - ``kconfig-conf Kconfig``
      - ``kconfig-mconf Kconfig``
