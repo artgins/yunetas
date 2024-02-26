@@ -16,7 +16,7 @@ fi
 export YUNETAS_BASE=$( builtin cd "$( dirname "$dir" )" > /dev/null && pwd ${pwd_opt})
 unset pwd_opt
 
-scripts_path=${YUNETAS_BASE}/scripts
+scripts_path=${YUNETAS_BASE}/yunetas/scripts
 if ! echo "${PATH}" | grep -q "${scripts_path}"; then
     export PATH=${scripts_path}:${PATH}
 fi

@@ -47,6 +47,8 @@ Clone with submodules::
 
     git clone --recurse-submodules https://github.com/artgins/yunetas.git
 
+    source ~/yunetaproject/yunetas/yunetas-env.sh
+
 Install additional Python dependencies
 --------------------------------------
 
