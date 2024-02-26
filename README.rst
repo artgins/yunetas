@@ -52,8 +52,6 @@ Install additional Python dependencies
 
 Install additional Python dependencies::
 
-    cd ~/yunetaproject/yunetas/scripts
-
     pip install -r ~/yunetaproject/yunetas/scripts/requirements.txt
 
 Configuring (Kconfig)
