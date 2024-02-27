@@ -6,10 +6,11 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'YunetaS'
+project = 'Yuneta Simplified'
 copyright = '2024, ArtGins'
 author = 'ArtGins'
-release = '7.0'
+release = '7.0.0'
+show_authors = False
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -17,6 +18,7 @@ release = '7.0'
 extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'sphinx_copybutton'
 ]
 
 templates_path = ['_templates']
@@ -26,15 +28,5 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
-
-html_theme_options = {
-    'logo': 'yuneta.png',
-    #    'description': "V. 1.1",
-    'fixed_sidebar': True,
-    'page_width': '1200px',
-    'sidebar_width': '300px',
-}
-
-# html_favicon = '_static/favicon.ico'

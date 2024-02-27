@@ -1,3 +1,3 @@
 #!/bin/sh
-rm -rf _build; make html
+make html
 watchfs -f watch.json

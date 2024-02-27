@@ -9,7 +9,7 @@ if [ "X$name" "==" "Xyunetas-env.sh" ]; then
 fi
 
 if [ ! -f "./YUNETA_VERSION" ]; then
-    echo "Source this file must be executed in yunetas directory."
+    echo "Source this file must be executed inside yunetas directory."
     return 1
 fi
 

@@ -9,11 +9,11 @@ It can be transport to any language.
 
 Versions in C, Javascript, [soon Python].
 
-Getting Started
-===============
+Installation
+============
 
-Install dependencies
---------------------
+Install system dependencies
+---------------------------
 
 Use ``apt`` to install the required dependencies:
 
@@ -26,8 +26,12 @@ Use ``apt`` to install the required dependencies:
       libjansson-dev libpcre2-dev perl dos2unix
 
 
-Create a new virtual environment
---------------------------------
+Install pipx
+------------
+
+[`pipx`](https://github.com/pypa/pipx) is used to install Python CLI applications globally while still isolating them in virtual environments.
+`pipx` will manage upgrades and uninstalls when used to install Poetry.
+
 
 Create a new virtual environment ::
 
@@ -103,6 +107,9 @@ To build without debug::
 By default the installation directory of include files,
 libraries and binaries is ``/yuneta/development/outputs/``
 
+
+Basic usage
+===========
 
 Directories
 ===========
