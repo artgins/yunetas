@@ -1,12 +1,49 @@
+README
+======
+
+This: Directory of documentations.
+
+
 How to build documentation
 ==========================
 
-This documentation is builting with [sphinx].
+The documentations of this directory is builting with [sphinx].
 
 It has been tested in Kubuntu 23.04.
 
-It's highly recommended to use a dedicated virtual environment,
-for example [venv], [conda] or [pipx].
+- Skills needed on:
+    ```
+    [
+        "linux", "python", 
+    ]
+    ```
+
+For any python package use, it's highly recommended to use a dedicated virtual environment,
+for example [venv], [conda] or [pipx]. 
+Next some short instructions to install one or more of mentioned tools.
+
+Some fixed values are used, modify the scripts as you want. 
+
+- The constant values used for [venv]:
+    ``` json
+    {
+        "venv_name": "venv_sphinx"  #  virtual env name for [venv] 
+    }
+    ```
+
+- The constant values used for [conda]:
+    ``` json
+    {
+        "venv_name": "conda_sphinx"  #  virtual env name for [conda] 
+    }
+    ```
+
+- The constant values used for [pipx]:
+    ``` json
+    {
+        # use his internal environment
+    }
+    ```
 
 Using [venv]
 ------------
