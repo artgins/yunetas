@@ -42,7 +42,7 @@ Steps to install and create a virtual environment:
 
 - **Now you must close and re-open your current shell**:
     ``` shell
-    exit
+    exit # exit and RE-open bash to continue !!
     ```
 - Create the virtual environment `conda_sphinx` and activate:
     ``` shell

@@ -2,15 +2,19 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
+import os
+from urllib.request import urlopen
+from pathlib import Path
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Yuneta Simplified'
-copyright = '2024, ArtGins'
-author = 'ArtGins'
+copyright = '2024, Niyamaka'
+author = 'Niyamaka'
 release = '7.0.0'
 show_authors = False
+master_doc = "index"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
