@@ -11,7 +11,7 @@ The documentations of this directory is builting with [sphinx].
 
 It has been tested in Kubuntu 23.04.
 
-- Skills needed on:
+- Skills required on:
     ```
     [
         "linux", "python", 
