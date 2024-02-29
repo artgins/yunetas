@@ -80,6 +80,8 @@ Steps to install and create a virtual environment:
 Install [sphinx] and [sphinx-book-theme]  
 ----------------------------------------
 
+Old and new generations.
+
 - In any virtual environment install [sphinx],  
   [sphinx-book-theme] and some utils extensions:
     ``` shell
