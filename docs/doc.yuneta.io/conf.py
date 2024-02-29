@@ -21,6 +21,10 @@ master_doc = "index"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    # TODO revisa qué extensión provoca el fallo
+    # TODO:     Extension error:
+    # TODO:     source_suffix '.md' is already registered
+
     # "sphinx.ext.todo",
     # "sphinx.ext.viewcode",
     # "sphinx.ext.autodoc",
