@@ -88,7 +88,7 @@ Old and new generations.
     pip install sphinx sphinx-book-theme sphinx_copybutton \
         sphinx_design sphinx_sitemap \
         sphinx_tabs sphinx_togglebutton \
-        sphinxext.opengraph \
+        sphinxext.opengraph matplotlib \
         ablog myst_nb myst-parser
     ```
 

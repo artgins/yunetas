@@ -21,23 +21,43 @@ master_doc = "index"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx.ext.todo",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.graphviz",
-    "sphinx.ext.ifconfig",
-    "sphinx.ext.inheritance_diagram",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
-    "sphinx_design",
-    "sphinx_copybutton",
-    "sphinx_tabs.tabs",
-    "sphinx_togglebutton",
-    "sphinxext.opengraph",
+    # "sphinx.ext.todo",
+    # "sphinx.ext.viewcode",
+    # "sphinx.ext.autodoc",
+    # "sphinx.ext.autosummary",
+    # "sphinx.ext.graphviz",
+    # "sphinx.ext.ifconfig",
+    # "sphinx.ext.inheritance_diagram",
+    # "sphinx.ext.intersphinx",
+    # "sphinx.ext.napoleon",
+    # "sphinx_design",
+    # "sphinx_copybutton",
+    # "sphinx_tabs.tabs",
+    # "sphinx_togglebutton",
+    # "sphinxext.opengraph",
+    # "ablog",
+    # "myst_nb",
+    # "myst_parser"
+
+    # sphinx.book.theme original list
     "ablog",
     "myst_nb",
-    "myst_parser"
+    "numpydoc",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.viewcode",
+    "sphinxcontrib.youtube",
+    "sphinx_copybutton",
+    "sphinx_design",
+    "sphinx_examples",
+    "sphinx_tabs.tabs",
+    "sphinx_thebe",
+    "sphinx_togglebutton",
+    "sphinxcontrib.bibtex",
+    "sphinxext.opengraph",
+    # For the kitchen sink
+    "sphinx.ext.todo",
+
 ]
 
 templates_path = ['_templates']
