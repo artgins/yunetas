@@ -19,7 +19,7 @@ It has been tested in Kubuntu 23.04.
     ```
 
 For any python package use, it's highly recommended to use a dedicated virtual environment,
-for example [venv], [conda] or [pipx]. 
+for example [venv] or [conda]. 
 Next some short instructions to install one or more of mentioned tools.
 
 Some fixed values are used, modify the scripts as you want. 
@@ -35,13 +35,6 @@ Some fixed values are used, modify the scripts as you want.
     ``` json
     {
         "venv_name": "conda_sphinx"  #  virtual env name for [conda] 
-    }
-    ```
-
-- The constant values used for [pipx]:
-    ``` json
-    {
-        # use his internal environment
     }
     ```
 
@@ -92,22 +85,6 @@ Steps to install and create a virtual environment:
     pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
     ```
 
-Using [pipx]
-------------
-
-Pipx is a tool to install and run Python applications in asolated environments.
-
-- Install [pipx]
-    ``` shell
-    sudo apt install pipx
-    pipx ensurepath
-    ```
-- Install [sphinx] with pipx:
-    ``` shell
-    pipx install sphinx 
-    pipx inject sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
-    ```
-
 Compile the documentation
 =========================
 
@@ -119,7 +96,6 @@ Compile the documentation
     ```
 
 
-[pipx]:     https://pipx.pypa.io/stable/installation/
 [sphinx]:   https://www.sphinx-doc.org/
 [venv]:     https://docs.python.org/3/library/venv.html
 [conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
