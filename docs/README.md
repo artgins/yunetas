@@ -7,7 +7,8 @@ This: Directory of documentations.
 How to build documentation
 ==========================
 
-The documentations of this directory is builting with [sphinx].
+The documentations of this directory is building with [sphinx]
+and the nice [sphinx-book-theme].
 
 It has been tested in Kubuntu 23.04.
 
@@ -51,10 +52,6 @@ Steps to install and create a virtual environment:
     python3 -m venv ~/venv_sphinx
     source ~/venv_sphinx/bin/activate
     ```
-- Install [sphinx] in the virtual environment:
-    ``` shell
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
-    ```
 
 Using [conda]
 -------------
@@ -80,9 +77,17 @@ Steps to install and create a virtual environment:
     conda activate conda_sphinx
     conda install pip
     ```
-- Install [sphinx] in the virtual environment:
+Install [sphinx] and [sphinx-book-theme]  
+----------------------------------------
+
+- In any virtual environment install [sphinx],  
+  [sphinx-book-theme] and some utils extensions:
     ``` shell
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
+    pip install sphinx sphinx-book-theme sphinx_copybutton \
+        sphinx_design sphinx_sitemap \
+        sphinx_tabs sphinx_togglebutton \
+        sphinxext.opengraph \
+        ablog myst_nb myst-parser
     ```
 
 Compile the documentation
@@ -99,3 +104,5 @@ Compile the documentation
 [sphinx]:   https://www.sphinx-doc.org/
 [venv]:     https://docs.python.org/3/library/venv.html
 [conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
+
+[sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/

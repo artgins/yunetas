@@ -6,7 +6,7 @@
             "command":"make html",
             "path":".",
             "recursive":true,
-            "patterns":".*\\.py;.*\\.mako;.*\\.js;.*\\.css;.*\\.scss;.*\\.rst;.*\\.json;",
+            "patterns":".*\\.py;.*\\.mako;.*\\.js;.*\\.css;.*\\.scss;.*\\.rst;.*\\.json;.*\\.md;",
             "ignore_renamed_event":true
         }
     }
