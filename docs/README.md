@@ -12,7 +12,7 @@ The documentations of this directory is builting with [sphinx].
 It has been tested in Kubuntu 23.04.
 
 - Skills required on:
-    ```
+    ``` json
     [
         "linux", "python", 
     ]
@@ -59,8 +59,8 @@ Steps to install and create a virtual environment:
     source ~/venv_sphinx/bin/activate
     ```
 - Install [sphinx] in the virtual environment:
-    ``` bash
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
+    ``` shell
+    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
     ```
 
 Using [conda]
@@ -88,8 +88,8 @@ Steps to install and create a virtual environment:
     conda install pip
     ```
 - Install [sphinx] in the virtual environment:
-    ``` bash
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
+    ``` shell
+    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
     ```
 
 Using [pipx]
@@ -103,20 +103,20 @@ Pipx is a tool to install and run Python applications in asolated environments.
     pipx ensurepath
     ```
 - Install [sphinx] with pipx:
-    ``` bash
+    ``` shell
     pipx install sphinx 
-    pipx inject sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
+    pipx inject sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
     ```
 
 Compile the documentation
 =========================
 
-To generate the documentation:
+- To generate the documentation:
 
-``` bash
-cd doc.yuneta.io
-make html
-```
+    ``` shell
+    cd doc.yuneta.io
+    make html
+    ```
 
 
 [pipx]:     https://pipx.pypa.io/stable/installation/
