@@ -53,7 +53,7 @@ Steps to install and create a virtual environment:
     ```
 - Install [sphinx] in the virtual environment:
     ``` shell
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
+    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
     ```
 
 Using [conda]
@@ -82,7 +82,7 @@ Steps to install and create a virtual environment:
     ```
 - Install [sphinx] in the virtual environment:
     ``` shell
-    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser mystmd
+    pip install sphinx sphinx-book-theme sphinx_copybutton sphinx_design sphinx_sitemap myst-parser
     ```
 
 Compile the documentation
