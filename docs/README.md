@@ -82,14 +82,34 @@ Install [sphinx] and [sphinx-book-theme]
 
 Old and new generations.
 
-- In any virtual environment install [sphinx],  
-  [sphinx-book-theme] and some utils extensions:
-    ``` shell
-    pip install sphinx sphinx-book-theme sphinx_copybutton \
-        sphinx_design sphinx_sitemap \
-        sphinx_tabs sphinx_togglebutton \
-        sphinxext.opengraph matplotlib \
-        ablog myst_nb myst-parser
+- In any virtual environment, install [sphinx], [sphinx-book-theme] and some utils extensions:
+  - [ablog](https://ablog.readthedocs.io/en/stable/)
+  - [myst_nb](https://myst-nb.readthedocs.io/en/latest/)
+  - [numpydoc](https://numpydoc.readthedocs.io/en/latest/format.html) 
+  - [matplotlib](https://matplotlib.org/)
+  - [sphinx_design](https://sphinx-design.readthedocs.io/en/latest/)
+  - [sphinx_copybutton](https://sphinx-copybutton.readthedocs.io/en/latest/)
+  - [sphinx_tabs](https://sphinx-tabs.readthedocs.io/en/latest/)
+  - [sphinx_togglebutton](https://sphinx-togglebutton.readthedocs.io/en/latest/)
+  - [sphinxext.opengraph](https://sphinxext-opengraph.readthedocs.io/en/latest/)
+  - [sphinxcontrib.youtube](https://sphinxcontrib-youtube.readthedocs.io/en/latest/)
+  - [sphinx_thebe](https://sphinx-thebe.readthedocs.io/en/latest/)
+  - [sphinxcontrib.bibtex](https://sphinxcontrib-bibtex.readthedocs.io/en/latest/)
+  - [sphinxcontrib.mermaid](https://sphinxcontrib-mermaid-demo.readthedocs.io/en/latest/)
+
+-
+    ```
+    pip install sphinx sphinx-book-theme myst-parser \
+        ablog myst_nb numpydoc matplotlib \
+        sphinx_design \
+        sphinx_copybutton \
+        sphinx_tabs \
+        sphinx_togglebutton \
+        sphinxext.opengraph \
+        sphinxcontrib.youtube \
+        sphinx_thebe \
+        sphinxcontrib.bibtex \
+        sphinxcontrib.mermaid
     ```
 
 Compile the documentation
@@ -106,5 +126,4 @@ Compile the documentation
 [sphinx]:   https://www.sphinx-doc.org/
 [venv]:     https://docs.python.org/3/library/venv.html
 [conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
-
 [sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/

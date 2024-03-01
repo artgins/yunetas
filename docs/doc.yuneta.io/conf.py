@@ -41,9 +41,6 @@ extensions = [
     "sphinxcontrib.youtube",
     "sphinx_thebe",
     "sphinxcontrib.bibtex",
-    "sphinx-pyscript",
-    "sphinx-tippy",
-    "sphinx-autodoc2",
     "sphinxcontrib.mermaid",
 ]
 
