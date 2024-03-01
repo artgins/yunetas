@@ -21,47 +21,30 @@ master_doc = "index"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # TODO revisa qué extensión provoca el fallo
-    # TODO:     Extension error:
-    # TODO:     source_suffix '.md' is already registered
-
-    # "sphinx.ext.todo",
-    # "sphinx.ext.viewcode",
-    # "sphinx.ext.autodoc",
-    # "sphinx.ext.autosummary",
-    # "sphinx.ext.graphviz",
-    # "sphinx.ext.ifconfig",
-    # "sphinx.ext.inheritance_diagram",
-    # "sphinx.ext.intersphinx",
-    # "sphinx.ext.napoleon",
-    # "sphinx_design",
-    # "sphinx_copybutton",
-    # "sphinx_tabs.tabs",
-    # "sphinx_togglebutton",
-    # "sphinxext.opengraph",
-    # "ablog",
-    # "myst_nb",
-    # "myst_parser"
-
-    # sphinx.book.theme original list
+    "sphinx.ext.todo",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.graphviz",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
     "ablog",
     "myst_nb",
     "numpydoc",
-    "sphinx.ext.autodoc",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.viewcode",
-    "sphinxcontrib.youtube",
-    "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_examples",
+    "sphinx_copybutton",
     "sphinx_tabs.tabs",
-    "sphinx_thebe",
     "sphinx_togglebutton",
-    "sphinxcontrib.bibtex",
     "sphinxext.opengraph",
-    # For the kitchen sink
-    "sphinx.ext.todo",
-
+    "sphinxcontrib.youtube",
+    "sphinx_thebe",
+    "sphinxcontrib.bibtex",
+    "sphinx-pyscript",
+    "sphinx-tippy",
+    "sphinx-autodoc2",
+    "sphinxcontrib.mermaid",
 ]
 
 templates_path = ['_templates']
