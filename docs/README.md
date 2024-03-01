@@ -121,6 +121,9 @@ Compile the documentation
     cd doc.yuneta.io
     make html
     ```
+- The output, i.e., the static web application, 
+    will be installed in `_build` directory. 
+    From here deploy where you want.
 
 
 [sphinx]:   https://www.sphinx-doc.org/
