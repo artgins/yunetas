@@ -5,9 +5,3 @@
 [submodule "modules/js/w2ui-artgins"]
 	path = modules/js/w2ui-artgins
 	url = https://github.com/artgins/w2ui-artgins.git
-[submodule "yunos/cli_yunetas.py"]
-	path = yunos/cli_yunetas.py
-	url = git@github.com:artgins/cli_yunetas.git
-[submodule "yunos/gui_yuneta.js"]
-	path = yunos/gui_yuneta.js
-	url = git@github.com:artgins/gui_yuneta.git
