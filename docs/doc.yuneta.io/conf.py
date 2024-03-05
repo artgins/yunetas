@@ -79,10 +79,10 @@ myst_enable_extensions = [
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_book_theme"
-html_logo = "_static/logo-wide.svg"
-html_title = "Sphinx Book Theme"
+html_logo = "_static/yuneta-label.svg"
+html_title = "Yuneta Simplified"
 html_copy_source = True
-html_favicon = "_static/logo-square.svg"
+html_favicon = "_static/yuneta-y.svg"
 html_last_updated_fmt = ""
 
 html_sidebars = {
@@ -132,14 +132,14 @@ html_theme_options = {
         "so double-check your custom CSS rules!⚠️"
     ),
     "logo": {
-        "image_dark": "_static/logo-wide-dark.svg",
-        # "text": html_title,  # Uncomment to try text with logo
+        "image_dark": "_static/yuneta-label.svg",
+        "text": html_title,  # Uncomment to try text with logo
     },
     "icon_links": [
         {
             "name": "Executable Books",
             "url": "https://executablebooks.org/",
-            "icon": "_static/ebp-logo.png",
+            "icon": "_static/yuneta-logo.png",
             "type": "local",
         },
         {
@@ -170,7 +170,7 @@ html_theme_options = {
 
 # sphinxext.opengraph
 ogp_social_cards = {
-    "image": "_static/logo-square.png",
+    "image": "_static/yuneta-logo2.png",
 }
 
 # -- ABlog config -------------------------------------------------
