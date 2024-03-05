@@ -10,7 +10,7 @@ title: The Sphinx Book Theme
 :::{grid-item}
 :columns: 4
 
-```{image} ./_static/logo-square.svg
+```{image} ./_static/yuneta-image.svg
 :width: 150px
 ```
 :::

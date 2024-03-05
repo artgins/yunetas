@@ -12,7 +12,7 @@ and the nice [sphinx-book-theme].
 
 It has been tested in Kubuntu 23.04.
 
-- Skills required on:
+- You should be relatively familiar with:
     ``` json
     [
         "linux", "python", 
@@ -80,9 +80,25 @@ Steps to install and create a virtual environment:
 Install [sphinx] and [sphinx-book-theme]  
 ----------------------------------------
 
-Old and new generations.
 
-- In any virtual environment, install [sphinx], [sphinx-book-theme] and some utils extensions:
+- In some virtual environment, install [sphinx], [sphinx-book-theme] 
+-
+    ```
+    pip install sphinx sphinx-book-theme myst-parser \
+        ablog myst_nb numpydoc matplotlib \
+        sphinx_design \
+        sphinx_copybutton \
+        sphinx_examples \
+        sphinx_tabs \
+        sphinx_togglebutton \
+        sphinxext.opengraph \
+        sphinxcontrib.youtube \
+        sphinx_thebe \
+        sphinxcontrib.bibtex \
+        sphinxcontrib.mermaid
+    ```
+
+Some utils extensions included:
   - [ablog](https://ablog.readthedocs.io/en/stable/)
   - [myst_nb](https://myst-nb.readthedocs.io/en/latest/)
   - [numpydoc](https://numpydoc.readthedocs.io/en/latest/format.html) 
@@ -96,21 +112,6 @@ Old and new generations.
   - [sphinx_thebe](https://sphinx-thebe.readthedocs.io/en/latest/)
   - [sphinxcontrib.bibtex](https://sphinxcontrib-bibtex.readthedocs.io/en/latest/)
   - [sphinxcontrib.mermaid](https://sphinxcontrib-mermaid-demo.readthedocs.io/en/latest/)
-
--
-    ```
-    pip install sphinx sphinx-book-theme myst-parser \
-        ablog myst_nb numpydoc matplotlib \
-        sphinx_design \
-        sphinx_copybutton \
-        sphinx_tabs \
-        sphinx_togglebutton \
-        sphinxext.opengraph \
-        sphinxcontrib.youtube \
-        sphinx_thebe \
-        sphinxcontrib.bibtex \
-        sphinxcontrib.mermaid
-    ```
 
 Compile the documentation
 =========================

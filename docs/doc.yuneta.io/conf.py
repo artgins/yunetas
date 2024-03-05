@@ -110,7 +110,7 @@ thebe_config = {
 
 html_theme_options = {
     "path_to_docs": "docs",
-    "repository_url": "https://github.com/executablebooks/sphinx-book-theme",
+    "repository_url": "https://github.com/artgins/yunetas",
     "repository_branch": "master",
     "launch_buttons": {
         "binderhub_url": "https://mybinder.org",
@@ -128,8 +128,6 @@ html_theme_options = {
     "use_sidenotes": True,
     "show_toc_level": 2,
     "announcement": (
-        "⚠️The latest release refactored our HTML, "
-        "so double-check your custom CSS rules!⚠️"
     ),
     "logo": {
         "image_dark": "_static/yuneta-label.svg",
