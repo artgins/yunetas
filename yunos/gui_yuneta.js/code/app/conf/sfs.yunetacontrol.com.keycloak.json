@@ -1,8 +1,0 @@
-{
-    "realm": "sfs",
-    "auth-server-url": "https://sfs.yunetacontrol.ovh:8641/auth/",
-    "ssl-required": "external",
-    "resource": "yunetacontrol",
-    "public-client": true,
-    "confidential-port": 0
-}
