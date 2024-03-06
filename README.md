@@ -15,9 +15,7 @@ Installation
 Install system dependencies
 ---------------------------
 
-Use ``apt`` to install the required dependencies:
-
- .. code-block:: bash
+Use `apt` to install the required dependencies::
 
     sudo apt install --no-install-recommends \
       git mercurial make cmake ninja-build \
@@ -25,12 +23,11 @@ Use ``apt`` to install the required dependencies:
       python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev perl dos2unix
 
-
 Install pipx
 ------------
 
-[`pipx`](https://github.com/pypa/pipx) is used to install Python CLI applications globally while still isolating them in virtual environments.
-`pipx` will manage upgrades and uninstalls when used to install Poetry.
+[pipx] is used to install Python CLI applications globally while still isolating them in virtual environments.
+[pipx] will manage upgrades and uninstalls when used to install Poetry.
 
 
 Create a new virtual environment ::
@@ -79,10 +76,10 @@ The output from Kconfig is a header file ``yuneta_config.h`` with macros that ca
 
 You can use any of this utilities to edit the Kconfig file:
 
-     - ``kconfig-conf Kconfig``
-     - ``kconfig-mconf Kconfig``
-     - ``kconfig-nconf Kconfig``
-     - ``kconfig-qconf Kconfig``
+     - kconfig-conf Kconfig
+     - kconfig-mconf Kconfig
+     - kconfig-nconf Kconfig
+     - kconfig-qconf Kconfig
 
 Compiling and Installing
 ------------------------
@@ -205,3 +202,4 @@ Full applications or utilities built with yunetas
 - tui_yunetas.py
     TUI of Yunetas.
 
+[pipx]:   https://github.com/pypa/pipx

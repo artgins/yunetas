@@ -83,7 +83,7 @@ Install [sphinx] and [sphinx-book-theme]
 
 - In some virtual environment, install [sphinx], [sphinx-book-theme] 
 -
-    ```
+    ``` shell
     pip install sphinx sphinx-book-theme myst-parser \
         ablog myst_nb numpydoc matplotlib \
         sphinx_design \
