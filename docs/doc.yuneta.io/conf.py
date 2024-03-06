@@ -135,20 +135,20 @@ html_theme_options = {
     },
     "icon_links": [
         {
-            "name": "Executable Books",
-            "url": "https://executablebooks.org/",
+            "name": "Yuneta Simplified",
+            "url": "https://github.com/artgins/yunetas",
             "icon": "_static/yuneta-logo.png",
             "type": "local",
         },
         {
             "name": "GitHub",
-            "url": "https://github.com/executablebooks/sphinx-book-theme",
+            "url": "https://github.com/artgins/yunetas",
             "icon": "fa-brands fa-github",
         },
         {
             "name": "PyPI",
-            "url": "https://pypi.org/project/sphinx-book-theme/",
-            "icon": "https://img.shields.io/pypi/dw/sphinx-book-theme",
+            "url": "https://pypi.org/project/yunetas/",
+            "icon": "https://img.shields.io/pypi/dw/yunetas",
             "type": "url",
         },
     ],
