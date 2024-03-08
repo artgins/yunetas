@@ -98,7 +98,7 @@ Install [sphinx] and [sphinx-book-theme]
         sphinxcontrib.mermaid
     ```
 
-Some utils extensions included:
+Some included utils extensions:
   - [ablog](https://ablog.readthedocs.io/en/stable/)
   - [myst_nb](https://myst-nb.readthedocs.io/en/latest/)
   - [numpydoc](https://numpydoc.readthedocs.io/en/latest/format.html) 

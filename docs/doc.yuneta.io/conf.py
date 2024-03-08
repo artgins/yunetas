@@ -11,7 +11,7 @@ from urllib.request import urlopen
 from pathlib import Path
 
 project = 'Yuneta Simplified'
-copyright = '2024, '
+copyright = '2024, ArtGins'
 author = 'ArtGins'
 release = '7.0.0'
 show_authors = False
