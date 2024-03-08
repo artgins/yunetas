@@ -5,7 +5,6 @@
 
 - python 3.7+ 
 
-
 ## Install system dependencies
 
 Use `apt` to install the required dependencies::
@@ -90,7 +89,6 @@ To build without debug::
 
 By default, the installation directory of include files,
 libraries and binaries is ``/yuneta/development/outputs/``
-
 
 [pipx]:   https://github.com/pypa/pipx
 

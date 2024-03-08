@@ -21,21 +21,15 @@ title: Yuneta Simplified
 
 Yuneta Simplified, a complete asynchronous Development Framework 
 
-:::
+::::
 
 Yuneta Simplified is a Development Framework oriented to 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
-programming.
-
-For Linux and RTOS/ESP32.
-
-It can be transported to any language.
+programming. For Linux and RTOS/ESP32. It can be transported to any language.
 
 Versions in C, Javascript, [soon Python].
-
-::::
 
 # Topic areas
 
@@ -46,11 +40,5 @@ The following topic areas will help you understand and use the framework.
 :caption: Topic areas
 
 INSTALL
-tutorials/get-started
-content/index
-sections/index
-components/index
-reference
-contributing/index
 CHANGELOG
 ```
