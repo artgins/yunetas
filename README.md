@@ -6,7 +6,7 @@
 
 **Yuneta Simplified**
 
-[![Icon](docs/doc.yuneta.io/_static/yuneta-image.svg?raw=true)](https://doc.yuneta.io/)
+[![Icon](docs/doc.yuneta.io/_static/yuneta-image.svg?raw=true)](https://yuneta.io/)
 
 **Yuneta Simplified** is a Development Framework oriented to 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
