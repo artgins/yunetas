@@ -19,7 +19,7 @@ title: Yuneta Simplified
 :columns: 8
 :class: sd-fs-3
 
-**Yuneta Simplified**, an asynchronous Development Framework 
+**Yuneta Simplified**, a C Asynchronous Development Framework 
 
 ::::
 
