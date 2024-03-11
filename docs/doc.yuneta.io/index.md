@@ -19,11 +19,11 @@ title: Yuneta Simplified
 :columns: 8
 :class: sd-fs-3
 
-Yuneta Simplified, an asynchronous Development Framework 
+**Yuneta Simplified**, an asynchronous Development Framework 
 
 ::::
 
-Yuneta Simplified is a Development Framework oriented to 
+[Yuneta Simplified](https://yuneta.io) is a Development Framework oriented to 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 

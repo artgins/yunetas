@@ -8,7 +8,7 @@
     <img src="https://github.com/artgins/yunetas/blob/main/docs/doc.yuneta.io/_static/yuneta-image.svg?raw=true" alt="Icon" width="200" /> <!-- Adjust the width as needed -->
 </a>
 
-**Yuneta Simplified** is a Development Framework oriented to 
+[Yuneta Simplified](https://yuneta.io) is a Development Framework oriented to 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
