@@ -8,14 +8,13 @@
     <img src="https://github.com/artgins/yunetas/blob/main/docs/doc.yuneta.io/_static/yuneta-image.svg?raw=true" alt="Icon" width="200" /> <!-- Adjust the width as needed -->
 </a>
 
-[Yuneta Simplified](https://yuneta.io) is a Development Framework oriented to 
+[Yuneta Simplified](https://yuneta.io) is a C Development Framework oriented to 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming.
 
-For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). It can be transported to any language.
-Versions in C, Javascript and Python.
+For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). Partially ported to Python and Javascript.
 
 ## Documentation
 
