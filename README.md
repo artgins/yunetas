@@ -14,7 +14,7 @@
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming.
 
-For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). Partially ported to Python and Javascript.
+For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). Partially ported to [Python](https://www.python.org/) and Javascript.
 
 ## Documentation
 
