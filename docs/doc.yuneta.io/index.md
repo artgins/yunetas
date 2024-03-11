@@ -23,7 +23,7 @@ title: Yuneta Simplified
 
 ::::
 
-[Yuneta Simplified](https://yuneta.io) is a [C](https://en.wikipedia.org/wiki/C_(programming_language)) Development Framework oriented to 
+[Yuneta Simplified](https://yuneta.io) is a [C](https://en.wikipedia.org/wiki/C_(programming_language)) Development Framework  focused on 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
