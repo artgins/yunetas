@@ -19,7 +19,7 @@ Versions in C, Javascript and Python.
 
 ## Documentation
 
-See [yuneta.io](https://doc.yuneta.io) for documentation
+See [doc.yuneta.io](https://doc.yuneta.io) for documentation
 
 
 [pypi-badge]: https://img.shields.io/pypi/v/yunetas
