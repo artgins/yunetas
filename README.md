@@ -14,7 +14,7 @@
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming.
 
-For Linux and RTOS/ESP32. It can be transported to any language.
+For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). It can be transported to any language.
 Versions in C, Javascript and Python.
 
 ## Documentation
