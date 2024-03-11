@@ -30,12 +30,21 @@ and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
 programming. For Linux and RTOS/ESP32. It can be transported to any language.
 Versions in C, Javascript and Python.
 
-# Topic areas
+# Documentation
 
 ```{toctree}
 :maxdepth: 1
-:caption: Topic areas
+:caption: Documentation
 
-INSTALL
+installation
 CHANGELOG
+```
+
+# Api reference
+
+```{toctree}
+:caption: Api reference
+:maxdepth: 2
+
+api/index.md
 ```
