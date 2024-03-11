@@ -4,8 +4,6 @@
 [![License Shield](https://img.shields.io/badge/license-MIT-orange)](https://github.com/artgins/yunetas/blob/main/LICENSE.txt)
 [![API Docs](https://img.shields.io/badge/api-docs-informational.svg)](https://doc.yuneta.io/)
 
-**Yuneta Simplified**
-
 [![Icon](docs/doc.yuneta.io/_static/yuneta-image.svg?raw=true)](https://yuneta.io/)
 
 **Yuneta Simplified** is a Development Framework oriented to 
