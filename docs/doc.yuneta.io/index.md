@@ -19,7 +19,7 @@ title: Yuneta Simplified
 :columns: 8
 :class: sd-fs-3
 
-Yuneta Simplified, a complete asynchronous Development Framework 
+Yuneta Simplified, an asynchronous Development Framework 
 
 ::::
 
@@ -28,12 +28,9 @@ Yuneta Simplified is a Development Framework oriented to
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming. For Linux and RTOS/ESP32. It can be transported to any language.
-
-Versions in C, Javascript, [soon Python].
+Versions in C, Javascript and Python.
 
 # Topic areas
-
-The following topic areas will help you understand and use the framework.
 
 ```{toctree}
 :maxdepth: 1

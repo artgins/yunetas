@@ -179,7 +179,7 @@ fontawesome_included = True
 post_auto_image = 1
 post_auto_excerpt = 2
 nb_execution_show_tb = "READTHEDOCS" in os.environ
-bibtex_bibfiles = ["references.bib"]
+bibtex_bibfiles = []
 # To test that style looks good with common bibtex config
 bibtex_reference_style = "author_year"
 bibtex_default_style = "plain"
