@@ -18,7 +18,6 @@ For Linux and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
 ## Documentation
 
-See [doc.yuneta.io](https://doc.yuneta.io) for documentation
-
+For more details, see [doc.yuneta.io](https://doc.yuneta.io) 
 
 [pypi-badge]: https://img.shields.io/pypi/v/yunetas
