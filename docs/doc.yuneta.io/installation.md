@@ -36,13 +36,14 @@ On Linux:
     python3 -m pipx ensurepath
     ```
 
-## Install CLI `yunetas`
+## Install `yunetas`
 
 -
   ``` shell
   pipx install yunetas
   ```
 
+### Update or uninstall `yunetas`
 
 :::{dropdown} Update or Uninstall `yunetas`
   - Update yunetas:
@@ -58,6 +59,7 @@ On Linux:
       ```
 :::
 
+## XXXX
 
 ::::{tab-set}
 
