@@ -1,12 +1,5 @@
 # Installation
 
-Yuneta Simplified is a Development Framework oriented to 
-[Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
-[Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
-and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
-programming. For Linux and RTOS/ESP32. It can be transported to any language.
-Versions in C, Javascript and Python.
-Documentation in [yuneta.io](https://doc.yuneta.io)
 
 ## System Requirements
 
@@ -22,19 +15,56 @@ Use `apt` to install the required dependencies::
       python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev perl dos2unix
 
-## Install pipx
+## Install [pipx]
 
 [pipx] is used to install Python CLI applications globally while still isolating them in virtual environments.
-[pipx] will manage upgrades and uninstalls when used to install Poetry.
 
+On Linux:
 
-Create a new virtual environment ::
+- Ubuntu 23.04 or above:
 
-    python3 -m venv ~/yunetaproject/.yuneta
+    ``` shell
+    sudo apt update
+    sudo apt install pipx
+    pipx ensurepath
+    ```
 
-Activate the virtual environment: ::
+- Ubuntu 22.04 or below
 
-    source ~/yunetaproject/.yuneta/bin/activate
+    ``` shell
+    python3 -m pip install --user pipx
+    python3 -m pipx ensurepath
+    ```
+
+## Install CLI [yunetas]
+
+-
+    ``` shell
+    pipx install yunetas
+    ```
+
+To Update or Uninstall CLI [yunetas] click below:
+
+```{toggle}
+
+:::
+
+- Update:
+
+    ``` shell
+    pipx upgrade yunetas
+    ```
+
+- Uninstall:
+
+    ``` shell
+    pipx uninstall yunetas
+    ```
+
+:::
+
+```
+
 
 
 ## Clone
@@ -98,4 +128,4 @@ By default, the installation directory of include files,
 libraries and binaries is ``/yuneta/development/outputs/``
 
 [pipx]:     https://pipx.pypa.io/stable/installation/
-
+[yunetas]:  https://pypi.org/project/yunetas/
