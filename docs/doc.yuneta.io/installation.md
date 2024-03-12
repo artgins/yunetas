@@ -3,7 +3,7 @@
 
 ## System Requirements
 
-- python 3.7+ 
+- python 3.7+
 
 ## Install system dependencies
 
@@ -36,26 +36,26 @@ On Linux:
     python3 -m pipx ensurepath
     ```
 
-## Install CLI [yunetas]
+## Install CLI :ref:`yunetas`
 
 -
-    ``` shell
-    pipx install yunetas
-    ```
+  ``` shell
+  pipx install yunetas
+  ```
 
-To Update or Uninstall CLI [yunetas] click below:
+How Update or Uninstall TUI [yunetas]? click below:
 
 ```{toggle}
 
 :::
 
-- Update:
+- Update yunetas:
 
     ``` shell
     pipx upgrade yunetas
     ```
 
-- Uninstall:
+- Uninstall yunetas:
 
     ``` shell
     pipx uninstall yunetas
@@ -64,6 +64,27 @@ To Update or Uninstall CLI [yunetas] click below:
 :::
 
 ```
+
+::::{tab-set}
+
+:::{tab-item} Label1
+Content 1
+:::
+
+:::{tab-item} Label2
+Content 2
+:::
+
+::::
+
+
+Here is a reference to [My Section][my-section].
+
+[my-section]: #my-section "Go to My Section"
+
+## My Section
+This is the content of My Section.
+
 
 
 
@@ -77,6 +98,9 @@ Clone with submodules::
 
     cd ~/yunetaproject/yunetas
     source yunetas-env.sh
+
+
+    git clone -b 7.0.0a0 --recurse-submodules https://github.com/artgins/yunetas.git yunetas-7.0.0a0
 
 ## Install additional Python dependencies
 
@@ -129,3 +153,4 @@ libraries and binaries is ``/yuneta/development/outputs/``
 
 [pipx]:     https://pipx.pypa.io/stable/installation/
 [yunetas]:  https://pypi.org/project/yunetas/
+
