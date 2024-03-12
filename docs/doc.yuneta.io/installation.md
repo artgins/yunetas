@@ -15,7 +15,7 @@ Use `apt` to install the required dependencies::
       python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev perl dos2unix
 
-## Install [pipx]
+## Install `pipx`
 
 [pipx] is used to install Python CLI applications globally while still isolating them in virtual environments.
 
@@ -36,34 +36,28 @@ On Linux:
     python3 -m pipx ensurepath
     ```
 
-## Install CLI :ref:`yunetas`
+## Install CLI `yunetas`
 
 -
   ``` shell
   pipx install yunetas
   ```
 
-How Update or Uninstall TUI [yunetas]? click below:
 
-```{toggle}
+:::{dropdown} Update or Uninstall `yunetas`
+  - Update yunetas:
 
+      ``` shell
+      pipx upgrade yunetas
+      ```
+
+  - Uninstall yunetas:
+
+      ``` shell
+      pipx uninstall yunetas
+      ```
 :::
 
-- Update yunetas:
-
-    ``` shell
-    pipx upgrade yunetas
-    ```
-
-- Uninstall yunetas:
-
-    ``` shell
-    pipx uninstall yunetas
-    ```
-
-:::
-
-```
 
 ::::{tab-set}
 
