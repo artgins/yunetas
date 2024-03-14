@@ -3,6 +3,7 @@ external-libs/projects_with_liburing/
 external-libs/jansson-gines/
 external-libs/jansson-artgins/
 external-libs/ngx-http-auth-jwt-module-artgins
+.venv/
 
 .config
 .config.old

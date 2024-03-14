@@ -89,7 +89,6 @@ Install [sphinx] and [sphinx-book-theme]
         sphinx_design \
         sphinx_copybutton \
         sphinx_examples \
-        sphinx_tabs \
         sphinx_togglebutton \
         sphinxext.opengraph \
         sphinxcontrib.youtube \
@@ -105,7 +104,6 @@ Some included utils extensions:
   - [matplotlib](https://matplotlib.org/)
   - [sphinx_design](https://sphinx-design.readthedocs.io/en/latest/)
   - [sphinx_copybutton](https://sphinx-copybutton.readthedocs.io/en/latest/)
-  - [sphinx_tabs](https://sphinx-tabs.readthedocs.io/en/latest/)
   - [sphinx_togglebutton](https://sphinx-togglebutton.readthedocs.io/en/latest/)
   - [sphinxext.opengraph](https://sphinxext-opengraph.readthedocs.io/en/latest/)
   - [sphinxcontrib.youtube](https://sphinxcontrib-youtube.readthedocs.io/en/latest/)

@@ -2,6 +2,8 @@ syntax:regexp
 
 external-libs/liburing/
 external-libs/projects_with_liburing/
+\.venv/
+\.pdm-python
 
 \.config
 \.config.old
@@ -19,7 +21,6 @@ debug/
 
 build/
 release/
-dist/
 logs/
 data/
 _build/
@@ -65,4 +66,3 @@ package-lock.json
 ^\.project$
 ^\.pydevproject$
 
-\.tar\.gz$
