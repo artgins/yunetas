@@ -35,7 +35,6 @@ extensions = [
     "numpydoc",
     "sphinx_design",
     "sphinx_copybutton",
-    "sphinx_tabs.tabs",
     "sphinx_togglebutton",
     "sphinxext.opengraph",
     "sphinxcontrib.youtube",

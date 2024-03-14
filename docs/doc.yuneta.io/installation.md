@@ -45,7 +45,7 @@ On Linux:
 
 ### Update or uninstall `yunetas`
 
-:::{dropdown} Update or Uninstall `yunetas`
+:::{dropdown} Click to see
   - Update yunetas:
 
       ``` shell
