@@ -10,7 +10,7 @@ import os
 from urllib.request import urlopen
 from pathlib import Path
 
-project = 'Yuneta Simplified'
+project = 'Yuneta Service'
 copyright = '2024, ArtGins'
 author = 'ArtGins'
 release = '7.0.0'
@@ -79,7 +79,7 @@ myst_enable_extensions = [
 
 html_theme = "sphinx_book_theme"
 html_logo = "_static/yuneta-label.svg"
-html_title = "Yuneta Simplified"
+html_title = "Yuneta Service"
 html_copy_source = True
 html_favicon = "_static/yuneta-y.svg"
 html_last_updated_fmt = ""
@@ -134,7 +134,7 @@ html_theme_options = {
     },
     "icon_links": [
         {
-            "name": "Yuneta Simplified",
+            "name": "Yuneta Service",
             "url": "https://github.com/artgins/yunetas",
             "icon": "_static/yuneta-logo.png",
             "type": "local",

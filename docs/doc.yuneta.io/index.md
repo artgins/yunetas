@@ -1,5 +1,5 @@
 ---
-title: Yuneta Simplified
+title: Yuneta Service
 ---
 
 ::::{grid}
@@ -19,17 +19,19 @@ title: Yuneta Simplified
 :columns: 8
 :class: sd-fs-3
 
-**Yuneta Simplified**, a C Asynchronous Development Framework 
+**Yuneta Service**, a C Asynchronous Development Framework 
 
 ::::
 
-[Yuneta Simplified](https://yuneta.io) is a [C](https://en.wikipedia.org/wiki/C_(programming_language)) Development Framework focused on 
+[Yuneta Service](https://yuneta.io), a framework about messages and services, based on 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming.
 
-For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). Partially ported to [Python](https://www.python.org/) and Javascript.
+For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
+
+Versions in [C](https://en.wikipedia.org/wiki/C_(programming_language)), [Python](https://www.python.org/) and Javascript.
 
 
 # Contents
