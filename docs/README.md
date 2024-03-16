@@ -1,11 +1,7 @@
-README
-======
-
-This: Directory of documentations.
-
-
 How to build documentation
 ==========================
+
+This: Directory of documentations.
 
 The documentations of this directory is building with [sphinx]
 and the nice [sphinx-book-theme].
