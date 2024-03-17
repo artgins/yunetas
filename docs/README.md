@@ -69,7 +69,7 @@ Steps to install and create a virtual environment:
     ```
 - Create the virtual environment `conda_sphinx` and activate:
     ``` shell
-    conda create -n conda_sphinx
+    conda create -n conda_sphinx  # -c conda-forge
     conda activate conda_sphinx
     conda install pip
     ```

@@ -19,11 +19,11 @@ title: Yuneta Service
 :columns: 8
 :class: sd-fs-3
 
-**Yuneta Service**, a C Asynchronous Development Framework 
+**Yuneta Service**, Asynchronous Development Framework 
 
 ::::
 
-[Yuneta Service](https://yuneta.io), a framework about messages and services, based on 
+[Yuneta Service](https://yuneta.io), a development framework about messages and services, based on 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
