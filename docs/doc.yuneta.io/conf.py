@@ -163,7 +163,7 @@ html_theme_options = {
     # "navbar_persistent": ["test.html"],
     # "footer_start": ["test.html"],
     # "footer_end": ["test.html"]
-    "extra_footer": "Built with <a href='https://www.sphinx-doc.org/en/master/'>Sphinx</a> using <a href='https://sphinx-book-theme.readthedocs.io'>sphinx-book-theme</a>"
+    "extra_footer": "Built with <a href='https://www.sphinx-doc.org/en/master/' target='_blank'>Sphinx</a> using <a href='https://sphinx-book-theme.readthedocs.io' target='_blank'>sphinx-book-theme</a>"
 }
 
 # sphinxext.opengraph
