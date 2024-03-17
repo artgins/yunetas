@@ -73,6 +73,7 @@ Steps to install and create a virtual environment:
     conda activate conda_sphinx
     conda install pip
     ```
+
 Install [sphinx] and [sphinx-book-theme]  
 ----------------------------------------
 

@@ -15,6 +15,12 @@ Use `apt` to install the required dependencies::
       python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev perl dos2unix
 
+## Install `yunetas`
+
+::::{tab-set}
+
+:::{tab-item} With `pipx` 
+
 ## Install `pipx`
 
 [pipx] is used to install Python CLI applications globally while still isolating them in virtual environments.
@@ -45,7 +51,7 @@ On Linux:
 
 ### Update or uninstall `yunetas`
 
-:::{dropdown} Click to see
+```{dropdown} Click to see
   - Update yunetas:
 
       ``` shell
@@ -57,30 +63,43 @@ On Linux:
       ``` shell
       pipx uninstall yunetas
       ```
+```
+
 :::
 
-## XXXX
+:::{tab-item} With `conda`
 
-::::{tab-set}
+- Add conda-forge channel:
+    ``` shell
+    conda config --add channels conda-forge
+    ```
 
-:::{tab-item} Label1
-Content 1
-:::
-
-:::{tab-item} Label2
-Content 2
+- Create the virtual environment `conda_yunetas` and activate:
+    ``` shell
+    conda create -y -n conda_yunetas
+    conda activate conda_yunetas
+    conda install -y pip
+    ```
 :::
 
 ::::
 
 
-Here is a reference to [My Section][my-section].
 
-[my-section]: #my-section "Go to My Section"
+Here is a reference to  {ref}`python-packages`
 
-## My Section
-This is the content of My Section.
+(python-packages)=
+## Python Packages
 
+- Install python packages:
+
+    ``` shell
+    pip install cement
+    pip install plumbum
+    pip install fastapi
+    pip install "uvicorn[standard]"
+    pip install "typer[all]"
+    ```
 
 
 

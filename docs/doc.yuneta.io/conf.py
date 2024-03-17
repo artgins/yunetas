@@ -12,7 +12,7 @@ from pathlib import Path
 
 project = 'Yuneta Service'
 copyright = '2024, ArtGins'
-author = 'ArtGins'
+# author = 'ArtGins'
 release = '7.0.0'
 show_authors = False
 master_doc = "index"
@@ -163,6 +163,7 @@ html_theme_options = {
     # "navbar_persistent": ["test.html"],
     # "footer_start": ["test.html"],
     # "footer_end": ["test.html"]
+    "extra_footer": "Built with <a href='https://www.sphinx-doc.org/en/master/'>Sphinx</a> using <a href='https://sphinx-book-theme.readthedocs.io'>sphinx-book-theme</a>"
 }
 
 # sphinxext.opengraph

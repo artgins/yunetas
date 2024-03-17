@@ -36,6 +36,8 @@ Versions in [C](https://en.wikipedia.org/wiki/C_(programming_language)), [Python
 
 # Contents
 
+Here is a reference to  {ref}`python-packages`
+
 ```{toctree}
 :maxdepth: 1
 :caption: Documentation
