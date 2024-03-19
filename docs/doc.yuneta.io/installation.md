@@ -76,9 +76,8 @@ On Linux:
 
 - Create the virtual environment `conda_yunetas` and activate:
     ``` shell
-    conda create -y -n conda_yunetas
+    conda create -y -n conda_yunetas pip
     conda activate conda_yunetas
-    conda install -y pip
     ```
 :::
 

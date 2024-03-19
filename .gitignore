@@ -4,6 +4,9 @@ external-libs/jansson-gines/
 external-libs/jansson-artgins/
 external-libs/ngx-http-auth-jwt-module-artgins
 .venv/
+.pdm-python
+__pypackages__/
+.ruff_cache/
 
 .config
 .config.old

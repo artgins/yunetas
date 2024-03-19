@@ -4,6 +4,8 @@ external-libs/liburing/
 external-libs/projects_with_liburing/
 \.venv/
 \.pdm-python
+__pypackages__/
+\.ruff_cache/
 
 \.config
 \.config.old

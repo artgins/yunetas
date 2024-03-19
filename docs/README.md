@@ -67,11 +67,14 @@ Steps to install and create a virtual environment:
     ``` shell
     exit # exit and RE-open bash to continue !!
     ```
+- Add conda-forge channel:
+    ``` shell
+    conda config --add channels conda-forge
+    ```
 - Create the virtual environment `conda_sphinx` and activate:
     ``` shell
-    conda create -n conda_sphinx  # -c conda-forge
+    conda create -n conda_sphinx pip
     conda activate conda_sphinx
-    conda install pip
     ```
 
 Install [sphinx] and [sphinx-book-theme]  
