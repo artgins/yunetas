@@ -11,3 +11,6 @@
 [submodule "yunos/tui_yunetas.py"]
 	path = yunos/tui_yunetas.py
 	url = https://github.com/artgins/tui_yunetas.py.git
+[submodule "modules/js/web-skeleton3"]
+	path = modules/js/web-skeleton3
+	url = https://github.com/artgins/web-skeleton3.git
