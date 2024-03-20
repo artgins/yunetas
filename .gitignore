@@ -8,6 +8,18 @@ external-libs/ngx-http-auth-jwt-module-artgins
 __pypackages__/
 .ruff_cache/
 
+yunetas.egg-info/
+*.pyc
+
+dist
+docs/build
+docs/_build
+venv
+.venv
+
+.vscode
+.idea
+
 .config
 .config.old
 
@@ -35,7 +47,6 @@ package-lock.json
 *.a
 .libs
 .deps
-*.pyc
 *.pc
 build/
 _build/
@@ -46,7 +57,6 @@ _build/
 *.l[oa]
 *.opensdf
 *.orig
-*.pyc
 *.sdf
 *.suo
 .vs/
