@@ -1,3 +1,0 @@
-        [console_scripts]
-        web-skeleton3 = web_skeleton3.main:main
-    

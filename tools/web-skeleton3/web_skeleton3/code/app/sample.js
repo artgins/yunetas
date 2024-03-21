@@ -1,8 +1,0 @@
-/**
- *  Sample
- */
-
-(function() {
-    var sample;
-}());
-
