@@ -28,7 +28,7 @@ Group(_ka_container)
         |----> Rect(_ka_hscroll_rect)           // Horizontal scrollbar
 
 
- *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2022, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 (function (exports) {

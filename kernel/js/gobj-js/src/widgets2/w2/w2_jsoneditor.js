@@ -3,7 +3,7 @@
  *
  *          w2window with a JSONEditor
  *
- *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2022, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -12,6 +12,8 @@
  ********************************************/
 function create_json_editor_window(kw)
 {
+    "use strict";
+
     let name = kw_get_str(kw, "name", kw_get_str(kw, "id", undefined));
     let title = kw_get_str(kw, "title", "JSON Editor");
     let props = kw_get_dict(kw, "props", null, false, true);
@@ -172,6 +174,8 @@ function create_json_editor_window(kw)
  ********************************************/
 function destroy_json_editor(editor)
 {
+    "use strict";
+
     const w2 = editor.w2;
     editor.destroy();
     if(w2) {

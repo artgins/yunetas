@@ -5,7 +5,7 @@
  *
  *          Based in KonvA
  *
- *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2022, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 (function (exports) {
