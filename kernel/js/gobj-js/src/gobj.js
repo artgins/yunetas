@@ -557,7 +557,7 @@ let __inside_event_loop__ = 0;
     };
 
     /************************************************************
-     *  Exec gobj command. Return a webixof
+     *  Exec gobj command. Return a webix
      ************************************************************/
     proto.gobj_command = function(command, kw, src) {
         if(this.mt_command) {
@@ -589,7 +589,7 @@ let __inside_event_loop__ = 0;
     };
 
     /************************************************************
-     *  Exec gobj stats. Return a webixof
+     *  Exec gobj stats. Return a webix
      ************************************************************/
     proto.gobj_stats = function(stat, kw, src) {
         if(this.mt_stats) {
