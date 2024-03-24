@@ -242,7 +242,7 @@
             }
         } else {
             /*
-             *  To facilite the work with jquery, I generate all gobjs as named gobjs.
+             *  To facility the work with jquery, I generate all gobjs as named gobjs.
              *  If a gobj has no name, generate a unique name with uniqued_id.
              */
             // force all gobj to have a name.

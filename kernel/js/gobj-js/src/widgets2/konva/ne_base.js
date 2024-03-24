@@ -1,7 +1,7 @@
 /***********************************************************************
  *          Ne_base.js
  *
- *          Node basic
+ *          Node basic (ne = NodE)
  *          A node is a gobj publishing their movements that has child gobjs with the role of ports.
  *          A node is a gobj that can be connected with another gobj through their ports.
  *

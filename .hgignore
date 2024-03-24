@@ -6,6 +6,8 @@ external-libs/projects_with_liburing/
 \.pdm-python
 __pypackages__/
 \.ruff_cache/
+/out/
+/platforms/
 
 \.config
 \.config.old

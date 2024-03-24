@@ -3,6 +3,8 @@
  *
  *          w2window with a JSONEditor
  *
+ *          Based in w2ui
+ *
  *          Copyright (c) 2022, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
