@@ -2936,6 +2936,25 @@
         };
     }
 
+    /***************************************************************************
+     *  Get the dirName of window.location.pathname
+     ***************************************************************************/
+    function get_location_path_root() {
+        /*
+         *  window.location.pathname
+         *  en browser  = "/"
+         *  en electron = "/yuneta/development/.../gui_yunetas.js/tags/0.00.aa/index.html"
+         *  en android  = "/index.html"
+         */
+        // Split the path by '/' and get the last component
+        const segments = window.location.pathname.split('/');
+        const baseName = segments.pop(); // remove basename
+
+        // Join the remaining segments back into a string
+        return segments.join('/');
+    }
+
+
     //=======================================================================
     //      Expose the class via the global object
     //=======================================================================
@@ -3057,5 +3076,6 @@
     exports.icono = icono;
     exports.find_gobj_in_list = find_gobj_in_list; // TODO elimina, usa gobj api
     exports.get_str_list_difference = get_str_list_difference;
+    exports.get_location_path_root = get_location_path_root;
 
 })(this);
