@@ -2299,7 +2299,7 @@
             return undefined;
         }
 
-        var value = window.localStorage.getItem(key);
+        let value = window.localStorage.getItem(key);
         if(value === null || value===undefined) {
             if(create) {
                 kw_set_local_storage_value(key, default_value);
@@ -2954,6 +2954,275 @@
         return segments.join('/');
     }
 
+    /***************************************************************************
+     *  implement a debounce or throttle mechanism to limit the number
+     *  of times the callback function is executed
+     ***************************************************************************/
+    function debounce(func, wait)
+    {
+        let timeout;
+        return function executedFunction() {
+            const later = () => {
+               clearTimeout(timeout);
+                func();
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    /***************************************************************************
+     *  Code written by ChatGPT
+
+        // Example usage:
+        const htmlStructure = [
+            'div',
+            { class: 'example', style: { color: 'red', 'background-color': 'black' } },
+            [
+                ['span', {}, 'This is a text.'],
+                ['a', { href: 'https://example.com', style: { 'text-decoration': 'none' } }, 'Click here']
+            ]
+        ];
+
+        console.log(buildHtml(htmlStructure));
+     ***************************************************************************/
+    function escapeHtmlAttribute(value) {
+        // Simple example of attribute escaping. You may need a more robust solution.
+        return value.replace(/"/g, '&quot;');
+    }
+
+    function styleObjectToString(styleObj) {
+        return Object.entries(styleObj)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('; ');
+    }
+
+    function buildHtml(element) {
+        if (!Array.isArray(element) || element.length < 3) {
+            console.error('Invalid input format');
+            return '';
+        }
+
+        const [tag, attrs, content] = element;
+
+        const attrsString = Object.entries(attrs).map(([key, value]) => {
+            let finalValue = value;
+            if (key === 'style' && typeof value === 'object') {
+                finalValue = styleObjectToString(value);
+            } else {
+                finalValue = escapeHtmlAttribute(String(value));
+            }
+            return `${key}="${finalValue}"`;
+        }).join(' ');
+
+        const startTag = `<${tag}${attrsString.length > 0 ? ' ' + attrsString : ''}>`;
+        const endTag = `</${tag}>`;
+
+        let contentHtml = '';
+        if (Array.isArray(content)) {
+            contentHtml = content.map(buildHtml).join('');
+        } else if (typeof content === 'string') {
+            contentHtml = content; // Consider escaping text content for safety.
+        }
+
+        return `${startTag}${contentHtml}${endTag}`;
+    }
+
+    /***************************************************************************
+     *  Code written by ChatGPT
+     *
+        // Example usage
+        const parentElement = document.getElementById('someParentElementId');
+        const htmlStructure = [
+            'div', { class: 'example' }, [
+                ['span', {}, 'Hello, World!']
+            ]
+        ];
+        buildHtml2parent(parentElement, htmlStructure);
+
+     ***************************************************************************/
+    function buildHtml2parent(parent, element)
+    {
+        if (!(parent instanceof HTMLElement)) {
+            console.error("Provided parent is not a valid HTML element.");
+            return;
+        }
+
+        // Convert the structured element array to HTML string
+        const htmlString = buildHtml(element);
+
+        // Convert the HTML string to DOM nodes
+        const template = document.createElement('template');
+        template.innerHTML = htmlString.trim(); // Trim to avoid extra text nodes
+
+        // Append each node to the parent, ensuring all top-level elements are added
+        while (template.content.firstChild) {
+            parent.appendChild(template.content.firstChild);
+        }
+        return parent;
+    }
+
+    /***************************************************************************
+     *  Code written by ChatGPT
+        Example usage:
+
+        function makeDraggable(handle, target) {
+            let offsetX = 0;
+            let offsetY = 0;
+
+            // Called when the drag starts
+            const onMouseDown = (e) => {
+                // Calculate the initial offset
+                offsetX = e.clientX - target.getBoundingClientRect().left;
+                offsetY = e.clientY - target.getBoundingClientRect().top;
+
+                // Attach the listeners to the document to allow for free movement
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
+
+            // Called when the mouse is moved
+            const onMouseMove = (e) => {
+                // Calculate the new position
+                const x = e.clientX - offsetX;
+                const y = e.clientY - offsetY;
+
+                // Update the position of the target
+                target.style.left = `${x}px`;
+                target.style.top = `${y}px`;
+            };
+
+            // Called when the mouse button is released
+            const onMouseUp = () => {
+                // Remove the listeners from the document
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            // Attach the mousedown listener to the handle
+            handle.addEventListener('mousedown', onMouseDown);
+        }
+
+        function addResizeFunctionality(resizeHandle, windowElement) {
+            let startX, startY, startWidth, startHeight;
+
+            const onMouseDown = (e) => {
+                // Prevent default action (like text selection) during resize
+                e.preventDefault();
+
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = parseInt(document.defaultView.getComputedStyle(windowElement).width, 10);
+                startHeight = parseInt(document.defaultView.getComputedStyle(windowElement).height, 10);
+
+                document.documentElement.addEventListener('mousemove', onMouseMove, false);
+                document.documentElement.addEventListener('mouseup', onMouseUp, false);
+            };
+
+            const onMouseMove = (e) => {
+                // Calculate new size
+                const newWidth = startWidth + e.clientX - startX;
+                const newHeight = startHeight + e.clientY - startY;
+
+                // Update window size
+                windowElement.style.width = `${newWidth}px`;
+                windowElement.style.height = `${newHeight}px`;
+            };
+
+            const onMouseUp = () => {
+                // Remove the listeners when resizing is done
+                document.documentElement.removeEventListener('mousemove', onMouseMove, false);
+                document.documentElement.removeEventListener('mouseup', onMouseUp, false);
+            };
+
+            // Attach the mousedown listener to the resize handle
+            resizeHandle.addEventListener('mousedown', onMouseDown, false);
+        }
+
+
+        function createWindow({ title, x, y, width, height, parent }) {
+            const windowEl = createElement([
+                'div',
+                {
+                    class: 'window',
+                    style: `position: absolute; left: ${x}px; top: ${y}px; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; border: 1px solid black;`
+                },
+                [
+                    ['div', { class: 'window-top', style: 'display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid black;cursor:move;' },
+                        [
+                            ['span', {}, title],
+                            ['button', {}, 'Close', {
+                                click: (e) => {
+                                    e.target.closest('.window').remove();
+                                }
+                            }]
+                        ]
+                    ],
+                    ['div', { class: 'window-content', style: 'flex-grow: 1; padding: 5px;' }, 'This is the content area.'],
+                    ['div', { class: 'window-bottom', style: 'padding: 5px; border-top: 1px solid black; display: flex; justify-content: flex-end;' },
+                        [
+                            ['div', { class: 'resize-handle', style: 'width: 20px; height: 20px; cursor: nwse-resize;' }, '', {
+                                mousedown: (e) => {
+                                    // Resize logic here
+                                }
+                            }]
+                        ]
+                    ]
+                ]
+            ]);
+
+            const resizeHandle = windowEl.querySelector('.resize-handle');
+
+            makeDraggable(windowEl.querySelector('.window-top'), windowEl);
+            addResizeFunctionality(resizeHandle, windowEl);
+
+            parent.appendChild(windowEl);
+        }
+
+
+        // Example usage
+        createWindow({
+            title: 'My Draggable Window',
+            x: 100,
+            y: 100,
+            width: 400,
+            height: 300,
+            parent: document.body
+        });
+
+
+     ***************************************************************************/
+    function createElement(description) {
+        let [tag, attrs, content, events] = description;
+        let el = document.createElement(tag);
+
+        for (let attr in attrs) {
+            if (attr === 'style' && typeof attrs[attr] === 'object') {
+                // For style objects, convert to string.
+                let style = Object.entries(attrs[attr]).map(([key, value]) => `${key}: ${value};`).join(' ');
+                el.style.cssText = style;
+            } else if (attr === 'style') {
+                el.style.cssText = attrs[attr];
+            } else {
+                el.setAttribute(attr, attrs[attr]);
+            }
+        }
+
+        if (typeof content === 'string') {
+            el.textContent = content;
+        } else if (Array.isArray(content)) {
+            content.forEach(child => el.appendChild(createElement(child)));
+        }
+
+        if (events) {
+            for (let eventType in events) {
+                el.addEventListener(eventType, events[eventType]);
+            }
+        }
+
+        return el;
+    }
+
 
     //=======================================================================
     //      Expose the class via the global object
@@ -3077,5 +3346,8 @@
     exports.find_gobj_in_list = find_gobj_in_list; // TODO elimina, usa gobj api
     exports.get_str_list_difference = get_str_list_difference;
     exports.get_location_path_root = get_location_path_root;
-
+    exports.debounce = debounce;
+    exports.buildHtml = buildHtml;
+    exports.buildHtml2parent = buildHtml2parent;
+    exports.createElement = createElement;
 })(this);
