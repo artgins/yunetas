@@ -2972,94 +2972,15 @@
     }
 
     /***************************************************************************
-     *  Code written by ChatGPT
-
-        // Example usage:
-        const htmlStructure = [
-            'div',
-            { class: 'example', style: { color: 'red', 'background-color': 'black' } },
-            [
-                ['span', {}, 'This is a text.'],
-                ['a', { href: 'https://example.com', style: { 'text-decoration': 'none' } }, 'Click here']
-            ]
-        ];
-
-        console.log(buildHtml(htmlStructure));
-     ***************************************************************************/
-    function escapeHtmlAttribute(value) {
-        // Simple example of attribute escaping. You may need a more robust solution.
-        return value.replace(/"/g, '&quot;');
-    }
-
-    function styleObjectToString(styleObj) {
-        return Object.entries(styleObj)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join('; ');
-    }
-
-    function buildHtml(element) {
-        if (!Array.isArray(element) || element.length < 3) {
-            console.error('Invalid input format');
-            return '';
-        }
-
-        const [tag, attrs, content] = element;
-
-        const attrsString = Object.entries(attrs).map(([key, value]) => {
-            let finalValue = value;
-            if (key === 'style' && typeof value === 'object') {
-                finalValue = styleObjectToString(value);
-            } else {
-                finalValue = escapeHtmlAttribute(String(value));
-            }
-            return `${key}="${finalValue}"`;
-        }).join(' ');
-
-        const startTag = `<${tag}${attrsString.length > 0 ? ' ' + attrsString : ''}>`;
-        const endTag = `</${tag}>`;
-
-        let contentHtml = '';
-        if (Array.isArray(content)) {
-            contentHtml = content.map(buildHtml).join('');
-        } else if (typeof content === 'string') {
-            contentHtml = content; // Consider escaping text content for safety.
-        }
-
-        return `${startTag}${contentHtml}${endTag}`;
-    }
-
-    /***************************************************************************
-     *  Code written by ChatGPT
      *
-        // Example usage
-        const parentElement = document.getElementById('someParentElementId');
-        const htmlStructure = [
-            'div', { class: 'example' }, [
-                ['span', {}, 'Hello, World!']
-            ]
-        ];
-        buildHtml2parent(parentElement, htmlStructure);
-
      ***************************************************************************/
-    function buildHtml2parent(parent, element)
+    function buildOneHtml(htmlString)
     {
-        if (!(parent instanceof HTMLElement)) {
-            console.error("Provided parent is not a valid HTML element.");
-            return;
-        }
-
-        // Convert the structured element array to HTML string
-        const htmlString = buildHtml(element);
-
         // Convert the HTML string to DOM nodes
         const template = document.createElement('template');
         template.innerHTML = htmlString.trim(); // Trim to avoid extra text nodes
 
-        // Append each node to the parent, ensuring all top-level elements are added
-        while (template.content.firstChild) {
-            parent.appendChild(template.content.firstChild);
-        }
-        return parent;
+        return template.content.firstChild;
     }
 
     /***************************************************************************
@@ -3145,7 +3066,17 @@
                 'div',
                 {
                     class: 'window',
-                    style: `position: absolute; left: ${x}px; top: ${y}px; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; border: 1px solid black;`
+                    // style: `position: absolute; left: ${x}px; top: ${y}px; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; border: 1px solid black;`
+                    style: {
+                        position: "absolute",
+                        left: `${x}px`,
+                        top: `${y}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        display: "flex",
+                        "flex-direction": "column",
+                        border: "1px solid black",
+                    }
                 },
                 [
                     ['div', { class: 'window-top', style: 'display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid black;cursor:move;' },
@@ -3189,32 +3120,102 @@
             height: 300,
             parent: document.body
         });
+     ***************************************************************************/
 
 
+    /***************************************************************************
+     *  Create a HTMLElement:
+     *      [tag, attrs, content, events]
+     *
+     *      tag     -> string
+     *      attrs   -> {key:string}
+     *                  Special case for key=='style'
+     *                      could be `style:'string'`
+     *                      or `style:{k:s}`
+     *      content -> string | [createElement() or parameters of createElement]
+     *                  if string begins with '<' then will be converted to HTMLElement
+     *      events  -> {event: ()}
+     *
+     *  Return the created element
+     *
+     *  Examples:
+     *      ['div', { class: 'window-top', style: 'border-bottom: 1px solid black;' },
+     *          [
+     *              ['span', {}, 'title'],
+     *              ['button', {}, 'Close', {
+     *                  click: (e) => {
+     *                      e.target.closest('.window').remove();
+     *                  }
+     *              }]
+     *          ]
+     *      ]
+     *
+     *      ['span', {style: {position: 'absolute'} }, 'title'],
+     *
      ***************************************************************************/
     function createElement(description) {
         let [tag, attrs, content, events] = description;
+
+        /*
+         *  Create the html element
+         */
+        if (!tag) {
+            console.error("Tag must be a valid HTML element.");
+            return;
+        }
         let el = document.createElement(tag);
 
-        for (let attr in attrs) {
-            if (attr === 'style' && typeof attrs[attr] === 'object') {
-                // For style objects, convert to string.
-                let style = Object.entries(attrs[attr]).map(([key, value]) => `${key}: ${value};`).join(' ');
-                el.style.cssText = style;
-            } else if (attr === 'style') {
-                el.style.cssText = attrs[attr];
-            } else {
-                el.setAttribute(attr, attrs[attr]);
+        /*
+         *  Append attributes
+         */
+        if(attrs && typeof attrs === 'object') {
+            for (let attr in attrs) {
+                if (attr === 'style' && typeof attrs[attr] === 'object') {
+                    // Convert the style object to a CSS string
+                    let styleString = '';
+                    for (let prop in attrs[attr]) {
+                        styleString += `${prop}: ${attrs[attr][prop]};`;
+                    }
+                    el.style.cssText = styleString;
+                } else if (attr === 'style') {
+                    el.style.cssText = attrs[attr];
+                } else {
+                    el.setAttribute(attr, attrs[attr]);
+                }
             }
         }
 
+        /*
+         *  Append content, can be a string or another kids
+         */
         if (typeof content === 'string') {
-            el.textContent = content;
+            content = content.trim();
+            if(content.length > 0 && content[0] === '<') {
+                el.appendChild(buildOneHtml(content));
+            } else {
+                el.textContent = content;
+            }
         } else if (Array.isArray(content)) {
-            content.forEach(child => el.appendChild(createElement(child)));
+            let done = false;
+            for (let child of content) {
+                // Check if the child is an array description or an HTMLElement
+                if (Array.isArray(child)) {
+                    el.appendChild(createElement(child));
+                    done = true;
+                } else if (child instanceof HTMLElement) {
+                    el.appendChild(child);
+                    done = true;
+                }
+            }
+            if(!done) {
+                el.appendChild(createElement(content));
+            }
         }
 
-        if (events) {
+        /*
+         *  Attach event listeners
+         */
+        if (events && typeof events === 'object') {
             for (let eventType in events) {
                 el.addEventListener(eventType, events[eventType]);
             }
@@ -3222,7 +3223,6 @@
 
         return el;
     }
-
 
     //=======================================================================
     //      Expose the class via the global object
@@ -3347,7 +3347,6 @@
     exports.get_str_list_difference = get_str_list_difference;
     exports.get_location_path_root = get_location_path_root;
     exports.debounce = debounce;
-    exports.buildHtml = buildHtml;
-    exports.buildHtml2parent = buildHtml2parent;
+    exports.buildOneHtml = buildOneHtml;
     exports.createElement = createElement;
 })(this);

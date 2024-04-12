@@ -14,6 +14,11 @@
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming.
 
+Yuneta a language is based in functions, but it manages a system of virtual classes 
+defined by programmatically and schematically.  
+
+All his philosophy is based on that virtual classes (namely GClass or class G).
+
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
 Versions in [C](https://en.wikipedia.org/wiki/C_(programming_language)), [Python](https://www.python.org/) and Javascript.
