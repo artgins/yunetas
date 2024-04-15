@@ -3195,20 +3195,18 @@
             } else {
                 el.textContent = content;
             }
-        } else if (Array.isArray(content)) {
-            let done = false;
-            for (let child of content) {
-                // Check if the child is an array description or an HTMLElement
-                if (Array.isArray(child)) {
-                    el.appendChild(createElement(child));
-                    done = true;
-                } else if (child instanceof HTMLElement) {
-                    el.appendChild(child);
-                    done = true;
-                }
-            }
-            if(!done) {
+        } else if (Array.isArray(content) && content.length > 0) {
+            if(is_string(content[0])) {
                 el.appendChild(createElement(content));
+            } else {
+                for (let child of content) {
+                    // Check if the child is an array description or an HTMLElement
+                    if (Array.isArray(child)) {
+                        el.appendChild(createElement(child));
+                    } else if (child instanceof HTMLElement) {
+                        el.appendChild(child);
+                    }
+                }
             }
         }
 
@@ -3223,6 +3221,33 @@
 
         return el;
     }
+
+    /***************************************************************************
+     *  Code written by ChatGPT
+        // Usage example:
+        var element = document.getElementById("myElement");
+        var position = getPositionRelativeToBody(element);
+        console.log("Top: " + position.top + ", Left: " + position.left + ", Right: " + position.right + ", Bottom: " + position.bottom);
+     ***************************************************************************/
+    function getPositionRelativeToBody(element)
+    {
+        let rect = element.getBoundingClientRect();
+        let scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+        let scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft;
+
+        let top = rect.top + scrollTop;
+        let left = rect.left + scrollLeft;
+        let right = left + rect.width;
+        let bottom = top + rect.height;
+
+        return {
+            top: top,
+            left: left,
+            right: right,
+            bottom: bottom
+        };
+    }
+
 
     //=======================================================================
     //      Expose the class via the global object
@@ -3349,4 +3374,5 @@
     exports.debounce = debounce;
     exports.buildOneHtml = buildOneHtml;
     exports.createElement = createElement;
+    exports.getPositionRelativeToBody = getPositionRelativeToBody;
 })(this);

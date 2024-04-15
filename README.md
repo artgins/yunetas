@@ -19,6 +19,12 @@ defined by programmatically and schematically.
 
 All his philosophy is based on that virtual classes (namely GClass or class G).
 
+All architecture done by configuration, based in schema,
+easy to see by human eye. 
+Of course, you have an API functions to change configuration and data in real time. 
+
+TODO now go-on the doc in snk doc.
+
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
 Versions in [C](https://en.wikipedia.org/wiki/C_(programming_language)), [Python](https://www.python.org/) and Javascript.
