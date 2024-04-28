@@ -3128,12 +3128,22 @@
      *      [tag, attrs, content, events]
      *
      *      tag     -> string
+     *
      *      attrs   -> {key:string}
      *                  Special case for key=='style'
      *                      could be `style:'string'`
      *                      or `style:{k:s}`
+     *                 Special case for key=='i18n' (or 'data-i18n' or 'data_i18next')
+     *                      will be 'data-i18n' attr
+     *
      *      content -> string | [createElement() or parameters of createElement]
-     *                  if string begins with '<' then will be converted to HTMLElement
+     *                  if string begins with '<' then
+     *                      it will be converted to HTMLElement
+     *                          content = buildOneHtml(string)
+     *                  if attrs['i18n'] is not empty then (or 'data-i18n' or 'data_i18next')
+ *                          it will be overridden with the translation
+     *                          content = i18next.t(attrs['i18n']));
+     *
      *      events  -> {event: ()}
      *
      *  Return the created element
@@ -3168,6 +3178,8 @@
         /*
          *  Append attributes
          */
+        let data_i18next = '';
+
         if(attrs && typeof attrs === 'object') {
             for (let attr in attrs) {
                 if (attr === 'style' && typeof attrs[attr] === 'object') {
@@ -3180,7 +3192,13 @@
                 } else if (attr === 'style') {
                     el.style.cssText = attrs[attr];
                 } else {
-                    el.setAttribute(attr, attrs[attr]);
+                    if(attr === 'i18n' || attr === 'data-i18n' ||
+                            attr === 'data_i18next' || attr === 'data-i18next') {
+                        data_i18next = attrs[attr];
+                        el.setAttribute('data-i18n', data_i18next);
+                    } else {
+                        el.setAttribute(attr, attrs[attr]);
+                    }
                 }
             }
         }
@@ -3193,7 +3211,11 @@
             if(content.length > 0 && content[0] === '<') {
                 el.appendChild(buildOneHtml(content));
             } else {
-                el.textContent = content;
+                if(data_i18next) {
+                    el.textContent = i18next.t(data_i18next, content);
+                } else {
+                    el.textContent = content;
+                }
             }
         } else if (Array.isArray(content) && content.length > 0) {
             if(is_string(content[0])) {
@@ -3208,6 +3230,8 @@
                     }
                 }
             }
+        } else if (content instanceof HTMLElement) {
+            el.appendChild(content);
         }
 
         /*

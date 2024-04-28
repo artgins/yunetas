@@ -130,6 +130,10 @@ let __inside_event_loop__ = 0;
      ************************************************************/
     proto.gobj_start_tree = function()
     {
+        if((this.gcflag & gcflag_manual_start)) {
+            return 0;
+        }
+
         if(this.is_tracing()) {
             log_debug(sprintf("⏺ ⏺ ⏺ ⏺ start_tree: %s", this.gobj_full_name()));
         }
@@ -152,6 +156,9 @@ let __inside_event_loop__ = 0;
      ************************************************************/
     proto.gobj_stop_tree = function()
     {
+        if((this.gcflag & gcflag_manual_start)) {
+            return 0;
+        }
         if(this.is_tracing()) {
             log_debug(sprintf("⏺ ⏺ ⏺ ⏺ stop_tree: %s", this.gobj_full_name()));
         }
@@ -209,7 +216,7 @@ let __inside_event_loop__ = 0;
      ************************************************************/
     proto.gobj_is_service = function()
     {
-        return this.config.__service__;
+        return this.__service__;
     };
 
     /************************************************************

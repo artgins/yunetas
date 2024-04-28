@@ -456,6 +456,8 @@ DEBUG: {
         var src_service = kw_get_str(request, "src_service", "");
 
         var result = kw_get_int(kw, "result", -1);
+        var comment = kw_get_str(kw, "comment", "");
+        var username_ = kw_get_str(kw, "username", "");
         if(result < 0) {
             close_websocket(self);
             self.gobj_publish_event(
@@ -463,6 +465,8 @@ DEBUG: {
                 {
                     url: self.config.urls[self.config.idx_url],
                     result: result,
+                    comment: comment,
+                    username_: username_,
                     remote_yuno_name: src_yuno,
                     remote_yuno_role: src_role,
                     remote_yuno_service: src_service
