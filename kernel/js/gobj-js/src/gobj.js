@@ -120,10 +120,10 @@ let __inside_event_loop__ = 0;
     /************************************************************
      *
      ************************************************************/
-    proto.gobj_show = function()
+    proto.gobj_show = function(href)
     {
         if(this.mt_show) {
-            return this.mt_show();
+            return this.mt_show(href);
         }
         return -1;
     };
@@ -131,10 +131,10 @@ let __inside_event_loop__ = 0;
     /************************************************************
      *
      ************************************************************/
-    proto.gobj_hide = function()
+    proto.gobj_hide = function(href)
     {
         if(this.mt_hide) {
-            return this.mt_hide();
+            return this.mt_hide(href);
         }
         return -1;
     };
