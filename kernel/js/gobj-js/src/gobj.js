@@ -125,7 +125,7 @@ let __inside_event_loop__ = 0;
         if(this.mt_show) {
             return this.mt_show();
         }
-        return 0;
+        return -1;
     };
 
     /************************************************************
@@ -136,7 +136,7 @@ let __inside_event_loop__ = 0;
         if(this.mt_hide) {
             return this.mt_hide();
         }
-        return 0;
+        return -1;
     };
 
     /************************************************************
