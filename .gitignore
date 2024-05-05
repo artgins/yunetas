@@ -1,8 +1,5 @@
-external-libs/liburing/
-external-libs/projects_with_liburing/
-external-libs/jansson-gines/
-external-libs/jansson-artgins/
-external-libs/ngx-http-auth-jwt-module-artgins
+./kernel/c/root-linux-ext-libs/build/
+./kernel/c/root-linux-ext-libs/jansson-artgins
 .venv/
 .pdm-python
 __pypackages__/
