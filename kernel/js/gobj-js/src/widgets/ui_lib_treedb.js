@@ -279,6 +279,65 @@
         }
     }
 
+    /************************************************************
+     *  Return [type, real_type, enum_list]
+     *
+     *  type:
+     *      "string"
+     *      "integer"
+     *      "real"
+     *      "boolean"
+     *      "object" "dict"
+     *      "array" "list"
+     *      "blob"
+     *      "enum"
+     *              real_type:  "string"
+     *                          "object" "dict"
+     *                          "array" "list"
+     *      "time"
+     *              real_type:  "string"
+     *                          "integer"
+     *      "color"
+     *              real_type:  "string"
+     *                          "integer"
+     *      "hook"
+     *              real_type:  "string"
+     *                          "object" "dict"
+     *                          "array" "list"
+     *      "fkey"
+     *              real_type:  "string"
+     *                          "object" "dict"
+     *                          "array" "list"
+     ************************************************************/
+    function get_treedb_type(col)
+    {
+        let flag = col.flag;
+        let is_hook = elm_in_list("hook", flag);
+        let is_fkey = elm_in_list("fkey", flag);
+        let is_enum = elm_in_list("enum", flag);
+        let is_time = elm_in_list("time", flag);
+        let is_color = elm_in_list("color", flag);
+
+        let enum_list = null;
+        let real_type = col.type;
+        let type = col.type; // By default, is basic type
+        if(is_hook) {
+            type = "hook";
+        } else if(is_fkey) {
+            type = "fkey";
+        } else if(is_enum) {
+            type = "enum";
+            enum_list = col.enum;
+        } else if(is_time) {
+            type = "time";
+        } else if(is_color) {
+            type = "color";
+        }
+
+        return [type, real_type, enum_list];
+    }
+
+
     //=======================================================================
     //      Expose the class via the global object
     //=======================================================================
@@ -293,5 +352,6 @@
 
     exports.decoder_fkey = decoder_fkey;
     exports.decoder_hook = decoder_hook;
+    exports.get_treedb_type = get_treedb_type;
 
 })(this);

@@ -3223,7 +3223,7 @@
             } else {
                 for (let child of content) {
                     // Check if the child is an array description or an HTMLElement
-                    if (Array.isArray(child)) {
+                    if (Array.isArray(child) && child.length > 0) {
                         el.appendChild(createElement(child));
                     } else if (child instanceof HTMLElement) {
                         el.appendChild(child);
