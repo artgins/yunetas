@@ -37,7 +37,7 @@
     /********************************************
      *      Data
      ********************************************/
-    var treedb_register = { // Dictionary with data of registered global topics
+    let treedb_register = { // Dictionary with data of registered global topics
     };
 
     /********************************************
@@ -45,8 +45,8 @@
      ********************************************/
     function treedb_register_formtable(treedb_name, topic_name, gobj_formtable)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
-        var gobjs = kw_get_dict_value(treedb, "gobjs", {}, true);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
+        let gobjs = kw_get_dict_value(treedb, "gobjs", {}, true);
         kw_set_dict_value(gobjs, gobj_formtable.name, gobj_formtable);
     }
 
@@ -55,8 +55,8 @@
      ********************************************/
     function treedb_unregister_formtable(treedb_name, topic_name, gobj_formtable)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
-        var gobjs = kw_get_dict_value(treedb, "gobjs", {}, true);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
+        let gobjs = kw_get_dict_value(treedb, "gobjs", {}, true);
         if(kw_has_key(gobjs, gobj_formtable.name)) {
             delete gobjs[gobj_formtable.name];
         } else {
@@ -69,8 +69,8 @@
      ********************************************/
     function treedb_register_nodes(treedb_name, topic_name, nodes)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
-        var data = kw_get_dict_value(treedb, "data", {}, true);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
+        let data = kw_get_dict_value(treedb, "data", {}, true);
         kw_set_dict_value(data, topic_name, kwid_new_dict(nodes));
     }
 
@@ -79,9 +79,9 @@
      ********************************************/
     function treedb_register_update_node(treedb_name, topic_name, node)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
-        var data = kw_get_dict_value(treedb, "data", {}, true);
-        var topic_data = kw_get_dict_value(data, topic_name, {}, true);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
+        let data = kw_get_dict_value(treedb, "data", {}, true);
+        let topic_data = kw_get_dict_value(data, topic_name, {}, true);
 
         kw_set_dict_value(topic_data, node.id, node);
     }
@@ -91,9 +91,9 @@
      ********************************************/
     function treedb_register_del_node(treedb_name, topic_name, node)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
-        var data = kw_get_dict_value(treedb, "data", {}, true);
-        var topic_data = kw_get_dict_value(data, topic_name, {}, true);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, true);
+        let data = kw_get_dict_value(treedb, "data", {}, true);
+        let topic_data = kw_get_dict_value(data, topic_name, {}, true);
 
         delete topic_data[node.id];
     }
@@ -103,7 +103,7 @@
      ********************************************/
     function treedb_get_register(treedb_name)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, false);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, false);
         return treedb;
     }
 
@@ -112,8 +112,8 @@
      ********************************************/
     function treedb_get_topic_data(treedb_name, topic_name)
     {
-        var treedb = kw_get_dict_value(treedb_register, treedb_name, {}, false);
-        var data = kw_get_dict_value(treedb, "data", {}, false);
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, false);
+        let data = kw_get_dict_value(treedb, "data", {}, false);
         return kw_get_dict_value(data, topic_name, {}, false);
     }
 
@@ -122,8 +122,8 @@
      ********************************************/
     function treedb_hook_data_size(value)
     {
-        if(is_array(value) && json_size(value)==1) {
-            var o = value[0];
+        if(is_array(value) && json_size(value)===1) {
+            let o = value[0];
             if(kw_has_key(o, "size")) {
                 return o.size;
             }
@@ -155,19 +155,21 @@
     function decoder_fkey(col, fkey)
     {
         if(is_string(fkey)) {
-            if(fkey.indexOf("^") == -1) {
+            if(fkey.indexOf("^") === -1) {
                 // "$id"
-                var fkey_desc = col.fkey;
-                if(json_object_size(fkey_desc)!=1) {
+                let fkey_desc = col.fkey;
+                if(json_object_size(fkey_desc)!==1) {
                     log_error("bad fkey 1");
                     log_error(col);
                     log_error(fkey);
                     return null;
                 }
 
-                for(var k in fkey_desc) {
-                    var topic_name = k;
-                    var hook_name = fkey_desc[k];
+                let topic_name;
+                let hook_name;
+                for(let k in fkey_desc) {
+                    topic_name = k;
+                    hook_name = fkey_desc[k];
                     break;
                 }
 
@@ -179,8 +181,8 @@
 
             } else {
                 // "$topic_name^$id^$hook_name
-                var tt = fkey.split("^");
-                if(tt.length != 3) {
+                let tt = fkey.split("^");
+                if(tt.length !== 3) {
                     log_error("bad fkey 2");
                     log_error(col);
                     log_error(fkey);
@@ -229,19 +231,22 @@
     function decoder_hook(col, hook)
     {
         if(is_string(hook)) {
-            if(hook.indexOf("^") == -1) {
+            if(hook.indexOf("^") === -1) {
                 // "$id"
-                var hook_desc = col.hook;
-                if(json_object_size(hook_desc)!=1) {
+                let hook_desc = col.hook;
+                if(json_object_size(hook_desc)!==1) {
                     log_error("bad hook 1");
                     log_error(col);
                     log_error(hook);
                     return null;
                 }
 
-                for(var k in hook_desc) {
-                    var topic_name = k;
-                    var fkey_name = hook_desc[k];
+                let topic_name;
+                let fkey_name;
+
+                for(let k in hook_desc) {
+                    topic_name = k;
+                    fkey_name = hook_desc[k];
                     break;
                 }
 
@@ -252,8 +257,8 @@
 
             } else {
                 // "$topic_name^$id
-                var tt = hook.split("^");
-                if(tt.length != 2) {
+                let tt = hook.split("^");
+                if(tt.length !== 2) {
                     log_error("bad hook 2");
                     log_error(col);
                     log_error(hook);
@@ -317,6 +322,9 @@
         let is_enum = elm_in_list("enum", flag);
         let is_time = elm_in_list("time", flag);
         let is_color = elm_in_list("color", flag);
+        let is_password = elm_in_list("password", flag);
+        let is_email = elm_in_list("email", flag);
+        let is_url = elm_in_list("url", flag);
 
         let enum_list = null;
         let real_type = col.type;
@@ -332,6 +340,12 @@
             type = "time";
         } else if(is_color) {
             type = "color";
+        } else if(is_email) {
+            type = "email";
+        } else if(is_password) {
+            type = "password";
+        } else if(is_url) {
+            type = "url";
         }
 
         return [type, real_type, enum_list];
