@@ -325,6 +325,7 @@
         let is_password = elm_in_list("password", flag);
         let is_email = elm_in_list("email", flag);
         let is_url = elm_in_list("url", flag);
+        let is_tel = elm_in_list("tel", flag);
 
         let enum_list = null;
         let real_type = col.type;
@@ -346,6 +347,8 @@
             type = "password";
         } else if(is_url) {
             type = "url";
+        } else if(is_tel) {
+            type = "tel";
         }
 
         return [type, real_type, enum_list];

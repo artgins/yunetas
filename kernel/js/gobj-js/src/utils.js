@@ -3204,7 +3204,7 @@
         }
 
         /*
-         *  Append content, can be a string or another kids
+         *  Append content, it can be a string or another kids
          */
         if (typeof content === 'string') {
             content = content.trim();
@@ -3230,7 +3230,7 @@
                     }
                 }
             }
-        } else if (content instanceof HTMLElement) {
+        } else if (content instanceof HTMLElement || content instanceof Text) {
             el.appendChild(content);
         }
 
