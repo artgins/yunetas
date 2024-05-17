@@ -6,7 +6,7 @@
  *  - El treedb center se registra,
  *
  *  - Los formtable con treedb_name
- *      se subcriben masivamente a las tablas de los hooks y fkeys.
+ *      se suscriben masivamente a las tablas de los hooks y fkeys.
  *
  *  - Los hook se subscriben a todos las modificaciones-z de los hijos,
  *    ( solo de los create y delete realmente, solo se necesita el id del que existe)
@@ -27,8 +27,9 @@
  *  Version
  *  -------
  *  1.0     Initial release
+ *  2.0
  *
- *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2020-2024 Niyamaka.
  *          All Rights Reserved.
  ***********************************************************************/
 (function (exports) {
@@ -152,7 +153,7 @@
      *          hook_name:
      *      }
      ************************************************************/
-    function decoder_fkey(col, fkey)
+    function treedb_decoder_fkey(col, fkey)
     {
         if(is_string(fkey)) {
             if(fkey.indexOf("^") === -1) {
@@ -228,7 +229,7 @@
      *          id:
      *      }
      ********************************************/
-    function decoder_hook(col, hook)
+    function treedb_decoder_hook(col, hook)
     {
         if(is_string(hook)) {
             if(hook.indexOf("^") === -1) {
@@ -314,7 +315,7 @@
      *                          "object" "dict"
      *                          "array" "list"
      ************************************************************/
-    function get_treedb_type(col)
+    function treedb_get_type(col)
     {
         let flag = col.flag;
         let is_hook = elm_in_list("hook", flag);
@@ -367,8 +368,8 @@
     exports.treedb_get_topic_data = treedb_get_topic_data;
     exports.treedb_hook_data_size = treedb_hook_data_size;
 
-    exports.decoder_fkey = decoder_fkey;
-    exports.decoder_hook = decoder_hook;
-    exports.get_treedb_type = get_treedb_type;
+    exports.treedb_decoder_fkey = treedb_decoder_fkey;
+    exports.treedb_decoder_hook = treedb_decoder_hook;
+    exports.treedb_get_type = treedb_get_type;
 
 })(this);

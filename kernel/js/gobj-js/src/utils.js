@@ -1819,18 +1819,18 @@
         field_id = field_id?field_id:"id";
         field_value = field_value?field_value:"value";
 
-        var options = [];
+        let options = [];
 
         if(is_array(list)) {
-            for(var i=0; i<list.length; i++) {
-                var v = list[i];
+            for(let i=0; i<list.length; i++) {
+                let v = list[i];
                 if(is_string(v)) {
                     options.push({
                         id: list[i],
                         value: list[i]
                     });
                 } else if(is_object(v)) {
-                    var vv = {};
+                    let vv = {};
                     if(!kw_has_key(v, field_id)) {
                         log_error("list2options(): object without field id: " + field_id);
                     }
@@ -1845,7 +1845,7 @@
                 }
             }
         } else if(is_object(list)) {
-            for(var k in list) {
+            for(let k in list) {
                 options.push({
                     id: k,
                     value: k
@@ -2974,7 +2974,7 @@
     /***************************************************************************
      *
      ***************************************************************************/
-    function buildOneHtml(htmlString)
+    function createOneHtml(htmlString)
     {
         // Convert the HTML string to DOM nodes
         const template = document.createElement('template');
@@ -3139,7 +3139,7 @@
      *      content -> string | [createElement() or parameters of createElement]
      *                  if string begins with '<' then
      *                      it will be converted to HTMLElement
-     *                          content = buildOneHtml(string)
+     *                          content = createOneHtml(string)
      *                  if attrs['i18n'] is not empty then (or 'data-i18n' or 'data_i18next')
  *                          it will be overridden with the translation
      *                          content = i18next.t(attrs['i18n']));
@@ -3209,7 +3209,7 @@
         if (typeof content === 'string') {
             content = content.trim();
             if(content.length > 0 && content[0] === '<') {
-                el.appendChild(buildOneHtml(content));
+                el.appendChild(createOneHtml(content));
             } else {
                 if(data_i18next) {
                     el.textContent = i18next.t(data_i18next, content);
@@ -3396,7 +3396,7 @@
     exports.get_str_list_difference = get_str_list_difference;
     exports.get_location_path_root = get_location_path_root;
     exports.debounce = debounce;
-    exports.buildOneHtml = buildOneHtml;
+    exports.createOneHtml = createOneHtml;
     exports.createElement = createElement;
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
 })(this);
