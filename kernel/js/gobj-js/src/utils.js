@@ -3272,6 +3272,15 @@
         };
     }
 
+    /***************************************************************************
+     *  Function to convert dataset (of DOM Element) to plain object
+     ***************************************************************************/
+    function datasetToObject(dataset)
+    {
+        return Object.fromEntries(
+            Object.entries(dataset).map(([key, value]) => [key, value])
+        );
+    }
 
     //=======================================================================
     //      Expose the class via the global object
@@ -3399,4 +3408,5 @@
     exports.createOneHtml = createOneHtml;
     exports.createElement = createElement;
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
+    exports.datasetToObject = datasetToObject;
 })(this);

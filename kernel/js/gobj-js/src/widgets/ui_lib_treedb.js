@@ -119,6 +119,16 @@
     }
 
     /********************************************
+     *  Used by formtable to get combo options
+     ********************************************/
+    function treedb_get_topic_field_data(treedb_name, topic_name)
+    {
+        let treedb = kw_get_dict_value(treedb_register, treedb_name, {}, false);
+        let data = kw_get_dict_value(treedb, "data", {}, false);
+        return kw_get_dict_value(data, topic_name, {}, false);
+    }
+
+    /********************************************
      *
      ********************************************/
     function treedb_hook_data_size(value)
@@ -359,15 +369,17 @@
     //=======================================================================
     //      Expose the class via the global object
     //=======================================================================
-    exports.treedb_register_formtable = treedb_register_formtable;
-    exports.treedb_unregister_formtable = treedb_unregister_formtable;
-    exports.treedb_register_nodes = treedb_register_nodes;
-    exports.treedb_register_update_node = treedb_register_update_node;
-    exports.treedb_register_del_node = treedb_register_del_node;
-    exports.treedb_get_register = treedb_get_register;
-    exports.treedb_get_topic_data = treedb_get_topic_data;
-    exports.treedb_hook_data_size = treedb_hook_data_size;
+    // WARNING DEPRECATED estas funciones se usaban para actualizar enlaces, ya no hacen falta
+    //                    el backend publica tb los nodos cuyos links cambian
+    // exports.treedb_register_formtable = treedb_register_formtable;          // WARNING DEPRECATED
+    // exports.treedb_unregister_formtable = treedb_unregister_formtable;      // WARNING DEPRECATED
+    // exports.treedb_register_nodes = treedb_register_nodes;                  // WARNING DEPRECATED
+    // exports.treedb_register_update_node = treedb_register_update_node;      // WARNING DEPRECATED
+    // exports.treedb_register_del_node = treedb_register_del_node;            // WARNING DEPRECATED
+    // exports.treedb_get_register = treedb_get_register;                      // WARNING DEPRECATED
+    // exports.treedb_get_topic_data = treedb_get_topic_data;                  // WARNING DEPRECATED
 
+    exports.treedb_hook_data_size = treedb_hook_data_size;
     exports.treedb_decoder_fkey = treedb_decoder_fkey;
     exports.treedb_decoder_hook = treedb_decoder_hook;
     exports.treedb_get_type = treedb_get_type;
