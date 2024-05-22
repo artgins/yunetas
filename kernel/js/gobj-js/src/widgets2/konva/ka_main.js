@@ -3,6 +3,12 @@
  *
  *          KA Main
  *
+ *          Main container of a yunetas canvas, goals:
+ *              - Option of Resize to system
+ *              - Manage list of childs to activate/desactivate them
+ *                  => activate/desactivate => put on or put off the input focus
+ *                  (the user clicking)
+ *
  *          Based in KonvA
  *
  *          Copyright (c) 2022, ArtGins.
@@ -28,6 +34,7 @@
         modal_layer: null,  // Modal Konva Layer
         debug_dimensions: false, // paint dimension on mouseenter to konva's nodes
         fix_dimension_to_screen: false,  // Change dimension to fix window inside screen
+        first_resize: true,
 
         // Private data
         _ka_container: null,    // Set the stage as _ka_container
@@ -481,9 +488,11 @@
 
 
     /*
-     *  Activation is a central service, where a window must register as being the main input interface for user.
-     *  The window register to service, and the service is responsible to send the EV_ACTIVATE to window,
-     *  if considerate correct. It's a filter to centralize the managing of activate/deactivate o reactivate
+     *  Activation is a central service,
+     *  where a window must register as being the main input interface for user.
+     *  This service is responsible to send the EV_ACTIVATE to window,
+     *      if considerate correct.
+     *  It's a filter to centralize the managing of activate/deactivate o reactivate
      *  the window in the list of registered windows.
      */
     /********************************************
@@ -630,7 +639,7 @@
         let new_width = kw.width;
         let new_height = kw.height;
 
-        if(first_resize) {
+        if(self.config.first_resize) {
             if(new_width > 0 && new_height > 0) {
                 self.config.stage.size({
                     width: new_width,
@@ -639,22 +648,33 @@
 
                 // Send directly to childs events and publish for others
                 self.gobj_send_event_to_childs(event, kw, src);
-                self.gobj_publish_event(event, kw, src);
+                if(self.config.fix_dimension_to_screen) {
+                    self.gobj_publish_event(event, kw, src);
+                }
                 self.config.stage.draw();
-                first_resize = false;
+                self.config.first_resize = false;
             }
         } else {
-            if(new_width !== self.config.stage.width() || new_height !== self.config.stage.height()) {
-                let old_size = self.config.stage.size();
-                self.config.stage.size({
-                    width: new_width,
-                    height: new_height
-                });
+            if(new_width > 0 && new_height > 0) {
+                if(new_width !== self.config.stage.width() || new_height !== self.config.stage.height()) {
+                    let old_size = self.config.stage.size();
+                    self.config.stage.size({
+                        width: new_width,
+                        height: new_height
+                    });
 
-                self.config.stage.scale({
-                    x: new_width / old_size.width,
-                    y: new_height / old_size.height
-                });
+                    self.config.stage.scale({
+                        x: new_width / old_size.width,
+                        y: new_height / old_size.height
+                    });
+
+                    // Send directly to childs events and publish for others
+                    self.gobj_send_event_to_childs(event, kw, src);
+                    if(self.config.fix_dimension_to_screen) {
+                        self.gobj_publish_event(event, kw, src);
+                    }
+                    self.config.stage.draw();
+                }
             }
         }
 
