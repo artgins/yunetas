@@ -3297,6 +3297,24 @@
         return self.gobj_escaped_short_name() + "-" + name;
     }
 
+    /************************************************************
+     *  Get the first gobj parent matching a gclass
+     ************************************************************/
+    function gobj_near_parent(gobj, gclass_name)
+    {
+        while (gobj) {
+            gobj = gobj.gobj_parent();
+            if (gobj) {
+                // Check if the element has defined width and height
+                if(gobj.gobj_gclass_name() === gclass_name) {
+                    return gobj;
+                }
+            }
+        }
+        return null; // No parent found
+    }
+
+
     //=======================================================================
     //      Expose the class via the global object
     //=======================================================================
@@ -3425,4 +3443,5 @@
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
     exports.datasetToObject = datasetToObject;
     exports.build_name = build_name;
+    exports.gobj_near_parent = gobj_near_parent;
 })(this);

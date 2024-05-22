@@ -5,6 +5,44 @@
  *
  *          A **view** can work inside a multiview
  *
+ *          On start automatic send events:
+ *             EV_ADD_ITEM ( items: self.config.items )
+ *             EV_LINK ( self.config.links )
+ *
+ *          - Manages mt_child_added() to automatic
+ *              - EV_ADD_ITEM (any child)
+ *              - EV_LINK (Ka_link child)
+ *          - Manages mt_child_removed() to automatic
+ *              - EV_REMOVE_ITEM (Ne_base)
+ *              - EV_UNLINK (Ka_link)
+ *
+ *
+ *          Supporting events:
+ *
+ *              EV_KEYDOWN
+ *
+ *              EV_ADD_ITEM
+ *              EV_REMOVE_ITEM
+ *              EV_LINK
+ *              EV_UNLINK
+
+ *              EV_ACTIVATE
+ *              EV_DEACTIVATE
+ *
+ *              EV_PANNING      Events from childs
+ *              EV_PANNED
+ *              EV_MOVING
+ *              EV_MOVED
+ *              EV_SHOWED
+ *              EV_HIDDEN
+ *
+ *              EV_TOGGLE
+ *              EV_SHOW
+ *              EV_HIDE
+ *              EV_POSITION
+ *              EV_SIZE
+ *              EV_RESIZE
+ *
  *          Based in ScrollvieW
  *
  *          Copyright (c) 2022, ArtGins.
@@ -42,6 +80,10 @@
         draggable: false,       // Enable (outer dragging) dragging
 
         fix_dimension_to_screen: false,
+        center: false,
+        show_overflow: false,
+        autosize: false,
+
         grid: 10,               // If not 0 then fix the position to near grid position
 
         enable_vscroll: true,       // Enable content vertical scrolling, default true
@@ -280,7 +322,7 @@
      ********************************************/
     function ac_show_or_hide(self, event, kw, src)
     {
-        let __ka_main__ = self.yuno.gobj_find_service("__ka_main__", true);
+        let __ka_main__ = gobj_near_parent(self, "Ka_main");
 
         /*--------------------------------------*
          *  Check if it's the show for a view
@@ -627,10 +669,10 @@
                 panning: self.config.panning,       // Enable (inner dragging) panning
                 draggable: self.config.draggable,   // Enable (outer dragging) dragging
 
-                autosize: false,
                 fix_dimension_to_screen: self.config.fix_dimension_to_screen,
-                center: false,
-                show_overflow: false,
+                center: self.config.center,
+                show_overflow: self.config.show_overflow,
+                autosize: self.config.autosize,
 
                 enable_vscroll: self.config.enable_vscroll,
                 enable_hscroll: self.config.enable_hscroll,
