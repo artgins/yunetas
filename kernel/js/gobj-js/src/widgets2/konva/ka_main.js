@@ -165,7 +165,7 @@
                  */
                 let id = src.gobj_full_name();
                 if(kwid_find_one_record(self.private._dl_activation, id)) {
-                    if(current_active_gobj.gobj != src) {
+                    if(current_active_gobj.gobj !== src) {
                         // EV_ACTIVATE/EV_DEACTIVATE must be idempotent
                         self.gobj_send_event("EV_ACTIVATE", {}, src);  // auto-activation click on new window
                     }
@@ -176,7 +176,7 @@
                 /*
                  *  If modal and from other window then close it
                  */
-                if(current_active_gobj.gobj != src) {
+                if(current_active_gobj.gobj !== src) {
                     /*
                      *  (in super_modal window only clicks inside are permitted)
                      */
@@ -227,8 +227,8 @@
             if(current_active_gobj) {
                 switch(kw.keyCode) {
                     case 27: // Escape
-                        if((current_active_gobj.modal && !current_active_gobj.super_modal)
-                                || current_active_gobj.autoclose) {
+                        if((current_active_gobj.modal && !current_active_gobj.super_modal) ||
+                            current_active_gobj.autoclose) {
                             // Escape close the window
                             current_active_gobj.gobj.gobj_send_event("EV_HIDE", {}, self);
                             ret = -1; // No es mejor que se propague?
@@ -604,7 +604,7 @@
          */
         let new_active_record = get_current_active(self);
         if(new_active_record) {
-            if(new_active_record.id != prev_active_record.id) {
+            if(new_active_record.id !== prev_active_record.id) {
                 // EV_ACTIVATE/EV_DEACTIVATE must be idempotent
                 new_active_record.gobj.gobj_send_event("EV_ACTIVATE", {}, self);
             }
@@ -769,21 +769,6 @@
     proto.mt_stop = function(kw)
     {
         let self = this;
-    };
-
-    /************************************************
-     *      Framework Method child_added
-     ************************************************/
-    proto.mt_child_added = function(kw)
-    {
-        let self = this;
-
-        let kw_size = {
-            width: self.config.width,
-            height: self.config.height
-        };
-
-        self.gobj_send_event("EV_RESIZE", kw_size, self);
     };
 
     /************************************************
