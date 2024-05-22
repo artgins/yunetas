@@ -121,9 +121,6 @@
      ********************************************/
     function create_canvas(self)
     {
-        self.config.width = window.innerWidth;
-        self.config.height = window.innerHeight;
-
         /*--------------------------------------*
          *  Firstly we need to create a stage
          *--------------------------------------*/
@@ -312,7 +309,9 @@
         /*--------------------------*
          *  Set background color
          *--------------------------*/
-        stage.container().style.backgroundColor = self.config.background_color;
+        if(self.config.background_color) {
+            stage.container().style.backgroundColor = self.config.background_color;
+        }
     }
 
     /********************************************
@@ -729,7 +728,9 @@
         }
         self.gobj_subscribe_event(null, null, subscriber);
 
-        document.body.style.backgroundColor = self.config.background_color;
+        if(self.config.background_color) {
+            document.body.style.backgroundColor = self.config.background_color;
+        }
 
         create_canvas(self);
         create_layers(self);

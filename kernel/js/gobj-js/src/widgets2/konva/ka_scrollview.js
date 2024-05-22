@@ -905,7 +905,7 @@ Group(_ka_container)
         let height = kw_get_int(kw, "height", self.config.height, false, false);
 
         let WIDTH,HEIGHT;
-        if (window.innerHeight == undefined) {
+        if (window.innerHeight === undefined) {
             WIDTH = document.documentElement.offsetWidth;
             HEIGHT = document.documentElement.offsetHeight;
         } else {
@@ -968,7 +968,7 @@ Group(_ka_container)
         let height = self.config.height;
 
         let WIDTH,HEIGHT;
-        if (window.innerHeight == undefined) {
+        if (window.innerHeight === undefined) {
             WIDTH = document.documentElement.offsetWidth;
             HEIGHT = document.documentElement.offsetHeight;
         } else {
@@ -1011,7 +1011,7 @@ Group(_ka_container)
         let children = self.private._ka_content_group.getChildren();
         for(let i=0; i<children.length; i++) {
             let child = children[i];
-            if(child.name() == "ka_content_rect") {
+            if(child.name() === "ka_content_rect") {
                 continue;
             }
             let pos_ = child.getClientRect({relativeTo:child.getParent()});
@@ -1043,7 +1043,7 @@ Group(_ka_container)
         let children = self.private._ka_content_group.getChildren();
         for(let i=0; i<children.length; i++) {
             let child = children[i];
-            if(child.name() == "ka_content_rect") {
+            if(child.name() === "ka_content_rect") {
                 continue;
             }
             let pos_ = child.getClientRect({relativeTo:child.getParent()});
@@ -1077,7 +1077,7 @@ Group(_ka_container)
         let children = self.private._ka_content_group.getChildren();
         for(let i=0; i<children.length-1; i++) {
             let child = children[i];
-            if(child.name() == "ka_content_rect") {
+            if(child.name() === "ka_content_rect") {
                 continue;
             }
             next = children[i+1];
@@ -1115,7 +1115,7 @@ Group(_ka_container)
         let children = self.private._ka_content_group.getChildren();
         for(let i=0; i<children.length-1; i++) {
             let child = children[i];
-            if(child.name() == "ka_content_rect") {
+            if(child.name() === "ka_content_rect") {
                 continue;
             }
             next = children[i+1];
