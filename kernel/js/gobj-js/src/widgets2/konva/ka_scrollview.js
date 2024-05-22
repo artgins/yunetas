@@ -11,6 +11,14 @@
  *          - Receive external EV_POSITION/EV_SIZE to change position/size in the layer.
  *          - It process too external EV_TOGGLE, EV_SHOW, EV_HIDE and EV_RESIZE
  *
+ *          It publish all event relatives to physical changes:
+ *               EV_MOVING
+ *               EV_MOVED
+ *               EV_PANNING
+ *               EV_PANNED
+ *               EV_SHOWED
+ *               EV_HIDDEN
+ *
  *          Own methods:
  *              - get_viewport_rect
  *              - isVisible
