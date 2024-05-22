@@ -3,6 +3,23 @@
  *
  *          Scrollview built with konvA
  *
+ *          - Live in a konva layer (if not passed, it get it from parent)
+ *          - Important parameters: define the behaviour of the window (box).
+ *          - mt_child_added() alternative to EV_ADD_ITEM
+ *          - EV_REMOVE_ITEM to remove a child.
+ *          - Receive EV_ACTIVATE/EV_DEACTIVATE from ka_main
+ *          - Receive external EV_POSITION/EV_SIZE to change position/size in the layer.
+ *          - It process too external EV_TOGGLE, EV_SHOW, EV_HIDE and EV_RESIZE
+ *
+ *          Own methods:
+ *              - get_viewport_rect
+ *              - isVisible
+ *              - get_konva_container
+ *              - get_util_dimension
+ *              - mt_get_gclass_config
+ *
+ *          Manage a box with scrollbars
+ *
  *          Based in Konva
  *
 
