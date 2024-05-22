@@ -8,24 +8,25 @@
 
 Group(_ka_container)
     |
-    |----> Rect(_ka_border_rect)                // with stroke and shadow (or no)
+    |----> Rect(_ka_border_rect)            // with stroke and shadow (or no)
     |
-    |----> Rect(_ka_viewport_rect)              // no stroke/shadow
+    |----> Rect(_ka_viewport_rect)          // no stroke/shadow
     |
-    |----> Group(_ka_wrapper_content_group)     // has the clip
+    |----> Group(_ka_wrapper_content_group) // has the clip
     |   |
-    |   |----> Group(_ka_content_group)         // contains all items
+    |   |----> Group(_ka_content_group)     // contains all items
     |       |
-    |       |----> Rect(_ka_content_rect)       // no stroke/shadow, update to size of all group's items,
-    |       |                                   // and has the background color
+    |       |----> Rect(_ka_content_rect)   // no stroke/shadow,
+    |       |                               // update to size of all group's items,
+    |       |                               // and has the background color
     |       |----> (items)
     |       ....
     |
     |----> Group(_ka_scrollbars_group)
         |
-        |----> Rect(_ka_vscroll_rect)           // Vertical scrollbar
+        |----> Rect(_ka_vscroll_rect)       // Vertical scrollbar
         |
-        |----> Rect(_ka_hscroll_rect)           // Horizontal scrollbar
+        |----> Rect(_ka_hscroll_rect)       // Horizontal scrollbar
 
 
  *          Copyright (c) 2022, ArtGins.
@@ -55,7 +56,7 @@ Group(_ka_container)
         width: 300,
         height: 300,
         padding: 10,
-        background_color: "white",
+        background_color: "red",
 
         visible: true,
         panning: true,             // Enable (inner dragging) panning, default true
@@ -74,7 +75,7 @@ Group(_ka_container)
 
         kw_border_shape: { /* Border shape */
             strokeWidth: 4,
-            stroke: "black",
+            stroke: "purple",
             opacity: 1,
             shadowBlur: 0,
             shadowColor: "black",

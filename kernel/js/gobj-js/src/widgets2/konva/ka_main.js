@@ -4,10 +4,12 @@
  *          KA Main
  *
  *          Main container of a yunetas canvas, goals:
+ *              - Own the <canvas> Element.
  *              - Option of Resize to system
  *              - Manage list of childs to activate/desactivate them
  *                  => activate/desactivate => put on or put off the input focus
  *                  (the user clicking)
+ *              - Manage the list of layers (main, static and modal)
  *
  *          Based in KonvA
  *
