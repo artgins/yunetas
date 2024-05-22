@@ -27,6 +27,7 @@
         static_layer: null, // Top Konva Layer
         modal_layer: null,  // Modal Konva Layer
         debug_dimensions: false, // paint dimension on mouseenter to konva's nodes
+        fix_dimension_to_screen: false,  // Change dimension to fix window inside screen
 
         // Private data
         _ka_container: null,    // Set the stage as _ka_container
@@ -40,7 +41,7 @@
         autoclose: false,   // Activation SERVICE: Close window on pointerup bubbling to stage or Esc key
     };
 
-    let first_resize = true;
+
 
 
             /***************************
@@ -440,7 +441,7 @@
     /********************************************
      *
      ********************************************/
-    function subscribe_to_system_resize(self)
+    function resize_and_subscribe_to_system(self)
     {
         /*
          *  Subscribe to resize event
@@ -466,7 +467,7 @@
             );
         }
 
-        // resize();
+        resize();
     }
 
 
@@ -614,6 +615,10 @@
     }
 
     /********************************************
+     *  kw {
+     *      width: integer
+     *      height: integer
+     *  }
      *
      ********************************************/
     function ac_resize(self, event, kw, src)
@@ -625,7 +630,7 @@
         let new_width = kw.width;
         let new_height = kw.height;
 
-        if(first_resize || 1) {
+        if(first_resize) {
             if(new_width > 0 && new_height > 0) {
                 self.config.stage.size({
                     width: new_width,
@@ -753,14 +758,15 @@
     {
         let self = this;
 
-        setTimeout(
-            function() {
-                self.config.stage.draw();
-                subscribe_to_system_resize(self);
-            },
-            200
-        );
-
+        if(self.config.fix_dimension_to_screen === true) {
+            setTimeout(
+                function() {
+                    self.config.stage.draw();
+                    resize_and_subscribe_to_system(self);
+                },
+                200
+            );
+        }
     };
 
     /************************************************
