@@ -9,8 +9,18 @@
  *              - Manage list of childs to activate/desactivate them
  *                  => activate/desactivate => put on or put off the input focus
  *                  (the user clicking)
- *              - Manage the list of layers (main, static and modal)
+ *              - Manage the konva layers (main, static and modal)
  *
+ *              - Own methods:
+                    get_konva_container = function()
+                    get_stage = function()
+                    get_main_layer = function()
+                    get_static_layer = function()
+
+                - Input event: EV_RESIZE
+                - Internal events: EV_RESIZE, EV_ACTIVATE, EV_DEACTIVATE
+                - Output event: EV_RESIZE optional, if fix_dimension_to_screen is true
+
  *          Based in KonvA
  *
  *          Copyright (c) 2022, ArtGins.
