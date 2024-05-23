@@ -62,6 +62,10 @@
         padding: 0,
         background_color: "white",
 
+        kw_scrollview: { /* Scrollview TODO configure like sw_graphs */
+        },
+
+
         visible: true,
         draggable: false, // Enable (outer dragging) dragging
 

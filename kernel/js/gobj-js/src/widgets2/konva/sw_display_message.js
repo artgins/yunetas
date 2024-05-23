@@ -38,6 +38,9 @@
         padding: 10,
         background_color: "white",
 
+        kw_scrollview: { /* Scrollview TODO configure like sw_graphs */
+        },
+
         draggable: true, // Enable (outer dragging) dragging
 
         kw_border_shape: { /* Border shape */

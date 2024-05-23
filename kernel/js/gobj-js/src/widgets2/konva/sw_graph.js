@@ -77,16 +77,16 @@
         padding: 0,
         background_color: "#cccccc",
 
-        kw_border_shape: { /* Border shape */
+        kw_scrollview: { /* Scrollview */
+        },
+
+        kw_border_shape: { /* Scrollview Border shape */
             strokeWidth: 0,
             opacity: 1,
             shadowBlur: 0
         },
-        kw_border_shape_actived: { /* Border shape for active windows */
+        kw_border_shape_actived: { /* Scrollview Border shape for active windows */
             // Only used: stroke, opacity, shadowBlur, shadowColor
-        },
-
-        kw_scrollview: {
         },
 
         //////////////// Private Attributes /////////////////

@@ -37,6 +37,9 @@
         padding: 2,
         background_color: "#EEEEEE",
 
+        kw_scrollview: { /* Scrollview TODO configure like sw_graphs */
+        },
+
         visible: true,
         panning: true,          // Enable (inner dragging) panning
         draggable: false,       // Enable (outer dragging) dragging
