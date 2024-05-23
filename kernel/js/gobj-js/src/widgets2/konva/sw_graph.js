@@ -67,6 +67,8 @@
         items: [],  // can be nodes or buttons or etc
         links: [],
 
+        grid: 10,               // If not 0 then fix the position to near grid position
+
         //------- Ka_scrollview Attributes --- HACK use ka_scrollview directly ---------//
         x: 100,
         y: 100,
@@ -75,23 +77,6 @@
         padding: 0,
         background_color: "#cccccc",
 
-        visible: true,
-        panning: true,          // Enable (inner dragging) panning
-        draggable: false,       // Enable (outer dragging) dragging
-
-        fix_dimension_to_screen: false,
-        center: false,
-        show_overflow: false,
-        autosize: false,
-
-        grid: 10,               // If not 0 then fix the position to near grid position
-
-        enable_vscroll: true,       // Enable content vertical scrolling, default true
-        enable_hscroll: true,       // Enable content horizontal scrolling, default true
-        scroll_by_step: false,      // false: use native; true: use child dimension; number: use 'number' step;
-
-        quick_display: false,       // For debugging, draw quickly
-
         kw_border_shape: { /* Border shape */
             strokeWidth: 0,
             opacity: 1,
@@ -99,6 +84,9 @@
         },
         kw_border_shape_actived: { /* Border shape for active windows */
             // Only used: stroke, opacity, shadowBlur, shadowColor
+        },
+
+        kw_scrollview: {
         },
 
         //////////////// Private Attributes /////////////////
@@ -652,41 +640,31 @@
             self.config.layer = self.gobj_parent().config.layer;
         }
 
+        let kw_scrollview = __duplicate__(
+            kw_get_dict(self.config, "kw_scrollview", {})
+        );
+        json_object_update(kw_scrollview, {
+            layer: self.config.layer,
+
+            x: self.config.x,
+            y: self.config.y,
+            width: self.config.width,
+            height: self.config.height,
+            padding: self.config.padding,
+            background_color: self.config.background_color,
+
+            kw_border_shape: __duplicate__(
+                kw_get_dict(self.config, "kw_border_shape", {})
+            ),
+            kw_border_shape_actived: __duplicate__(
+                kw_get_dict(self.config, "kw_border_shape_actived", {})
+            )
+        });
+
         self.private._gobj_ka_scrollview = self.yuno.gobj_create(
             self.gobj_name(),
             Ka_scrollview,
-            {
-                layer: self.config.layer,
-
-                x: self.config.x,
-                y: self.config.y,
-                width: self.config.width,
-                height: self.config.height,
-                padding: self.config.padding,
-                background_color: self.config.background_color,
-
-                visible: self.config.visible,
-                panning: self.config.panning,       // Enable (inner dragging) panning
-                draggable: self.config.draggable,   // Enable (outer dragging) dragging
-
-                fix_dimension_to_screen: self.config.fix_dimension_to_screen,
-                center: self.config.center,
-                show_overflow: self.config.show_overflow,
-                autosize: self.config.autosize,
-
-                enable_vscroll: self.config.enable_vscroll,
-                enable_hscroll: self.config.enable_hscroll,
-                scroll_by_step: self.config.scroll_by_step,
-
-                quick_display: self.config.quick_display,
-
-                kw_border_shape: __duplicate__(
-                    kw_get_dict(self.config, "kw_border_shape", {})
-                ),
-                kw_border_shape_actived: __duplicate__(
-                    kw_get_dict(self.config, "kw_border_shape_actived", {})
-                )
-            },
+            kw_scrollview,
             self
         );
         self.private._gobj_ka_scrollview.get_konva_container().gobj = self; // cross-link
