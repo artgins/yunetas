@@ -214,7 +214,8 @@
                 continue;
             }
 
-            for(let child in childs) {
+            for(let j=0; j<childs.length; j++) {
+                let child = childs[j];
                 let k = child.get_konva_container();
                 self.private._gobj_ka_scrollview.gobj_send_event(
                     "EV_REMOVE_ITEM",

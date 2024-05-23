@@ -1285,13 +1285,15 @@ Group(_ka_container)
      *  }
      *
      *  "__ka_node__" has precedence,
-     *      if not found then a search
+     *      if not found, then a search
      *      with `id` and/or `name` will be used
      ******************************************************/
     function ac_remove_item(self, event, kw, src)
     {
         if (!self.private._ka_container) {
-            log_error("ka_scrollview.ac_remove_item(): _ka_container not defined");
+            if(!self.gobj_is_destroying()) {
+                log_error("ka_scrollview.ac_remove_item(): _ka_container not defined");
+            }
             return -1;
         }
 
