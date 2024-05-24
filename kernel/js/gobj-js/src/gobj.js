@@ -641,7 +641,7 @@ let __inside_event_loop__ = 0;
     };
     proto.is_tracing = function(event)
     {
-        if(event && event == this.timer_event_name &&
+        if(event && event === this.timer_event_name &&
                 (this.yuno && !this.yuno.config.trace_timer)) {
             return false;
         }
