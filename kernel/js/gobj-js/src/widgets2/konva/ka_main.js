@@ -465,7 +465,7 @@
         /*
          *  Subscribe to resize event
          */
-        window.onresize = resize;
+        window.addEventListener('resize', resize);
 
         function resize() {
             //trace_msg(sprintf("inner w %d h %d", window.innerWidth, window.innerHeight));
