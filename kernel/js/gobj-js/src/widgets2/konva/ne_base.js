@@ -468,7 +468,7 @@
      *      }
      *  }
      ************************************************************/
-    function create_ports_from_kw(self, event, kw, src)
+    function create_ports_from_kw(self, kw)
     {
         let input_ports = kw_get_list(kw, "input`ports", []);
         if(input_ports.length > 0) {
@@ -868,6 +868,7 @@
         }
 
         create_shape(self);
+        create_ports_from_kw(self, self.config);
     };
 
     /************************************************
@@ -892,7 +893,6 @@
     proto.mt_start = function(kw)
     {
         let self = this;
-        create_ports_from_kw(self, self.config);
     };
 
     /************************************************

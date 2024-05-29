@@ -86,7 +86,7 @@ Group(_ka_container)
         background_color: "red",
 
         visible: true,
-        panning: true,             // Enable (inner dragging) panning, default true
+        panning: true,              // Enable (inner dragging) panning, default true
         draggable: false,           // Enable (outer dragging) dragging, default false
 
         autosize: false,            // Change dimension to fix all content visible
