@@ -52,6 +52,8 @@
         layer: null,            // Konva layer
         view: null,             // View containing the node (default the parent), used for ports and links
 
+        data: null,             // User data
+
         //------------ Own Attributes ------------//
         x: 0,
         y: 0,

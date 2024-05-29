@@ -72,6 +72,8 @@ Group(_ka_container)
         subscriber: null,   // subscriber of publishing messages (Child model: if null will be the parent)
         layer: null,        // Konva layer
 
+        data: null,         // User data
+
         modal: false,       // Activation SERVICE: Default false, like webix
         super_modal: false, // Activation SERVICE: Don't close with escape key or clicking out
         autoclose: false,   // Activation SERVICE: Close window on pointerup bubbling to stage or Esc key
