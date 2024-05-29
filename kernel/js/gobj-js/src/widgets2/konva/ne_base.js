@@ -316,9 +316,9 @@
         return ka_container;
     }
 
-    /********************************************
+    /************************************************************
      *
-     ********************************************/
+     ************************************************************/
     function create_ports(self, port_position, kw_common)
     {
         let node_width = self.config.width;
@@ -439,29 +439,7 @@
         }
     }
 
-
-
-
-            /***************************
-             *      Actions
-             ***************************/
-
-
-
-
-    /********************************************
-     *
-     ********************************************/
-    function ac_keydown(self, event, kw, src)
-    {
-        let ret = 0;
-        /*
-         * Retorna -1 si quieres poseer el evento (No será subido hacia arriba).
-         */
-        return ret;
-    }
-
-    /********************************************
+    /************************************************************
      *
      *  {
      *      input: {
@@ -489,8 +467,8 @@
      *          ]
      *      }
      *  }
-     ********************************************/
-    function ac_add_port(self, event, kw, src)
+     ************************************************************/
+    function create_ports_from_kw(self, event, kw, src)
     {
         let input_ports = kw_get_list(kw, "input`ports", []);
         if(input_ports.length > 0) {
@@ -512,9 +490,41 @@
         return 0;
     }
 
-    /********************************************
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+    /************************************************************
      *
-     ********************************************/
+     ************************************************************/
+    function ac_keydown(self, event, kw, src)
+    {
+        let ret = 0;
+        /*
+         * Retorna -1 si quieres poseer el evento (No será subido hacia arriba).
+         */
+        return ret;
+    }
+
+    /************************************************************
+     *
+     ************************************************************/
+    function ac_add_port(self, event, kw, src)
+    {
+        create_ports_from_kw(self, kw);
+
+        return 0;
+    }
+
+    /************************************************************
+     *
+     ************************************************************/
     function ac_remove_port(self, event, kw, src)
     {
         // TODO
@@ -882,7 +892,7 @@
     proto.mt_start = function(kw)
     {
         let self = this;
-        self.gobj_send_event("EV_ADD_PORT", self.config, self);
+        create_ports_from_kw(self, self.config);
     };
 
     /************************************************
