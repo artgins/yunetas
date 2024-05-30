@@ -330,12 +330,14 @@
         let flag = col.flag;
         let is_hook = elm_in_list("hook", flag);
         let is_fkey = elm_in_list("fkey", flag);
+        let is_rowid = elm_in_list("rowid", flag);
         let is_enum = elm_in_list("enum", flag);
         let is_time = elm_in_list("time", flag);
         let is_color = elm_in_list("color", flag);
         let is_password = elm_in_list("password", flag);
         let is_email = elm_in_list("email", flag);
         let is_url = elm_in_list("url", flag);
+        let is_image = elm_in_list("image", flag);
         let is_tel = elm_in_list("tel", flag);
 
         let enum_list = null;
@@ -348,6 +350,8 @@
         } else if(is_enum) {
             type = "enum";
             enum_list = col.enum;
+        } else if(is_rowid) {
+            type = "rowid";
         } else if(is_time) {
             type = "time";
         } else if(is_color) {
@@ -358,6 +362,8 @@
             type = "password";
         } else if(is_url) {
             type = "url";
+        } else if(is_image) {
+            type = "image";
         } else if(is_tel) {
             type = "tel";
         }
