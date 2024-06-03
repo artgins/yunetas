@@ -306,16 +306,11 @@
      *      "object" "dict"
      *      "array" "list"
      *      "blob"
+     *      "rowid"
      *      "enum"
      *              real_type:  "string"
      *                          "object" "dict"
      *                          "array" "list"
-     *      "time"
-     *              real_type:  "string"
-     *                          "integer"
-     *      "color"
-     *              real_type:  "string"
-     *                          "integer"
      *      "hook"
      *              real_type:  "string"
      *                          "object" "dict"
@@ -324,15 +319,29 @@
      *              real_type:  "string"
      *                          "object" "dict"
      *                          "array" "list"
+     *      "time"
+     *      "now"
+     *              real_type:  "string"
+     *                          "integer"
+     *      "color"
+     *              real_type:  "string"
+     *                          "integer"
+     *      "password"
+     *      "email"
+     *      "url"
+     *      "image"
+     *      "tel"
+     *
      ************************************************************/
     function treedb_get_type(col)
     {
         let flag = col.flag;
-        let is_hook = elm_in_list("hook", flag);
-        let is_fkey = elm_in_list("fkey", flag);
         let is_rowid = elm_in_list("rowid", flag);
         let is_enum = elm_in_list("enum", flag);
+        let is_hook = elm_in_list("hook", flag);
+        let is_fkey = elm_in_list("fkey", flag);
         let is_time = elm_in_list("time", flag);
+        let is_now = elm_in_list("now", flag);
         let is_color = elm_in_list("color", flag);
         let is_password = elm_in_list("password", flag);
         let is_email = elm_in_list("email", flag);
@@ -354,6 +363,9 @@
             type = "rowid";
         } else if(is_time) {
             type = "time";
+            if(is_now) {
+                type = "now";
+            }
         } else if(is_color) {
             type = "color";
         } else if(is_email) {

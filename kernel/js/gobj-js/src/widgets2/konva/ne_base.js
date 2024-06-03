@@ -74,8 +74,8 @@
         unlocked: false,    // When True designing is enabled, managed by EV_UNLOCK/EV_LOCK too
 
         kw_border_shape: { /* Border shape */
-            cornerRadius: 10,
-            strokeWidth: 2,
+            cornerRadius: 0,
+            strokeWidth: 1,
             stroke: "#f5c211ff",
             opacity: 1,
             shadowBlur: 0,
@@ -909,14 +909,12 @@
     proto.mt_writing = function(name)
     {
         let self = this;
-        // TODO if(name == "disabled" "selected" "unlocked")
-        // Simulate events:
-        //     "EV_SELECT",
-        //     "EV_UNSELECT",
-        //     "EV_ENABLE",
-        //     "EV_DISABLE",
-        //     "EV_LOCK",
-        //     "EV_UNLOCK",
+
+        switch(name) {
+            case "draggable":
+                self.private._ka_container.draggable(self.config.draggable);
+                break;
+        }
     };
 
     /************************************************

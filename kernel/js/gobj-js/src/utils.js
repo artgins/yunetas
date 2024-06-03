@@ -3300,7 +3300,7 @@
     /************************************************************
      *  Get the first gobj parent matching a gclass
      ************************************************************/
-    function gobj_near_parent(gobj, gclass_name)
+    function gobj_near_parent(gobj, gclass_name) // TODO put in gobj.c gobj.js
     {
         while (gobj) {
             gobj = gobj.gobj_parent();

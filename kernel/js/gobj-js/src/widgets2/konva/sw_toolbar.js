@@ -24,6 +24,7 @@
         layer: null,        // Konva layer
 
         //------------ Own Attributes ------------//
+        visible: true,
         orientation: "horizontal", /* "vertical" or "horizontal" */
         wide: 40,
         long: 0,        /* 0 = adjust to screen */
@@ -34,22 +35,16 @@
         y: 0,
         width: 0,       // Calculated inside (based in orientation/wide/long)
         height: 0,      // Calculated inside (based in orientation/wide/long)
-        padding: 2,
+        padding: 0,
         background_color: "#EEEEEE",
 
-        kw_scrollview: { /* Scrollview TODO configure like sw_graphs */
+        kw_scrollview: { /* Scrollview */
         },
-
-        visible: true,
-        panning: true,          // Enable (inner dragging) panning
-        draggable: false,       // Enable (outer dragging) dragging
 
         fix_dimension_to_screen: false,
 
         enable_vscroll: false,  // Calculated inside
         enable_hscroll: false,  // Calculated inside
-
-        quick_display: false,   // For debugging, draw quickly
 
         kw_border_shape: { /* Border shape */
             strokeWidth: 0,
@@ -128,7 +123,7 @@
     {
         let items = kw_get_dict_value(kw, "items", null, false, false);
 
-        let x=0,y=0,k=null;
+        let x=self.config.padding, y=self.config.padding, k=null;
 
         for(let i=0; i<items.length; i++) {
             let item = items[i];
@@ -223,16 +218,18 @@
             }
 
             for(let child in childs) {
-                let k = child.get_konva_container();
-                self.private._gobj_ka_scrollview.gobj_send_event(
-                    "EV_REMOVE_ITEM",
-                    {
-                        items: [k]
-                    },
-                    self
-                );
-                if(!child.gobj_is_destroying()) {
-                    self.yuno.gobj_destroy(child);
+                if(child && child.get_konva_container) {
+                    let k = child.get_konva_container();
+                    self.private._gobj_ka_scrollview.gobj_send_event(
+                        "EV_REMOVE_ITEM",
+                        {
+                            items: [k]
+                        },
+                        self
+                    );
+                    if(!child.gobj_is_destroying()) {
+                        self.yuno.gobj_destroy(child);
+                    }
                 }
             }
         }
@@ -255,7 +252,7 @@
      ********************************************/
     function ac_show_or_hide(self, event, kw, src)
     {
-        let __ka_main__ = self.yuno.gobj_find_service("__ka_main__", true);
+        let __ka_main__ = gobj_near_parent(self, "Ka_main");
 
         /*--------------------------------------*
          *  Check if it's the show for a item
@@ -568,51 +565,43 @@
 
         calculate_dimension(self);
 
-        let visible = self.config.visible;
+        let kw_scrollview = __duplicate__(
+            kw_get_dict(self.config, "kw_scrollview", {})
+        );
+        json_object_update(kw_scrollview, {
+            layer: self.config.layer,
+
+            x: self.config.x,
+            y: self.config.y,
+            width: self.config.width,
+            height: self.config.height,
+            padding: self.config.padding,
+            background_color: self.config.background_color,
+
+            enable_vscroll: self.config.enable_vscroll,
+            enable_hscroll: self.config.enable_hscroll,
+            scroll_by_step: true,
+            hide_hscrollbar: true,     // Don't show horizontal (auto) scrollbar
+            hide_vscrollbar: true,     // Don't show vertical (auto) scrollbar
+
+            kw_border_shape: __duplicate__(
+                kw_get_dict(self.config, "kw_border_shape", {})
+            ),
+            kw_border_shape_actived: __duplicate__(
+                kw_get_dict(self.config, "kw_border_shape_actived", {})
+            )
+        });
 
         self.private._gobj_ka_scrollview = self.yuno.gobj_create(
             self.gobj_name(),
             Ka_scrollview,
-            {
-                layer: self.config.layer,
-
-                x: self.config.x,
-                y: self.config.y,
-                width: self.config.width,
-                height: self.config.height,
-                padding: self.config.padding,
-                background_color: self.config.background_color,
-
-                visible: visible,
-                panning: self.config.panning,       // Enable (inner dragging) panning
-                draggable: self.config.draggable,   // Enable (outer dragging) dragging
-
-                autosize: false,
-                fix_dimension_to_screen: self.config.fix_dimension_to_screen,
-                center: false,
-                show_overflow: false,
-
-                enable_vscroll: self.config.enable_vscroll,
-                enable_hscroll: self.config.enable_hscroll,
-                scroll_by_step: true,
-                hide_hscrollbar: true,     // Don't show horizontal (auto) scrollbar
-                hide_vscrollbar: true,     // Don't show vertical (auto) scrollbar
-
-                quick_display: self.config.quick_display,
-
-                kw_border_shape: __duplicate__(
-                    kw_get_dict(self.config, "kw_border_shape", {})
-                ),
-                kw_border_shape_actived: __duplicate__(
-                    kw_get_dict(self.config, "kw_border_shape_actived", {})
-                )
-            },
+            kw_scrollview,
             self
         );
         self.private._gobj_ka_scrollview.get_konva_container().gobj = self; // cross-link
 
         self.gobj_send_event("EV_ADD_ITEM", {items: self.config.items}, self);
-        if(visible) {
+        if(self.config.visible) {
             self.gobj_send_event("EV_SHOW", {}, self);
         }
     };

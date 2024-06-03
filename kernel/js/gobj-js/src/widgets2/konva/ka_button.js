@@ -26,7 +26,7 @@
 
         label: "",      // text of item
         icon: "",       // icon of item (from an icon font)
-        background_color: "#FFF7E0",
+        background_color: "#00B89C",
         color: "black",
         text_color: null,
         icon_color: null,
@@ -70,9 +70,9 @@
         },
 
         kw_border_shape: { // HACK: Used by shape_label_with_icon
-            cornerRadius: 10,
-            strokeWidth: 2,
-            stroke: "#f5c211ff",
+            cornerRadius: 4,
+            strokeWidth: 1,
+            stroke: "#00A188",
             opacity: 1,
             shadowBlur: 0,
             shadowColor: "black",
@@ -103,7 +103,7 @@
      ********************************************/
     function create_shape(self)
     {
-        let config = __duplicate__(self.config);
+        let config = self.config;
 
         if(!config.background_color) {
             config.background_color = self.parent.config.background_color;

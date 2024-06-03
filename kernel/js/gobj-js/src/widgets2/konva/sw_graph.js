@@ -68,6 +68,7 @@
         links: [],
 
         grid: 10,               // If not 0 then fix the position to near grid position
+        edit_mode: false,
 
         //------- Ka_scrollview Attributes --- HACK use ka_scrollview directly ---------//
         x: 100,
@@ -96,9 +97,9 @@
 
 
 
-            /***************************
-             *      Local Methods
-             ***************************/
+                    /***************************
+                     *      Local Methods
+                     ***************************/
 
 
 
@@ -131,9 +132,9 @@
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -391,6 +392,24 @@
         return 0;
     }
 
+    /************************************************************
+     *
+     ************************************************************/
+    function ac_edit_mode(self, event, kw, src)
+    {
+        let kids = self.gobj_match_childs({
+            __gclass_name__: "Ne_base"
+        });
+
+        self.config.edit_mode = !self.config.edit_mode;
+        for(let i=0; i<kids.length; i++) {
+            let kid = kids[i];
+            kid.gobj_write_attr("draggable", self.config.edit_mode);
+        }
+
+        return 0;
+    }
+
     /********************************************
      *  kw: {
      *      x:
@@ -508,6 +527,11 @@
                     },
                     self
                 );
+
+                self.gobj_publish_event("EV_UPDATE_GEOMETRY", {
+                    __share_kw__: true,
+                    nodes: [src]
+                });
             }
         }
         return 0;
@@ -554,6 +578,8 @@
             "EV_SHOW",
             "EV_HIDE",
             "EV_RESIZE",
+            "EV_UPDATE_GEOMETRY: output no_warn_subs",
+            "EV_EDIT_MODE",
 
             "EV_PANNING",
             "EV_PANNED",
@@ -578,6 +604,7 @@
                 ["EV_ACTIVATE",         ac_activate,            undefined],
                 ["EV_DEACTIVATE",       ac_deactivate,          undefined],
 
+                ["EV_EDIT_MODE",        ac_edit_mode,           undefined],
                 ["EV_PANNING",          ac_panning,             undefined],
                 ["EV_PANNED",           ac_panning,             undefined],
                 ["EV_MOVING",           ac_moving,              undefined],

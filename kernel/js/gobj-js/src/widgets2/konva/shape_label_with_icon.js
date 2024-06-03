@@ -17,7 +17,7 @@
         label: "",      // text of item
         icon: "",       // icon of item (from an icon font)
         icon_position: "left", /* position of icon combined with text: "top", "bottom", "left", "right" */
-        background_color: "#FFF7E0",
+        background_color: "#A6F090",
         color: "black",
         text_color: "black",
         icon_color: "black",
@@ -53,9 +53,9 @@
         },
 
         kw_border_shape: { /* Border shape */
-            cornerRadius: 10,
-            strokeWidth: 2,
-            stroke: "#f5c211ff",
+            cornerRadius: 4,
+            strokeWidth: 1,
+            stroke: "#94D681",
             opacity: 1,
             shadowBlur: 0,
             shadowColor: "black",
@@ -346,7 +346,7 @@
                     let kw_text = { // Common fields
                         name: "ka_text",
                         text: text,
-                        x: icon_element.width(),
+                        x: icon_element.width() - kw_get_int(kw_text_font_properties, "padding", 0),
                         y: 0,
                         fontSize: _text_size
                     };
@@ -375,7 +375,7 @@
                     let kw_icon = { // Common fields
                         name: "ka_icon",
                         text: icon,
-                        x: text_element.width(),
+                        x: text_element.width() - kw_get_int(kw_text_font_properties, "padding", 0),
                         y: 0,
                         fontSize: _icon_size
                     };

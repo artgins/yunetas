@@ -7,10 +7,11 @@
         "bulldog": 59907,
         "chevron-left": 59908,
         "chevron-right": 59909,
-        "plug-solid": 59910,
-        "user": 59911,
-        "yuneta": 59912,
-        "zblank": 59913
+        "edit": 59910,
+        "plug-solid": 59911,
+        "user": 59912,
+        "yuneta": 59913,
+        "zblank": 59914
 };
 
     exports.yuneta_icon_font = yuneta_icon_font;
