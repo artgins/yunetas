@@ -157,8 +157,10 @@
             gclass = _gclass_register[gclass_name];
         } catch (e) {
         }
-        if(verbose) {
-            log_error("Yuno.gobj_find_gclass(): '" + gclass_name + "' gclass not found");
+        if(!gclass) {
+            if(verbose) {
+                log_error("Yuno.gobj_find_gclass(): '" + gclass_name + "' gclass not found");
+            }
         }
         return gclass;
     }
