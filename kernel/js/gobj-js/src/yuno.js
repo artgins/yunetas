@@ -152,14 +152,13 @@
      ************************************************************/
     function gobj_find_gclass(gclass_name, verbose)
     {
-        let gclass;
+        let gclass = null;
         try {
             gclass = _gclass_register[gclass_name];
         } catch (e) {
-            if(verbose) {
-                log_error("Yuno.gobj_find_gclass(): '" + gclass_name + "' gclass not found");
-            }
-            return null;
+        }
+        if(verbose) {
+            log_error("Yuno.gobj_find_gclass(): '" + gclass_name + "' gclass not found");
         }
         return gclass;
     }
