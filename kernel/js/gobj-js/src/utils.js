@@ -3298,6 +3298,15 @@
     }
 
     /************************************************************
+     *   Build clean name
+     ************************************************************/
+    function build_clean_name(self, name)
+    {
+        let clean_name = self.gobj_short_name().replace(/[?# ^:]/g, '_');
+        return self.config.form_id = "name-" + clean_name;
+    }
+
+    /************************************************************
      *  Get the first gobj parent matching a gclass
      ************************************************************/
     function gobj_near_parent(gobj, gclass_name) // TODO put in gobj.c gobj.js
@@ -3443,5 +3452,6 @@
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
     exports.datasetToObject = datasetToObject;
     exports.build_name = build_name;
+    exports.build_clean_name = build_clean_name;
     exports.gobj_near_parent = gobj_near_parent;
 })(this);
