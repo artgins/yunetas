@@ -3303,7 +3303,7 @@
     function build_clean_name(self, name)
     {
         let clean_name = self.gobj_short_name().replace(/[?# ^:]/g, '_');
-        return self.config.form_id = name + "-" + clean_name;
+        return name + "-" + clean_name;
     }
 
     /************************************************************
