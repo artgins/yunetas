@@ -3298,12 +3298,20 @@
     }
 
     /************************************************************
-     *   Build clean name
+     *   Build gobj clean name
      ************************************************************/
-    function build_clean_name(self, name)
+    function build_clean_gobj_name(self, name)
     {
         let clean_name = self.gobj_short_name().replace(/[?# ^:]/g, '_');
         return name + "-" + clean_name;
+    }
+
+    /************************************************************
+     *   Build clean name
+     ************************************************************/
+    function clean_name(name)
+    {
+        return name.replace(/[?# ^:]/g, '_');
     }
 
     /************************************************************
@@ -3452,6 +3460,7 @@
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
     exports.datasetToObject = datasetToObject;
     exports.build_name = build_name;
-    exports.build_clean_name = build_clean_name;
+    exports.build_clean_gobj_name = build_clean_gobj_name;
+    exports.clean_name = clean_name;
     exports.gobj_near_parent = gobj_near_parent;
 })(this);
