@@ -1227,7 +1227,7 @@ let __inside_event_loop__ = 0;
                 }
                 if(topublish<0) {
                     break;
-                } else if(topublish==0) {
+                } else if(topublish===0) {
                     /*
                      *  Must not be published
                      *  Next subs
