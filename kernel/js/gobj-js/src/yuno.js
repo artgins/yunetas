@@ -485,6 +485,47 @@
     };
 
     /************************************************************
+     *        Change parent
+     ************************************************************/
+    proto.gobj_change_parent = function(gobj, parent) {
+        var self = this;
+
+        if (!(parent instanceof GObj)) {
+            log_error("Yuno.gobj_change_parent() BAD TYPE of parent: " + parent);
+            return -1;
+        }
+
+        /*--------------------------------------*
+         *      Remove from current parent
+         *--------------------------------------*/
+        if (gobj.parent && gobj.parent.mt_child_removed) {
+            gobj.parent.mt_child_removed(gobj);
+        }
+        if (gobj.parent) {
+            gobj.parent._remove_child(gobj);
+        }
+
+        /*--------------------------------------*
+         *      Add to new parent
+         *--------------------------------------*/
+        if(parent) {
+            parent._add_child(gobj);
+        }
+
+        /*--------------------------------------*
+         *  Inform to parent
+         *-------------------------------------*/
+        if(parent && parent.mt_child_added) {
+            if (this.config.trace_creation) {
+                log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
+            }
+            parent.mt_child_added(gobj);
+        }
+
+        return 0;
+    };
+
+    /************************************************************
      *        exist a unique gobj?
      ************************************************************/
     proto._exist_unique_gobj = function(name) {
@@ -632,7 +673,7 @@
         if(!its_me(gobj, shortname)) {
             return null;
         }
-        if(p.length==1) {
+        if(p.length===1) {
             // No more nodes
             return gobj;
         }
@@ -643,7 +684,7 @@
         var n = p[1];
         var nn = n.split("^");
         var filter = {};
-        if(nn.length == 1) {
+        if(nn.length === 1) {
             filter.__gobj_name__ = nn;
         } else {
             filter.__gclass_name__ = nn[0];
