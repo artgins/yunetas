@@ -434,8 +434,10 @@
             log_error("gobj_destroy(): gobj NULL");
             return;
         }
+        let full_name = gobj.gobj_full_name();
+
         if (this.config.trace_creation) {
-            log_debug("<========== DESTROYED " + gobj.gclass_name + "^" + gobj.name);
+            log_debug("💔💔⏩ destroying: " + full_name);
         }
         if (gobj._destroyed) {
             // Already deleted
@@ -481,6 +483,10 @@
 
         if (gobj.mt_destroy) {
             gobj.mt_destroy();
+        }
+
+        if (this.config.trace_creation) {
+            log_debug("💔💔⏪ destroyed: " + full_name);
         }
     };
 
