@@ -509,19 +509,18 @@
         }
         if (gobj.parent) {
             gobj.parent._remove_child(gobj);
+            gobj.parent = null;
         }
 
         /*--------------------------------------*
          *      Add to new parent
          *--------------------------------------*/
-        if(parent) {
-            parent._add_child(gobj);
-        }
+        parent._add_child(gobj);
 
         /*--------------------------------------*
          *  Inform to parent
          *-------------------------------------*/
-        if(parent && parent.mt_child_added) {
+        if(parent.mt_child_added) {
             if (this.config.trace_creation) {
                 log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
             }
