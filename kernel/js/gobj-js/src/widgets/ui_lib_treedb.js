@@ -296,7 +296,7 @@
     }
 
     /************************************************************
-     *  Return [type, real_type, enum_list]
+     *  Return [type, real_type, enum_list, is_required, is_writable]
      *
      *  type:
      *      "string"
@@ -349,6 +349,12 @@
         let is_hook = elm_in_list("hook", flag);
         let is_fkey = elm_in_list("fkey", flag);
 
+        let is_writable = elm_in_list("writable", flag);
+        let is_notnull = elm_in_list("notnull", flag);
+        let is_required = elm_in_list("required", flag);
+        if(is_notnull) {
+            is_required = true;
+        }
 
         let is_password = elm_in_list("password", flag);
         let is_email = elm_in_list("email", flag);
@@ -370,6 +376,7 @@
         let enum_list = null;
         let real_type = col.type;
         let type = col.type; // By default, is basic type
+
         if(is_hook) {
             type = "hook";
         } else if(is_fkey) {
@@ -413,7 +420,7 @@
             type = "base64";
         }
 
-        return [type, real_type, enum_list];
+        return [type, real_type, enum_list, is_required, is_writable];
     }
 
 

@@ -64,6 +64,7 @@ let __inside_event_loop__ = 0;
         this.yuno = undefined;
         this.parent = undefined;
         this.dl_subscriptions = [];
+        this.dl_subscribings = []; // TODO WARNING not implemented, subscribed events loss
         this.dl_childs = [];
         this.tracing = 0;
         this.trace_timer = 0;
