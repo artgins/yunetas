@@ -302,6 +302,7 @@
      *      "string"
      *      "integer"
      *      "real"
+     *      "number" ("integer" or "real")
      *      "boolean"
      *      "object" "dict"
      *      "array" "list"
@@ -331,6 +332,13 @@
      *      "url"
      *      "image"
      *      "tel"
+     *      "template"
+     *      "id"
+     *      "currency"
+     *      "hex"
+     *      "binary"
+     *      "percent"
+     *      "base64"
      *
      ************************************************************/
     function treedb_get_type(col)
@@ -340,14 +348,24 @@
         let is_enum = elm_in_list("enum", flag);
         let is_hook = elm_in_list("hook", flag);
         let is_fkey = elm_in_list("fkey", flag);
-        let is_time = elm_in_list("time", flag);
-        let is_now = elm_in_list("now", flag);
-        let is_color = elm_in_list("color", flag);
+
+
         let is_password = elm_in_list("password", flag);
         let is_email = elm_in_list("email", flag);
         let is_url = elm_in_list("url", flag);
+        let is_time = elm_in_list("time", flag);
+        let is_now = elm_in_list("now", flag);
+        let is_color = elm_in_list("color", flag);
         let is_image = elm_in_list("image", flag);
         let is_tel = elm_in_list("tel", flag);
+
+        let is_template = elm_in_list("template", flag);
+        let is_id = elm_in_list("id", flag);
+        let is_currency = elm_in_list("currency", flag);
+        let is_hex = elm_in_list("hex", flag);
+        let is_binary = elm_in_list("binary", flag);
+        let is_percent = elm_in_list("percent", flag);
+        let is_base64 = elm_in_list("base64", flag);
 
         let enum_list = null;
         let real_type = col.type;
@@ -378,6 +396,21 @@
             type = "image";
         } else if(is_tel) {
             type = "tel";
+
+        } else if(is_template) {
+            type = "template";
+        } else if(is_id) {
+            type = "id";
+        } else if(is_currency) {
+            type = "currency";
+        } else if(is_hex) {
+            type = "hex";
+        } else if(is_binary) {
+            type = "binary";
+        } else if(is_percent) {
+            type = "percent";
+        } else if(is_base64) {
+            type = "base64";
         }
 
         return [type, real_type, enum_list];
