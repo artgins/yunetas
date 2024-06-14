@@ -3331,6 +3331,21 @@
         return null; // No parent found
     }
 
+    /************************************************************
+     *  Get the first html parent matching a CSS selector
+     *  - 'selector' is same parameter used by querySelector()
+     ************************************************************/
+    function element_near_parent($element, selector)
+    {
+        while ($element) {
+            if ($element.matches && $element.matches(selector)) {
+                return $element;
+            }
+            $element = $element.parentElement;
+        }
+        return null; // Return null if no parent matching the selector is found
+    }
+
 
     //=======================================================================
     //      Expose the class via the global object
@@ -3463,4 +3478,5 @@
     exports.build_clean_gobj_name = build_clean_gobj_name;
     exports.clean_name = clean_name;
     exports.gobj_near_parent = gobj_near_parent;
+    exports.element_near_parent = element_near_parent;
 })(this);
