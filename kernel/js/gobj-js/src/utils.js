@@ -8,7 +8,7 @@
  *  Last revision:
  *      20 Jun 2014 - Upgraded to yuneta api. Nothing to do.
  *      15 Jul 2015 - Upgraded to yuneta 1.0.0.
- *      12 Feb 2022 - new CssClassBuilder
+ *      Jun 2024    - many new functions
  *
  *********************************************************************************/
 
@@ -2390,173 +2390,6 @@
     }
 
     /********************************************
-     *  Create class by program, example:
-     *      var css = CssClassBuilder();
-     *      css.addRule(".rule", "color:white;background-color:blue;");
-     *
-     *  <div class="rule">
-     *      color me red
-     *  </div>
-     *
-     *  Copied from https://stackoverflow.com/questions/1720320/how-to-dynamically-create-css-class-in-javascript-and-apply
-     ********************************************/
-    function CssClassBuilder() {
-        var styleSheet;
-        var pub = {};
-
-        var constructor = function() {
-            if (!styleSheetsExist() || !headElementExists())
-                return;
-
-            getStyleSheet();
-            if (typeof styleSheet === 'undefined') {
-                makeStyleSheet();
-            }
-        };
-
-        var MediaType = function(styleSheet, media) {
-            var styleSheet = styleSheet;
-            var media = media;
-
-            this.mediaType = function() {
-                return media;
-            };
-            this.styleSheet = function() {
-                return styleSheet;
-            };
-        };
-
-        var StringMediaType = function(styleSheet) {
-            var pub = {};
-            MediaType.call(pub, styleSheet, "string");
-
-            pub.addRule = function(selector, style) {
-                for (var i = 0, l = styleSheet.rules.length; i < l; i++) {
-                    if (styleSheet.rules[i].selectorText && styleSheet.rules[i].selectorText.toLowerCase() == selector.toLowerCase()) {
-                        styleSheet.rules[i].style.cssText = style;
-                        return;
-                    }
-                }
-                styleSheet.addRule(selector, style);
-            };
-
-            pub.removeRule = function(selector) {
-                for (var i = 0; i < styleSheet.rules.length; i++) {
-                    if (styleSheet.rules[i].selectorText.toLowerCase() === selector.toLowerCase()) {
-                        styleSheet.removeRule(i);
-                    }
-                }
-            };
-
-            return pub;
-        };
-
-        StringMediaType.isString = function(styleSheet) {
-            var media = styleSheet.media;
-            var mediaType = typeof media;
-            if (mediaType === 'string') {
-                if (media === '' || (media.indexOf('screen') !== -1)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        var ObjectMediaType = function(styleSheet) {
-            var pub = {};
-            MediaType.call(pub, styleSheet, "object");
-            var pub = {};
-
-            pub.addRule = function(selector, style) {
-                var styleSheetLength = (styleSheet.cssRules) ? styleSheet.cssRules.length : 0;
-                for (var i = 0; i < styleSheetLength; i++) {
-                    if (styleSheet.cssRules[i].selectorText && styleSheet.cssRules[i].selectorText.toLowerCase() == selector.toLowerCase()) {
-                        styleSheet.cssRules[i].style.cssText = style;
-                        return;
-                    }
-                }
-                styleSheet.insertRule(selector + '{' + style + '}', styleSheetLength);
-            };
-
-            pub.removeRule = function(selector) {
-                for (var i = 0; i < styleSheet.cssRules.length; i++) {
-                    if (styleSheet.cssRules[i].selectorText.toLowerCase() === selector.toLowerCase()) {
-                        styleSheet.deleteRule(i);
-                    }
-                }
-            };
-            return pub;
-        };
-
-        ObjectMediaType.isObject = function(styleSheet) {
-            var media = styleSheet.media;
-            var mediaType = typeof media;
-            if (mediaType == 'object') {
-                if (media.mediaText === '' || (media.mediaText.indexOf('screen') !== -1)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        var makeMediaType = function(styleSheet) {
-            if (StringMediaType.isString(styleSheet)) {
-                return StringMediaType(styleSheet);
-            } else if (ObjectMediaType.isObject(styleSheet)) {
-                return ObjectMediaType(styleSheet);
-            } else {
-                return undefined;
-            }
-        };
-
-        var styleSheetsExist = function() {
-            return document.styleSheets;
-        };
-        var headElementExists = function() {
-            return document.getElementsByTagName('head').length !== 0;
-        };
-        var makeStyleSheet = function() {
-            var styleSheetElement = document.createElement('style');
-            styleSheetElement.type = 'text/css';
-            document.getElementsByTagName('head')[0].appendChild(styleSheetElement);
-
-            for (i = 0; i < document.styleSheets.length; i++) {
-                if (document.styleSheets[i].disabled) {
-                    continue;
-                }
-                styleSheet = makeMediaType(document.styleSheets[i]);
-            }
-        };
-        var getStyleSheet = function() {
-            if (document.styleSheets.length > 0) {
-                for (var i = 0, l = document.styleSheets.length; i < l; i++) {
-                    if (document.styleSheets[i].disabled)
-                        continue;
-
-                    styleSheet = makeMediaType(document.styleSheets[i]);
-
-                    if (typeof styleSheet !== 'undefined')
-                        break;
-                }
-            };
-        };
-        var styleSheetDefined = function() {
-            return styleSheet !== undefined;
-        };
-
-        pub.addRule = function(selector, style) {
-            if (styleSheetDefined())
-                styleSheet.addRule(selector, style);
-        };
-
-        pub.removeRule = function(selector) {
-            if (styleSheetDefined())
-                styleSheet.removeRule(selector);
-        };
-        constructor();
-        return pub;
-    }
-
-    /********************************************
      *
      ********************************************/
     function zot(v) {
@@ -3062,7 +2895,7 @@
 
 
         function createWindow({ title, x, y, width, height, parent }) {
-            const windowEl = createElement([
+            const windowEl = createElement2([
                 'div',
                 {
                     class: 'window',
@@ -3136,7 +2969,7 @@
      *                 Special case for key=='i18n' (or 'data-i18n' or 'data_i18next')
      *                      will be 'data-i18n' attr
      *
-     *      content -> string | [createElement() or parameters of createElement]
+     *      content -> string | [createElement2() or parameters of createElement2]
      *                  if string begins with '<' then
      *                      it will be converted to HTMLElement
      *                          content = createOneHtml(string)
@@ -3163,7 +2996,7 @@
      *      ['span', {style: {position: 'absolute'} }, 'title'],
      *
      ***************************************************************************/
-    function createElement(description) {
+    function createElement2(description) {
         let [tag, attrs, content, events] = description;
 
         /*
@@ -3219,12 +3052,12 @@
             }
         } else if (Array.isArray(content) && content.length > 0) {
             if(is_string(content[0])) {
-                el.appendChild(createElement(content));
+                el.appendChild(createElement2(content));
             } else {
                 for (let child of content) {
                     // Check if the child is an array description or an HTMLElement
                     if (Array.isArray(child) && child.length > 0) {
-                        el.appendChild(createElement(child));
+                        el.appendChild(createElement2(child));
                     } else if (child instanceof HTMLElement) {
                         el.appendChild(child);
                     }
@@ -3453,7 +3286,6 @@
     exports.parseBoolean = parseBoolean;
     exports.escapeRegExp = escapeRegExp;
     exports.replace_variable_engine = replace_variable_engine;
-    exports.CssClassBuilder = CssClassBuilder;
     exports.Proportion = Proportion;
     exports.get_text_size = get_text_size;
     exports.adjust_font_size = adjust_font_size;
@@ -3471,7 +3303,7 @@
     exports.get_location_path_root = get_location_path_root;
     exports.debounce = debounce;
     exports.createOneHtml = createOneHtml;
-    exports.createElement = createElement;
+    exports.createElement2 = createElement2;
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
     exports.datasetToObject = datasetToObject;
     exports.build_name = build_name;
