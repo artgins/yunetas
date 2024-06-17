@@ -518,6 +518,41 @@ let __inside_event_loop__ = 0;
         return null;
     };
 
+    /************************************************************
+     *  Returns the first matched child searching in the tree.
+     *  TODO not exist in C
+     ************************************************************/
+    proto.gobj_find_child_tree = function(kw)
+    {
+        kw = kw || {};
+
+        function _walk_child_tree(d, o)
+        {
+            let dl_childs = o.dl_childs;
+            for (let i=0; i < dl_childs.length; i++) {
+                let child = dl_childs[i];
+                if(child._match_child(kw)) {
+                    d.push(child);
+                }
+                _walk_child_tree(d, child);
+            }
+        }
+
+        let list = [];
+        _walk_child_tree(list, this);
+        if(list.length > 0) {
+            return list[0];
+        }
+        return null;
+    };
+
+    /************************************************************
+     *
+     ************************************************************/
+    proto.gobj_walk_gobj_childs = function (gobj)
+    {
+    };
+
     /***************************************************************************
      *  Return the child of gobj by name.
      *  The first found is returned.

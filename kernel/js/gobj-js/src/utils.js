@@ -1833,9 +1833,11 @@
                     let vv = {};
                     if(!kw_has_key(v, field_id)) {
                         log_error("list2options(): object without field id: " + field_id);
+                        continue;
                     }
                     if(!kw_has_key(v, field_value)) {
                         log_error("list2options(): object without field value: " + field_value);
+                        continue;
                     }
                     vv["id"] = v[field_id];
                     vv["value"] = v[field_value];
@@ -1863,7 +1865,7 @@
      ************************************************************/
     function traverse_dict(obj, callback, full_path)
     {
-        if(full_path == undefined || !is_string(full_path)) {
+        if(full_path === undefined || !is_string(full_path)) {
             full_path = "";
         }
         for (var key in obj) {
