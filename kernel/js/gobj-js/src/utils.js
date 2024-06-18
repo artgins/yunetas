@@ -1832,12 +1832,23 @@
                 } else if(is_object(v)) {
                     let vv = {};
                     if(!kw_has_key(v, field_id)) {
-                        log_error("list2options(): object without field id: " + field_id);
-                        continue;
+                        /* If not exist then get the first entry */
+                        if(json_size(v)>0) {
+                            field_id = Object.keys(v)[0];
+                        } else {
+                            log_error("list2options(): object without field id: " + field_id);
+                            continue;
+                        }
                     }
                     if(!kw_has_key(v, field_value)) {
-                        log_error("list2options(): object without field value: " + field_value);
-                        continue;
+                        /* If not exist, then get the first entry */
+                        if(json_size(v)>0) {
+                            field_value = Object.keys(v)[0];
+                        } else {
+                            log_error("list2options(): object without field value: " + field_value);
+                            continue;
+                        }
+
                     }
                     vv["id"] = v[field_id];
                     vv["value"] = v[field_value];

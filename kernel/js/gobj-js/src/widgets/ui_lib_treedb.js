@@ -296,7 +296,7 @@
     }
 
     /************************************************************
-     *  Return [type, real_type, enum_list, is_required, is_writable]
+     *  Return [name, type, real_type, enum_list, is_required, is_writable]
      *
      *  type:
      *      "string"
@@ -341,86 +341,226 @@
      *      "base64"
      *
      ************************************************************/
+    const treedb_real_types = [
+        "string",
+        "integer",
+        "object", "dict",
+        "array","list",
+        "real",
+        "boolean",
+        "blob",
+        "number"
+    ];
+
+    const treedb_field_attributes = [
+        "persistent",   // implicit readable
+        "required",
+        "notnull",
+        "wild",
+        "inherit",
+        "readable",
+        "writable",     // implicit readable
+        "stats",        // implicit readable
+        "rstats",       // implicit stats
+        "pstats"        // implicit stats
+    ];
+
+    const treedb_field_types = [
+        "fkey",
+        "hook",
+        "enum",
+        "uuid",
+        "rowid",
+        "password",
+        "email",
+        "url",
+        "time",
+        "now",
+        "color",
+        "image",
+        "tel",
+        "template",
+        "id",
+        "currency",
+        "hex",
+        "binary",
+        "percent",
+        "base64"
+    ];
+
     function treedb_get_type(col)
     {
-        let flag = col.flag;
-        let is_rowid = elm_in_list("rowid", flag);
-        let is_enum = elm_in_list("enum", flag);
-        let is_hook = elm_in_list("hook", flag);
-        let is_fkey = elm_in_list("fkey", flag);
-
-        let is_writable = elm_in_list("writable", flag);
-        let is_notnull = elm_in_list("notnull", flag);
-        let is_required = elm_in_list("required", flag);
-        if(is_notnull) {
-            is_required = true;
-        }
-
-        let is_password = elm_in_list("password", flag);
-        let is_email = elm_in_list("email", flag);
-        let is_url = elm_in_list("url", flag);
-        let is_time = elm_in_list("time", flag);
-        let is_now = elm_in_list("now", flag);
-        let is_color = elm_in_list("color", flag);
-        let is_image = elm_in_list("image", flag);
-        let is_tel = elm_in_list("tel", flag);
-
-        let is_template = elm_in_list("template", flag);
-        let is_id = elm_in_list("id", flag);
-        let is_currency = elm_in_list("currency", flag);
-        let is_hex = elm_in_list("hex", flag);
-        let is_binary = elm_in_list("binary", flag);
-        let is_percent = elm_in_list("percent", flag);
-        let is_base64 = elm_in_list("base64", flag);
-
-        let enum_list = null;
+        let name = col.id;
         let real_type = col.type;
         let type = col.type; // By default, is basic type
+        let enum_list = null;
+        let is_required = false;
+        let is_writable = false;    // Must be explicitly writable
 
-        if(is_hook) {
-            type = "hook";
-        } else if(is_fkey) {
-            type = "fkey";
-        } else if(is_enum) {
-            type = "enum";
-            enum_list = col.enum;
-        } else if(is_rowid) {
-            type = "rowid";
-        } else if(is_time) {
-            type = "time";
-            if(is_now) {
-                type = "now";
+        for(let i=0; i<col.flag.length; i++) {
+            let f = col.flag[i];
+
+            // Code repeated
+            if(elm_in_list(f, treedb_field_types)) {
+                switch(f) {
+                    case "enum":
+                        enum_list = col.enum;
+                        break;
+                    case "template":
+                        enum_list = col.template;
+                        break;
+                }
+                type = f;
+
+            } else if(elm_in_list(f, treedb_field_attributes)) {
+                switch(f) {
+                    case "writable":
+                        is_writable = true;
+                        break;
+                    case "notnull":
+                        is_required = true;
+                        is_writable = true;
+                        break;
+                    case "required":
+                        is_required = true;
+                        is_writable = true;
+                        break;
+                }
             }
-        } else if(is_color) {
-            type = "color";
-        } else if(is_email) {
-            type = "email";
-        } else if(is_password) {
-            type = "password";
-        } else if(is_url) {
-            type = "url";
-        } else if(is_image) {
-            type = "image";
-        } else if(is_tel) {
-            type = "tel";
-
-        } else if(is_template) {
-            type = "template";
-        } else if(is_id) {
-            type = "id";
-        } else if(is_currency) {
-            type = "currency";
-        } else if(is_hex) {
-            type = "hex";
-        } else if(is_binary) {
-            type = "binary";
-        } else if(is_percent) {
-            type = "percent";
-        } else if(is_base64) {
-            type = "base64";
         }
 
-        return [type, real_type, enum_list, is_required, is_writable];
+        return [name, type, real_type, enum_list, is_required, is_writable];
+    }
+
+    /******************************************************************
+     *          Extract from template the field description
+     *
+     *      Return [
+     *          name,           // name/id of field (table column name)
+     *          type,           // yuneta type (basic and tranger/treedb types)
+     *          real_type,      // json type
+     *          enum_list,      // List of options to <select> or similar
+     *          is_required,    // field required
+     *          is_writable     // field writable (no readonly)
+     *      ]
+     *
+     *  The template is recursive, in values you can set dictionaries, or arrays,
+     *  in some context will define the real_type,
+     *  in other will define a subform.
+     *
+     *  There are many combinations to write what you want:
+     *
+     *  key:    name
+     *          name.real_type
+     *          name.real_type.type
+     *          name.real_type.type.required
+     *          name.real_type.type.required.readonly
+     *
+     *  value:  if string
+     *              real_type
+     *              real_type.type
+     *              real_type.type.required
+     *              real_type.type.required.readonly
+     *
+     *          real_type |type | enum_list
+     *
+     ******************************************************************/
+    function template_get_type(key, value)
+    {
+        let name = null;
+        let real_type = null;
+        let type = null;
+        let enum_list = null;
+        let is_writable = false;
+        let is_required = false;
+
+        /*---------------------------*
+         *      process key
+         *---------------------------*/
+        let keys = key.split('.');
+        for(let i=0; i<keys.length; i++) {
+            let f = keys[i];
+            if(i===0) {
+                name = f;
+            } else {
+                // Code repeated
+                if(elm_in_list(f, treedb_real_types)) {
+                    real_type = f;
+                } else if(elm_in_list(f, treedb_field_types)) {
+                    type = f;
+                } else if(elm_in_list(f, treedb_field_attributes)) {
+                    switch(f) {
+                        case "writable":
+                            is_writable = true;
+                            break;
+                        case "notnull":
+                            is_writable = true;
+                            is_required = true;
+                            break;
+                        case "required":
+                            is_writable = true;
+                            is_required = true;
+                            break;
+                    }
+                }
+            }
+        }
+
+        /*---------------------------*
+         *      process value
+         *---------------------------*/
+        if(is_string(value)) {
+            let values = value.split('.');
+            for(let i=0; i<values.length; i++) {
+                let f = values[i];
+
+                // Code repeated
+                if(elm_in_list(f, treedb_real_types)) {
+                    if(!real_type) {
+                        real_type = f;
+                    }
+                } else if(elm_in_list(f, treedb_field_types)) {
+                    if(!type) {
+                        type = f;
+                    }
+                } else if(elm_in_list(f, treedb_field_attributes)) {
+                    switch(f) {
+                        case "writable":
+                            is_writable = true;
+                            break;
+                        case "notnull":
+                            is_writable = true;
+                            is_required = true;
+                            break;
+                        case "required":
+                            is_writable = true;
+                            is_required = true;
+                            break;
+                    }
+                }
+            }
+            if(!real_type) {
+                real_type = "string";
+            }
+
+        } else if(is_object(value)) {
+            if(!real_type) {
+                real_type = "object";
+            }
+            type = "table";
+            enum_list = value;
+
+        } else if(is_array(value)) {
+            if(!real_type) {
+                real_type = "array";
+            }
+            enum_list = value;
+        }
+
+        if(!type) {
+            type = real_type;
+        }
+        return [name, type, real_type, enum_list, is_required, is_writable];
     }
 
 
@@ -441,5 +581,5 @@
     exports.treedb_decoder_fkey = treedb_decoder_fkey;
     exports.treedb_decoder_hook = treedb_decoder_hook;
     exports.treedb_get_type = treedb_get_type;
-
+    exports.template_get_type = template_get_type;
 })(this);
