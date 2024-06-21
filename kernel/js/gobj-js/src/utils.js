@@ -277,11 +277,7 @@
 
         for(let i=0; i<elms.length; i++) {
             let elm = elms[i];
-            if(case_insensitive) {
-                if(elm.toLowerCase() === list[i].toLowerCase()) {
-                    return true;
-                }
-            } else if(elm_in_list(elm, list)) {
+            if(elm_in_list(elm, list, case_insensitive)) {
                 return true;
             }
         }
