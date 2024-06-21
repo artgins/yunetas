@@ -547,12 +547,35 @@
             if(!real_type) {
                 real_type = "object";
             }
-            type = "table";
             enum_list = value;
 
         } else if(is_array(value)) {
             if(!real_type) {
                 real_type = "array";
+            }
+            for(let j=0; j<value.length; j++) {
+                let ff = value[j];
+                if(is_string(ff)) {
+                    if(elm_in_list(ff, treedb_field_types)) {
+                        if(!type) {
+                            type = ff;
+                        }
+                    } else if(elm_in_list(ff, treedb_field_attributes)) {
+                        switch(ff) {
+                            case "writable":
+                                is_writable = true;
+                                break;
+                            case "notnull":
+                                is_writable = true;
+                                is_required = true;
+                                break;
+                            case "required":
+                                is_writable = true;
+                                is_required = true;
+                                break;
+                        }
+                    }
+                }
             }
             enum_list = value;
         }

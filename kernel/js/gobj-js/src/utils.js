@@ -241,15 +241,21 @@
     /************************************************************
      *
      ************************************************************/
-    function elm_in_list(elm, list) {
+    function elm_in_list(elm, list, case_insensitive) {
         if(!list) {
-            throw "ERROR: elm_in_list() list empty";
+            log_error("ERROR: elm_in_list() list empty");
+            return false;
         }
         if(!elm) {
-            throw "ERROR: elm_in_list() elm empty";
+            log_error("ERROR: elm_in_list() elm empty");
+            return false;
         }
-        for(var i=0; i<list.length; i++) {
-            if(elm === list[i]) {
+        for(let i=0; i<list.length; i++) {
+            if(case_insensitive) {
+                if(elm.toLowerCase() === list[i].toLowerCase()) {
+                    return true;
+                }
+            } else if(elm === list[i]) {
                 return true;
             }
         }
@@ -259,17 +265,23 @@
     /************************************************************
      *
      ************************************************************/
-    function elms_in_list(elms, list) {
+    function elms_in_list(elms, list, case_insensitive) {
         if(!list) {
-            throw "ERROR: elms_in_list() list empty";
+            log_error("ERROR: elms_in_list() list empty");
+            return false;
         }
         if(!elms) {
-            throw "ERROR: elms_in_list() elm empty";
+            log_error("ERROR: elms_in_list() elm empty");
+            return false;
         }
 
-        for(var i=0; i<elms.length; i++) {
-            var elm = elms[i];
-            if(elm_in_list(elm, list)) {
+        for(let i=0; i<elms.length; i++) {
+            let elm = elms[i];
+            if(case_insensitive) {
+                if(elm.toLowerCase() === list[i].toLowerCase()) {
+                    return true;
+                }
+            } else if(elm_in_list(elm, list)) {
                 return true;
             }
         }
@@ -1832,27 +1844,31 @@
                 } else if(is_object(v)) {
                     let vv = {};
                     if(!kw_has_key(v, field_id)) {
-                        /* If not exist then get the first entry */
+                        /* If not exist, then get the first entry */
                         if(json_size(v)>0) {
                             field_id = Object.keys(v)[0];
                         } else {
                             log_error("list2options(): object without field id: " + field_id);
                             continue;
                         }
-                    }
-                    if(!kw_has_key(v, field_value)) {
-                        /* If not exist, then get the first entry */
-                        if(json_size(v)>0) {
-                            field_value = Object.keys(v)[0];
-                        } else {
-                            log_error("list2options(): object without field value: " + field_value);
-                            continue;
-                        }
+                        vv["id"] = field_id;
+                        vv["value"] = v[field_id];
+                    } else {
+                        if(!kw_has_key(v, field_value)) {
+                            /* If not exist, then get the first entry */
+                            if(json_size(v)>0) {
+                                field_value = Object.keys(v)[0];
+                            } else {
+                                log_error("list2options(): object without field value: " + field_value);
+                                continue;
+                            }
 
+                        }
+                        vv["id"] = v[field_id];
+                        vv["value"] = v[field_value];
                     }
-                    vv["id"] = v[field_id];
-                    vv["value"] = v[field_value];
                     options.push(vv);
+
                 } else {
                     log_error("list2options(): case1 not implemented");
                 }
