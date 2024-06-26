@@ -52,8 +52,10 @@
         let next_objid = 0;
 
         function objectId(obj) {
-            if (obj == null) return null;
-            if (obj.__obj_id == undefined) {
+            if (obj === null) {
+                return null;
+            }
+            if (obj.__obj_id === undefined) {
                 obj.__obj_id = next_objid++;
                 originalObjectsArray[obj.__obj_id] = obj;
             }
@@ -61,7 +63,9 @@
         }
 
         function cloneRecursive(obj) {
-            if (null == obj || typeof obj == "string" || typeof obj == "number" || typeof obj == "boolean") return obj;
+            if (null === obj || typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
+                return obj;
+            }
 
             // Handle Date
             if (obj instanceof Date) {
@@ -81,20 +85,26 @@
 
             // Handle Object
             if (obj instanceof Object) {
-                if (clonedObjectsArray[objectId(obj)] != undefined)
+                if (clonedObjectsArray[objectId(obj)] !== undefined) {
                     return clonedObjectsArray[objectId(obj)];
+                }
 
                 let copy;
-                if (obj instanceof Function)//Handle Function
-                    copy = function(){return obj.apply(this, arguments);};
-                else
+                if (obj instanceof Function) {//Handle Function
+                    copy = function () {
+                        return obj.apply(this, arguments);
+                    };
+                } else {
                     copy = {};
+                }
 
                 clonedObjectsArray[objectId(obj)] = copy;
 
-                for (let attr in obj)
-                    if (attr != "__obj_id" && obj.hasOwnProperty(attr))
+                for (let attr in obj) {
+                    if (attr !== "__obj_id" && obj.hasOwnProperty(attr)) {
                         copy[attr] = cloneRecursive(obj[attr]);
+                    }
+                }
 
                 return copy;
             }
