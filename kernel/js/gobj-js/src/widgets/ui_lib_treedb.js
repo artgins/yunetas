@@ -296,7 +296,7 @@
     }
 
     /************************************************************
-     *  Return [name, type, real_type, enum_list, is_required, is_writable]
+     *  Return [name, type, real_type, enum_list, is_required, is_writable, default_value]
      *
      *  type:
      *      "string"
@@ -398,6 +398,7 @@
         let enum_list = null;
         let is_required = false;
         let is_writable = false;    // Must be explicitly writable
+        let default_value = col.default;
 
         for(let i=0; i<col.flag.length; i++) {
             let f = col.flag[i];
@@ -434,7 +435,7 @@
             }
         }
 
-        return [name, type, real_type, enum_list, is_required, is_writable];
+        return [name, type, real_type, enum_list, is_required, is_writable, default_value];
     }
 
     /******************************************************************
@@ -478,6 +479,7 @@
         let enum_list = null;
         let is_writable = false;
         let is_required = false;
+        let default_value;
 
         /*---------------------------*
          *      process key
@@ -551,7 +553,7 @@
         } else if(is_object(value)) {
             real_type = value.type;
             type = value.type; // By default, is basic type
-
+            default_value = value.default;
             for(let i=0; i<value.flag.length; i++) {
                 let f = value.flag[i];
 
@@ -621,7 +623,7 @@
         if(!type) {
             type = real_type;
         }
-        return [name, type, real_type, enum_list, is_required, is_writable];
+        return [name, type, real_type, enum_list, is_required, is_writable, default_value];
     }
 
 
