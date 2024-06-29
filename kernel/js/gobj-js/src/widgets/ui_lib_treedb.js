@@ -421,11 +421,11 @@
                         break;
                     case "notnull":
                         is_required = true;
-                        is_writable = true;
+                        // is_writable = true;
                         break;
                     case "required":
                         is_required = true;
-                        is_writable = true;
+                        // is_writable = true;
                         break;
                 }
             }
