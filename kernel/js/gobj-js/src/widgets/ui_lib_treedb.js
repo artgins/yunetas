@@ -411,6 +411,9 @@
                     case "template":
                         enum_list = col.template;
                         break;
+                    case "table":
+                        enum_list = col.table;
+                        break;
                 }
                 type = f;
 
@@ -546,10 +549,43 @@
             }
 
         } else if(is_object(value)) {
-            if(!real_type) {
-                real_type = "object";
+            real_type = value.type;
+            type = value.type; // By default, is basic type
+
+            for(let i=0; i<value.flag.length; i++) {
+                let f = value.flag[i];
+
+                // Code repeated
+                if(elm_in_list(f, treedb_field_types)) {
+                    switch(f) {
+                        case "enum":
+                            enum_list = value.enum;
+                            break;
+                        case "template":
+                            enum_list = value.template;
+                            break;
+                        case "table":
+                            enum_list = value.table;
+                            break;
+                    }
+                    type = f;
+
+                } else if(elm_in_list(f, treedb_field_attributes)) {
+                    switch(f) {
+                        case "writable":
+                            is_writable = true;
+                            break;
+                        case "notnull":
+                            is_required = true;
+                            // is_writable = true;
+                            break;
+                        case "required":
+                            is_required = true;
+                            // is_writable = true;
+                            break;
+                    }
+                }
             }
-            enum_list = value;
 
         } else if(is_array(value)) {
             if(!real_type) {
