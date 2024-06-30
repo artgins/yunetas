@@ -3202,6 +3202,7 @@
     /************************************************************
      *  Get the first html parent matching a CSS selector
      *  - 'selector' is same parameter used by querySelector()
+     *  TODO is the same as closest()?
      ************************************************************/
     function element_near_parent($element, selector)
     {
