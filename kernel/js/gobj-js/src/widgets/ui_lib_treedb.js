@@ -296,7 +296,7 @@
     }
 
     /************************************************************
-     *  Return [name, type, real_type, enum_list, is_required, is_writable, default_value]
+     *  Return [name, type, real_type, enum_list, is_required, is_writable, default_value, placeholder]
      *
      *  type:
      *      "string"
@@ -399,6 +399,7 @@
         let is_required = false;
         let is_writable = false;    // Must be explicitly writable
         let default_value = col.default;
+        let placeholder = col.placeholder;
 
         for(let i=0; i<col.flag.length; i++) {
             let f = col.flag[i];
@@ -435,7 +436,7 @@
             }
         }
 
-        return [name, type, real_type, enum_list, is_required, is_writable, default_value];
+        return [name, type, real_type, enum_list, is_required, is_writable, default_value, placeholder];
     }
 
     /******************************************************************
@@ -468,7 +469,8 @@
      *              real_type.type.required
      *              real_type.type.required.readonly
      *
-     *          real_type |type | enum_list
+     *          if object
+     *              like treedb_get_type()
      *
      ******************************************************************/
     function template_get_type(key, value)
@@ -480,6 +482,7 @@
         let is_writable = false;
         let is_required = false;
         let default_value;
+        let placeholder;
 
         /*---------------------------*
          *      process key
@@ -554,6 +557,7 @@
             real_type = value.type;
             type = value.type; // By default, is basic type
             default_value = value.default;
+            placeholder = value.placeholder;
             for(let i=0; i<value.flag.length; i++) {
                 let f = value.flag[i];
 
@@ -623,7 +627,7 @@
         if(!type) {
             type = real_type;
         }
-        return [name, type, real_type, enum_list, is_required, is_writable, default_value];
+        return [name, type, real_type, enum_list, is_required, is_writable, default_value, placeholder];
     }
 
 
