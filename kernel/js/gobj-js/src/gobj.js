@@ -102,7 +102,7 @@ let __inside_event_loop__ = 0;
     proto.gobj_stop = function()
     {
         if(!this.running) {
-            log_error("gobj_stop() NOT RUNNING");
+            log_debug(sprintf("%s: gobj_stop() NOT RUNNING", this.gobj_full_name()));
             return -1;
         }
         this.running = false;

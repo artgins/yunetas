@@ -3215,6 +3215,163 @@
         return null; // Return null if no parent matching the selector is found
     }
 
+// TODO move this code outside, to some helper
+///***************************************************************************
+// *
+//    compacted json:
+//
+//    {
+//        "alarm": "ppp",
+//        "description": "Alarma de consolador",
+//        "notifications": "",
+//        "enabled": true,
+//        "max_age": "60m",
+//        "hola.pepe": "juan",
+//        "triggers.0.measure": "power_on",
+//        "triggers.0.operation": "=",
+//        "triggers.0.value": "ON",
+//        "triggers.1.measure": "power_on",
+//        "triggers.1.operation": "=",
+//        "triggers.1.value": "OFF"
+//    }
+//
+//    expanded json:
+//
+//    {
+//        "alarm": "ppp",
+//        "description": "Alarma de consolador",
+//        "notifications": "",
+//        "enabled": true,
+//        "max_age": "60m",
+//        "hola": {
+//            "pepe": "juan"
+//        },
+//        "triggers": [
+//            {
+//                "measure": "power_on",
+//                "operation": "=",
+//                "value": "ON",
+//            },
+//            {
+//                "measure": "power_on",
+//                "operation": "=",
+//                "value": "OFF",
+//            }
+//        ]
+//    }
+//
+// ***************************************************************************/
+//// Helper function to handle nested objects and arrays
+//PRIVATE void json_to_compact_helper(json_t *json_obj, json_t *result_obj, const char *prefix) {
+//    const char *key;
+//    json_t *value;
+//
+//    json_object_foreach(json_obj, key, value) {
+//        char new_prefix[256];
+//        if (prefix[0] != '\0') {
+//            snprintf(new_prefix, sizeof(new_prefix), "%s.%s", prefix, key);
+//        } else {
+//            snprintf(new_prefix, sizeof(new_prefix), "%s", key);
+//        }
+//
+//        if (json_is_object(value)) {
+//            json_to_compact_helper(value, result_obj, new_prefix);
+//        } else if (json_is_array(value)) {
+//            size_t index;
+//            json_t *element;
+//            json_array_foreach(value, index, element) {
+//                char array_prefix[256];
+//                snprintf(array_prefix, sizeof(array_prefix), "%s.%zu", new_prefix, index);
+//                if (json_is_object(element)) {
+//                    json_to_compact_helper(element, result_obj, array_prefix);
+//                } else {
+//                    json_object_set(result_obj, array_prefix, element);
+//                }
+//            }
+//        } else {
+//            json_object_set(result_obj, new_prefix, value);
+//        }
+//    }
+//}
+//
+//// Main function to convert JSON object to compact JSON object
+//PRIVATE json_t *kw_compact(
+//    json_t *jn_normal  // NOT owned
+//)
+//{
+//    json_t *result_obj = json_object();
+//    json_to_compact_helper(jn_normal, result_obj, "");
+//    return result_obj;
+//}
+//
+//
+//// Helper function to check if a string is a number
+//PRIVATE int is_number(const char *str) {
+//    while (*str) {
+//        if (!isdigit(*str)) return 0;
+//        str++;
+//    }
+//    return 1;
+//}
+//
+//// Helper function to set nested keys
+//PRIVATE void json_from_compact_helper(json_t *result_obj, const char *key, json_t *value) {
+//    char *key_copy = gbmem_strdup(key);
+//    char *part = strtok(key_copy, ".");
+//
+//    json_t *current = result_obj;
+//    json_t *next = NULL;
+//
+//    while (part != NULL) {
+//        char *next_part = strtok(NULL, ".");
+//        if (next_part == NULL) {
+//            json_object_set(current, part, value);
+//            break;
+//        } else {
+//            if (is_number(part)) {
+//                int index = atoi(part);
+//                next = json_array_get(current, index);
+//                if (!next) {
+//                    next = json_object();
+//                    while (json_array_size(current) <= index) {
+//                        json_array_append_new(current, json_object());
+//                    }
+//                    json_array_set_new(current, index, next);
+//                }
+//                current = next;
+//            } else {
+//                next = json_object_get(current, part);
+//                if (!next) {
+//                    if (is_number(next_part)) {
+//                        next = json_array();
+//                    } else {
+//                        next = json_object();
+//                    }
+//                    json_object_set_new(current, part, next);
+//                }
+//                current = next;
+//            }
+//        }
+//        part = next_part;
+//    }
+//
+//    gbmem_free(key_copy);
+//}
+//
+//PRIVATE json_t *kw_decompact(
+//    json_t *jn_compacted  // NOT owned
+//)
+//{
+//    json_t *normal_obj = json_object();
+//    const char *key;
+//    json_t *value;
+//
+//    json_object_foreach(jn_compacted, key, value) {
+//        json_from_compact_helper(normal_obj, key, value);
+//    }
+//    return normal_obj;
+//}
+
 
     //=======================================================================
     //      Expose the class via the global object
