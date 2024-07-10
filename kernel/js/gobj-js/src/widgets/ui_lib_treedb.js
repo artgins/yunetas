@@ -451,6 +451,8 @@
      *          enum_list,      // List of options to <select> or similar
      *          is_required,    // field required
      *          is_writable     // field writable (no readonly)
+     *          default_value
+     *          placeholder
      *      ]
      *
      *  The template is recursive, in values you can set dictionaries, or arrays,
