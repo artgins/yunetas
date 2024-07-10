@@ -460,7 +460,7 @@
             }
 
         } else if(is_object(value)) {
-            field_desc = treedb_get_type(value);
+            field_desc = treedb_get_field_desc(value);
             if(!field_desc.name) {
                 field_desc.name = key;
             }
