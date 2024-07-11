@@ -1053,7 +1053,7 @@
     {
         let new_dict = {};
         if(!empty_string(path)) {
-            kw = _kw_search_path(kw, path);
+            kw = _kw_find_path(kw, path);
         }
         if(is_object(kw)) {
             new_dict = kw;
@@ -1451,7 +1451,7 @@
     /************************************************************
      *
      ************************************************************/
-    function _kw_search_path(kw, path)
+    function _kw_find_path(kw, path)
     {
         if(!is_object(kw)) {
             // silence
@@ -1484,7 +1484,7 @@
         if(kw !== Object(kw)) {
             return default_value?true:false;
         }
-        let b = _kw_search_path(kw, key);
+        let b = _kw_find_path(kw, key);
         if(b === undefined) {
             if(create) {
                 kw[key] = default_value?true:false;
@@ -1505,7 +1505,7 @@
         if(kw !== Object(kw)) {
             return default_value;
         }
-        let v = _kw_search_path(kw, key);
+        let v = _kw_find_path(kw, key);
         if(v === undefined) {
             if(create) {
                 kw[key] = default_value;
@@ -1535,7 +1535,7 @@
         if(kw !== Object(kw)) {
             return default_value;
         }
-        let v = _kw_search_path(kw, key);
+        let v = _kw_find_path(kw, key);
         if(v === undefined) {
             if(create) {
                 kw[key] = default_value;
@@ -1565,7 +1565,7 @@
         if(kw !== Object(kw)) {
             return default_value;
         }
-        let v = _kw_search_path(kw, key);
+        let v = _kw_find_path(kw, key);
         if(v === undefined) {
             if(create) {
                 kw[key] = default_value;
@@ -1590,24 +1590,24 @@
     /************************************************************
      *
      ************************************************************/
-    function kw_get_dict(kw, key, default_value, create, verbose)
+    function kw_get_dict(kw, path, default_value, create, verbose)
     {
         if(kw !== Object(kw)) {
             return default_value;
         }
-        let v = _kw_search_path(kw, key);
+        let v = _kw_find_path(kw, path);
         if(v === undefined) {
-            if(create) {
-                kw[key] = default_value;
+            if(create && default_value !== undefined) {
+                kw_set_dict_value(kw, path, default_value);
             } else if(verbose) {
-                log_error("kw_get_dict() path not found: '" + key + "'");
+                log_error("kw_get_dict() path not found: '" + path + "'");
                 trace_msg(kw);
             }
             return default_value;
         }
         if(!is_object(v)) {
             if(verbose) {
-                log_error("path value MUST BE a json dict: " + key);
+                log_error("path value MUST BE a json dict: " + path);
                 trace_msg(kw);
             }
             return default_value;
@@ -1619,12 +1619,33 @@
     /************************************************************
      *
      ************************************************************/
+    function kw_get_dict_value(kw, path, default_value, create, verbose)
+    {
+        if(kw !== Object(kw)) {
+            return default_value;
+        }
+        let v = _kw_find_path(kw, path);
+        if(v === undefined) {
+            if(create && default_value !== undefined) {
+                kw_set_dict_value(kw, path, default_value);
+            } else if(verbose) {
+                log_error("kw_get_dict_value() path not found: '" + path + "'");
+                trace_msg(kw);
+            }
+            return default_value;
+        }
+        return v;
+    }
+
+    /************************************************************
+     *
+     ************************************************************/
     function kw_get_list(kw, key, default_value, create, verbose)
     {
         if(kw !== Object(kw)) {
             return default_value;
         }
-        let v = _kw_search_path(kw, key);
+        let v = _kw_find_path(kw, key);
         if(v === undefined) {
             if(create) {
                 kw[key] = default_value;
@@ -1646,28 +1667,6 @@
     }
 
     /************************************************************
-     *
-     ************************************************************/
-    function kw_get_dict_value(kw, key, default_value, create, verbose)
-    {
-        if(kw !== Object(kw)) {
-            return default_value;
-        }
-        var v = _kw_search_path(kw, key);
-        if(v === undefined) {
-            if(create) {
-                kw[key] = default_value;
-            } else if(verbose) {
-                log_error("kw_get_dict_value() path not found: '" + key + "'");
-                trace_msg(kw);
-            }
-            return default_value;
-        }
-        return v;
-    }
-
-    /************************************************************
-     *  TODO implement path,
      *  TODO and change key by path in all kw_get_...() functions
      ************************************************************/
     function kw_set_dict_value(kw, path, value)
@@ -1677,13 +1676,32 @@
             return -1;
         }
 
-        kw[path] = value;
+        let ss = path.split("`");
+        if(ss.length<=1) {
+            kw[path] = value;
+            return 0;
+        }
+
+        let len = ss.length;
+        for(let i=0; i<len; i++) {
+            let key = ss[i];
+            if(i === len-1) {
+                /* last segment */
+                kw[key] = value;
+
+            } else {
+                let seg = kw[key];
+                if(seg === undefined) {
+                    kw[key] = {};
+                }
+                kw = kw[key];
+            }
+        }
         return 0;
     }
 
-
     /************************************************************
-     *  TODO implement path,
+     *
      ************************************************************/
     function kw_set_subdict_value(kw, path, key, value)
     {
@@ -1692,12 +1710,13 @@
             return -1;
         }
 
-        let path_ = kw[path];
-        if(is_null(path_) || !is_object(path_)) {
-            path_ = {};
-            kw[path] = path_;
+        let subdict = kw_get_dict(kw, path, {}, true, true);
+        if(!is_object(subdict)) {
+            log_error("subdict is not an object");
+            return -1;
         }
-        path_[key] = value;
+        subdict[key] = value;
+
         return 0;
     }
 
@@ -1749,7 +1768,7 @@
      *          Load json file from server
      ************************************************************/
     function fileLoaded(xhr) {
-        return xhr.status == 0 && xhr.responseText && xhr.responseURL.startsWith("file:");
+        return xhr.status === 0 && xhr.responseText && xhr.responseURL.startsWith("file:");
     }
     function load_json_file(url, on_success, on_error)
     {
@@ -1758,8 +1777,8 @@
         req.setRequestHeader("Accept", "application/json");
 
         req.onreadystatechange = function () {
-            if (req.readyState == 4) {
-                if (req.status == 200 || fileLoaded(req)) {
+            if (req.readyState === 4) {
+                if (req.status === 200 || fileLoaded(req)) {
                     let json = JSON.parse(req.responseText);
                     on_success(json);
                 } else {
@@ -1785,7 +1804,7 @@
         xhr.setRequestHeader("Content-Type", "application/json");
 
         xhr.onreadystatechange = function () {
-            if (xhr.readyState == 4) {
+            if (xhr.readyState === 4) {
                 on_response(xhr.status, xhr.responseText);
             }
         };
@@ -1816,7 +1835,7 @@
 
         haystack += "";
         pos = haystack.indexOf(needle);
-        if (pos == -1) {
+        if (pos === -1) {
             return false;
         } else {
             if (bool) {
@@ -2084,7 +2103,7 @@
             v = _jdb_get(v, null, id, false);
         }
 
-        if(ids.length==0 && v) {
+        if(ids.length===0 && v) {
             if(is_array(v)) {
                 let idx = id_index_in_obj_list(v, kw["id"]);
                 if(idx >= 0) {
