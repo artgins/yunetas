@@ -313,7 +313,7 @@
      *  in other will define a subform.
      *
      ************************************************************/
-    const treedb_real_types = [
+    const treedb_real_types = [ // WARNING check 31_tr_treedb.h to update new real types
         "string",
         "integer",
         "object", "dict",
@@ -337,7 +337,7 @@
         "pstats"        // implicit stats
     ];
 
-    const treedb_field_types = [
+    const treedb_field_types = [ // WARNING check 31_tr_treedb.h to update new types
         "fkey",
         "hook",
         "enum",
@@ -375,6 +375,11 @@
             default_value: col.default,
             placeholder: col.placeholder,
         };
+
+        if(!col.flag) {
+            // It can happen if col is not a column descriptor
+            return field_desc;
+        }
 
         for(let i=0; i<col.flag.length; i++) {
             let f = col.flag[i];
@@ -480,6 +485,24 @@
         return field_desc;
     }
 
+    /********************************************
+     *
+     ********************************************/
+    function create_template_record(template, kw)
+    {
+        let new_record = {};
+        if(!kw) {
+            kw = {};
+        }
+
+        Object.entries(template).forEach(([field, col]) => {
+            let value = kw_get_dict_value(kw, field, kw_get_dict_value(col, "default"));
+            new_record[field] = value;
+        });
+
+        return new_record;
+    }
+
 
     //=======================================================================
     //      Expose the class via the global object
@@ -499,4 +522,5 @@
     exports.treedb_decoder_hook = treedb_decoder_hook;
     exports.treedb_get_field_desc = treedb_get_field_desc;
     exports.template_get_field_desc = template_get_field_desc;
+    exports.create_template_record = create_template_record;
 })(this);

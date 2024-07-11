@@ -2207,7 +2207,7 @@
      ***************************************************************************/
     function create_json_record(json_desc, value) // here in js `json_desc` it's a dictionary with the defaults.
     {
-        let record = __duplicate__(json_desc);  // Get fields and default vaues from json_desc
+        let record = __duplicate__(json_desc);  // Get fields and default values from json_desc
         json_object_update_existing(record, value); // Update (only with service fields) with user data
 
         return record;
