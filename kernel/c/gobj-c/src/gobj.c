@@ -3729,7 +3729,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
     json_t *o = json_object_get(jn_services, service);
     if(!o) {
         if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "service NOT FOUND",
