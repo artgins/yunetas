@@ -177,8 +177,8 @@
      ************************************************************/
     function own_events(date, isOutside)
     {
-        var day = date.getDay();
-        if (day==0 || day == 6) {
+        let day = date.getDay();
+        if (day===0 || day === 6) {
             return "webix_cal_event";
         }
         if(isOutside) {
@@ -213,17 +213,17 @@
      ******************************************************************/
     function get_hours_range(t, range)
     {
-        var start = new Date(t * 1000);
+        let start = new Date(t * 1000);
         start.setMinutes(0);
         start.setSeconds(0);
         start.setMilliseconds(0);
 
-        var end = webix.Date.add(new Date(start), range, "hour");
+        let end = webix.Date.add(new Date(start), range, "hour");
 
         return {
             start: start/1000,
             end: end/1000
-        }
+        };
     }
 
     /********************************************
@@ -233,23 +233,23 @@
      *  Sobre cualquier hora t del dia,
      *  retorna el rango del dia por dias completos
      *
-     *  Retorna UTC time en start,end
+     *  Retorna UTC time en start, end
      ********************************************/
     function get_days_range(t, range)
     {
-        var start = new Date(t * 1000);
+        let start = new Date(t * 1000);
         start.setHours(0);
         start.setMinutes(0);
         start.setSeconds(0);
         start.setMilliseconds(0);
 
-        var end = webix.Date.add(new Date(start), range, "day");
+        let end = webix.Date.add(new Date(start), range, "day");
         end -= 1000;
 
         return {
             start: start/1000,
             end: end/1000
-        }
+        };
     }
 
     /********************************************
@@ -261,19 +261,19 @@
      *
      *  WARNING Nuestras semanas empiezan en LUNES !!!
      *
-     *  Retorna UTC time en start,end
+     *  Retorna UTC time en start, end
      ********************************************/
     function get_weeks_range(t, range)
     {
-        var start = new Date(t * 1000);
+        let start = new Date(t * 1000);
 
-        var wday = start.getDay();
-        if(wday == 1) {
+        let wday = start.getDay();
+        if(wday === 1) {
             // Estamos en lunes
         } else if(wday > 1) {
             // Dentro de la semana
             start = webix.Date.add(new Date(start), -wday + 1, "day");
-        } else if(wday == 0) {
+        } else if(wday === 0) {
             // Domingo
             start = webix.Date.add(new Date(start), -6, "day");
         }
@@ -283,13 +283,13 @@
         start.setSeconds(0);
         start.setMilliseconds(0);
 
-        var end = webix.Date.add(new Date(start), range, "week");
+        let end = webix.Date.add(new Date(start), range, "week");
         end -= 1000;
 
         return {
             start: start/1000,
             end: end/1000
-        }
+        };
     }
 
     /********************************************
@@ -299,11 +299,11 @@
      *  Sobre cualquier dia t del mes,
      *  retorna el rango del mes, por meses completos
      *
-     *  Retorna UTC time en start,end
+     *  Retorna UTC time en start, end
      ********************************************/
     function get_months_range(t, range)
     {
-        var start = new Date(t * 1000);
+        let start = new Date(t * 1000);
 
         start.setMonth(start.getMonth(), 1);
         start.setHours(0);
@@ -311,13 +311,13 @@
         start.setSeconds(0);
         start.setMilliseconds(0);
 
-        var end = webix.Date.add(new Date(start), range, "month");
+        let end = webix.Date.add(new Date(start), range, "month");
         end -= 1000;
 
         return {
             start: start/1000,
             end: end/1000
-        }
+        };
     }
 
     /********************************************
@@ -327,24 +327,24 @@
      *  Sobre cualquier dia t del año,
      *  retorna el rango del año, por años completos
      *
-     *  Retorna UTC time en start,end
+     *  Retorna UTC time en start, end
      ********************************************/
     function get_years_range(t, range)
     {
-        var start = new Date(t * 1000);
+        let start = new Date(t * 1000);
         start.setMonth(0, 1);
         start.setHours(0);
         start.setMinutes(0);
         start.setSeconds(0);
         start.setMilliseconds(0);
 
-        var end = webix.Date.add(new Date(start), range, "year");
+        let end = webix.Date.add(new Date(start), range, "year");
         end -= 1000;
 
         return {
             start: start/1000,
             end: end/1000
-        }
+        };
     }
 
     /********************************************
@@ -352,7 +352,7 @@
      ********************************************/
     function get_today()
     {
-        var start = new Date();
+        let start = new Date();
         start.setHours(0);
         start.setMinutes(0);
         start.setSeconds(0);
@@ -366,7 +366,7 @@
      ********************************************/
     function get_now()
     {
-        var start = new Date();
+        let start = new Date();
         start.setMilliseconds(0);
 
         return start/1000;
