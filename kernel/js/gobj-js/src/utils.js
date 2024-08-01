@@ -63,7 +63,7 @@
         }
 
         function cloneRecursive(obj) {
-            if (null === obj || typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
+            if(obj === null || obj === undefined || typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
                 return obj;
             }
 
@@ -3242,7 +3242,7 @@
      *  It returns false for non-numeric strings, empty strings,
      *  and strings with only whitespace.
      ************************************************************/
-    function isStringNumber(str)
+    function is_pure_number(str)
     {
         if(is_number(str)) {
             return true;
@@ -3553,5 +3553,5 @@
     exports.clean_name = clean_name;
     exports.gobj_near_parent = gobj_near_parent;
     exports.element_near_parent = element_near_parent;
-    exports.isStringNumber = isStringNumber;
+    exports.is_pure_number = is_pure_number;
 })(this);
