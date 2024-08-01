@@ -3244,6 +3244,13 @@
      ************************************************************/
     function isStringNumber(str)
     {
+        if(is_number(str)) {
+            return true;
+        }
+        if(!is_string(str)) {
+            return false;
+        }
+
         // Convert the string to a number
         const num = Number(str);
 
