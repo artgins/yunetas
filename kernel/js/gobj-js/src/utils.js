@@ -3234,6 +3234,29 @@
         return null; // Return null if no parent matching the selector is found
     }
 
+    /************************************************************
+     *  Check if a string is a number
+     *  The function correctly identifies both integer and floating-point numbers.
+     *  It handles special cases like scientific notation (e.g., "1.2e3"),
+     *  positive/negative numbers, and fractional numbers without leading digits.
+     *  It returns false for non-numeric strings, empty strings,
+     *  and strings with only whitespace.
+     ************************************************************/
+    function isStringNumber(str)
+    {
+        // Convert the string to a number
+        const num = Number(str);
+
+        // Check if the result is NaN (Not-a-Number)
+        if (isNaN(num)) {
+            return false; // The string is not a number
+        }
+
+        // Optionally, you can check if the input is exactly equal to the parsed number
+        // This ensures that the input is a valid number string
+        return str.trim() !== '' && !isNaN(num);
+    }
+
 // TODO move this code outside, to some helper
 ///***************************************************************************
 // *
@@ -3523,4 +3546,5 @@
     exports.clean_name = clean_name;
     exports.gobj_near_parent = gobj_near_parent;
     exports.element_near_parent = element_near_parent;
+    exports.isStringNumber = isStringNumber;
 })(this);
