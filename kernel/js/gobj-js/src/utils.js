@@ -151,7 +151,7 @@
         if(!source) {
             return destination;
         }
-        for (var property in source) {
+        for (let property in source) {
             if (source.hasOwnProperty(property) && destination.hasOwnProperty(property)) {
                 destination[property] = source[property];
             }
