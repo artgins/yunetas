@@ -1585,6 +1585,266 @@ PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
 PUBLIC json_t *gobj_jn_stats(hgobj gobj);  // WARNING the json return is NOT YOURS!
 
 
+/*--------------------------------------------------*
+ *  Node functions. Don't use resource, use this.
+ *  node functions only in __linux__
+ *--------------------------------------------------*/
+#ifdef __linux__
+PUBLIC json_t *gobj_treedbs( // Return a list with treedb names
+    hgobj gobj,
+    json_t *kw,
+    hgobj src
+);
+
+PUBLIC json_t *gobj_treedb_topics(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *options, // "dict" return list of dicts, otherwise return list of strings
+    hgobj src
+);
+
+PUBLIC json_t *gobj_topic_desc(
+    hgobj gobj,
+    const char *topic_name
+);
+
+PUBLIC json_t *gobj_topic_links(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,
+    hgobj src
+);
+
+PUBLIC json_t *gobj_topic_hooks(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,
+    hgobj src
+);
+
+PUBLIC size_t gobj_topic_size(
+    hgobj gobj,
+    const char *topic_name
+);
+
+PUBLIC json_t *gobj_create_node( // Return is YOURS
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+);
+
+PUBLIC json_t *gobj_update_node( // Return is YOURS
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // "create" "autolink" "volatil" fkey,hook options
+    hgobj src
+);
+
+PUBLIC int gobj_delete_node(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // "force"
+    hgobj src
+);
+
+PUBLIC int gobj_link_nodes(
+    hgobj gobj,
+    const char *hook,
+    const char *parent_topic_name,
+    json_t *parent_record,  // owned
+    const char *child_topic_name,
+    json_t *child_record,  // owned
+    hgobj src
+);
+
+PUBLIC int gobj_unlink_nodes(
+    hgobj gobj,
+    const char *hook,
+    const char *parent_topic_name,
+    json_t *parent_record,  // owned
+    const char *child_topic_name,
+    json_t *child_record,  // owned
+    hgobj src
+);
+
+/**rst**
+    Meaning of parent and child 'references' (fkeys, hooks)
+    -----------------------------------------------------
+    'fkey ref'
+        The parent's references (link to up) have 3 ^ fields:
+
+            "topic_name^id^hook_name"
+
+    'hook ref'
+        The child's references (link to down) have 2 ^ fields:
+
+            "topic_name^id"
+
+    fkey options
+    -------------
+    "refs"
+    "fkey_refs"
+        Return 'fkey ref'
+            ["topic_name^id^hook_name", ...]
+
+
+    "only_id"
+    "fkey_only_id"
+        Return the 'fkey ref' with only the 'id' field
+            ["$id",...]
+
+
+    "list_dict" (default)
+    "fkey_list_dict"
+        Return the kwid style:
+            [{"id": "$id", "topic_name":"$topic_name", "hook_name":"$hook_name"}, ...]
+
+
+    hook options
+    ------------
+    "refs"
+    "hook_refs"
+        Return 'hook ref'
+            ["topic_name^id", ...]
+
+    "only_id"
+    "hook_only_id"
+        Return the 'hook ref' with only the 'id' field
+            ["$id",...]
+
+    "list_dict" (default)
+    "hook_list_dict"
+        Return the kwid style:
+            [{"id": "$id", "topic_name":"$topic_name"}, ...]
+
+    "size"
+    "hook_size"
+        Return the kwid style:
+            [{"size": size}]
+
+
+    Other options
+    -------------
+
+    "with_metadata"
+        Return with metadata
+
+    "without_rowid"
+        Don't "id" when is "rowid", by default it's returned
+
+    HACK id is converted in ids (using kwid_get_ids())
+    HACK if __filter__ exists in jn_filter it will be used as filter
+
+**rst**/
+
+PUBLIC json_t *gobj_get_node( // Return is YOURS
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+);
+
+PUBLIC json_t *gobj_list_nodes( // Return MUST be decref
+    hgobj gobj,
+    const char *topic_name,
+    json_t *jn_filter,
+    json_t *jn_options, // "include-instances" fkey,hook options
+    hgobj src
+);
+
+PUBLIC json_t *gobj_list_instances(
+    hgobj gobj,
+    const char *topic_name,
+    const char *pkey2_field,
+    json_t *jn_filter,
+    json_t *jn_options, // owned, fkey,hook options
+    hgobj src
+);
+
+/*
+ *  Return a list of parent **references** pointed by the link (fkey)
+ *  If no link return all links
+ */
+PUBLIC json_t *gobj_node_parents( // Return MUST be decref
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    const char *link,
+    json_t *jn_options, // fkey options
+    hgobj src
+);
+
+/*
+ *  Return a list of child nodes of the hook
+ *  If no hook return all hooks
+ */
+PUBLIC json_t *gobj_node_childs( // Return MUST be decref
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    const char *hook,
+    json_t *jn_filter,  // filter to childs
+    json_t *jn_options, // fkey,hook options, "recursive"
+    hgobj src
+);
+
+/*
+ *  Return a hierarchical tree of the self-link topic
+ *  If "webix" option is true return webix style (dict-list),
+ *      else list of dict's
+ *  __path__ field in all records (id`id`... style)
+ *  If root node is not specified then the first with no parent is used
+ */
+PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
+    hgobj gobj,
+    const char *topic_name,
+    const char *hook,   // hook to build the hierarchical tree
+    const char *rename_hook, // change the hook name in the tree response
+    json_t *kw,         // 'id' and pkey2s fields are used to find the root node
+    json_t *jn_filter,  // filter to match records
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+);
+
+/*
+ *  Return the full tree of a node (duplicated)
+ */
+PUBLIC json_t *gobj_node_tree( // Return MUST be decref
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the root node
+    json_t *jn_options, // "with_metatada"
+    hgobj src
+);
+
+PUBLIC int gobj_shoot_snap(  // tag the current tree db
+    hgobj gobj,
+    const char *tag,
+    json_t *kw,
+    hgobj src
+);
+PUBLIC int gobj_activate_snap( // Activate tag (stop/start the gobj)
+    hgobj gobj,
+    const char *tag,
+    json_t *kw,
+    hgobj src
+);
+PUBLIC json_t *gobj_list_snaps( // Return MUST be decref, list of snaps
+    hgobj gobj,
+    json_t *filter,
+    hgobj src
+);
+
+#endif /* node functions only in __linux__ */
+
+
 /*--------------------------------------------*
  *          Trace functions
  *--------------------------------------------*/

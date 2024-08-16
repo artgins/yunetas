@@ -6665,6 +6665,859 @@ PUBLIC json_t *gobj_jn_stats(hgobj gobj)
 
 
 
+                    /*------------------------------*
+                     *      Node functions
+                     *------------------------------*/
+
+
+
+
+#ifdef __linux__
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_treedbs( // Return a list with treedb names
+    hgobj gobj_,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_treedbs) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_treedbs not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_treedbs(gobj, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_treedb_topics(
+    hgobj gobj_,
+    const char *treedb_name,
+    json_t *options, // "dict" return list of dicts, otherwise return list of strings
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(options);
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_treedb_topics) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_treedb_topics not defined",
+            NULL
+        );
+        KW_DECREF(options);
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_treedb_topics(gobj, treedb_name, options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_topic_desc(
+    hgobj gobj_,
+    const char *topic_name
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_topic_desc) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_topic_desc not defined",
+            NULL
+        );
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_topic_desc(gobj, topic_name);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_topic_links(
+    hgobj gobj_,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_topic_links) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_topic_links not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_topic_links(gobj, treedb_name, topic_name, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_topic_hooks(
+    hgobj gobj_,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_topic_hooks) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_topic_hooks not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_topic_hooks(gobj, treedb_name, topic_name, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC size_t gobj_topic_size(
+    hgobj gobj_,
+    const char *topic_name
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_topic_size) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_topic_size not defined",
+            NULL
+        );
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_topic_size(gobj, topic_name);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_create_node( // Return is YOURS
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_create_node) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_create_node not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_create_node(gobj, topic_name, kw, jn_options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_update_node( // Return is YOURS
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // "create" "autolink" "volatil" fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_update_node) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_update_node not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_update_node(gobj, topic_name, kw, jn_options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_delete_node(
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // "force"
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_delete_node) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_delete_node not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    return gobj->gclass->gmt->mt_delete_node(gobj, topic_name, kw, jn_options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_link_nodes(
+    hgobj gobj_,
+    const char *hook,
+    const char *parent_topic_name,
+    json_t *parent_record,  // owned
+    const char *child_topic_name,
+    json_t *child_record,  // owned
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(parent_record);
+        JSON_DECREF(child_record);
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_link_nodes) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_link_nodes not defined",
+            NULL
+        );
+        JSON_DECREF(parent_record);
+        JSON_DECREF(child_record);
+        return -1;
+    }
+    return gobj->gclass->gmt->mt_link_nodes(
+        gobj,
+        hook,
+        parent_topic_name,
+        parent_record,
+        child_topic_name,
+        child_record,
+        src
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_unlink_nodes(
+    hgobj gobj_,
+    const char *hook,
+    const char *parent_topic_name,
+    json_t *parent_record,  // owned
+    const char *child_topic_name,
+    json_t *child_record,  // owned
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(parent_record);
+        JSON_DECREF(child_record);
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_unlink_nodes) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_unlink_nodes not defined",
+            NULL
+        );
+        JSON_DECREF(parent_record);
+        JSON_DECREF(child_record);
+        return -1;
+    }
+    return gobj->gclass->gmt->mt_unlink_nodes(
+        gobj,
+        hook,
+        parent_topic_name,
+        parent_record,
+        child_topic_name,
+        child_record,
+        src
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_get_node(
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_get_node) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_get_node not defined",
+            NULL
+        );
+        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_get_node(gobj, topic_name, kw, jn_options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_nodes(
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *jn_filter,
+    json_t *jn_options, // "include-instances" fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_list_nodes) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_list_nodes not defined",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+
+    return gobj->gclass->gmt->mt_list_nodes(gobj, topic_name, jn_filter, jn_options, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_instances(
+    hgobj gobj_,
+    const char *topic_name,
+    const char *pkey2_field,
+    json_t *jn_filter,
+    json_t *jn_options, // owned, fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_list_instances) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_list_instances not defined",
+            NULL
+        );
+
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+
+    return gobj->gclass->gmt->mt_list_instances(
+        gobj, topic_name, pkey2_field, jn_filter, jn_options, src
+    );
+}
+
+/***************************************************************************
+ *  Return a list of parent **references** pointed by the link (fkey)
+ *  If no link return all links
+ ***************************************************************************/
+PUBLIC json_t *gobj_node_parents( // Return MUST be decref
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    const char *link,
+    json_t *jn_options, // fkey options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw);
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_node_parents) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_node_parents not defined",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw);
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_node_parents(gobj, topic_name, kw, link, jn_options, src);
+}
+
+/***************************************************************************
+ *  Return a list of child nodes of the hook
+ *  If no hook return all hooks
+ ***************************************************************************/
+PUBLIC json_t *gobj_node_childs( // Return MUST be decref
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the node
+    const char *hook,
+    json_t *jn_filter,  // filter to childs
+    json_t *jn_options, // fkey,hook options, "recursive"
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw);
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_node_childs) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_node_childs not defined",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw);
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_node_childs(gobj, topic_name, kw, hook, jn_filter, jn_options, src);
+}
+
+/***************************************************************************
+ *  Return a hierarchical tree of the self-link topic
+ *  If "webix" option is true return webix style (dict-list),
+ *      else list of dict's
+ *  __path__ field in all records (id`id`... style)
+ *  If root node is not specified then the first with no parent is used
+ ***************************************************************************/
+PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
+    hgobj gobj_,
+    const char *topic_name,
+    const char *hook,   // hook to build the hierarchical tree
+    const char *rename_hook, // change the hook name in the tree response
+    json_t *kw,         // 'id' and pkey2s fields are used to find the root node
+    json_t *jn_filter,  // filter to match records
+    json_t *jn_options, // fkey,hook options
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_topic_jtree) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_topic_jtree not defined",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_topic_jtree(
+        gobj,
+        topic_name,
+        hook,   // hook to build the hierarchical tree
+        rename_hook,// change the hook name in the tree response
+        kw,         // 'id' and pkey2s fields are used to find the node
+        jn_filter,  // filter to match records
+        jn_options, // fkey,hook options
+        src
+    );
+}
+
+/***************************************************************************
+ *  Return the full tree of a node (duplicated)
+ ***************************************************************************/
+PUBLIC json_t *gobj_node_tree( // Return MUST be decref
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,         // 'id' and pkey2s fields are used to find the root node
+    json_t *jn_options, // "with_metatada"
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_node_tree) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_node_tree not defined",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_node_tree(
+        gobj,
+        topic_name,
+        kw,         // 'id' and pkey2s fields are used to find the node
+        jn_options,
+        src
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_shoot_snap(
+    hgobj gobj_,
+    const char *tag,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_shoot_snap) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_shoot_snap not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    return gobj->gclass->gmt->mt_shoot_snap(gobj, tag, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_activate_snap(
+    hgobj gobj_,
+    const char *tag,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_activate_snap) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_activate_snap not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    return gobj->gclass->gmt->mt_activate_snap(gobj, tag, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_snaps(
+    hgobj gobj_,
+    json_t *filter,
+    hgobj src
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(filter);
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_list_snaps) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_list_snaps not defined",
+            NULL
+        );
+        KW_DECREF(filter);
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_list_snaps(gobj, filter, src);
+}
+
+#endif /* node functions only in __linux__ */
+
+
+
+
                     /*---------------------------------*
                      *      Trace functions
                      *---------------------------------*/
