@@ -1,71 +1,65 @@
 /****************************************************************************
- *  TIMERANGER.H
+ *      TIMERANGER2.H
  *
- *  Time Ranger, a series time-key-value database over flat files
+ *      Time Ranger 2, a serie-time key-value database over flat files
  *
- *  Copyright (c) 2017-2019 Niyamaka.
- *  All Rights Reserved.
+ *      Copyright (c) 2017-2024 Niyamaka.
+ *      All Rights Reserved.
  *
- *  Básicamente un resource (topic) está implementado como:
- *      - Diccionario de id's (key's) con lista de imagenes en tiempo.
- *      - !persistente! en disco.
- *
- *  Conteniendo un objeto basado en
- *      - tiempo __t__, rowid __rowid__
- *      - clave (entero o string, de tamaño máximo RECORD_RECORD_KEY_VALUE_MAX bytes)
- *      - valor (json, tamaño sin límite, limitado al sistema operativo)
- *
- *  Organización en disco:
+ *  Disk layout:
  *
  *  (store directory) -> (database):
  *
- *      __timeranger__.json     TimerRanger metadata.
- *                              Creado al crear la database, no modificable jamás.
- *                              Fichero usado como semaforo para los procesos en su uso.
- *                              Por ahora, un único proceso master abre con permiso exclusivo para escribir.
- *                              Los no master, abren la base de datos solo en modo lectura.
- *                              Define los permisos de ficheros y directorios,
- *                              el tipo de organizacion de directorios y ficheros
- *                              y el nombre de la base de datos.
+ *      __timeranger2__.json    TimerRanger metadata.
+ *          Created when the database is created, never modifiable.
+ *          File used as a semaphore for processes to use.
+ *          For now, a single master process opens it with exclusive write permission.
+ *          Non-masters processes open the database in read-only mode.
  *
- *                              Only read, persistent
- *                              "path"
- *                              "database"
- *                              "directory"
- *                              "filename_mask"
- *                              "rpermission"
- *                              "xpermission"
+ *          Only read, persistent
+ *              "database"
  *
- *                              Only read, volatil, defining in run-time
- *                              "on_critical_error",
- *                              "master",
- *                              "topics",
+ *          Only read, volatil, defining in run-time
+ *              "directory"
+ *              "on_critical_error",
+ *              "master",
+ *              "topics",
  *
  *
- *          /{topic}            Directorio conteniendo los ficheros del recurso.
+ *      /{topic}            Topic directory
  *
  *          topic_desc.json     Fixed topic metadata (Only read)
  *
  *                              "topic_name"    Topic name
+ *                              "filename_mask"
+ *                              "rpermission"
+ *                              "xpermission"
  *                              "pkey"          Record's field with Key of message.
  *                              "tkey"          Record's field with Time of message.
  *                              "directory"
- *                              'system_flag' data, HACK inherited by records
+ *                              'system_flag'
  *
+ *          topic_cols.json     Optional, defines fields of the topic.
  *
  *          topic_var.json      Variable topic metadata (Writable)
  *
  *                              'user_flag' data
  *
- *          topic_idx.md        Register of record's metadata
+ *          /{topic}            Topic directory
+ *          /{topic}/{key}          A directory for each key
+ *          /{topic}/{key}/data     Directory containing the topic's records: {format-file}.json
+ *          /{topic}/{key}/md2      Directory containing the topic's metadata: {format-file}.json
  *
- *          /{topic}/data       Directorio conteniendo los registros del topic.
+ *          {format-file}.json  Data files
+ *                              It should never be modified externally.
+ *                              The data is immutable, once it is written, it can never be modified.
+ *                              To change the data, add a new record with the desired changes.
  *
- *          {format-file}.json  Ficheros de datos
- *                              Jamás debe ser modificado externamente.
- *                              Los datos son inmutables, una vez son escritos, jamás se pueden modificar.
- *                              Para variar los datos, añade un nuevo registro con los cambios deseados.
- *
+ *          metadata (32 bytes):
+ *              __t__
+ *              __tm__
+ *              __offset__
+ *              __size__
  *
  ****************************************************************************/
 

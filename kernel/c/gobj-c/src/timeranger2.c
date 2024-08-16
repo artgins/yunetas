@@ -1,7 +1,7 @@
 /***********************************************************************
- *          TIMERANGER.C
+ *          TIMERANGER2.C
  *
- *          Time Ranger, a series time-key-value database over flat files
+ *          Time Ranger 2, a series time-key-value database over flat files
  *
  *          Copyright (c) 2017-2018 Niyamaka.
  *          All Rights Reserved.
@@ -15,7 +15,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
-#include "timeranger.h"
+#include "timeranger2.h"
 
 /***************************************************************
  *              Constants

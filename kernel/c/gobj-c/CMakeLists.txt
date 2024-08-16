@@ -23,7 +23,7 @@ set (SRCS
     src/comm_prot.c
     src/command_parser.c
     src/stats_parser.c
-    src/timeranger.c
+    src/timeranger2.c
 
     src/stacktrace_with_bfd.c
 )
@@ -43,7 +43,7 @@ set (HDRS
     src/comm_prot.h
     src/command_parser.h
     src/stats_parser.h
-    src/timeranger.h
+    src/timeranger2.h
 
     src/stacktrace_with_bfd.h
 )
