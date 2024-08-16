@@ -1704,6 +1704,7 @@ PUBLIC json_t *kwid_get(
             return default_value;
         }
         break;
+
     default:
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
