@@ -1,7 +1,7 @@
 /****************************************************************************
  *          glog.c
  *
- *          Glog for Objects G for Yuneta Service
+ *          Glog for Objects G for Yuneta Simplified
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.

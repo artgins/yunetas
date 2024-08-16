@@ -1,7 +1,7 @@
 /****************************************************************************
  *          gobj.h
  *
- *          Objects G for Yuneta Service
+ *          Objects G for Yuneta Simplified
  *
  *          Objects G with this api:
  *              - List of events supported, they can be of output or input or both.

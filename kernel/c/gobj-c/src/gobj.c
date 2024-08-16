@@ -1,7 +1,7 @@
 /****************************************************************************
  *          gobj.c
  *
- *          Objects G for Yuneta Service
+ *          Objects G for Yuneta Simplified
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
