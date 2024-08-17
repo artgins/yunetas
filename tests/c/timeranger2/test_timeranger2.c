@@ -3,12 +3,12 @@
 
 //#include "foo.h"
 
-Test(gobj2, empty2)
+Test(gobj, empty)
 {
-    cr_assert_eq(1, 0);
+    cr_assert_eq(0, 0);
 }
 
-Test(gobj2, simple)
+Test(gobj, simple)
 {
     cr_assert_eq(0, 0);
 }

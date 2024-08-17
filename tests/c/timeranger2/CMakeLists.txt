@@ -9,8 +9,7 @@ get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 #   Source
 ##############################################
 set(SRCS
-    test_gobj.c
-    test_gobj2.c
+    test_timeranger2.c
 )
 
 ##############################################

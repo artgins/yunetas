@@ -674,7 +674,7 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
     /*
      *  Get last rowid
      */
-    uint64_t offset = lseek64(fd, 0, SEEK_END);
+    off64_t offset = lseek64(fd, 0, SEEK_END);
     if(offset < 0) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
@@ -1837,7 +1837,7 @@ PUBLIC int tranger_append_record(
     /*--------------------------------------------*
      *  New record always at the end
      *--------------------------------------------*/
-    uint64_t __offset__ = 0;
+    off64_t __offset__ = 0;
     if(content_fp >= 0) {
         __offset__ = lseek64(content_fp, 0, SEEK_END);
         if(__offset__ == -1) {
@@ -2124,7 +2124,7 @@ PRIVATE int new_record_md_to_file(
         // Error already logged
         return -1;
     }
-    uint64_t offset = lseek64(fd, 0, SEEK_END);
+    off64_t offset = lseek64(fd, 0, SEEK_END);
     if(offset != ((md_record->__rowid__-1) * sizeof(md2_record_t))) {
         log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
@@ -2356,7 +2356,7 @@ PUBLIC int tranger_delete_record(
         return -1;
     }
 
-    uint64_t __offset__ = md_record.__offset__;
+    off64_t __offset__ = md_record.__offset__;
     if(lseek64(fd, __offset__, SEEK_SET) != __offset__) {
         log_error(0,
             "gobj",         "%s", __FILE__,

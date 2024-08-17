@@ -7,3 +7,4 @@ cmake_minimum_required(VERSION 3.5)
 #   Source
 ##############################################
 add_subdirectory(gobj)
+add_subdirectory(timeranger2)

@@ -23,7 +23,7 @@ All architecture done by configuration, based in schema,
 easy to see by human eye. 
 Of course, you have an API functions to change configuration and data in real time. 
 
-TODO now go-on the doc in snk doc.
+TODO now go-on the doc in sdk doc.
 
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
