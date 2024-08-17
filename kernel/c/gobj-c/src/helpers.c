@@ -549,7 +549,7 @@ PUBLIC json_t *load_persistent_json(
      *  Full path
      */
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename);
+    build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(access(full_path, 0)!=0) {
         if(!(silence && on_critical_error == LOG_NONE)) {
@@ -1021,6 +1021,27 @@ PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case)
         list++;
     }
     return -1;
+}
+
+/***************************************************************************
+ *  Return TRUE if str is in string list.
+ ***************************************************************************/
+PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
+{
+    int (*cmp_fn)(const char *s1, const char *s2)=0;
+    if(ignore_case) {
+        cmp_fn = strcasecmp;
+    } else {
+        cmp_fn = strcmp;
+    }
+
+    while(*list) {
+        if(cmp_fn(str, *list)==0) {
+            return TRUE;
+        }
+        list++;
+    }
+    return FALSE;
 }
 
 

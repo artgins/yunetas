@@ -17,6 +17,7 @@
  *          Non-masters processes open the database in read-only mode.
  *
  *          Only read, persistent
+ *              "path"
  *              "database"
  *
  *          Only read, volatil, defining in run-time
@@ -78,51 +79,40 @@ extern "C"{
  ***************************************************************/
 
 /***************************************************************
- *              Structures
+ *              Structures  timeranger2
  ***************************************************************/
+#define TIME_MASK   0x0000000FFFFFFFFF  /* Maximum date: UTC 4147-08-20T07:32:15+0000 */
+#define MD2_MASK    0x0ffffff000000000
 
-#define KEY_TYPE_MASK         0x0000000F
-#define NOT_INHERITED_MASK    0xFF000000 /* Remains will set to all records of topic */
+#define KEY_TYPE_MASK2        0x00000F
+#define NOT_INHERITED_MASK2   0xFF0000 /* Remains will set to all records of topic */
 
 typedef enum { // WARNING table with name's strings in 30_timeranger.c
-    sf_string_key           = 0x00000001,
-    sf_rowid_key            = 0x00000002,
-    sf_int_key              = 0x00000004,
-    sf_zip_record           = 0x00000010,
-    sf_cipher_record        = 0x00000020,
-    sf_t_ms                 = 0x00000100,   // record time in miliseconds
-    sf_tm_ms                = 0x00000200,   // message time in miliseconds
-    sf_no_record_disk       = 0x00001000,
-    sf_no_md_disk           = 0x00002000,
-    sf_no_disk              = 0x00003000,   // sf_no_record_disk + sf_no_md_disk
-    sf_loading_from_disk    = 0x01000000,
-    sf_mark1                = 0x02000000,
-    sf_deleted_record       = 0x80000000,
-} system_flag_t;
-
-#define RECORD_KEY_VALUE_MAX   (48)
-#define tranger_max_key_size() (RECORD_KEY_VALUE_MAX-1)
+    sf2_string_key          = 0x000001,
+    sf2_rowid_key           = 0x000002,
+    sf2_int_key             = 0x000004,
+    sf2_zip_record          = 0x000010,
+    sf2_cipher_record       = 0x000020,
+    sf2_t_ms                = 0x000100,   // record time in miliseconds
+    sf2_tm_ms               = 0x000200,   // message time in miliseconds
+    sf2_no_record_disk      = 0x001000,
+    sf2_no_md_disk          = 0x002000,
+    sf2_loading_from_disk   = 0x010000,
+    sf2_soft_deleted_record = 0x020000,  // old sf_mark1
+    sf2_hard_deleted_record = 0x800000,
+} system_flag2_t;
 
 #pragma pack(1)
 
 typedef struct { // Size: 96 bytes
-    uint64_t __rowid__;
     uint64_t __t__;
+    uint64_t __tm__;
 
     uint64_t __offset__;
     uint64_t __size__;
-
-    uint64_t __tm__;
-    uint32_t __system_flag__;
-    uint32_t __user_flag__;
-    union {
-        uint64_t i;
-        char s[RECORD_KEY_VALUE_MAX];  // Maximum size of string keys is RECORD_KEY_VALUE_MAX-1
-    } key;
-} md_record_t;
+} md2_record_t;
 
 #pragma pack()
-
 
 /***************************************************************
  *              Prototypes
@@ -131,18 +121,38 @@ typedef struct { // Size: 96 bytes
 /**rst**
    Startup TimeRanger database
 **rst**/
-static const json_desc_t tranger_json_desc[] = {
+static const json_desc_t tranger2_json_desc[] = {
 // Name                 Type    Default     Fillspace
 {"path",                "str",  "",         ""}, // If database exists then only needs (path,[database]) params
 {"database",            "str",  "",         ""}, // If null, path must contains the 'database'
+{"on_critical_error",   "int",  "2",        ""}, // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
+{"master",              "bool", "false",    ""}, // Volatil, the master is the only that can write.
+{"gobj",                "int",  "",         ""}, // Volatil, gobj of tranger
+{0}
+};
+
+static const json_desc_t topic_json_desc[] = {
+// Name                 Type    Default     Fillspace
 {"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
 {"xpermission" ,        "int",  "02770",    ""}, // Use in creation, default 02770;
 {"rpermission",         "int",  "0660",     ""}, // Use in creation, default 0660;
-{"on_critical_error",   "int",  "2",        ""},  // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
-{"master",              "bool", "false",    ""}, // Volatil, the master is the only that can write.
+
+// TODO add these
+//"topic_name",
+//"pkey",
+//"tkey",
+//"system_flag",
+//"cols",
+//"directory",
+//"__last_rowid__",
+//"topic_idx_fd",
+//"fd_opened_files",
+//"file_opened_files",
+//"lists",
 {0}
 };
-PUBLIC json_t *tranger_startup(
+
+PUBLIC json_t *tranger2_startup(
     hgobj gobj,
     json_t *jn_tranger // owned
 );
@@ -150,24 +160,24 @@ PUBLIC json_t *tranger_startup(
 /**rst**
    Shutdown TimeRanger database
 **rst**/
-PUBLIC int tranger_shutdown(json_t *tranger);
+PUBLIC int tranger2_shutdown(json_t *tranger);
 
 /**rst**
    Convert string "s|s|s" or "s s s" or "s,s,s"
    or any combinations of them to system_flag_t integer
 **rst**/
-PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag);
+PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
 /**rst**
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
 **rst**/
-PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If topic exists then only needs (tranger, topic_name) parameters
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    system_flag_t system_flag,
+    system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned
 );
@@ -176,17 +186,10 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
    Open topic
    HACK IDEMPOTENT function, always return the same json_t topic
 **rst**/
-PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name,
     BOOL verbose
-);
-
-/**rst**
-   Get list of opened topics
-**rst**/
-PUBLIC json_t *tranger_opened_topics( // Return must be decref
-    json_t *tranger
 );
 
 /**rst**
@@ -194,7 +197,7 @@ PUBLIC json_t *tranger_opened_topics( // Return must be decref
    Topic is opened if it's not opened.
    HACK topic can exists in disk, but it's not opened until tranger_open_topic()
 **rst**/
-PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name
 );
@@ -202,29 +205,21 @@ PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
 /**rst**
    Get topic size (number of records)
 **rst**/
-PUBLIC json_int_t tranger_topic_size(
+PUBLIC json_int_t tranger2_topic_size(
     json_t *topic
 );
 
 /**rst**
    Return topic name of topic.
 **rst**/
-PUBLIC const char *tranger_topic_name(
+PUBLIC const char *tranger2_topic_name(
     json_t *topic
 );
 
 /**rst**
    Close record topic.
 **rst**/
-PUBLIC int tranger_close_topic(
-    json_t *tranger,
-    const char *topic_name
-);
-
-/**rst**
-   Close topic opened files
-**rst**/
-PUBLIC int tranger_close_topic_opened_files(
+PUBLIC int tranger2_close_topic(
     json_t *tranger,
     const char *topic_name
 );
@@ -232,7 +227,7 @@ PUBLIC int tranger_close_topic_opened_files(
 /**rst**
    Delete topic. Alias delete table.
 **rst**/
-PUBLIC int tranger_delete_topic(
+PUBLIC int tranger2_delete_topic(
     json_t *tranger,
     const char *topic_name
 );
@@ -252,7 +247,7 @@ typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you contro
     const char *topic_name,
     const char *path
 );
-PUBLIC json_t *tranger_backup_topic(
+PUBLIC json_t *tranger2_backup_topic(
     json_t *tranger,
     const char *topic_name,
     const char *backup_path,
@@ -264,7 +259,7 @@ PUBLIC json_t *tranger_backup_topic(
 /**rst**
    Write topic var
 **rst**/
-PUBLIC int tranger_write_topic_var(
+PUBLIC int tranger2_write_topic_var(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_topic_var  // owned
@@ -273,25 +268,25 @@ PUBLIC int tranger_write_topic_var(
 /**rst**
    Write topic cols
 **rst**/
-PUBLIC int tranger_write_topic_cols(
+PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_cols  // owned
 );
 
-PUBLIC json_t *tranger_topic_desc( // Return MUST be decref
+PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 );
-PUBLIC json_t *tranger_list_topic_desc( // Return a list!,  MUST be decref
+PUBLIC json_t *tranger2_list_topic_desc( // Return a list!,  MUST be decref
     json_t *tranger,
     const char *topic_name
 );
-PUBLIC json_t *tranger_dict_topic_desc( // Return a dict!,  MUST be decref
+PUBLIC json_t *tranger2_dict_topic_desc( // Return a dict!,  MUST be decref
     json_t *tranger,
     const char *topic_name
 );
-PUBLIC json_t *tranger_filter_topic_fields(
+PUBLIC json_t *tranger2_filter_topic_fields(
     json_t *tranger,
     const char *topic_name,
     json_t *kw  // owned
@@ -300,25 +295,25 @@ PUBLIC json_t *tranger_filter_topic_fields(
 /**rst**
     Return json object with record metadata
 **rst**/
-PUBLIC json_t *tranger_md2json(md_record_t *md_record);
+PUBLIC json_t *tranger2_md2json(md2_record_t *md2_record);
 
 /**rst**
     Append a new item to record.
     Return the new record's metadata.
 **rst**/
-PUBLIC int tranger_append_record(
+PUBLIC int tranger2_append_record(
     json_t *tranger,
     const char *topic_name,
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
     uint32_t user_flag,
-    md_record_t *md_record, // required
+    md2_record_t *md2_record, // required
     json_t *jn_record       // owned
 );
 
 /**rst**
     Delete record.
 **rst**/
-PUBLIC int tranger_delete_record(
+PUBLIC int tranger2_delete_hard_record(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid
@@ -327,7 +322,7 @@ PUBLIC int tranger_delete_record(
 /**rst**
     Write record mark1
 **rst**/
-PUBLIC int tranger_write_mark1(
+PUBLIC int tranger2_delete_soft_record( // old tranger_write_mark1
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid,
@@ -337,7 +332,7 @@ PUBLIC int tranger_write_mark1(
 /**rst**
     Write record user flag
 **rst**/
-PUBLIC int tranger_write_user_flag(
+PUBLIC int tranger2_write_user_flag(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid,
@@ -347,7 +342,7 @@ PUBLIC int tranger_write_user_flag(
 /**rst**
     Write record user flag using mask
 **rst**/
-PUBLIC int tranger_set_user_flag(
+PUBLIC int tranger2_set_user_flag(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid,
@@ -358,7 +353,7 @@ PUBLIC int tranger_set_user_flag(
 /**rst**
     Read record user flag (for writing mode)
 **rst**/
-PUBLIC uint32_t tranger_read_user_flag(
+PUBLIC uint32_t tranger2_read_user_flag(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid
@@ -408,11 +403,11 @@ PUBLIC uint32_t tranger_read_user_flag(
  *      1 add record to returned list.data,
  *      -1 break the load
  */
-typedef int (*tranger_load_record_callback_t)(
+typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
     json_t *list,
-    md_record_t *md_record,
+    md2_record_t *md2_record,
     /*
      *  can be null if sf_loading_from_disk (use tranger_read_record_content() to load content)
      */
@@ -429,7 +424,7 @@ static const json_desc_t list_json_desc[] = {
 {"load_record_callback",    "int",      "",         ""},
 {0}
 };
-PUBLIC json_t *tranger_open_list(
+PUBLIC json_t *tranger2_open_list(
     json_t *tranger,
     json_t *jn_list // owned
 );
@@ -437,7 +432,7 @@ PUBLIC json_t *tranger_open_list(
 /**rst**
     Get list by his id
 **rst**/
-PUBLIC json_t *tranger_get_list(
+PUBLIC json_t *tranger2_get_list(
     json_t *tranger,
     const char *id
 );
@@ -445,7 +440,7 @@ PUBLIC json_t *tranger_get_list(
 /**rst**
     Close list
 **rst**/
-PUBLIC int tranger_close_list(
+PUBLIC int tranger2_close_list(
     json_t *tranger,
     json_t *list
 );
@@ -453,66 +448,66 @@ PUBLIC int tranger_close_list(
 /**rst**
     Get record by rowid
 **rst**/
-PUBLIC int tranger_get_record(
+PUBLIC int tranger2_get_record(
     json_t *tranger,
     json_t *topic,
     uint64_t rowid,
-    md_record_t *md_record,
+    md2_record_t *md2_record,
     BOOL verbose
 );
 
 /**rst**
     Read record content. Return must be decref!
 **rst**/
-PUBLIC json_t *tranger_read_record_content(
+PUBLIC json_t *tranger2_read_record_content(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
 
 /**rst**
     Match record
 **rst**/
-PUBLIC BOOL tranger_match_record(
+PUBLIC BOOL tranger2_match_record(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,  // not owned
-    const md_record_t *md_record,
+    const md2_record_t *md2_record,
     BOOL *end
 );
 
 /**rst**
     Get the first record matching conditions
 **rst**/
-PUBLIC int tranger_find_record(
+PUBLIC int tranger2_find_record(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,  // owned
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
 
 /**rst**
     Walk over records (disk!)
 **rst**/
-PUBLIC int tranger_first_record(
+PUBLIC int tranger2_first_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
-PUBLIC int tranger_last_record(
+PUBLIC int tranger2_last_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
-PUBLIC int tranger_next_record(
+PUBLIC int tranger2_next_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
-PUBLIC int tranger_prev_record(
+PUBLIC int tranger2_prev_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md2_record
 );
 
 /*
@@ -520,37 +515,37 @@ PUBLIC int tranger_prev_record(
  *  print_md2_record: info of message record metadata
  *  print_md3_record: info of file record metadata
  */
-PUBLIC void print_md0_record(
+PUBLIC void tr2_print_md0_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md2_record,
     char *bf,
     int bfsize
 );
-PUBLIC void print_md1_record(
+PUBLIC void tr2_print_md1_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md2_record,
     char *bf,
     int bfsize
 );
-PUBLIC void print_md2_record(
+PUBLIC void tr2_print_md2_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
-    char *bf,
-    int bfsize
-);
-
-PUBLIC void print_record_filename(
-    json_t *tranger,
-    json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md2_record,
     char *bf,
     int bfsize
 );
 
-PUBLIC void tranger_set_trace_level(
+PUBLIC void tr2_print_record_filename(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md2_record,
+    char *bf,
+    int bfsize
+);
+
+PUBLIC void tranger2_set_trace_level(
     json_t *tranger,
     int trace_level
 );

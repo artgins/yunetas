@@ -1148,6 +1148,57 @@ PUBLIC json_t *kw_get_dict_value(
 }
 
 /***************************************************************************
+ *  Get any value from an json object searched by path and subdict
+ ***************************************************************************/
+PUBLIC json_t *kw_get_subdict_value(
+    hgobj gobj,
+    json_t *kw,
+    const char *path,
+    const char *key,
+    json_t *jn_default_value,  // owned
+    kw_flag_t flag)
+{
+    json_t *jn_subdict = kw_find_path(gobj, kw, path, FALSE);
+    if(!jn_subdict) {
+        return jn_default_value;
+    }
+    if(empty_string(key)) {
+        if(flag & KW_REQUIRED) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "key NULL",
+                "path",         "%s", path,
+                NULL
+            );
+        }
+        return jn_default_value;
+    }
+    return kw_get_dict_value(gobj, jn_subdict, key, jn_default_value, flag);
+}
+
+/***************************************************************************
+    Update kw with other, except keys in except_keys
+    First level only
+ ***************************************************************************/
+PUBLIC void kw_update_except(
+    hgobj gobj,
+    json_t *kw,  // not owned
+    json_t *other,  // owned
+    const char **except_keys
+)
+{
+    const char *key;
+    json_t *jn_value;
+    json_object_foreach(other, key, jn_value) {
+        if(str_in_list(except_keys, key, FALSE)) {
+            continue;
+        }
+        json_object_set(kw, key, jn_value);
+    }
+}
+
+/***************************************************************************
     Return a new kw only with the keys got by path.
     It's not a deep copy, new keys are the paths.
     Not valid with lists.

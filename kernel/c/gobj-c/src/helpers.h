@@ -192,6 +192,11 @@ PUBLIC uint64_t strings2bits(
 **rst**/
 PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
 
+/**rst**
+    Return TRUE if str is in string list.
+**rst**/
+PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
+
 /*---------------------------------*
  *      Utilities functions
  *---------------------------------*/

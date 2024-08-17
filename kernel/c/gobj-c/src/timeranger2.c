@@ -20,7 +20,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-PRIVATE const char *topic_fieds[] = {
+PRIVATE const char *topic_fields[] = {
     "topic_name",
     "pkey",
     "tkey",
@@ -32,43 +32,39 @@ PRIVATE const char *topic_fieds[] = {
     "fd_opened_files",
     "file_opened_files",
     "lists",
+
+    "filename_mask",
+    "xpermission",
+    "rpermission",
+
     0
 };
 
-PRIVATE const char *sf_names[32+1] = {
-    "sf_string_key",            // 0x00000001
-    "sf_rowid_key",             // 0x00000002
-    "sf_int_key",               // 0x00000004
-    "",                         // 0x00000008
-    "sf_zip_record",            // 0x00000010
-    "sf_cipher_record",         // 0x00000020
-    "",                         // 0x00000040
-    "",                         // 0x00000080
-    "sf_t_ms",                  // 0x00000100
-    "sf_tm_ms",                 // 0x00000200
-    "",                         // 0x00000400
-    "",                         // 0x00000800
-    "sf_no_record_disk",        // 0x00001000
-    "sf_no_md_disk",            // 0x00002000
-//  "sf_no_disk",               // 0x00003000 Combinated flags CANNOT BE USE by name
-    "",                         // 0x00004000
-    "",                         // 0x00008000
-    "",                         // 0x00010000
-    "",                         // 0x00020000
-    "",                         // 0x00040000
-    "",                         // 0x00080000
-    "",                         // 0x00100000
-    "",                         // 0x00200000
-    "",                         // 0x00400000
-    "",                         // 0x00800000
-    "sf_loading_from_disk",     // 0x01000000
-    "sf_mark1",                 // 0x02000000
-    "",                         // 0x04000000
-    "",                         // 0x08000000
-    "",                         // 0x10000000
-    "",                         // 0x20000000
-    "",                         // 0x40000000
-    "sf_deleted_record",        // 0x80000000
+PRIVATE const char *sf_names[24+1] = {
+    "sf2_string_key",           // 0x000001
+    "sf2_rowid_key",            // 0x000002
+    "sf2_int_key",              // 0x000004
+    "",                         // 0x000008
+    "sf2_zip_record",           // 0x000010
+    "sf2_cipher_record",        // 0x000020
+    "",                         // 0x000040
+    "",                         // 0x000080
+    "sf2_t_ms",                 // 0x000100
+    "sf2_tm_ms",                // 0x000200
+    "",                         // 0x000400
+    "",                         // 0x000800
+    "sf2_no_record_disk",       // 0x001000
+    "sf2_no_md_disk",           // 0x002000
+    "",                         // 0x004000
+    "",                         // 0x008000
+    "sf2_loading_from_disk",    // 0x010000
+    "sf2_soft_deleted_record",  // 0x020000
+    "",                         // 0x040000
+    "",                         // 0x080000
+    "",                         // 0x100000
+    "",                         // 0x200000
+    "",                         // 0x400000
+    "sf2_hard_deleted_record",  // 0x800000
     0
 };
 
@@ -91,21 +87,27 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
-#ifdef PEPE
-PRIVATE int _get_record_for_wr(
+PRIVATE int _get_md_record_for_wr(
     json_t *tranger,
     json_t *topic,
     uint64_t rowid,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     BOOL verbose
 );
-PRIVATE int get_topic_idx_fd(json_t *tranger, json_t *topic, BOOL verbose);
-#endif
+
+PRIVATE int new_record_md_to_file(
+    json_t *tranger,
+    json_t *topic,
+    md2_record_t *md_record
+);
 
 /***************************************************************
  *              Data
  ***************************************************************/
 
+/***************************************************************************
+ *
+ ***************************************************************************/
 /***************************************************************************
  *  Startup TimeRanger database
  ***************************************************************************/
@@ -115,20 +117,20 @@ PUBLIC json_t *tranger_startup(
 )
 {
     /*
-     *  Como parámetro de entrada "jn_tranger",
+     *  Como parámetro de entrada "jn_tanger",
      *  se clona para no joder el original,
      *  y porque se añaden campos de instancia, por ejemplo "fd_opened_files"
      */
-    json_t *tranger = create_json_record(gobj, tranger_json_desc); // no master by default
+    json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
     json_object_update_existing(tranger, jn_tranger);
-    JSON_DECREF(jn_tranger);
+    json_object_set_new(tranger, "gobj", json_integer((json_int_t)(size_t)gobj));
+    JSON_DECREF(jn_tranger)
 
     char path[PATH_MAX];
     const char *path_ = kw_get_str(gobj, tranger, "path", "", 0);
-    build_path(path, sizeof(path), path_, ""); // I want to modify the path
+    build_path(path, sizeof(path), path_, "", NULL); // I want modify path
     if(empty_string(path)) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Cannot startup TimeRanger. What path?",
@@ -143,8 +145,7 @@ PUBLIC json_t *tranger_startup(
     if(empty_string(database)) {
         database = pop_last_segment(path);
         if(empty_string(database)) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Cannot startup TimeRanger. What database?",
@@ -176,7 +177,7 @@ PUBLIC json_t *tranger_startup(
         KW_REQUIRED|KW_WILD_NUMBER
     );
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), path, database);
+    build_path(directory, sizeof(directory), path, database, NULL);
     kw_set_dict_value(gobj, tranger, "directory", json_string(directory));
 
     int fd = -1;
@@ -240,11 +241,11 @@ PUBLIC json_t *tranger_startup(
         const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED);
         int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
         int rpermission = (int)kw_get_int(gobj, tranger, "rpermission", 0660, KW_REQUIRED);
-        jn_tranger = json_object();
-        kw_get_str(gobj, jn_tranger, "database", database, KW_CREATE);
-        kw_get_str(gobj, jn_tranger, "filename_mask", filename_mask, KW_CREATE);
-        kw_get_int(gobj, jn_tranger, "rpermission", rpermission, KW_CREATE);
-        kw_get_int(gobj, jn_tranger, "xpermission", xpermission, KW_CREATE);
+        json_t *jn_tranger_ = json_object();
+        kw_get_str(gobj, jn_tranger_, "database", database, KW_CREATE);
+        kw_get_str(gobj, jn_tranger_, "filename_mask", filename_mask, KW_CREATE);
+        kw_get_int(gobj, jn_tranger_, "rpermission", rpermission, KW_CREATE);
+        kw_get_int(gobj, jn_tranger_, "xpermission", xpermission, KW_CREATE);
         save_json_to_file(
             gobj,
             directory,
@@ -254,7 +255,7 @@ PUBLIC json_t *tranger_startup(
             on_critical_error,
             TRUE,   //create
             TRUE,  //only_read
-            jn_tranger  // owned
+            jn_tranger_  // owned
         );
         // Re-open
         json_t *jn_disk_tranger = load_persistent_json(
@@ -310,20 +311,18 @@ PUBLIC json_t *tranger_startup(
 
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger__.json", json_integer(fd));
 
-    json_object_set_new(tranger, "gobj", json_integer((json_int_t)(size_t)gobj));
-
     return tranger;
 }
 
 /***************************************************************************
  *  Shutdown TimeRanger database
  ***************************************************************************/
-PUBLIC int tranger_shutdown(json_t *tranger)
+PUBLIC int tranger2_shutdown(json_t *tranger)
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     const char *key;
     json_t *jn_value;
-
-    hgobj gobj = (hgobj)(size_t)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
     json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
         int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
@@ -335,19 +334,31 @@ PUBLIC int tranger_shutdown(json_t *tranger)
     void *temp;
     json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_foreach_safe(jn_topics, temp, key, jn_value) {
-        tranger_close_topic(tranger, key);
+        tranger2_close_topic(tranger, key);
     }
-    JSON_DECREF(tranger);
+    JSON_DECREF(tranger)
     return 0;
 }
 
 /***************************************************************************
-   Convert string "s|s|s" or "s s s" or "s,s,s"
-   or any combinations of them to system_flag_t integer
+   Convert string (..|..|...) to system_flag_t integer
  ***************************************************************************/
-PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
+PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
 {
-    uint32_t bitmask = (uint32_t)strings2bits(sf_names, system_flag, NULL);
+    uint32_t bitmask = 0;
+
+    int list_size;
+    const char **names = split2(system_flag, "|, ", &list_size);
+
+    for(int i=0; i<list_size; i++) {
+        int idx = idx_in_list(sf_names, *(names +i), TRUE);
+        if(idx > 0) {
+            bitmask |= 1 << (idx-1);
+        }
+    }
+
+    split_free2(names);
+
     return bitmask;
 }
 
@@ -356,16 +367,16 @@ PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
    HACK IDEMPOTENT function
  ***************************************************************************/
 PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
-    json_t *tranger,    // If topic exists then only needs (tranger, topic_name) parameters
+    json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    system_flag_t system_flag,
+    system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned
 )
 {
-    hgobj gobj = (hgobj)(size_t)kw_get_int(NULL, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*-------------------------------*
@@ -391,8 +402,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             "msg",          "%s", "tranger_create_topic(): What topic name?",
             NULL
         );
-        JSON_DECREF(jn_cols);
-        JSON_DECREF(jn_var);
+        JSON_DECREF(jn_cols)
+        JSON_DECREF(jn_var)
         return 0;
     }
     json_int_t topic_new_version = kw_get_int(gobj, jn_var, "topic_version", 0, KW_WILD_NUMBER);
@@ -401,7 +412,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
     /*-------------------------------*
      *      Check directory
      *-------------------------------*/
-    char directory[PATH_MAX];
+    char directory[PATH_MAX-30];
     snprintf(
         directory,
         sizeof(directory),
@@ -426,7 +437,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             JSON_DECREF(jn_var);
             return 0;
         }
-        if(mkrdir(directory, 0, kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(mkrdir(directory, 0, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", directory,
@@ -440,12 +451,12 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create topic_idx.md
          *----------------------------------------*/
-        char full_path[PATH_MAX+24];
+        char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s",
             directory,
             "topic_idx.md"
         );
-        int fp = newfile(full_path, kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+        int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
             gobj_log_error(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
@@ -455,8 +466,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            JSON_DECREF(jn_cols);
-            JSON_DECREF(jn_var);
+            JSON_DECREF(jn_cols)
+            JSON_DECREF(jn_var)
             return 0;
         }
         close(fp);
@@ -469,11 +480,11 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         kw_get_str(gobj, jn_topic_desc, "pkey", pkey, KW_CREATE);
         kw_get_str(gobj, jn_topic_desc, "tkey", tkey, KW_CREATE);
 
-        system_flag &= ~NOT_INHERITED_MASK;
-        system_flag_t system_flag_key_type = system_flag & KEY_TYPE_MASK;
+        system_flag &= ~NOT_INHERITED_MASK2;
+        system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
-                system_flag |= sf_int_key;
+                system_flag |= sf2_int_key;
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
@@ -481,14 +492,14 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         json_t *topic_desc = kw_clone_by_path(
             gobj,
             jn_topic_desc, // owned
-            topic_fieds
+            topic_fields
         );
         save_json_to_file(
             gobj,
             directory,
             "topic_desc.json",
-            kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
-            kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+            (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+            (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
             kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             master? TRUE:FALSE, //create
             TRUE,  //only_read
@@ -499,7 +510,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
          *      Create topic_cols.json
          *----------------------------------------*/
         JSON_INCREF(jn_cols)
-        tranger_write_topic_cols(
+        tranger2_write_topic_cols(
             tranger,
             topic_name,
             jn_cols
@@ -517,7 +528,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
          *      Create topic_var.json
          *----------------------------------------*/
         JSON_INCREF(jn_var)
-        tranger_write_topic_var(
+        tranger2_write_topic_var(
             tranger,
             topic_name,
             jn_var
@@ -537,7 +548,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         snprintf(full_path, sizeof(full_path), "%s/data",
             directory
         );
-        if(mkrdir(full_path, 0, kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(mkrdir(full_path, 0, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
@@ -570,7 +581,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
                 gobj,
                 directory,
                 "topic_var.json",
-                LOG_OPT_TRACE_STACK
+                0 // TODO review
             );
             topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
             JSON_DECREF(topic_var);
@@ -584,8 +595,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             /*----------------------------------------*
              *      Create topic_var.json
              *----------------------------------------*/
-            JSON_INCREF(jn_var);
-            tranger_write_topic_var(
+            JSON_INCREF(jn_var)
+            tranger2_write_topic_var(
                 tranger,
                 topic_name,
                 jn_var
@@ -605,7 +616,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
              *      Create topic_cols.json
              *----------------------------------------*/
             JSON_INCREF(jn_cols);
-            tranger_write_topic_cols(
+            tranger2_write_topic_cols(
                 tranger,
                 topic_name,
                 jn_cols
@@ -621,105 +632,106 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         }
     }
 
-    JSON_DECREF(jn_cols);
-    JSON_DECREF(jn_var);
+    JSON_DECREF(jn_cols)
+    JSON_DECREF(jn_var)
 
-    return tranger_open_topic(tranger, topic_name, TRUE);
+    return tranger2_open_topic(tranger, topic_name, TRUE);
 }
 
-#ifdef PEPE
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_topic_idx_fd(json_t *tranger, json_t *topic, BOOL verbose)
+PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
 {
-    /*-----------------------------*
-     *  Open topix idx for writing
-     *-----------------------------*/
-    int fd = kw_get_int(topic, "topic_idx_fd", -1, KW_REQUIRED);
-    if(fd<0) {
-        if(verbose) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "NO topic_idx_fd",
-                NULL
-            );
-        }
-        return -1;
-    }
-    return fd;
-}
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
-/***************************************************************************
-   Write new record metadata to file
- ***************************************************************************/
-PRIVATE int new_record_md_to_file(
-    json_t *tranger,
-    json_t *topic,
-    md_record_t *md_record)
-{
-    int fd = get_topic_idx_fd(tranger, topic, FALSE);
-    if(fd < 0) {
-        // Error already logged
-        return -1;
-    }
-    uint64_t offset = lseek64(fd, 0, SEEK_END);
-    if(offset != ((md_record->__rowid__-1) * sizeof(md_record_t))) {
-        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "topic_idx.md corrupted",
-            "topic",        "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
-            "offset",       "%lu", (unsigned long)offset,
-            "rowid",        "%lu", (unsigned long)md_record->__rowid__,
-            NULL
-        );
-        return -1;
-    }
-
-    int ln = write( // write new (record content)
-        fd,
-        md_record,
-        sizeof(md_record_t)
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/%s",
+        kw_get_str(gobj, topic, "directory", "", KW_REQUIRED),
+        "topic_idx.md"
     );
-    if(ln != sizeof(md_record_t)) {
-        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+    int fd;
+    if(master) {
+        fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
+    } else {
+        fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+    }
+    if(fd<0) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot save record metadata, write FAILED",
-            "topic",        "%s", tranger_topic_name(topic),
+            "msg",          "%s", "Cannot open TimeRanger topic_idx fd",
+            "path",         "%s", full_path,
             "errno",        "%s", strerror(errno),
             NULL
         );
         return -1;
     }
+    json_object_set_new(topic, "topic_idx_fd", json_integer(fd));
+
+    /*
+     *  Get last rowid
+     */
+    uint64_t offset = lseek64(fd, 0, SEEK_END);
+    if(offset < 0) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "topic_idx.md corrupted",
+            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "offset",       "%lu", (unsigned long)offset,
+            NULL
+        );
+        return -1;
+    }
+    uint64_t last_rowid = offset/sizeof(md2_record_t);
+    json_object_set_new(
+        topic,
+        "__last_rowid__",
+        json_integer((json_int_t)last_rowid)
+    );
 
     return 0;
 }
 
 /***************************************************************************
-
+ *
  ***************************************************************************/
-PRIVATE json_int_t get_last_rowid(json_t *tranger, json_t *topic, int fd)
+PRIVATE int close_topic_idx_fd(json_t *tranger, json_t *topic)
 {
-    uint64_t offset = lseek64(fd, 0, SEEK_END);
-    if(offset < 0) {
-        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-            "gobj",         "%s", __FILE__,
+    int fd = (int)kw_get_int(0, topic, "topic_idx_fd", -1, KW_REQUIRED);
+    if(fd >= 0) {
+        close(fd);
+        json_object_set_new(topic, "topic_idx_fd", json_integer(-1));
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int get_topic_idx_fd(
+    json_t *tranger,
+    json_t *topic
+)
+{
+    int fd = (int)kw_get_int(0, topic, "topic_idx_fd", -1, KW_REQUIRED);
+    if(fd<0) {
+        system_flag2_t system_flag = kw_get_int(0, topic, "system_flag", 0, KW_REQUIRED);
+        if((system_flag & sf2_no_md_disk)) {
+            return -1;
+        }
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "topic_idx.md corrupted",
-            "topic",        "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
-            "offset",       "%lu", (unsigned long)offset,
+            "msg",          "%s", "NO topic_idx_fd",
             NULL
         );
-        return 0;
     }
-    return offset/sizeof(md_record_t);
+
+    return fd;
 }
 
 /***************************************************************************
@@ -731,22 +743,23 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
     BOOL verbose
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     /*-------------------------------*
      *      Some checks
      *-------------------------------*/
     if(empty_string(topic_name)) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "database",     "%s", kw_get_str(tranger, "directory", "", KW_REQUIRED),
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "msg",          "%s", "tranger_open_topic(): What topic name?",
             NULL
         );
         return 0;
     }
 
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
         return topic;
     }
@@ -759,18 +772,17 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
         directory,
         sizeof(directory),
         "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
     if(!is_directory(directory)) {
         if(verbose) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "tranger_open_topic(): directory not found",
-                "directory",    "%s", kw_get_str(tranger, "directory", "", KW_REQUIRED),
+                "directory",    "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
                 NULL
             );
         }
@@ -787,7 +799,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
         gobj,
         directory,
         "topic_desc.json",
-        kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+        kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
         0,
         FALSE, // exclusive
         FALSE // silence
@@ -797,19 +809,23 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
      *  topic_var
      */
     json_t *topic_var = load_json_from_file(
+        gobj,
         directory,
-        "topic_var.json"
+        "topic_var.json",
+        0
     );
 
-    kw_update_except(topic, topic_var, topic_fieds); // data from topic disk are inmutable!
+    kw_update_except(gobj, topic, topic_var, topic_fields); // data from topic disk are inmutable!
     json_decref(topic_var);
 
     /*
      *  topic_cols
      */
     json_t *topic_cols = load_json_from_file(
+        gobj,
         directory,
-        "topic_cols.json"
+        "topic_cols.json",
+        0
     );
     json_object_set_new(
         topic,
@@ -818,77 +834,34 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
     );
 
     /*
-     *  Add topic to topics
+     *  Add the topic to topics
      */
-    kw_set_subdict_value(tranger, "topics", topic_name, topic);
+    kw_set_subdict_value(gobj, tranger, "topics", topic_name, topic);
 
     /*
      *  Load volatil, defining in run-time
      */
-    kw_get_str(topic, "directory", directory, KW_CREATE);
-    kw_get_int(topic, "__last_rowid__", 0, KW_CREATE);
-    kw_get_int(topic, "topic_idx_fd", -1, KW_CREATE);
-    kw_get_dict(topic, "fd_opened_files", json_object(), KW_CREATE);
-    kw_get_dict(topic, "file_opened_files", json_object(), KW_CREATE);
-    kw_get_dict(topic, "lists", json_array(), KW_CREATE);
+    kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
+    kw_get_int(gobj, topic, "__last_rowid__", 0, KW_CREATE);
+
+    kw_get_int(gobj, topic, "topic_idx_fd", -1, KW_CREATE);
+
+    kw_get_dict(gobj, topic, "fd_opened_files", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "file_opened_files", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
 
     /*
      *  Open topic index
      */
-    system_flag_t system_flag = kw_get_int(topic, "system_flag", 0, KW_REQUIRED);
-    if(!(system_flag & sf_no_md_disk)) {
-        BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
-
-        char full_path[PATH_MAX];
-        snprintf(full_path, sizeof(full_path), "%s/%s",
-            kw_get_str(topic, "directory", "", KW_REQUIRED),
-            "topic_idx.md"
-        );
-        int fd;
-        if(master) {
-            fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
-        } else {
-            fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
-        }
-        if(fd<0) {
-            log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-                "gobj",         "%s", __FILE__,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open TimeRanger resource. open() FAILED",
-                "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
+    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    if(!(system_flag & sf2_no_md_disk)) {
+        if(open_topic_idx_fd(tranger, topic)<0) {
             json_decref(topic);
             return 0;
         }
-        json_object_set_new(topic, "topic_idx_fd", json_integer(fd));
-        json_object_set_new(
-            topic,
-            "__last_rowid__",
-            json_integer(get_last_rowid(tranger, topic, fd))
-        );
     }
 
     return topic;
-}
-
-/***************************************************************************
-   Get list of topics
- ***************************************************************************/
-PUBLIC json_t *tranger_opened_topics( // Return must be decref
-    json_t *tranger
-)
-{
-    json_t *list = json_array();
-
-    const char *topic_name; json_t *topic_desc;
-    json_object_foreach(kw_get_dict(tranger, "topics", 0, KW_REQUIRED), topic_name, topic_desc) {
-        json_array_append_new(list, json_string(topic_name));
-    }
-
-    return list;
 }
 
 /***************************************************************************
@@ -901,12 +874,13 @@ PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
     const char *topic_name
 )
 {
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(!topic) {
         topic = tranger_open_topic(tranger, topic_name, FALSE);
         if(!topic) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Cannot open topic",
@@ -926,7 +900,7 @@ PUBLIC json_int_t tranger_topic_size(
     json_t *topic
 )
 {
-    return kw_get_int(topic, "__last_rowid__", 0, KW_REQUIRED);
+    return kw_get_int(0, topic, "__last_rowid__", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -936,7 +910,7 @@ PUBLIC const char *tranger_topic_name(
     json_t *topic
 )
 {
-    return kw_get_str(topic, "topic_name", "", KW_REQUIRED);
+    return kw_get_str(0, topic, "topic_name", "", KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -947,43 +921,41 @@ PUBLIC int tranger_close_topic(
     const char *topic_name
 )
 {
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(!topic) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger_close_topic(): Topic not found",
-            "database",     "%s", kw_get_str(tranger, "directory", "", KW_REQUIRED),
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "topic",        "%s", topic_name,
             NULL
         );
         return -1;
     }
 
-    int fd = kw_get_int(topic, "topic_idx_fd", -1, KW_REQUIRED);
-    if(fd >= 0) {
-        close(fd);
-    }
+    close_topic_idx_fd(tranger, topic);
 
     const char *key;
     json_t *jn_value;
-    json_t *fd_opened_files = kw_get_dict(topic, "fd_opened_files", 0, KW_REQUIRED);
+    json_t *fd_opened_files = kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(fd_opened_files, key, jn_value) {
-        int fd = kw_get_int(fd_opened_files, key, 0, KW_REQUIRED);
+        int fd = (int)kw_get_int(gobj, fd_opened_files, key, 0, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
     }
-    json_t *file_opened_files = kw_get_dict(topic, "file_opened_files", 0, KW_REQUIRED);
+    json_t *file_opened_files = kw_get_dict(gobj, topic, "file_opened_files", 0, KW_REQUIRED);
     json_object_foreach(file_opened_files, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(file_opened_files, key, 0, KW_REQUIRED);
+        FILE *file = (FILE *)(size_t)kw_get_int(gobj, file_opened_files, key, 0, KW_REQUIRED);
         if(file) {
             fclose(file);
         }
     }
 
-    json_t *jn_topics = kw_get_dict_value(tranger, "topics", 0, KW_REQUIRED);
+    json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
 
     return 0;
@@ -1000,9 +972,9 @@ PRIVATE int close_fd_opened_files(
     const char *key;
     void *tmp;
 
-    json_t *fd_opened_files = kw_get_dict(topic, "fd_opened_files", 0, KW_REQUIRED);
+    json_t *fd_opened_files = kw_get_dict(0, topic, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach_safe(fd_opened_files, tmp, key, jn_value) {
-        int fd = kw_get_int(fd_opened_files, key, 0, KW_REQUIRED);
+        int fd = (int)kw_get_int(0, fd_opened_files, key, 0, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
@@ -1023,41 +995,14 @@ PRIVATE int close_file_opened_files(
     const char *key;
     void *tmp;
 
-    json_t *file_opened_files = kw_get_dict(topic, "file_opened_files", 0, KW_REQUIRED);
+    json_t *file_opened_files = kw_get_dict(0, topic, "file_opened_files", 0, KW_REQUIRED);
     json_object_foreach_safe(file_opened_files, tmp, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(file_opened_files, key, 0, KW_REQUIRED);
+        FILE *file = (FILE *)(size_t)kw_get_int(0, file_opened_files, key, 0, KW_REQUIRED);
         if(file) {
             fclose(file);
         }
         json_object_del(file_opened_files, key);
     }
-
-    return 0;
-}
-
-/***************************************************************************
-   Close topic opened files
- ***************************************************************************/
-PUBLIC int tranger_close_topic_opened_files(
-    json_t *tranger,
-    const char *topic_name
-)
-{
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
-    if(!topic) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "database",     "%s", kw_get_str(tranger, "directory", "", KW_REQUIRED),
-            "msg",          "%s", "tranger_close_topic(): Topic not found",
-            NULL
-        );
-        return -1;
-    }
-
-    close_fd_opened_files(topic);
-    close_file_opened_files(topic);
 
     return 0;
 }
@@ -1070,10 +1015,11 @@ PUBLIC int tranger_delete_topic(
     const char *topic_name
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Topic not found",
@@ -1093,12 +1039,12 @@ PUBLIC int tranger_delete_topic(
      */
     char directory[PATH_MAX];
     snprintf(directory, sizeof(directory), "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
     /*
-     *  Check if topic already exists
+     *  Check if the topic already exists
      */
     if(!is_directory(directory)) {
         return -1;
@@ -1123,6 +1069,8 @@ PUBLIC json_t *tranger_backup_topic(
     tranger_backup_deleting_callback_t tranger_backup_deleting_callback
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     /*
      *  Close topic
      */
@@ -1133,7 +1081,7 @@ PUBLIC json_t *tranger_backup_topic(
      *-------------------------------*/
     char directory[PATH_MAX];
     snprintf(directory, sizeof(directory), "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
@@ -1150,7 +1098,7 @@ PUBLIC json_t *tranger_backup_topic(
     char backup_directory[PATH_MAX];
     if(empty_string(backup_path)) {
         snprintf(backup_directory, sizeof(backup_directory), "%s",
-            kw_get_str(tranger, "directory", "", KW_REQUIRED)
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED)
         );
     } else {
         snprintf(backup_directory, sizeof(backup_directory), "%s",
@@ -1177,12 +1125,11 @@ PUBLIC json_t *tranger_backup_topic(
 
     if(is_directory(backup_directory)) {
         if(overwrite_backup) {
-            log_info(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Backup timeranger topic, deleting",
-                "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+                "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
                 "topic",        "%s", topic_name,
                 "path",         "%s", backup_directory,
                 NULL
@@ -1195,8 +1142,7 @@ PUBLIC json_t *tranger_backup_topic(
                 rmrdir(backup_directory);
             }
         } else {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "backup_directory EXISTS",
@@ -1223,8 +1169,7 @@ PUBLIC json_t *tranger_backup_topic(
         FALSE // silence
     );
     if(!topic_desc) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Cannot load topic_desc.json",
@@ -1237,35 +1182,37 @@ PUBLIC json_t *tranger_backup_topic(
      *  topic_cols
      */
     json_t *topic_cols = load_json_from_file(
+        gobj,
         directory,
-        "topic_cols.json"
+        "topic_cols.json",
+        0
     );
 
     /*
      *  topic_var
      */
     json_t *jn_topic_var = load_json_from_file(
+        gobj,
         directory,
-        "topic_var.json"
+        "topic_var.json",
+        0
     );
 
     /*-------------------------------*
      *      Move!
      *-------------------------------*/
-    log_info(0,
-        "gobj",         "%s", __FILE__,
+    gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "Backup timeranger topic, moving",
-        "database",     "%s", kw_get_str(tranger, "database", "", KW_REQUIRED),
+        "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
         "topic",        "%s", topic_name,
         "src",          "%s", directory,
         "dst",          "%s", backup_directory,
         NULL
     );
     if(rename(directory, backup_directory)<0) {
-        gobj_log_error(NULL, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "cannot backup topic",
@@ -1274,8 +1221,8 @@ PUBLIC json_t *tranger_backup_topic(
             "dst",          "%s", backup_directory,
             NULL
         );
-        JSON_DECREF(topic_desc);
-        JSON_DECREF(topic_cols);
+        JSON_DECREF(topic_desc)
+        JSON_DECREF(topic_cols)
         return 0;
     }
 
@@ -1285,17 +1232,18 @@ PUBLIC json_t *tranger_backup_topic(
     json_t *topic = tranger_create_topic(
         tranger,
         topic_name,
-        kw_get_str(topic_desc, "pkey", "", KW_REQUIRED),
-        kw_get_str(topic_desc, "tkey", "", KW_REQUIRED),
-        (system_flag_t)kw_get_int(topic_desc, "system_flag", 0, KW_REQUIRED),
+        kw_get_str(gobj, topic_desc, "pkey", "", KW_REQUIRED),
+        kw_get_str(gobj, topic_desc, "tkey", "", KW_REQUIRED),
+        (system_flag2_t)kw_get_int(gobj, topic_desc, "system_flag", 0, KW_REQUIRED),
         topic_cols,     // owned
         jn_topic_var    // owned
     );
 
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     return topic;
 }
 
+#ifdef PEPE
 /***************************************************************************
    Write topic var
  ***************************************************************************/
@@ -1306,7 +1254,7 @@ PUBLIC int tranger_write_topic_var(
 )
 {
     if(!jn_topic_var) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1316,7 +1264,7 @@ PUBLIC int tranger_write_topic_var(
         return -1;
     }
     if(!json_is_object(jn_topic_var)) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1329,7 +1277,7 @@ PUBLIC int tranger_write_topic_var(
 
     BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
     if(!master) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1360,14 +1308,14 @@ PUBLIC int tranger_write_topic_var(
 
     json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
     if(topic) {
-        kw_update_except(topic, topic_var, topic_fieds); // data from topic disk are inmutable!
+        kw_update_except(topic, topic_var, topic_fields); // data from topic disk are inmutable!
     }
 
     save_json_to_file(
         directory,
         "topic_var.json",
-        kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-        kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
         0,
         master? TRUE:FALSE, //create
         FALSE,  //only_read
@@ -1387,7 +1335,7 @@ PUBLIC int tranger_write_topic_cols(
 )
 {
     if(!jn_topic_cols) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1397,7 +1345,7 @@ PUBLIC int tranger_write_topic_cols(
         return -1;
     }
     if(!json_is_object(jn_topic_cols) && !json_is_array(jn_topic_cols)) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1410,7 +1358,7 @@ PUBLIC int tranger_write_topic_cols(
 
     BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
     if(!master) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1441,8 +1389,8 @@ PUBLIC int tranger_write_topic_cols(
     save_json_to_file(
         directory,
         "topic_cols.json",
-        kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-        kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
         0,
         master? TRUE:FALSE, //create
         FALSE,  //only_read
@@ -1528,7 +1476,7 @@ PUBLIC json_t *tranger_filter_topic_fields(
 {
     json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
     if(!cols) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1626,7 +1574,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
          *  Create (only)the new file if master
          *----------------------------------------*/
         if(!master) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1637,11 +1585,20 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
             return -1;
         }
 
-        int fp = newfile(full_path, kw_get_int(tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+        int fp = newfile(full_path, (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
             if(errno == EMFILE) {
+                log_error(0,
+                    "gobj",         "%s", __FILE__,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "path",         "%s", full_path,
+                    "msg",          "%s", "TOO MANY OPEN FILES",
+                    NULL
+                );
                 close_fd_opened_files(topic);
-                int fp = newfile(full_path, kw_get_int(tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+
+                fp = newfile(full_path, (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED), FALSE);
                 if(fp < 0) {
                     log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
                         "gobj",         "%s", __FILE__,
@@ -1675,7 +1632,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
     /*-----------------------------*
      *      Open content file
      *-----------------------------*/
-    int fd = kw_get_int(
+    int fd = (int)kw_get_int(
         kw_get_dict(topic, "fd_opened_files", 0, KW_REQUIRED),
         full_path,
         -1,
@@ -1733,7 +1690,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
     );
 
     if(access(full_path, 0)!=0) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1757,7 +1714,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
     if(!file) {
         file = fopen(full_path, "r");
         if(!file) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -1786,7 +1743,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
 /***************************************************************************
  *  Return json object with record metadata
  ***************************************************************************/
-PUBLIC json_t *tranger_md2json(md_record_t *md_record)
+PUBLIC json_t *tranger_md2json(md2_record_t *md_record)
 {
     json_t *jn_md = json_object();
     json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
@@ -1809,12 +1766,12 @@ PUBLIC int tranger_append_record(
     const char *topic_name,
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
     uint32_t user_flag,
-    md_record_t *md_record, // required
+    md2_record_t *md_record, // required
     json_t *jn_record       // owned
 )
 {
     if(!jn_record || jn_record->refcount <= 0) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1827,7 +1784,7 @@ PUBLIC int tranger_append_record(
 
     BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
     if(!master) {
-        gobj_log_error(NULL, 0,
+        log_error(LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1842,7 +1799,7 @@ PUBLIC int tranger_append_record(
 
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1902,7 +1859,7 @@ PUBLIC int tranger_append_record(
     /*--------------------------------------------*
      *  Prepare new record metadata
      *--------------------------------------------*/
-    memset(md_record, 0, sizeof(md_record_t));
+    memset(md_record, 0, sizeof(md2_record_t));
     md_record->__user_flag__ = user_flag;
     md_record->__system_flag__ = __system_flag__;
     md_record->__t__ = __t__;
@@ -1920,7 +1877,7 @@ PUBLIC int tranger_append_record(
         } else {
             if(json_is_string(jn_tval)) {
                 int offset;
-                timestamp_t timestamp; // TODO if is it a milisecond time?
+                timestamp_t timestamp; // TODO if is it a millisecond time?
                 parse_date_basic(json_string_value(jn_tval), &timestamp, &offset);
                 md_record->__tm__ = timestamp;
             } else if(json_is_number(jn_tval)) {
@@ -1944,7 +1901,7 @@ PUBLIC int tranger_append_record(
             {
                 const char *key_value = kw_get_str(jn_record, pkey, 0, 0);
                 if(!key_value) {
-                    gobj_log_error(NULL, 0,
+                    log_error(0,
                         "gobj",         "%s", __FILE__,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_JSON_ERROR,
@@ -1958,7 +1915,7 @@ PUBLIC int tranger_append_record(
                     return -1;
                 }
                 if(strlen(key_value) > sizeof(md_record->key.s)-1) {
-                    gobj_log_error(NULL, 0,
+                    log_error(0,
                         "gobj",         "%s", __FILE__,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2012,7 +1969,7 @@ PUBLIC int tranger_append_record(
     if(content_fp >= 0) {
         char *srecord = json_dumps(jn_record, JSON_COMPACT|JSON_ENCODE_ANY);
         if(!srecord) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON_ERROR,
@@ -2026,17 +1983,18 @@ PUBLIC int tranger_append_record(
         }
         size_t size = strlen(srecord);
 
-        gbuffer_t *gbuf = gbuffer_create(size, size, 0, 0);
+        gbuffer_t *gbuf = gbuf_create(size, size, 0, 0);
         if(!gbuf) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot append record. gbuffer_create() FAILED",
+                "msg",          "%s", "Cannot append record. gbuf_create() FAILED",
                 "topic",        "%s", topic_name,
                 NULL
             );
-            log_debug_json(0, jn_record, "Cannot append record, gbuffer_create() FAILED");
+            log_debug_json(0, jn_record, "Cannot append record, gbuf_create() FAILED");
+            jsonp_free(srecord);
             JSON_DECREF(jn_record);
             return -1;
         }
@@ -2154,21 +2112,70 @@ PUBLIC int tranger_append_record(
 }
 
 /***************************************************************************
-    Get record by rowid (by fd, for write)
+   Write new record metadata to file
  ***************************************************************************/
-PRIVATE int _get_record_for_wr(
+PRIVATE int new_record_md_to_file(
+    json_t *tranger,
+    json_t *topic,
+    md2_record_t *md_record)
+{
+    int fd = get_topic_idx_fd(tranger, topic);
+    if(fd < 0) {
+        // Error already logged
+        return -1;
+    }
+    uint64_t offset = lseek64(fd, 0, SEEK_END);
+    if(offset != ((md_record->__rowid__-1) * sizeof(md2_record_t))) {
+        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "topic_idx.md corrupted",
+            "topic",        "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
+            "offset",       "%lu", (unsigned long)offset,
+            "rowid",        "%lu", (unsigned long)md_record->__rowid__,
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln = write( // write new (record content)
+        fd,
+        md_record,
+        sizeof(md2_record_t)
+    );
+    if(ln != sizeof(md2_record_t)) {
+        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot save record metadata, write FAILED",
+            "topic",        "%s", tranger_topic_name(topic),
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+    Get md record by rowid (by fd, for write)
+ ***************************************************************************/
+PRIVATE int _get_md_record_for_wr(
     json_t *tranger,
     json_t *topic,
     uint64_t rowid,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     BOOL verbose
 )
 {
-    memset(md_record, 0, sizeof(md_record_t));
+    memset(md_record, 0, sizeof(md2_record_t));
 
     if(rowid == 0) {
         if(verbose) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2188,11 +2195,11 @@ PRIVATE int _get_record_for_wr(
 
     if(rowid > __last_rowid__) {
         if(verbose) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid greather than last_rowid",
+                "msg",          "%s", "rowid greater than last_rowid",
                 "topic",        "%s", tranger_topic_name(topic),
                 "rowid",        "%lu", (unsigned long)rowid,
                 "last_rowid",   "%lu", (unsigned long)__last_rowid__,
@@ -2202,14 +2209,14 @@ PRIVATE int _get_record_for_wr(
         return -1;
     }
 
-    int fd = get_topic_idx_fd(tranger, topic, FALSE);
+    int fd = get_topic_idx_fd(tranger, topic);
     if(fd < 0) {
         // Error already logged
         return -1;
     }
 
-    uint64_t offset = (rowid-1) * sizeof(md_record_t);
-    uint64_t offset_ = lseek64(fd, offset, SEEK_SET);
+    off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
+    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
     if(offset != offset_) {
         log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
@@ -2224,12 +2231,12 @@ PRIVATE int _get_record_for_wr(
         return -1;
     }
 
-    int ln = read(
+    size_t ln = read(
         fd,
         md_record,
-        sizeof(md_record_t)
+        sizeof(md2_record_t)
     );
-    if(ln != sizeof(md_record_t)) {
+    if(ln != sizeof(md2_record_t)) {
         log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
@@ -2243,7 +2250,7 @@ PRIVATE int _get_record_for_wr(
     }
 
     if(md_record->__rowid__ != rowid) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2262,16 +2269,15 @@ PRIVATE int _get_record_for_wr(
 /***************************************************************************
    Re-Write new record metadata to file
  ***************************************************************************/
-PRIVATE int rewrite_md_record_to_file(json_t *tranger, json_t *topic, md_record_t *md_record)
+PRIVATE int rewrite_md_record_to_file(json_t *tranger, json_t *topic, md2_record_t *md_record)
 {
-    int fd = get_topic_idx_fd(tranger, topic, FALSE);
+    int fd = get_topic_idx_fd(tranger, topic);
     if(fd < 0) {
         // Error already logged
         return -1;
     }
-    uint64_t offset = (md_record->__rowid__ - 1) * sizeof(md_record_t);
-    uint64_t offset_ = lseek64(fd, offset, SEEK_SET);
-
+    off64_t offset = (off64_t) ((md_record->__rowid__-1) * sizeof(md2_record_t));
+    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
     if(offset != offset_) {
         log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
@@ -2286,12 +2292,12 @@ PRIVATE int rewrite_md_record_to_file(json_t *tranger, json_t *topic, md_record_
         return -1;
     }
 
-    int ln = write( // write new (record content)
+    size_t ln = write( // write new (record content)
         fd,
         md_record,
-        sizeof(md_record_t)
+        sizeof(md2_record_t)
     );
-    if(ln != sizeof(md_record_t)) {
+    if(ln != sizeof(md2_record_t)) {
         log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
@@ -2318,7 +2324,7 @@ PUBLIC int tranger_delete_record(
 {
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2329,8 +2335,8 @@ PUBLIC int tranger_delete_record(
         return -1;
     }
 
-    md_record_t md_record;
-    if(_get_record_for_wr(
+    md2_record_t md_record;
+    if(_get_md_record_for_wr(
         tranger,
         topic,
         rowid,
@@ -2351,12 +2357,12 @@ PUBLIC int tranger_delete_record(
     }
 
     uint64_t __offset__ = md_record.__offset__;
-    if(lseek(fd, __offset__, SEEK_SET) != __offset__) {
-        gobj_log_error(NULL, 0,
+    if(lseek64(fd, __offset__, SEEK_SET) != __offset__) {
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot read record data. lseek() FAILED",
+            "msg",          "%s", "Cannot read record data. lseek FAILED",
             "topic",        "%s", tranger_topic_name(topic),
             "directory",    "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
             "errno",        "%s", strerror(errno),
@@ -2369,13 +2375,13 @@ PUBLIC int tranger_delete_record(
     uint64_t __t__ = md_record.__t__;
     uint64_t __size__ = md_record.__size__;
 
-    gbuffer_t *gbuf = gbuffer_create(__size__, __size__, 0, 0);
+    gbuffer_t *gbuf = gbuf_create(__size__, __size__, 0, 0);
     if(!gbuf) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "Cannot delete record content. gbuffer_create() FAILED",
+            "msg",          "%s", "Cannot delete record content. gbuf_create() FAILED",
             "topic",        "%s", tranger_topic_name(topic),
             "directory",    "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
             NULL
@@ -2384,10 +2390,10 @@ PUBLIC int tranger_delete_record(
     }
     char *p = gbuf_cur_rd_pointer(gbuf);
 
-    int ln = write(fd, p, __size__);    // blank content
+    size_t ln = write(fd, p, __size__);    // blank content
     gbuf_decref(gbuf);
     if(ln != __size__) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -2424,7 +2430,7 @@ PUBLIC int tranger_write_mark1(
 {
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2436,8 +2442,8 @@ PUBLIC int tranger_write_mark1(
         return -1;
     }
 
-    md_record_t md_record;
-    if(_get_record_for_wr(
+    md2_record_t md_record;
+    if(_get_md_record_for_wr(
         tranger,
         topic,
         rowid,
@@ -2477,7 +2483,7 @@ PUBLIC int tranger_write_user_flag(
 {
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2489,8 +2495,8 @@ PUBLIC int tranger_write_user_flag(
         return -1;
     }
 
-    md_record_t md_record;
-    if(_get_record_for_wr(
+    md2_record_t md_record;
+    if(_get_md_record_for_wr(
         tranger,
         topic,
         rowid,
@@ -2521,7 +2527,7 @@ PUBLIC int tranger_set_user_flag(
 {
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2533,8 +2539,8 @@ PUBLIC int tranger_set_user_flag(
         return -1;
     }
 
-    md_record_t md_record;
-    if(_get_record_for_wr(
+    md2_record_t md_record;
+    if(_get_md_record_for_wr(
         tranger,
         topic,
         rowid,
@@ -2574,7 +2580,7 @@ PUBLIC uint32_t tranger_read_user_flag(
 {
     json_t *topic = tranger_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2586,15 +2592,15 @@ PUBLIC uint32_t tranger_read_user_flag(
         return 0;
     }
 
-    md_record_t md_record;
-    if(_get_record_for_wr(
+    md2_record_t md_record;
+    if(_get_md_record_for_wr(
         tranger,
         topic,
         rowid,
         &md_record,
         TRUE
     )!=0) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2622,9 +2628,11 @@ PUBLIC json_t *tranger_open_list(
     json_object_update(list, jn_list);
     JSON_DECREF(jn_list);
 
+    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+
     json_t *topic = tranger_topic(tranger, kw_get_str(list, "topic_name", "", KW_REQUIRED));
     if(!topic) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2637,7 +2645,7 @@ PUBLIC json_t *tranger_open_list(
 
     json_t *match_cond = kw_get_dict(list, "match_cond", 0, KW_REQUIRED);
 
-    int trace_level = kw_get_int(tranger, "trace_level", 0, 0);
+    int trace_level = (int)kw_get_int(tranger, "trace_level", 0, 0);
 
     tranger_load_record_callback_t load_record_callback =
         (tranger_load_record_callback_t)(size_t)kw_get_int(
@@ -2664,15 +2672,18 @@ PUBLIC json_t *tranger_open_list(
      */
     json_int_t __last_rowid__ = kw_get_int(topic, "__last_rowid__", 0, KW_REQUIRED);
     if(__last_rowid__ <= 0) {
-        return list;
+        if(master) {
+            return list;
+        }
+        // HACK no "master" (tranger readonly) don't have updated __last_rowid__
     }
 
     BOOL only_md = kw_get_bool(match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(match_cond, "backward", 0, 0);
 
     BOOL end = FALSE;
-    md_record_t md_record;
-    memset(&md_record, 0, sizeof(md_record_t));
+    md2_record_t md_record;
+    memset(&md_record, 0, sizeof(md2_record_t));
     if(!backward) {
         json_int_t from_rowid = kw_get_int(match_cond, "from_rowid", 0, 0);
         if(from_rowid>0) {
@@ -2846,21 +2857,23 @@ PUBLIC int tranger_close_list(
 }
 
 /***************************************************************************
-    Get record by rowid (by FILE, for reads)
+    Get md record by rowid (by FILE, for reads)
  ***************************************************************************/
 PUBLIC int tranger_get_record(
     json_t *tranger,
     json_t *topic,
     uint64_t rowid,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     BOOL verbose
 )
 {
-    memset(md_record, 0, sizeof(md_record_t));
+    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+
+    memset(md_record, 0, sizeof(md2_record_t));
 
     if(rowid == 0) {
         if(verbose) {
-            gobj_log_error(NULL, 0,
+            log_error(0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2873,66 +2886,92 @@ PUBLIC int tranger_get_record(
         return -1;
     }
 
-    json_int_t __last_rowid__ = kw_get_int(topic, "__last_rowid__", 0, KW_REQUIRED);
-    if(__last_rowid__ <= 0) {
-        return -1;
-    }
+    uint64_t __last_rowid__ = (uint64_t)kw_get_int(topic, "__last_rowid__", 0, KW_REQUIRED);
 
-    if(rowid > __last_rowid__) {
-        if(verbose) {
-            gobj_log_error(NULL, 0,
-                "gobj",         "%s", __FILE__,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid greather than last_rowid",
-                "topic",        "%s", tranger_topic_name(topic),
-                "rowid",        "%lu", (unsigned long)rowid,
-                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-                NULL
-            );
+    // HACK no "master" (tranger readonly) don't have updated __last_rowid__
+    if(master) {
+        if(__last_rowid__ <= 0) {
+            return -1;
         }
-        return -1;
+        if(rowid > __last_rowid__) {
+            if(verbose) {
+                log_error(0,
+                    "gobj",         "%s", __FILE__,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "rowid greater than last_rowid",
+                    "topic",        "%s", tranger_topic_name(topic),
+                    "rowid",        "%lu", (unsigned long)rowid,
+                    "last_rowid",   "%lu", (unsigned long)__last_rowid__,
+                    NULL
+                );
+            }
+            return -1;
+        }
     }
 
-    int fd = get_topic_idx_fd(tranger, topic, FALSE);
-    if(fd < 0) {
-        // Error already logged
-        return -1;
-    }
-    uint64_t offset = (rowid-1) * sizeof(md_record_t);
-    uint64_t offset_ = lseek64(fd, offset, SEEK_SET);
-    if(offset != offset_) {
-        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "topic_idx.md corrupted, lseek() FAILED",
-            "topic",        "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
-            NULL
-        );
-        return -1;
-    }
+    {
+        /*----------------------------------*
+         *      topic idx by fd
+         *----------------------------------*/
+        int fd = get_topic_idx_fd(tranger, topic);
+        if(fd < 0) {
+            // Error already logged
+            return -1;
+        }
 
-    int ln = read(
-        fd,
-        md_record,
-        sizeof(md_record_t)
-    );
-    if(ln != sizeof(md_record_t)) {
-        log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot read record metadata, read FAILED",
-            "topic",        "%s", tranger_topic_name(topic),
-            "errno",        "%s", strerror(errno),
-            NULL
+        off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
+        off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+        if(offset != offset_) {
+            if(master) {
+                log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "gobj",         "%s", __FILE__,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "topic_idx.md corrupted, lseek64 FAILED",
+                    "topic",        "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
+                    NULL
+                );
+            }
+            return -1;
+        }
+
+        size_t ln = read(
+            fd,
+            md_record,
+            sizeof(md2_record_t)
         );
-        return -1;
+        if(ln != sizeof(md2_record_t)) {
+            // HACK no "master" (tranger readonly): we try to read new records
+            if(master) {
+                log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "gobj",         "%s", __FILE__,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read record metadata, read FAILED",
+                    "topic",        "%s", tranger_topic_name(topic),
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            } else {
+                if(ln != 0) {
+                    log_critical(kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+                        "gobj",         "%s", __FILE__,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "Cannot read record metadata, read FAILED",
+                        "topic",        "%s", tranger_topic_name(topic),
+                        "errno",        "%s", strerror(errno),
+                        NULL
+                    );
+                }
+            }
+            return -1;
+        }
     }
 
     if(md_record->__rowid__ != rowid) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2945,6 +2984,12 @@ PUBLIC int tranger_get_record(
         return -1;
     }
 
+    if(!master) {
+        // HACK no "master" (tranger readonly): found new records
+        if(md_record->__rowid__ > __last_rowid__) {
+            json_object_set_new(topic, "__last_rowid__", json_integer(md_record->__rowid__));
+        }
+    }
     return 0;
 }
 
@@ -2954,7 +2999,7 @@ PUBLIC int tranger_get_record(
 PUBLIC json_t *tranger_read_record_content(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     if(md_record->__system_flag__ & sf_deleted_record) {
@@ -2972,11 +3017,11 @@ PUBLIC json_t *tranger_read_record_content(
 
     uint64_t __offset__ = md_record->__offset__;
     if(fseeko64(file, __offset__, SEEK_SET)<0) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot read record data. lseek() FAILED",
+            "msg",          "%s", "Cannot read record data. fseeko64 FAILED",
             "topic",        "%s", tranger_topic_name(topic),
             "directory",    "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
             "errno",        "%s", strerror(errno),
@@ -2986,13 +3031,13 @@ PUBLIC json_t *tranger_read_record_content(
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuffer_create(md_record->__size__, md_record->__size__, 0, 0);
+    gbuffer_t *gbuf = gbuf_create(md_record->__size__, md_record->__size__, 0, 0);
     if(!gbuf) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "Cannot read record data. gbuffer_create() FAILED",
+            "msg",          "%s", "Cannot read record data. gbuf_create() FAILED",
             "topic",        "%s", tranger_topic_name(topic),
             "directory",    "%s", kw_get_str(topic, "directory", 0, KW_REQUIRED),
             NULL
@@ -3002,7 +3047,7 @@ PUBLIC json_t *tranger_read_record_content(
     char *p = gbuf_cur_rd_pointer(gbuf);
 
     if(fread(p, md_record->__size__, 1, file)<=0) {
-        gobj_log_critical(NULL, 0, // Let continue, will be a message lost
+        log_critical(0, // Let continue, will be a message lost
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -3049,7 +3094,7 @@ PUBLIC json_t *tranger_read_record_content(
         jn_record = nonlegalstring2json(p, FALSE);
         gbuf_decref(gbuf);
         if(!jn_record) {
-            gobj_log_critical(NULL, 0, // Let continue, will be a message lost
+            log_critical(0, // Let continue, will be a message lost
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -3069,13 +3114,13 @@ PUBLIC json_t *tranger_read_record_content(
 }
 
 /***************************************************************************
- *  Match record
+ *  Match md record
  ***************************************************************************/
 PUBLIC BOOL tranger_match_record(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,  // not owned
-    const md_record_t *md_record,
+    const md2_record_t *md_record,
     BOOL *end
 )
 {
@@ -3087,7 +3132,7 @@ PUBLIC BOOL tranger_match_record(
         // No conditions, match all
         return TRUE;
     }
-    md_record_t md_record_last;
+    md2_record_t md_record_last;
     tranger_last_record(tranger, topic, &md_record_last);
     uint64_t __last_rowid__ = md_record_last.__rowid__;
     uint64_t __last_t__ = md_record_last.__t__;
@@ -3462,7 +3507,7 @@ PUBLIC BOOL tranger_match_record(
 }
 
 /***************************************************************************
-    Get the first matched record
+    Get the first matched md record
     Return 0 if found. Set metadata in md_record
     Return -1 if not found
  ***************************************************************************/
@@ -3470,7 +3515,7 @@ PUBLIC int tranger_find_record(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,  // owned
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     if(!match_cond) {
@@ -3503,12 +3548,12 @@ PUBLIC int tranger_find_record(
 }
 
 /***************************************************************************
- *  Read first record
+ *  Read first md record
  ***************************************************************************/
 PUBLIC int tranger_first_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     json_int_t rowid = 1;
@@ -3523,7 +3568,7 @@ PUBLIC int tranger_first_record(
     }
 
     if(md_record->__rowid__ != 1) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3543,12 +3588,12 @@ PUBLIC int tranger_first_record(
 }
 
 /***************************************************************************
- *  Read last record
+ *  Read last md record
  ***************************************************************************/
 PUBLIC int tranger_last_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     json_int_t rowid = kw_get_int(topic, "__last_rowid__", 0, KW_REQUIRED);
@@ -3563,7 +3608,7 @@ PUBLIC int tranger_last_record(
     }
 
     if(md_record->__rowid__ != rowid) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3584,12 +3629,12 @@ PUBLIC int tranger_last_record(
 }
 
 /***************************************************************************
- *  Read next record
+ *  Read next md record
  ***************************************************************************/
 PUBLIC int tranger_next_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     json_int_t rowid = md_record->__rowid__ + 1;
@@ -3605,7 +3650,7 @@ PUBLIC int tranger_next_record(
     }
 
     if(md_record->__rowid__ != rowid) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3626,12 +3671,12 @@ PUBLIC int tranger_next_record(
 }
 
 /***************************************************************************
- *  Read prev record
+ *  Read prev md record
  ***************************************************************************/
 PUBLIC int tranger_prev_record(
     json_t *tranger,
     json_t *topic,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
     json_int_t rowid = md_record->__rowid__ - 1;
@@ -3649,7 +3694,7 @@ PUBLIC int tranger_prev_record(
     }
 
     if(md_record->__rowid__ != rowid) {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3675,7 +3720,7 @@ PUBLIC int tranger_prev_record(
 PUBLIC void print_md0_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md_record,
     char *bf,
     int bfsize
 )
@@ -3743,7 +3788,7 @@ PUBLIC void print_md0_record(
             md_record->key.s
         );
     } else {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3760,7 +3805,7 @@ PUBLIC void print_md0_record(
 PUBLIC void print_md1_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md_record,
     char *bf,
     int bfsize
 )
@@ -3840,7 +3885,7 @@ PUBLIC void print_md1_record(
             md_record->key.s
         );
     } else {
-        gobj_log_error(NULL, 0,
+        log_error(0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3857,7 +3902,7 @@ PUBLIC void print_md1_record(
 PUBLIC void print_md2_record(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md_record,
     char *bf,
     int bfsize
 )
@@ -3894,7 +3939,7 @@ PUBLIC void print_md2_record(
 PUBLIC void print_record_filename(
     json_t *tranger,
     json_t *topic,
-    const md_record_t *md_record,
+    const md2_record_t *md_record,
     char *bf,
     int bfsize
 )

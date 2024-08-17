@@ -282,6 +282,22 @@ PUBLIC json_t *kw_get_dict_value(
     kw_flag_t flag
 );
 
+PUBLIC json_t *kw_get_subdict_value(
+    hgobj gobj,
+    json_t *kw,
+    const char *path,
+    const char *key,
+    json_t *jn_default_value,  // owned
+    kw_flag_t flag
+);
+
+PUBLIC void kw_update_except(
+    hgobj gobj,
+    json_t *kw,  // not owned
+    json_t *other,  // owned
+    const char **except_keys
+);
+
 /************************************************************************
     WARNING
 
