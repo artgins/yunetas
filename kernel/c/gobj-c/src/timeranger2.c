@@ -111,7 +111,7 @@ PRIVATE int new_record_md_to_file(
 /***************************************************************************
  *  Startup TimeRanger database
  ***************************************************************************/
-PUBLIC json_t *tranger_startup(
+PUBLIC json_t *tranger2_startup(
     hgobj gobj,
     json_t *jn_tranger // owned
 )
@@ -366,7 +366,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
    Create topic if not exist. Alias create table.
    HACK IDEMPOTENT function
  ***************************************************************************/
-PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
     const char *topic_name,
     const char *pkey,
@@ -737,7 +737,7 @@ PRIVATE int get_topic_idx_fd(
 /***************************************************************************
    Open topic
  ***************************************************************************/
-PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name,
     BOOL verbose
@@ -869,7 +869,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
    Topic is opened if it's not opened.
    HACK topic can exists in disk, but it's not opened until tranger_open_topic()
  ***************************************************************************/
-PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name
 )
@@ -878,7 +878,7 @@ PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(!topic) {
-        topic = tranger_open_topic(tranger, topic_name, FALSE);
+        topic = tranger2_open_topic(tranger, topic_name, FALSE);
         if(!topic) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -896,7 +896,7 @@ PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
 /***************************************************************************
    Get topic size (number of records)
  ***************************************************************************/
-PUBLIC json_int_t tranger_topic_size(
+PUBLIC json_int_t tranger2_topic_size(
     json_t *topic
 )
 {
@@ -906,7 +906,7 @@ PUBLIC json_int_t tranger_topic_size(
 /***************************************************************************
    Return topic name of topic.
  ***************************************************************************/
-PUBLIC const char *tranger_topic_name(
+PUBLIC const char *tranger2_topic_name(
     json_t *topic
 )
 {
@@ -916,7 +916,7 @@ PUBLIC const char *tranger_topic_name(
 /***************************************************************************
    Close record topic.
  ***************************************************************************/
-PUBLIC int tranger_close_topic(
+PUBLIC int tranger2_close_topic(
     json_t *tranger,
     const char *topic_name
 )
@@ -1010,14 +1010,14 @@ PRIVATE int close_file_opened_files(
 /***************************************************************************
    Delete topic. Alias delete table.
  ***************************************************************************/
-PUBLIC int tranger_delete_topic(
+PUBLIC int tranger2_delete_topic(
     json_t *tranger,
     const char *topic_name
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
-    json_t *topic = tranger_topic(tranger, topic_name);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1032,7 +1032,7 @@ PUBLIC int tranger_delete_topic(
     /*
      *  Close topic
      */
-    tranger_close_topic(tranger, topic_name);
+    tranger2_close_topic(tranger, topic_name);
 
     /*
      *  Get directory
@@ -1060,7 +1060,7 @@ PUBLIC int tranger_delete_topic(
    If overwrite_backup is true and backup exists then it will be overwrited.
    Return the new topic
  ***************************************************************************/
-PUBLIC json_t *tranger_backup_topic(
+PUBLIC json_t *tranger2_backup_topic(
     json_t *tranger,
     const char *topic_name,
     const char *backup_path,
@@ -1074,7 +1074,7 @@ PUBLIC json_t *tranger_backup_topic(
     /*
      *  Close topic
      */
-    tranger_close_topic(tranger, topic_name);
+    tranger2_close_topic(tranger, topic_name);
 
     /*-------------------------------*
      *  Get original directory
@@ -1229,7 +1229,7 @@ PUBLIC json_t *tranger_backup_topic(
     if(!jn_topic_var) {
         jn_topic_var = json_object();
     }
-    json_t *topic = tranger_create_topic(
+    json_t *topic = tranger2_create_topic(
         tranger,
         topic_name,
         kw_get_str(gobj, topic_desc, "pkey", "", KW_REQUIRED),
@@ -1243,19 +1243,19 @@ PUBLIC json_t *tranger_backup_topic(
     return topic;
 }
 
-#ifdef PEPE
 /***************************************************************************
    Write topic var
  ***************************************************************************/
-PUBLIC int tranger_write_topic_var(
+PUBLIC int tranger2_write_topic_var(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_topic_var  // owned
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     if(!jn_topic_var) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "jn_topic_var EMPTY",
@@ -1264,8 +1264,7 @@ PUBLIC int tranger_write_topic_var(
         return -1;
     }
     if(!json_is_object(jn_topic_var)) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "jn_topic_var is NOT DICT",
@@ -1275,10 +1274,9 @@ PUBLIC int tranger_write_topic_var(
         return -1;
     }
 
-    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     if(!master) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Only master can write",
@@ -1292,13 +1290,15 @@ PUBLIC int tranger_write_topic_var(
         directory,
         sizeof(directory),
         "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
     json_t *topic_var = load_json_from_file(
+        gobj,
         directory,
-        "topic_var.json"
+        "topic_var.json",
+        0
     );
     if(!topic_var) {
         topic_var = json_object();
@@ -1306,16 +1306,17 @@ PUBLIC int tranger_write_topic_var(
     json_object_update(topic_var, jn_topic_var);
     json_decref(jn_topic_var);
 
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
-        kw_update_except(topic, topic_var, topic_fields); // data from topic disk are inmutable!
+        kw_update_except(gobj, topic, topic_var, topic_fields); // data from topic disk are inmutable!
     }
 
     save_json_to_file(
+        gobj,
         directory,
         "topic_var.json",
-        (int)kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-        (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
         0,
         master? TRUE:FALSE, //create
         FALSE,  //only_read
@@ -1328,15 +1329,16 @@ PUBLIC int tranger_write_topic_var(
 /***************************************************************************
    Write topic cols
  ***************************************************************************/
-PUBLIC int tranger_write_topic_cols(
+PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_topic_cols  // owned
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     if(!jn_topic_cols) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "jn_topic_cols EMPTY",
@@ -1345,8 +1347,7 @@ PUBLIC int tranger_write_topic_cols(
         return -1;
     }
     if(!json_is_object(jn_topic_cols) && !json_is_array(jn_topic_cols)) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "jn_topic_cols MUST BE dict or list",
@@ -1356,10 +1357,9 @@ PUBLIC int tranger_write_topic_cols(
         return -1;
     }
 
-    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     if(!master) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Only master can write",
@@ -1373,11 +1373,11 @@ PUBLIC int tranger_write_topic_cols(
         directory,
         sizeof(directory),
         "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
     );
 
-    json_t *topic = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
         json_object_set(
             topic,
@@ -1387,10 +1387,11 @@ PUBLIC int tranger_write_topic_cols(
     }
 
     save_json_to_file(
+        gobj,
         directory,
         "topic_cols.json",
-        (int)kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-        (int)kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+        (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
         0,
         master? TRUE:FALSE, //create
         FALSE,  //only_read
@@ -1403,12 +1404,14 @@ PUBLIC int tranger_write_topic_cols(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *tranger_topic_desc( // Return MUST be decref
+PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 )
 {
-    json_t *topic = tranger_topic(tranger, topic_name);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         // Error already logged
         return 0;
@@ -1423,12 +1426,13 @@ PUBLIC json_t *tranger_topic_desc( // Return MUST be decref
     };
 
     json_t *desc = kw_clone_by_path(
+        gobj,
         json_incref(topic),
         fields
     );
 
-    json_t *cols = kwid_new_list("verbose", topic, "cols");
-    json_object_set_new(desc, "cols", cols);
+    // TODO json_t *cols = kwid_new_list("verbose", topic, "cols");
+//    json_object_set_new(desc, "cols", cols);
 
     return desc;
 }
@@ -1436,70 +1440,72 @@ PUBLIC json_t *tranger_topic_desc( // Return MUST be decref
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *tranger_list_topic_desc( // Return MUST be decref
+PUBLIC json_t *tranger2_list_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 )
 {
-    json_t *topic = tranger_topic(tranger, topic_name);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         // Error already logged
         return 0;
     }
-    return kwid_new_list("verbose", topic, "cols");
+//TODO    return kwid_new_list("verbose", topic, "cols");
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *tranger_dict_topic_desc( // Return MUST be decref
+PUBLIC json_t *tranger2_dict_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 )
 {
-    json_t *topic = tranger_topic(tranger, topic_name);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         // Error already logged
         return 0;
     }
-    return kwid_new_dict("verbose", topic, "cols");
+// TODO   return kwid_new_dict("verbose", topic, "cols");
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *tranger_filter_topic_fields(
+PUBLIC json_t *tranger2_filter_topic_fields(
     json_t *tranger,
     const char *topic_name,
     json_t *kw  // owned
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *cols = tranger2_dict_topic_desc(tranger, topic_name);
     if(!cols) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic without cols",
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
     json_t *new_record = json_object();
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(kw, field, 0, 0);
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
         json_object_set(new_record, field, value);
     }
 
-    JSON_DECREF(cols);
-    JSON_DECREF(kw);
+    JSON_DECREF(cols)
+    JSON_DECREF(kw)
     return new_record;
 }
 
+#ifdef PEPE
 /***************************************************************************
  *  Get fullpath of filename in content/data level
  *  The directory will be create if it's master

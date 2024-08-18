@@ -33,6 +33,8 @@ foreach(test ${SRCS})
         #util
         bfd     # to stacktrace
     )
+    target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()

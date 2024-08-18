@@ -253,7 +253,7 @@ PUBLIC int init_backtrace_with_bfd(const char *program)
         bfd_init();
         initialized = TRUE;
     }
-    snprintf(program_name, sizeof(program_name), "%s", program);
+    snprintf(program_name, sizeof(program_name), "%s", program?program:"");
     return 0;
 }
 
