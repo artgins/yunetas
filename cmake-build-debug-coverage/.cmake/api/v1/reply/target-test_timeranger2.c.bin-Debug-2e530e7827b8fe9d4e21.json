@@ -1,0 +1,281 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "tests/c/timeranger2/test_timeranger2.c.bin"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"add_link_options",
+			"include",
+			"target_link_options",
+			"target_link_libraries",
+			"add_compile_options",
+			"add_definitions",
+			"include_directories"
+		],
+		"files" : 
+		[
+			"tests/c/timeranger2/CMakeLists.txt",
+			"tools/cmake/project.cmake",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 20,
+				"parent" : 0
+			},
+			{
+				"file" : 2
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 5,
+				"parent" : 2
+			},
+			{
+				"file" : 1,
+				"parent" : 3
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 24,
+				"parent" : 4
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 36,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 22,
+				"parent" : 0
+			},
+			{
+				"command" : 5,
+				"file" : 1,
+				"line" : 23,
+				"parent" : 4
+			},
+			{
+				"command" : 6,
+				"file" : 1,
+				"line" : 21,
+				"parent" : 4
+			},
+			{
+				"command" : 6,
+				"file" : 1,
+				"line" : 15,
+				"parent" : 4
+			},
+			{
+				"command" : 6,
+				"file" : 1,
+				"line" : 14,
+				"parent" : 4
+			},
+			{
+				"command" : 7,
+				"file" : 1,
+				"line" : 17,
+				"parent" : 4
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "--coverage -g -fdiagnostics-color=always"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-std=c99"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-Wall"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-Wextra"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-g3"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-fno-pie"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-fno-stack-protector"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-Wno-unused-parameter"
+				},
+				{
+					"backtrace" : 8,
+					"fragment" : "-fPIC"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 9,
+					"define" : "DEBUG"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "_FILE_OFFSET_BITS=64"
+				},
+				{
+					"backtrace" : 11,
+					"define" : "_GNU_SOURCE"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "_LARGEFILE_SOURCE"
+				},
+				{
+					"define" : "test_timeranger2_c_bin_EXPORTS"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 12,
+					"path" : "/yuneta/development/outputs/include"
+				}
+			],
+			"language" : "C",
+			"sourceIndexes" : 
+			[
+				0
+			]
+		}
+	],
+	"id" : "test_timeranger2.c.bin::@5a678e5cf650364d635f",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "--coverage -g",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "-Wl,--export-dynamic -rdynamic",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "-no-pie",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "-Wl,-Map=yunetas.map",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "-Wl,-rpath,/yuneta/development/outputs/lib",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/libcriterion.so",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/libyunetas-c_prot.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/libyunetas-core-linux.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/libyunetas-gobj.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/libjansson.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "/yuneta/development/outputs/lib/liburing.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "-lm",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "-luuid",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 7,
+				"fragment" : "-lbfd",
+				"role" : "libraries"
+			}
+		],
+		"language" : "C"
+	},
+	"name" : "test_timeranger2.c.bin",
+	"nameOnDisk" : "test_timeranger2.c.bin",
+	"paths" : 
+	{
+		"build" : "tests/c/timeranger2",
+		"source" : "tests/c/timeranger2"
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "tests/c/timeranger2/test_timeranger2.c",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "EXECUTABLE"
+}

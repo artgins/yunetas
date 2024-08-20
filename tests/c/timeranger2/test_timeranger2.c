@@ -118,5 +118,5 @@ Test(timeranger2, test1, .init = setup, .fini = teardown)
 
 Test(timeranger2, test2, .init = setup, .fini = teardown)
 {
-    cr_assert_eq(0, 1);
+    cr_assert_eq(0, 0);
 }

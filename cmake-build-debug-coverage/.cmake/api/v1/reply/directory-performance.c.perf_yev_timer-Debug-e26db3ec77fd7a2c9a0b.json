@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"performance/c/perf_yev_timer/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 61,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"performance/c/perf_yev_timer/perf_yev_timer"
+			],
+			"targetId" : "perf_yev_timer::@b8badb94d9de73077a27",
+			"targetIndex" : 1,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "perf_yev_timer::@b8badb94d9de73077a27",
+				"index" : 1
+			},
+			"destination" : "/yuneta/development/outputs/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "performance/c/perf_yev_timer",
+		"source" : "performance/c/perf_yev_timer"
+	}
+}

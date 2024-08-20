@@ -1,0 +1,77 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/root-linux/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 40,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 42,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/include",
+			"paths" : 
+			[
+				"kernel/c/root-linux/src/c_linux_yuno.h",
+				"kernel/c/root-linux/src/c_timer.h",
+				"kernel/c/root-linux/src/c_linux_transport.h",
+				"kernel/c/root-linux/src/c_linux_uart.h",
+				"kernel/c/root-linux/src/yunetas_environment.h",
+				"kernel/c/root-linux/src/yunetas_ev_loop.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/lib",
+			"paths" : 
+			[
+				"kernel/c/root-linux/libyunetas-core-linux.a"
+			],
+			"targetId" : "yunetas-core-linux::@14ba5b28d30b66a226f8",
+			"targetIndex" : 6,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-core-linux::@14ba5b28d30b66a226f8",
+				"index" : 6
+			},
+			"destination" : "/yuneta/development/outputs/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/root-linux",
+		"source" : "kernel/c/root-linux"
+	}
+}

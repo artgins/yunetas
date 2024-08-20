@@ -1,0 +1,76 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/root-esp32/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 47,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 49,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/include",
+			"paths" : 
+			[
+				"kernel/c/root-esp32/components/esp_yuneta/src/c_esp_ethernet.h",
+				"kernel/c/root-esp32/components/esp_yuneta/src/c_esp_transport.h",
+				"kernel/c/root-esp32/components/esp_yuneta/src/c_esp_uart.h",
+				"kernel/c/root-esp32/components/esp_yuneta/src/c_esp_wifi.h",
+				"kernel/c/root-esp32/components/esp_yuneta/src/c_esp_yuno.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/lib",
+			"paths" : 
+			[
+				"kernel/c/root-esp32/libyunetas-esp32.a"
+			],
+			"targetId" : "yunetas-esp32::@446c36cdf5c7f7e26a08",
+			"targetIndex" : 7,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-esp32::@446c36cdf5c7f7e26a08",
+				"index" : 7
+			},
+			"destination" : "/yuneta/development/outputs/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/root-esp32",
+		"source" : "kernel/c/root-esp32"
+	}
+}
