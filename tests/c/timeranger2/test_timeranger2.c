@@ -106,17 +106,17 @@ void setup(void)
 void teardown(void)
 {
 //    tranger2_shutdown(tr);
-    json_decref(tr);
+    JSON_DECREF(tr);
     gobj_shutdown();
     gobj_end();
 }
 
-Test(timeranger2, test1, .init = setup, .fini = teardown)
+Test(timeranger2, startup, .init = setup)
 {
-    cr_assert_eq(0, 0);
+    cr_assert_not_null(tr);
 }
 
-Test(timeranger2, test2, .init = setup, .fini = teardown)
+Test(timeranger2, shutdown, .fini = teardown)
 {
-    cr_assert_eq(0, 0);
+    cr_assert_null(tr);
 }
