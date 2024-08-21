@@ -44,9 +44,6 @@ git clone https://github.com/openssl/openssl.git
 echo "extrae pcre2"
 git clone https://github.com/PCRE2Project/pcre2.git
 
-echo "extrae criterion"
-git clone https://github.com/Snaipe/Criterion.git
-
 echo "extrae libjwt"
 git clone https://github.com/benmcollins/libjwt.git
 

@@ -109,23 +109,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   criterion
-#------------------------------------------
-echo "===================== CRITERION ======================="
-cd build/Criterion
-
-git checkout "$TAG_CRITERION"
-
-meson setup \
-    --prefix=/yuneta/development/outputs \
-    --libdir=/yuneta/development/outputs/lib \
-    --default-library=static \
-    build
-ninja -C build install
-cd ../..
-
-
-#------------------------------------------
 #   libjwt
 #------------------------------------------
 echo "===================== LIBJWT ======================="
