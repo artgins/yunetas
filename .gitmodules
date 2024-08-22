@@ -11,6 +11,3 @@
 [submodule "tools/web-skeleton3"]
 	path = tools/web-skeleton3
 	url = https://github.com/artgins/web-skeleton3.git
-[submodule "yunos/gui_yunetas.js"]
-	path = yunos/gui_yunetas.js
-	url = https://github.com/artgins/gui_yunetas.js.git
