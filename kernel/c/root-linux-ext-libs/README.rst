@@ -19,7 +19,7 @@ Utilities used by Yunetas:
 
 The external libraries will be integrated in the yuneta kernel as static libraries.
 
-To avoid conflicts with other versions of libuv and jannson installed in your host,
+To avoid conflicts with other versions of libuv and jansson installed in your host,
 the libraries will be deployed in ``/yuneta/development/outputs/lib``
 and the include files in ``/yuneta/development/outputs/include``.
 

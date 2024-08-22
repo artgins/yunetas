@@ -31,6 +31,21 @@ Versions in [C](https://en.wikipedia.org/wiki/C_(programming_language)), [Python
 
 ## Documentation
 
+Yunetas uses the [Kconfiglib](https://github.com/ulfalizer/Kconfiglib) implementation of [Kconfig](https://docs.kernel.org/kbuild/kconfig-language.html)
+
+Install with::
+
+    pipx install kconfiglib
+
+After that, you must have the next command in your console:
+
+    menuconfig
+
+Go to the project folder root and execute to build firstly the .config of project.
+
+    cd /yuneta/development/yunetas
+    menuconfig
+
 For more details, see [doc.yuneta.io](https://doc.yuneta.io) 
 
 [pypi-badge]: https://img.shields.io/pypi/v/yunetas

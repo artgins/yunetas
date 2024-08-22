@@ -69,6 +69,22 @@ On Linux:
 
 :::{tab-item} With `conda`
 
+
+Steps to install and create a virtual environment:
+- Install [conda]:
+
+    ``` shell
+    mkdir -p ~/miniconda3
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+    bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+    rm -rf ~/miniconda3/miniconda.sh
+    ~/miniconda3/bin/conda init bash
+    ```
+
+- **Now you must close and re-open your current shell**:
+    ``` shell
+    exit # exit and RE-open bash to continue !!
+    ```
 - Add conda-forge channel:
     ``` shell
     conda config --add channels conda-forge
@@ -104,28 +120,36 @@ Here is a reference to  {ref}`python-packages`
 
 ## Clone
 
-Clone with submodules::
+Clone Yunetas with submodules:
+
+Build your project directory:
 
     cd ~/yunetaproject
 
+Get the current version of yunetas:
+
     git clone --recurse-submodules https://github.com/artgins/yunetas.git
+
+Or Get some version of yunetas:
+
+    git clone -b 7.0.0a0 --recurse-submodules https://github.com/artgins/yunetas.git yunetas-7.0.0a0
+
+Go to the yunetas directory in your project and activate:
 
     cd ~/yunetaproject/yunetas
     source yunetas-env.sh
 
 
-    git clone -b 7.0.0a0 --recurse-submodules https://github.com/artgins/yunetas.git yunetas-7.0.0a0
-
 ## Install additional Python dependencies
 
-Install additional Python dependencies::
+Install additional Python dependencies:
 
     pip install -r ~/yunetaproject/yunetas/scripts/requirements.txt
 
 ## Configure .bashrc
 
 Next times to activate yunetas environment,
-(you can add these lines to ``~/.bashrc`` ::
+(you can add these lines to ``~/.bashrc`` :
 
     source ~/yunetaproject/.yuneta/bin/activate
     cd ~/yunetaproject/yunetas
@@ -168,3 +192,7 @@ libraries and binaries is ``/yuneta/development/outputs/``
 [pipx]:     https://pipx.pypa.io/stable/installation/
 [yunetas]:  https://pypi.org/project/yunetas/
 
+[sphinx]:   https://www.sphinx-doc.org/
+[venv]:     https://docs.python.org/3/library/venv.html
+[conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
+[sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/
