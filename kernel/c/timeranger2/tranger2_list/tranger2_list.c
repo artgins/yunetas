@@ -626,6 +626,7 @@ PRIVATE BOOL list_recursive_topic_cb(
 PRIVATE int list_recursive_topics(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -688,6 +689,7 @@ PRIVATE BOOL search_topic_cb(
 PRIVATE int search_topics(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -724,6 +726,7 @@ PRIVATE BOOL search_by_databases_cb(
 PRIVATE int search_by_databases(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         "__timeranger__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -765,6 +768,7 @@ PRIVATE int search_by_paths(list_params_t *list_params)
     }
 
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         list_params->arguments->database,
         WD_MATCH_DIRECTORY,
@@ -782,9 +786,10 @@ PRIVATE int list_recursive_topic_messages(list_params_t *list_params)
 {
     char path_tranger[PATH_MAX];
 
-    build_path2(path_tranger, sizeof(path_tranger),
+    build_path(path_tranger, sizeof(path_tranger),
         list_params->arguments->path,
-        list_params->arguments->database
+        list_params->arguments->database,
+        NULL
     );
 
     if(!file_exists(path_tranger, "__timeranger__.json")) {
