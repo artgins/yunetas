@@ -2,15 +2,21 @@
 #   Set Yunetas environment
 #
 
-name=$(basename "$0")
+if [[ "$0" == -* ]]; then
+    name="conda"
+else
+    name=$(basename "$0")
+fi
+
 if [ "X$name" "==" "Xyunetas-env.sh" ]; then
     echo "Source this file (do NOT execute it!) to set the Yunetas Kernel environment."
-    return 1
+    echo "Usage: source yunetas-env.sh"
+    exit 1
 fi
 
 if [ ! -f "./YUNETA_VERSION" ]; then
     echo "Source this file must be executed inside yunetas directory."
-    return 1
+    exit 1
 fi
 
 # You can further customize your environment by creating a bash script called
