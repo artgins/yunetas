@@ -72,7 +72,7 @@ Folder tests
 
 Tests.
 
-C test is using Criterion.
+C test is using Criterion. YET NOT
 
 Folder tools
 ------------
