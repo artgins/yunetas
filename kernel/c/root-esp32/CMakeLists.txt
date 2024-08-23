@@ -24,24 +24,24 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set (SRCS
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_ethernet.c
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_transport.c
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_uart.c
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_wifi.c
-#    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_yuno.c
-#    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_timer.c
+    components/esp_yuneta/src/c_esp_ethernet.c
+    components/esp_yuneta/src/c_esp_transport.c
+    components/esp_yuneta/src/c_esp_uart.c
+    components/esp_yuneta/src/c_esp_wifi.c
+#    components/esp_yuneta/src/c_esp_yuno.c
+#    components/esp_yuneta/src/c_timer.c
 
-#    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_c_prot/src/c_prot_http_cli.c
-#    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_c_prot/src/c_prot_modbus_master.c
+#    components/esp_c_prot/src/c_prot_http_cli.c
+#    components/esp_c_prot/src/c_prot_modbus_master.c
 )
 
 
 set (HDRS
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_ethernet.h
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_transport.h
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_uart.h
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_wifi.h
-    /yuneta/development/yunetas/kernel/c/root-esp32/components/esp_yuneta/src/c_esp_yuno.h
+    components/esp_yuneta/src/c_esp_ethernet.h
+    components/esp_yuneta/src/c_esp_transport.h
+    components/esp_yuneta/src/c_esp_uart.h
+    components/esp_yuneta/src/c_esp_wifi.h
+    components/esp_yuneta/src/c_esp_yuno.h
 )
 
 
