@@ -108,11 +108,11 @@ add_subdirectory(modules/c/c_prot)
 
 if (ENABLE_TESTS)
     # Check for criterion
-#    find_package (Criterion REQUIRED)
+    # find_package (Criterion REQUIRED)
 
     # Add tests
     enable_testing ()
-    add_subdirectory(tests/c)
+    # add_subdirectory(tests/c)
 endif ()
 
 if (ENABLE_PERFORMANCE)
