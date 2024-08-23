@@ -13,9 +13,17 @@ TAG_LIBURING="liburing-2.5"
 TAG_MBEDTLS="v3.5.2"
 TAG_OPENSSL="openssl-3.2.1"
 TAG_PCRE2="pcre2-10.43"
-TAG_CRITERION="v2.4.2"
 TAG_LIBJWT="v1.16.0"
 export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in install-libs.sh
+
+if [ -n "$YUNETAS_BASE" ]; then
+    YUNETAS_BASE_DIR="$YUNETAS_BASE"
+else
+    YUNETAS_BASE_DIR="/yuneta/development/yunetas"
+fi
+
+PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
+YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs"
 
 #------------------------------------------
 #   Jansson
@@ -27,7 +35,7 @@ cd build
 
 git checkout "$TAG_JANSSON"
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs -DJANSSON_BUILD_DOCS=OFF ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
 make
 make install
 cd ..
@@ -41,7 +49,7 @@ cd build/liburing
 
 git checkout "$TAG_LIBURING"
 
-./configure --prefix=/yuneta/development/outputs
+./configure --prefix="${YUNETA_INSTALL_PREFIX}"
 make
 make install
 cd ../..
@@ -56,7 +64,7 @@ cd build
 
 git checkout "$TAG_MBEDTLS"
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
   -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
 make
 make install
@@ -72,7 +80,7 @@ cd build/openssl
 git checkout "$TAG_OPENSSL"
 
 ./config \
-    --prefix=/yuneta/development/outputs \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
     --openssldir=/yuneta/bin/ssl3 \
     --libdir=lib \
     -fPIC \
@@ -94,7 +102,7 @@ git checkout "$TAG_PCRE2"
 
 mkdir -p build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_STATIC_LIBS=ON \
     -DBUILD_SHARED_LIBS=OFF \
     -DPCRE2_BUILD_PCRE2_16=ON \
@@ -118,9 +126,9 @@ cd build
 
 git checkout "$TAG_LIBJWT"
 
-CFLAGS="-I/yuneta/development/outputs/include ${CFLAGS}"
+CFLAGS="-I${YUNETA_INSTALL_PREFIX}/include ${CFLAGS}"
 cmake -G "Ninja" \
-    -DCMAKE_INSTALL_PREFIX:PATH=/yuneta/development/outputs \
+    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_EXAMPLES=OFF \
     ..
 
