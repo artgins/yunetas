@@ -93,7 +93,9 @@ Steps to install and create a virtual environment:
 - Create the virtual environment `conda_yunetas` and activate:
     ``` shell
     conda create -y -n conda_yunetas pip
-    conda activate conda_yunetas
+    conda config --set auto_activate_base false
+    echo 'conda activate conda_yunetas' >> ~/.bashrc
+    source ~/.bashrc
     ```
 :::
 
@@ -136,7 +138,7 @@ Or Get some version of yunetas:
 
 Go to the yunetas directory in your project and activate:
 
-    cd ~/yunetaproject/yunetas
+    cd ./yunetas
     source yunetas-env.sh
 
 
