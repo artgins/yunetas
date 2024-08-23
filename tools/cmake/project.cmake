@@ -5,7 +5,31 @@ include(CheckSymbolExists)
 
 set (CMAKE_ENABLE_EXPORTS TRUE)
 
-set(CMAKE_INSTALL_PREFIX /yuneta/development/outputs)
+#--------------------------------------------------#
+#   Check YUNETAS_BASE_DIR
+#--------------------------------------------------#
+if("${YUNETAS_BASE_DIR}" STREQUAL "")
+    message(FATAL_ERROR "YUNETAS_BASE_DIR is empty. Define it in environment.")
+endif()
+
+#--------------------------------------------------#
+#   Get the parent of YUNETAS_BASE
+#   where the project code can be
+#   and where the output of yunetas is installed
+#--------------------------------------------------#
+get_filename_component(YUNETAS_PARENT_BASE_DIR "${YUNETAS_BASE_DIR}" DIRECTORY)
+
+#----------------------------------------#
+#   Add tools/cmake to the module path
+#----------------------------------------#
+list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE_DIR}/tools/cmake")
+
+#----------------------------------------#
+#   Add system prefix and install prefix
+#   In `outputs` of parent
+#----------------------------------------#
+list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
+set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
 
 set(INC_DEST_DIR ${CMAKE_INSTALL_PREFIX}/include)
 set(LIB_DEST_DIR ${CMAKE_INSTALL_PREFIX}/lib)
@@ -14,8 +38,8 @@ set(BIN_DEST_DIR ${CMAKE_INSTALL_PREFIX}/bin)
 add_definitions(-D_GNU_SOURCE)
 add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
 
-include_directories(/yuneta/development/outputs/include)
-set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /yuneta/development/outputs/lib)
+include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
+set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} "${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)

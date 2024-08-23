@@ -2,12 +2,19 @@
 #       CMake
 ##################################################################
 cmake_minimum_required(VERSION 3.5)
-include(/yuneta/development/yunetas/tools/cmake/project.cmake)
 project(yunetas C)
 
-# Add tools/cmake to the module path
-list(APPEND CMAKE_MODULE_PATH "/yuneta/development/yunetas/tools/cmake")
-list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/yuneta/development/outputs")
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE_DIR $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE_DIR "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
 #-------------------------------#
 #       Options
@@ -15,13 +22,12 @@ list(APPEND CMAKE_SYSTEM_PREFIX_PATH "/yuneta/development/outputs")
 option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
 
-
 #-----------------------------------------------------#
 #   Check if not exist .config
 #-----------------------------------------------------#
 # Specify the path to the .config file
 set(CONFIG_FILE "${CMAKE_SOURCE_DIR}/.config")
-set(KCONFIG_COMMAND "/usr/bin/kconfig-conf --alldefconfig Kconfig")
+set(KCONFIG_COMMAND "menuconfig")
 
 if(NOT EXISTS ${CONFIG_FILE})
     # The .config file does not exist

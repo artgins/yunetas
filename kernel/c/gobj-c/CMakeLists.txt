@@ -2,8 +2,19 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-include(/yuneta/development/yunetas/tools/cmake/project.cmake)
 project(yunetas-gobj C)
+
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE_DIR $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE_DIR "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source
