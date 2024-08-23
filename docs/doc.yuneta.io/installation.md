@@ -95,6 +95,7 @@ Steps to install and create a virtual environment:
     conda create -y -n conda_yunetas pip
     conda config --set auto_activate_base false
     echo 'conda activate conda_yunetas' >> ~/.bashrc
+    echo '' >> ~/.bashrc
     source ~/.bashrc
     ```
 :::
@@ -124,9 +125,10 @@ Here is a reference to  {ref}`python-packages`
 
 Clone Yunetas with submodules:
 
-Build your project directory:
+Build your own project directory:
 
-    cd ~/yunetaproject
+    mkdir ~/yunetaprojects 
+    cd ~/yunetaprojects
 
 Get the current version of yunetas:
 
@@ -146,15 +148,16 @@ Go to the yunetas directory in your project and activate:
 
 Install additional Python dependencies:
 
-    pip install -r ~/yunetaproject/yunetas/scripts/requirements.txt
+    cd ./scripts
+    pip install -r requirements.txt
 
 ## Configure .bashrc
 
-Next times to activate yunetas environment,
+Next times, to activate yunetas environment,
 (you can add these lines to ``~/.bashrc`` :
 
-    source ~/yunetaproject/.yuneta/bin/activate
-    cd ~/yunetaproject/yunetas
+    # edit: "vim ~/.bashrc" and add next lines: 
+    cd ~/yunetaprojects/yunetas
     source yunetas-env.sh
 
 ## Configuring (Kconfig)
@@ -162,17 +165,16 @@ Next times to activate yunetas environment,
 Configuration options are defined in ``Kconfig`` file.
 The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
 
-You can use any of this utilities to edit the Kconfig file:
+Use this utility to edit the Kconfig file:
 
-     - kconfig-conf Kconfig
-     - kconfig-mconf Kconfig
-     - kconfig-nconf Kconfig
-     - kconfig-qconf Kconfig
+    cd ~/yunetaprojects/yunetas
+    menuconfig
 
 ## Compiling and Installing
 
 To build and install, with debug and tests::
 
+    cd ~/yunetaprojects/yunetas
     mkdir build && cd build
     cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
     ninja

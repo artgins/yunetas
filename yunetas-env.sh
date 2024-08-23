@@ -11,12 +11,12 @@ fi
 if [ "X$name" "==" "Xyunetas-env.sh" ]; then
     echo "Source this file (do NOT execute it!) to set the Yunetas Kernel environment."
     echo "Usage: source yunetas-env.sh"
-    exit 1
+    return 1
 fi
 
 if [ ! -f "./YUNETA_VERSION" ]; then
     echo "Source this file must be executed inside yunetas directory."
-    exit 1
+    return 1
 fi
 
 # You can further customize your environment by creating a bash script called
