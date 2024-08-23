@@ -119,8 +119,6 @@ Here is a reference to  {ref}`python-packages`
     pip install "typer[all]"
     ```
 
-
-
 ## Clone
 
 Clone Yunetas with submodules:
@@ -170,12 +168,15 @@ Use this utility to edit the Kconfig file:
     cd ~/yunetaprojects/yunetas
     menuconfig
 
+> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
+
 ## Compiling and Installing
 
 To build and install, with debug and tests::
 
     cd ~/yunetaprojects/yunetas
-    mkdir build && cd build
+    mkdir build 
+    cd build
     cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
     ninja
     ninja install
