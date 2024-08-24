@@ -3,6 +3,11 @@
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
 if [ -n "$YUNETAS_BASE" ]; then
     YUNETAS_BASE_DIR="$YUNETAS_BASE"
 else

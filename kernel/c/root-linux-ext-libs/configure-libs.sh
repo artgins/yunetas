@@ -16,6 +16,11 @@ TAG_PCRE2="pcre2-10.43"
 TAG_LIBJWT="v1.16.0"
 export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in install-libs.sh
 
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
 if [ -n "$YUNETAS_BASE" ]; then
     YUNETAS_BASE_DIR="$YUNETAS_BASE"
 else
