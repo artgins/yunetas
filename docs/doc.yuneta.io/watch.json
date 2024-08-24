@@ -3,7 +3,7 @@
         "Fs.info": false,
         "Watchfs.kw": {
             "info": false,
-            "command":"make html",
+            "command":"make html; ./deploy.sh",
             "path":".",
             "recursive":true,
             "patterns":".*\\.py$;.*\\.mako$;.*\\.js$;.*\\.css$;.*\\.scss$;.*\\.rst$;.*\\.json$;.*\\.md$;",

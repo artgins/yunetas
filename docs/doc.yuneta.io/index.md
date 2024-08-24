@@ -43,6 +43,7 @@ Here is a reference to  {ref}`python-packages`
 :caption: Documentation
 
 installation
+activating
 CHANGELOG
 ```
 

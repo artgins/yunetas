@@ -136,9 +136,11 @@ Or Get some version of yunetas:
 
     git clone -b 7.0.0a0 --recurse-submodules https://github.com/artgins/yunetas.git yunetas-7.0.0a0
 
+## Activating yunetas
+
 Go to the yunetas directory in your project and activate:
 
-    cd ./yunetas
+    cd ~/yunetaprojects/yunetas
     source yunetas-env.sh
 
 
@@ -157,6 +159,14 @@ Next times, to activate yunetas environment,
     # edit: "vim ~/.bashrc" and add next lines: 
     cd ~/yunetaprojects/yunetas
     source yunetas-env.sh
+
+## Configure .yunetasrc
+
+The script source `yunetas-env.sh` also sources the file 
+
+    ~/.yunetasrc
+
+where you can place your own scripts.
 
 ## Configuring (Kconfig)
 
