@@ -2630,7 +2630,7 @@ PUBLIC json_t *tranger2_open_list(
 
     json_t *list = create_json_record(gobj, list_json_desc);
     json_object_update(list, jn_list);
-    JSON_DECREF(jn_list);
+    JSON_DECREF(jn_list)
 
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 

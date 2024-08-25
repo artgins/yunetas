@@ -530,7 +530,7 @@ PRIVATE int list_messages(void)
         exit(-1);
     }
 
-    JSON_INCREF(match_cond);
+    JSON_INCREF(match_cond)
     json_t *jn_list = json_pack("{s:s, s:o, s:I, s:i}",
         "topic_name", topic_name,
         "match_cond", match_cond?match_cond:json_object(),
@@ -560,7 +560,7 @@ PRIVATE int list_messages(void)
  ***************************************************************************/
 PRIVATE int list_topic_messages(void)
 {
-    static char path_topic[PATH_MAX];
+    char path_topic[PATH_MAX];
 
     build_path(path_topic, sizeof(path_topic),
         arguments.path,
@@ -1004,6 +1004,13 @@ int main(int argc, char *argv[])
     } else if(arguments.recursive) {
         list_recursive_topic_messages();
     } else {
+        if(empty_string(arguments.topic)) {
+            arguments.topic = pop_last_segment(arguments.path);
+        }
+        if(empty_string(arguments.database)) {
+            arguments.database = pop_last_segment(arguments.path);
+        }
+
         list_topic_messages();
     }
 
