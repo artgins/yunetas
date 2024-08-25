@@ -2054,6 +2054,35 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
     return jn;
 }
 
+/***************************************************************************
+ *  Set real precision
+ *  Return the previous precision
+ ***************************************************************************/
+PRIVATE int __real_precision__ = 12;
+PUBLIC int set_real_precision(int precision)
+{
+    int prev = __real_precision__;
+    __real_precision__ = precision;
+    return prev;
+}
+PUBLIC int get_real_precision(void)
+{
+    return __real_precision__;
+}
+
+/***************************************************************************
+ *  Any json to ugly (non-tabular) string
+ *  Remember gbmem_free the returned string
+ ***************************************************************************/
+PUBLIC char *json2uglystr(const json_t *jn) // jn not owned
+{
+    if(!jn) {
+        return 0;
+    }
+    size_t flags = JSON_ENCODE_ANY | JSON_COMPACT | JSON_REAL_PRECISION(get_real_precision());
+    return json_dumps(jn, flags);
+}
+
 
 
 

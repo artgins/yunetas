@@ -315,6 +315,20 @@ PUBLIC int cmp_two_simple_json(
 
 PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
 
+/**rst**
+    Set real precision (use in conversion of json to string functions)
+    Return the previous precision
+**rst**/
+PUBLIC int set_real_precision(int precision);
+PUBLIC int get_real_precision(void);
+
+
+/**rst**
+    Any json to ugly (non-tabular) string
+    Remember gbmem_free the returned string
+**rst**/
+PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
+
 /*---------------------------------*
  *      Walkdir functions
  *---------------------------------*/

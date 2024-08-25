@@ -837,7 +837,7 @@ int main(int argc, char *argv[])
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
 
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_t)) * sizeof(md2_record_t);
 
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
