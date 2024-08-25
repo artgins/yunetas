@@ -156,6 +156,7 @@ struct arguments arguments;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
+yev_loop_t *yev_loop;
 
 /***************************************************************************
  *  Parse a single option
@@ -989,6 +990,15 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        NULL,
+        2024,
+        &yev_loop
+    );
+
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
@@ -996,6 +1006,9 @@ int main(int argc, char *argv[])
     } else {
         list_topic_messages();
     }
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
 
     JSON_DECREF(match_cond)
 
