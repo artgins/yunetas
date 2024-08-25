@@ -34,6 +34,167 @@
 #include "kwid.h"
 #include "helpers.h"
 
+/***************************************************
+ *              Structures
+ **************************************************/
+
+#ifdef __linux__
+
+#define MAX_COMM_LEN    128
+#define MAX_CMDLINE_LEN 128
+
+#define F_NO_PID_IO 0x01
+#define F_NO_PID_FD 0x02
+
+#define STAT            "/proc/stat"
+#define UPTIME          "/proc/uptime"
+#define DISKSTATS       "/proc/diskstats"
+#define INTERRUPTS      "/proc/interrupts"
+#define MEMINFO         "/proc/meminfo"
+
+#define PID_STAT    "/proc/%u/stat"
+#define PID_STATUS  "/proc/%u/status"
+#define PID_IO      "/proc/%u/io"
+#define PID_CMDLINE "/proc/%u/cmdline"
+#define PID_SMAP    "/proc/%u/smaps"
+#define PID_FD      "/proc/%u/fd"
+
+#define PROC_TASK   "/proc/%u/task"
+#define TASK_STAT   "/proc/%u/task/%u/stat"
+#define TASK_STATUS "/proc/%u/task/%u/status"
+#define TASK_IO     "/proc/%u/task/%u/io"
+#define TASK_CMDLINE    "/proc/%u/task/%u/cmdline"
+#define TASK_SMAP   "/proc/%u/task/%u/smaps"
+#define TASK_FD     "/proc/%u/task/%u/fd"
+
+/*
+ * kB <-> number of pages.
+ * Page size depends on machine architecture (4 kB, 8 kB, 16 kB, 64 kB...)
+ */
+// #define KB_TO_PG(k) ((k) >> kb_shift)
+#define PG_TO_KB(k) ((k) << get_kb_shift())
+
+/* Structure for memory and swap space utilization statistics */
+struct stats_memory {
+    unsigned long frmkb __attribute__ ((aligned (8)));
+    unsigned long bufkb __attribute__ ((aligned (8)));
+    unsigned long camkb __attribute__ ((aligned (8)));
+    unsigned long tlmkb __attribute__ ((aligned (8)));
+    unsigned long frskb __attribute__ ((aligned (8)));
+    unsigned long tlskb __attribute__ ((aligned (8)));
+    unsigned long caskb __attribute__ ((aligned (8)));
+    unsigned long comkb __attribute__ ((aligned (8)));
+    unsigned long activekb  __attribute__ ((aligned (8)));
+    unsigned long inactkb   __attribute__ ((aligned (8)));
+    unsigned long dirtykb   __attribute__ ((aligned (8)));
+    unsigned long anonpgkb  __attribute__ ((aligned (8)));
+    unsigned long slabkb    __attribute__ ((aligned (8)));
+    unsigned long kstackkb  __attribute__ ((aligned (8)));
+    unsigned long pgtblkb   __attribute__ ((aligned (8)));
+    unsigned long vmusedkb  __attribute__ ((aligned (8)));
+};
+
+#define STATS_MEMORY_SIZE   (sizeof(struct stats_memory))
+
+struct pid_stats {
+    unsigned long long read_bytes           __attribute__ ((aligned (16)));
+    unsigned long long write_bytes          __attribute__ ((packed));
+    unsigned long long cancelled_write_bytes    __attribute__ ((packed));
+    unsigned long long total_vsz            __attribute__ ((packed));
+    unsigned long long total_rss            __attribute__ ((packed));
+    unsigned long long total_stack_size     __attribute__ ((packed));
+    unsigned long long total_stack_ref      __attribute__ ((packed));
+    unsigned long long total_threads        __attribute__ ((packed));
+    unsigned long long total_fd_nr          __attribute__ ((packed));
+    unsigned long long blkio_swapin_delays      __attribute__ ((packed));
+    unsigned long long minflt           __attribute__ ((packed));
+    unsigned long long cminflt          __attribute__ ((packed));
+    unsigned long long majflt           __attribute__ ((packed));
+    unsigned long long cmajflt          __attribute__ ((packed));
+    unsigned long long utime            __attribute__ ((packed));
+    long long          cutime           __attribute__ ((packed));
+    unsigned long long stime            __attribute__ ((packed));
+    long long          cstime           __attribute__ ((packed));
+    unsigned long long gtime            __attribute__ ((packed));
+    long long          cgtime           __attribute__ ((packed));
+    unsigned long long vsz              __attribute__ ((packed));
+    unsigned long long rss              __attribute__ ((packed));
+    unsigned long      nvcsw            __attribute__ ((packed));
+    unsigned long      nivcsw           __attribute__ ((packed));
+    unsigned long      stack_size           __attribute__ ((packed));
+    unsigned long      stack_ref            __attribute__ ((packed));
+    /* If pid is null, the process has terminated */
+    unsigned int       pid              __attribute__ ((packed));
+    /* If tgid is not null, then this PID is in fact a TID */
+    unsigned int       tgid             __attribute__ ((packed));
+    unsigned int       rt_asum_count        __attribute__ ((packed));
+    unsigned int       rc_asum_count        __attribute__ ((packed));
+    unsigned int       uc_asum_count        __attribute__ ((packed));
+    unsigned int       tf_asum_count        __attribute__ ((packed));
+    unsigned int       sk_asum_count        __attribute__ ((packed));
+    unsigned int       delay_asum_count     __attribute__ ((packed));
+    unsigned int       processor            __attribute__ ((packed));
+    unsigned int       priority         __attribute__ ((packed));
+    unsigned int       policy           __attribute__ ((packed));
+    unsigned int       flags            __attribute__ ((packed));
+    unsigned int       uid              __attribute__ ((packed));
+    unsigned int       threads          __attribute__ ((packed));
+    unsigned int       fd_nr            __attribute__ ((packed));
+    char               comm[MAX_COMM_LEN];
+    char               cmdline[MAX_CMDLINE_LEN];
+};
+
+#define PID_STATS_SIZE  (sizeof(struct pid_stats))
+
+/*
+ * Structure for CPU statistics.
+ * In activity buffer: First structure is for global CPU utilisation ("all").
+ * Following structures are for each individual CPU (0, 1, etc.)
+ */
+struct stats_cpu {
+    unsigned long long cpu_user     __attribute__ ((aligned (16)));
+    unsigned long long cpu_nice     __attribute__ ((aligned (16)));
+    unsigned long long cpu_sys      __attribute__ ((aligned (16)));
+    unsigned long long cpu_idle     __attribute__ ((aligned (16)));
+    unsigned long long cpu_iowait       __attribute__ ((aligned (16)));
+    unsigned long long cpu_steal        __attribute__ ((aligned (16)));
+    unsigned long long cpu_hardirq      __attribute__ ((aligned (16)));
+    unsigned long long cpu_softirq      __attribute__ ((aligned (16)));
+    unsigned long long cpu_guest        __attribute__ ((aligned (16)));
+    unsigned long long cpu_guest_nice   __attribute__ ((aligned (16)));
+};
+
+#define STATS_CPU_SIZE  (sizeof(struct stats_cpu))
+
+/*
+ * Structure for interrupts statistics.
+ * In activity buffer: First structure is for total number of interrupts ("SUM").
+ * Following structures are for each individual interrupt (0, 1, etc.)
+ *
+ * NOTE: The total number of interrupts is saved as a %llu by the kernel,
+ * whereas individual interrupts are saved as %u.
+ */
+struct stats_irq {
+    unsigned long long irq_nr   __attribute__ ((aligned (16)));
+};
+
+#define STATS_IRQ_SIZE  (sizeof(struct stats_irq))
+
+#endif
+
+/*****************************************************************
+ *     Prototypes
+ *****************************************************************/
+PRIVATE int _walk_tree(
+    hgobj gobj,
+    const char *root_dir,
+    regex_t *reg,
+    void *user_data,
+    wd_option opt,
+    int level,
+    walkdir_cb cb
+);
+
 /*****************************************************************
  *     Data
  *****************************************************************/
@@ -529,6 +690,650 @@ PUBLIC char *pop_last_segment(char *path) // WARNING path modified
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *helper_quote2doublequote(char *str)
+{
+    register size_t len = strlen(str);
+    register char *p = str;
+
+    for(size_t i=0; i<len; i++, p++) {
+        if(*p== '\'')
+            *p = '"';
+    }
+    return str;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *helper_doublequote2quote(char *str)
+{
+    register size_t len = strlen(str);
+    register char *p = str;
+
+    for(size_t i=0; i<len; i++, p++) {
+        if(*p== '"')
+            *p = '\'';
+    }
+    return str;
+}
+
+/***************************************************************************
+ *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
+ *  https://www.mbeckler.org/blog/?p=114
+ ***************************************************************************/
+PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes)
+{
+    const char *suffixes[7];
+    suffixes[0] = "B";
+    suffixes[1] = "Thousands";
+    suffixes[2] = "Millions";
+    suffixes[3] = "GB";
+    suffixes[4] = "TB";
+    suffixes[5] = "PB";
+    suffixes[6] = "EB";
+    unsigned int s = 0; // which suffix to use
+    double count = (double)bytes;
+    while (count >= 1000 && s < 7)
+    {
+        s++;
+        count /= 1000;
+    }
+    if (count - floor(count) == 0.0)
+        snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
+    else
+        snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
+}
+
+/***************************************************************************
+ *  Print a byte count in a human readable format
+ *  https://programming.guide/worlds-most-copied-so-snippet.html
+ ***************************************************************************/
+PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si)
+{
+    size_t unit = si ? 1000 : 1024;
+    size_t absBytes = bytes;
+
+    if (absBytes < unit) {
+        snprintf(bf, bfsize, "%zu B", bytes);
+        return; // bytes + " B";
+    }
+
+    int exp = (int) (log((double)absBytes) / log((double)unit));
+    size_t th = (size_t) ceil(pow((double)unit, exp) * ((double)unit - 0.05));
+
+    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) {
+        exp++;
+    }
+
+    char *sufijos = (si ? "kMGTPE" : "KMGTPE");
+    char pre = sufijos[exp - 1];
+
+    if (exp > 4) {
+        bytes /= unit;
+        exp -= 1;
+    }
+    snprintf(bf, bfsize, "%.1f %c%sB", (double)bytes / pow((double)unit, exp), pre, (si ? "" : "i"));
+}
+
+/***************************************************************************
+ *    Elimina blancos a la derecha. (Espacios, tabuladores, CR's  o LF's)
+ ***************************************************************************/
+PUBLIC void delete_right_blanks(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
+            *(s+l)='\0';
+        else
+            break;
+    }
+}
+
+/***************************************************************************
+ *    Elimina blancos a la izquierda. (Espacios, tabuladores, CR's  o LF's)
+ ***************************************************************************/
+PUBLIC void delete_left_blanks(char *s)
+{
+    unsigned l;
+    char c;
+
+    /*----------------------------*
+     *  Busca el primer no blanco
+     *----------------------------*/
+    l=0;
+    while(1) {
+        c= *(s+l);
+        if(c=='\0')
+            break;
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
+            l++;
+        else
+            break;
+    }
+    if(l>0) {
+        memmove(s,s+l,(unsigned long)strlen(s) -l + 1);
+    }
+}
+
+/***************************************************************************
+ *    Justifica a la izquierda eliminado blancos a la derecha
+ ***************************************************************************/
+PUBLIC void left_justify(char *s)
+{
+    if(s) {
+        /*---------------------------------*
+         *  Elimina blancos a la derecha
+         *---------------------------------*/
+        delete_right_blanks(s);
+
+        /*-----------------------------------*
+         *  Quita los blancos a la izquierda
+         *-----------------------------------*/
+        delete_left_blanks(s);
+    }
+}
+
+/***************************************************************************
+ *  Convert n bytes of string to upper case
+ ***************************************************************************/
+PUBLIC char *strntoupper(char* s, size_t n)
+{
+    if(!s || n == 0)
+        return 0;
+
+    char *p = s;
+    while (n > 0 && *p != '\0') {
+        int c = (int)*p;
+        *p = (char)toupper(c);
+        p++;
+        n--;
+    }
+
+    return s;
+}
+
+/***************************************************************************
+ *  Convert n bytes of string to lower case
+ ***************************************************************************/
+PUBLIC char *strntolower(char* s, size_t n)
+{
+    if(!s || n == 0)
+        return 0;
+
+    char *p = s;
+    while (n > 0 && *p != '\0') {
+        int c = (int)*p;
+        *p = (char)tolower(c);
+        p++;
+        n--;
+    }
+
+    return s;
+}
+
+/***************************************************************************
+ *    cambia el character old_d por new_c. Retorna los caracteres cambiados
+ ***************************************************************************/
+PUBLIC int change_char(char *s, char old_c, char new_c)
+{
+    int count = 0;
+
+    while(*s) {
+        if(*s == old_c) {
+            *s = new_c;
+            count++;
+        }
+        s++;
+    }
+    return count;
+}
+
+/***************************************************************************
+ *  Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
+ *  The string is modified (nulls inserted)!
+ ***************************************************************************/
+PUBLIC char *get_parameter(char *s, char **save_ptr)
+{
+    char c;
+    char *p;
+
+    if(!s) {
+        if(save_ptr) {
+            *save_ptr = 0;
+        }
+        return 0;
+    }
+    /*
+     *  Find first no-blank
+     */
+    while(1) {
+        c = *s;
+        if(c==0)
+            return 0;
+        if(!(c==' ' || c=='\t'))
+            break;
+        s++;
+    }
+
+    /*
+     *  Check quotes
+     */
+    if(c=='\'' || c=='"') {
+        p = strchr(s+1, c);
+        if(p) {
+            *p = 0;
+            if(save_ptr) {
+                *save_ptr = p+1;
+            }
+            return s+1;
+        }
+    }
+
+    /*
+     *  Find first blank
+     */
+    p = s;
+    while(1) {
+        c = *s;
+        if(c==0) {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return p;
+        }
+        if((c==' ' || c=='\t')) {
+            *s = 0;
+            if(save_ptr) {
+                *save_ptr = s+1;
+            }
+            return p;
+        }
+        s++;
+    }
+}
+
+/***************************************************************************
+ *  Extract key=value or key='this value' parameter
+ *  Return the value, the key in `key`
+ *  The string is modified (nulls inserted)!
+ ***************************************************************************/
+PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
+{
+    char c;
+    char *p;
+
+    if(!s) {
+        if(save_ptr) {
+            *save_ptr = 0;
+        }
+        return 0;
+    }
+    /*
+     *  Find first no-blank
+     */
+    while(1) {
+        c = *s;
+        if(c==0)
+            return 0;
+        if(!(c==' ' || c=='\t'))
+            break;
+        s++;
+    }
+
+    char *value = strchr(s, '=');
+    if(!value) {
+        if(key) {
+            *key = 0;
+        }
+        if(save_ptr) {
+            *save_ptr = s;
+        }
+        return 0;
+    }
+    *value = 0; // delete '='
+    value++;
+    left_justify(s);
+    if(key) {
+        *key = s;
+    }
+    s = value;
+    c = *s;
+
+    /*
+     *  Check quotes
+     */
+    if(c=='\'' || c=='"') {
+        p = strchr(s+1, c);
+        if(p) {
+            *p = 0;
+            if(save_ptr) {
+                *save_ptr = p+1;
+            }
+            return s+1;
+        } else {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return 0;
+        }
+    }
+
+    /*
+     *  Find first blank
+     */
+    p = s;
+    while(1) {
+        c = *s;
+        if(c==0) {
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
+            return p;
+        }
+        if((c==' ' || c=='\t')) {
+            *s = 0;
+            if(save_ptr) {
+                *save_ptr = s+1;
+            }
+            return p;
+        }
+        s++;
+    }
+}
+
+/***************************************************************************
+    Split a string by delim returning the list of strings.
+    Return filling `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free2().
+    HACK: No, It does NOT include the empty strings!
+ ***************************************************************************/
+PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
+{
+    char *ptr;
+    int max_items = 0;
+
+    if(plist_size) {
+        max_items = *plist_size;
+        *plist_size = 0; // error case
+    }
+    char *buffer = GBMEM_STRDUP(str);
+    if(!buffer) {
+        return 0;
+    }
+
+    // Get list size
+    int list_size = 0;
+    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+        list_size++;
+    }
+    GBMEM_FREE(buffer);
+
+    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    if(!buffer) {
+        return 0;
+    }
+
+    // Limit list
+    if(max_items > 0) {
+        list_size = MIN(max_items, list_size);
+    }
+
+    // Alloc list
+    int size = sizeof(char *) * (list_size + 1);
+    const char **list = GBMEM_MALLOC(size);
+
+    // Fill list
+    int i = 0;
+    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
+        if (i < list_size) {
+            list[i++] = GBMEM_STRDUP(ptr);
+        } else {
+            break;
+        }
+    }
+    GBMEM_FREE(buffer);
+
+    if(plist_size) {
+        *plist_size = i;
+    }
+    return list;
+}
+
+/***************************************************************************
+ *  Free split list content
+ ***************************************************************************/
+PUBLIC void split_free2(const char **list)
+{
+    if(list) {
+        char **p = (char **)list;
+        while(*p) {
+            GBMEM_FREE(*p);
+            *p = 0;
+            p++;
+        }
+        GBMEM_FREE(list);
+    }
+}
+
+/***************************************************************************
+    Split string `str` by `delim` chars returning the list of strings.
+    Return filling `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free3().
+    HACK: Yes, It does include the empty strings!
+ ***************************************************************************/
+PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
+{
+    char *ptr, *p;
+    int max_items = 0;
+
+    if(plist_size) {
+        max_items = *plist_size;
+        *plist_size = 0; // error case
+    }
+    char *buffer = GBMEM_STRDUP(str);
+    if(!buffer) {
+        return 0;
+    }
+
+    // Get list size
+    int list_size = 0;
+
+    p = buffer;
+    while ((ptr = strsep(&p, delim)) != NULL) {
+        list_size++;
+    }
+    GBMEM_FREE(buffer);
+
+    // Limit list
+    if(max_items > 0) {
+        list_size = MIN(max_items, list_size);
+    }
+
+    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    if(!buffer) {
+        return 0;
+    }
+
+    // Alloc list
+    size_t size = sizeof(char *) * (list_size + 1);
+    const char **list = GBMEM_MALLOC(size);
+
+    // Fill list
+    int i = 0;
+    p = buffer;
+    while ((ptr = strsep(&p, delim)) != NULL) {
+        if (i < list_size) {
+            list[i] = GBMEM_STRDUP(ptr);
+            i++;
+        } else {
+            break;
+        }
+    }
+    GBMEM_FREE(buffer);
+
+    if(plist_size) {
+        *plist_size = list_size;
+    }
+    return list;
+}
+
+/***************************************************************************
+ *  Free split list content
+ ***************************************************************************/
+PUBLIC void split_free3(const char **list)
+{
+    if(list) {
+        char **p = (char **)list;
+        while(*p) {
+            GBMEM_FREE(*p);
+            *p = 0;
+            p++;
+        }
+        GBMEM_FREE(list);
+    }
+}
+
+/***************************************************************************
+    Concat two strings
+    WARNING Remember free with str_concat_free().
+ ***************************************************************************/
+PUBLIC char * str_concat(const char *str1, const char *str2)
+{
+    size_t len = 0;
+
+    if(str1) {
+        len += strlen(str1);
+    }
+    if(str2) {
+        len += strlen(str2);
+    }
+
+    char *s = GBMEM_MALLOC(len+1);
+    if(!s) {
+        return NULL;
+    }
+    if(str1) {
+        strcat(s, str1);
+    }
+    if(str2) {
+        strcat(s, str2);
+    }
+
+    return s;
+}
+
+/***************************************************************************
+    Concat three strings
+    WARNING Remember free with str_concat_free().
+ ***************************************************************************/
+PUBLIC char * str_concat3(const char *str1, const char *str2, const char *str3)
+{
+    size_t len = 0;
+
+    if(str1) {
+        len += strlen(str1);
+    }
+    if(str2) {
+        len += strlen(str2);
+    }
+    if(str3) {
+        len += strlen(str3);
+    }
+
+    char *s = GBMEM_MALLOC(len+1);
+    if(!s) {
+        return NULL;
+    }
+    if(str1) {
+        strcat(s, str1);
+    }
+    if(str2) {
+        strcat(s, str2);
+    }
+    if(str3) {
+        strcat(s, str3);
+    }
+
+    return s;
+}
+
+/***************************************************************************
+ *  Free concat
+ ***************************************************************************/
+PUBLIC void str_concat_free(char *s)
+{
+    GBMEM_FREE(s)
+}
+
+/***************************************************************************
+ *  Return idx of str in string list.
+    Return -1 if not exist
+ ***************************************************************************/
+PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case)
+{
+    int (*cmp_fn)(const char *s1, const char *s2)=0;
+    if(ignore_case) {
+        cmp_fn = strcasecmp;
+    } else {
+        cmp_fn = strcmp;
+    }
+
+    int i = 0;
+    while(*list) {
+        if(cmp_fn(str, *list)==0) {
+            return i;
+        }
+        i++;
+        list++;
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  Return TRUE if str is in string list.
+ ***************************************************************************/
+PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
+{
+    int (*cmp_fn)(const char *s1, const char *s2)=0;
+    if(ignore_case) {
+        cmp_fn = strcasecmp;
+    } else {
+        cmp_fn = strcmp;
+    }
+
+    while(*list) {
+        if(cmp_fn(str, *list)==0) {
+            return TRUE;
+        }
+        list++;
+    }
+    return FALSE;
+}
+
+
+
+
+                    /*------------------------------------*
+                     *          Json
+                     *------------------------------------*/
+
+
+
+
+/***************************************************************************
  *  If exclusive then let file opened and return the fd, else close the file
  ***************************************************************************/
 PUBLIC json_t *load_persistent_json(
@@ -1000,48 +1805,253 @@ PUBLIC uint64_t strings2bits(
 }
 
 /***************************************************************************
- *  Return idx of str in string list.
-    Return -1 if not exist
+    Get a the idx of string value in a strings json list.
  ***************************************************************************/
-PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case)
+PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case)
 {
-    int (*cmp_fn)(const char *s1, const char *s2)=0;
-    if(ignore_case) {
-        cmp_fn = strcasecmp;
-    } else {
-        cmp_fn = strcmp;
+    if(!json_is_array(jn_list)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "list MUST BE a json array",
+            NULL
+        );
+        gobj_trace_json(0, jn_list, "list MUST BE a json array");
+        return 0;
     }
 
-    int i = 0;
-    while(*list) {
-        if(cmp_fn(str, *list)==0) {
-            return i;
+    size_t idx;
+    json_t *jn_str;
+
+    json_array_foreach(jn_list, idx, jn_str) {
+        if(!json_is_string(jn_str)) {
+            continue;
         }
-        i++;
-        list++;
+        const char *_str = json_string_value(jn_str);
+        if(ignore_case) {
+            if(strcasecmp(_str, str)==0)
+                return (int)idx;
+        } else {
+            if(strcmp(_str, str)==0)
+                return (int)idx;
+        }
     }
+
     return -1;
 }
 
 /***************************************************************************
- *  Return TRUE if str is in string list.
+ *  Simple json to real
  ***************************************************************************/
-PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
+PUBLIC double jn2real(json_t *jn_var)
 {
-    int (*cmp_fn)(const char *s1, const char *s2)=0;
-    if(ignore_case) {
-        cmp_fn = strcasecmp;
-    } else {
-        cmp_fn = strcmp;
+    double val = 0.0;
+    if(json_is_real(jn_var)) {
+        val = json_real_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        val = (double)json_integer_value(jn_var);
+    } else if(json_is_string(jn_var)) {
+        const char *s = json_string_value(jn_var);
+        val = atof(s);
+    } else if(json_is_true(jn_var)) {
+        val = 1.0;
+    } else if(json_is_false(jn_var)) {
+        val = 0.0;
+    } else if(json_is_null(jn_var)) {
+        val = 0.0;
+    }
+    return val;
+}
+
+/***************************************************************************
+ *  Simple json to int
+ ***************************************************************************/
+PUBLIC json_int_t jn2integer(json_t *jn_var)
+{
+    json_int_t val = 0;
+    if(json_is_real(jn_var)) {
+        val = (json_int_t)json_real_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        val = json_integer_value(jn_var);
+    } else if(json_is_string(jn_var)) {
+        const char *v = json_string_value(jn_var);
+        if(*v == '0') {
+            val = strtoll(v, 0, 8);
+        } else if(*v == 'x' || *v == 'X') {
+            val = strtoll(v, 0, 16);
+        } else {
+            val = strtoll(v, 0, 10);
+        }
+    } else if(json_is_true(jn_var)) {
+        val = 1;
+    } else if(json_is_false(jn_var)) {
+        val = 0;
+    } else if(json_is_null(jn_var)) {
+        val = 0;
+    }
+    return val;
+}
+
+/***************************************************************************
+ *  Simple json to string, WARNING free return with gbmem_free
+ ***************************************************************************/
+PUBLIC char *jn2string(json_t *jn_var)
+{
+    char temp[PATH_MAX];
+    char *s="";
+
+    if(json_is_string(jn_var)) {
+        s = (char *)json_string_value(jn_var);
+    } else if(json_is_integer(jn_var)) {
+        json_int_t v = json_integer_value(jn_var);
+        snprintf(temp, sizeof(temp), "%"JSON_INTEGER_FORMAT, v);
+        s = temp;
+    } else if(json_is_real(jn_var)) {
+        double v = json_real_value(jn_var);
+        snprintf(temp, sizeof(temp), "%.17f", v);
+        s = temp;
+    } else if(json_is_boolean(jn_var)) {
+        s = json_is_true(jn_var)?"1":"0";
     }
 
-    while(*list) {
-        if(cmp_fn(str, *list)==0) {
-            return TRUE;
-        }
-        list++;
+    return GBMEM_STRDUP(s);
+}
+
+/***************************************************************************
+ *  Simple json to bool
+ ***************************************************************************/
+PUBLIC BOOL jn2bool(json_t *jn_var)
+{
+    BOOL val = 0;
+    if(json_is_real(jn_var)) {
+        val = json_real_value(jn_var)?1:0;
+    } else if(json_is_integer(jn_var)) {
+        val = json_integer_value(jn_var)?1:0;
+    } else if(json_is_string(jn_var)) {
+        const char *v = json_string_value(jn_var);
+        val = empty_string(v)?0:1;
+    } else if(json_is_true(jn_var)) {
+        val = 1;
+    } else if(json_is_false(jn_var)) {
+        val = 0;
+    } else if(json_is_null(jn_var)) {
+        val = 0;
     }
-    return FALSE;
+    return val;
+}
+
+/***************************************************************************
+    Only compare str/int/real/bool items
+    Complex types are done as matched
+    Return lower, iqual, higher (-1, 0, 1), like strcmp
+ ***************************************************************************/
+PUBLIC int cmp_two_simple_json(
+    json_t *jn_var1,    // not owned
+    json_t *jn_var2     // not owned
+)
+{
+    /*
+     *  Discard complex types, done as matched
+     */
+    if(json_is_object(jn_var1) ||
+            json_is_object(jn_var2) ||
+            json_is_array(jn_var1) ||
+            json_is_array(jn_var2)) {
+        return 0;
+    }
+
+    /*
+     *  First try real
+     */
+    if(json_is_real(jn_var1) || json_is_real(jn_var2)) {
+        double val1 = jn2real(jn_var1);
+        double val2 = jn2real(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try integer
+     */
+    if(json_is_integer(jn_var1) || json_is_integer(jn_var2)) {
+        json_int_t val1 = jn2integer(jn_var1);
+        json_int_t val2 = jn2integer(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try boolean
+     */
+    if(json_is_boolean(jn_var1) || json_is_boolean(jn_var2)) {
+        json_int_t val1 = jn2integer(jn_var1);
+        json_int_t val2 = jn2integer(jn_var2);
+        if(val1 > val2) {
+            return 1;
+        } else if(val1 < val2) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    /*
+     *  Try string
+     */
+    char *val1 = jn2string(jn_var1);
+    char *val2 = jn2string(jn_var2);
+    int ret = strcmp(val1, val2);
+    GBMEM_FREE(val1);
+    GBMEM_FREE(val2);
+    return ret;
+}
+
+/***************************************************************************
+ *  Convert any json string to json binary.
+ ***************************************************************************/
+PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
+{
+    if(empty_string(bf)) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "bf EMPTY",
+                NULL
+            );
+        }
+        return 0;
+    }
+    size_t flags = JSON_DECODE_ANY;
+    json_error_t error;
+    json_t *jn = json_loadb(bf, len, flags, &error);
+    if(!jn) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msg",          "%s", "json_loads() FAILED",
+                "bf",          "%s", bf,
+                "error",        "%s", error.text,
+                "line",         "%d", error.line,
+                "column",       "%d", error.column,
+                "position",     "%d", error.position,
+                NULL
+            );
+            gobj_trace_dump(0, bf, strlen(bf), "json_loads() FAILED");
+        }
+    }
+    return jn;
 }
 
 
@@ -1716,840 +2726,102 @@ PUBLIC uint64_t time_in_seconds(void)
 }
 
 /***************************************************************************
+ * Read memory statistics from /proc/meminfo.
  *
- ***************************************************************************/
-PUBLIC char *helper_quote2doublequote(char *str)
-{
-    register size_t len = strlen(str);
-    register char *p = str;
-
-    for(size_t i=0; i<len; i++, p++) {
-        if(*p== '\'')
-            *p = '"';
-    }
-    return str;
-}
-
-/***************************************************************************
+ * IN:
+ * @st_memory   Structure where stats will be saved.
  *
+ * OUT:
+ * @st_memory   Structure with statistics.
  ***************************************************************************/
-PUBLIC char *helper_doublequote2quote(char *str)
+void read_meminfo(struct stats_memory *st_memory)
 {
-    register size_t len = strlen(str);
-    register char *p = str;
+    FILE *fp;
+    char line[128];
 
-    for(size_t i=0; i<len; i++, p++) {
-        if(*p== '"')
-            *p = '\'';
-    }
-    return str;
-}
-
-/***************************************************************************
- *  Convert any json string to json binary.
- ***************************************************************************/
-PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
-{
-    if(empty_string(bf)) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "bf EMPTY",
-                NULL
-            );
-        }
-        return 0;
-    }
-    size_t flags = JSON_DECODE_ANY;
-    json_error_t error;
-    json_t *jn = json_loadb(bf, len, flags, &error);
-    if(!jn) {
-        if(verbose) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
-                "msg",          "%s", "json_loads() FAILED",
-                "bf",          "%s", bf,
-                "error",        "%s", error.text,
-                "line",         "%d", error.line,
-                "column",       "%d", error.column,
-                "position",     "%d", error.position,
-                NULL
-            );
-            gobj_trace_dump(0, bf, strlen(bf), "json_loads() FAILED");
-        }
-    }
-    return jn;
-}
-
-/***************************************************************************
- *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
- *  https://www.mbeckler.org/blog/?p=114
- ***************************************************************************/
-PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes)
-{
-    const char *suffixes[7];
-    suffixes[0] = "B";
-    suffixes[1] = "Thousands";
-    suffixes[2] = "Millions";
-    suffixes[3] = "GB";
-    suffixes[4] = "TB";
-    suffixes[5] = "PB";
-    suffixes[6] = "EB";
-    unsigned int s = 0; // which suffix to use
-    double count = (double)bytes;
-    while (count >= 1000 && s < 7)
-    {
-        s++;
-        count /= 1000;
-    }
-    if (count - floor(count) == 0.0)
-        snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
-    else
-        snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
-}
-
-/***************************************************************************
- *  Print a byte count in a human readable format
- *  https://programming.guide/worlds-most-copied-so-snippet.html
- ***************************************************************************/
-PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si)
-{
-    size_t unit = si ? 1000 : 1024;
-    size_t absBytes = bytes;
-
-    if (absBytes < unit) {
-        snprintf(bf, bfsize, "%zu B", bytes);
-        return; // bytes + " B";
-    }
-
-    int exp = (int) (log((double)absBytes) / log((double)unit));
-    size_t th = (size_t) ceil(pow((double)unit, exp) * ((double)unit - 0.05));
-
-    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) {
-        exp++;
-    }
-
-    char *sufijos = (si ? "kMGTPE" : "KMGTPE");
-    char pre = sufijos[exp - 1];
-
-    if (exp > 4) {
-        bytes /= unit;
-        exp -= 1;
-    }
-    snprintf(bf, bfsize, "%.1f %c%sB", (double)bytes / pow((double)unit, exp), pre, (si ? "" : "i"));
-}
-
-/***************************************************************************
- *    Elimina blancos a la derecha. (Espacios, tabuladores, CR's  o LF's)
- ***************************************************************************/
-PUBLIC void delete_right_blanks(char *s)
-{
-    int l;
-    char c;
-
-    /*---------------------------------*
-     *  Elimina blancos a la derecha
-     *---------------------------------*/
-    l = (int)strlen(s);
-    if(l==0)
+    if ((fp = fopen(MEMINFO, "r")) == NULL)
         return;
-    while(--l>=0) {
-        c= *(s+l);
-        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
-            *(s+l)='\0';
-        else
-            break;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+
+        if (!strncmp(line, "MemTotal:", 9)) {
+            /* Read the total amount of memory in kB */
+            sscanf(line + 9, "%lu", &st_memory->tlmkb);
+        }
+        else if (!strncmp(line, "MemFree:", 8)) {
+            /* Read the amount of free memory in kB */
+            sscanf(line + 8, "%lu", &st_memory->frmkb);
+        }
+        else if (!strncmp(line, "Buffers:", 8)) {
+            /* Read the amount of buffered memory in kB */
+            sscanf(line + 8, "%lu", &st_memory->bufkb);
+        }
+        else if (!strncmp(line, "Cached:", 7)) {
+            /* Read the amount of cached memory in kB */
+            sscanf(line + 7, "%lu", &st_memory->camkb);
+        }
+        else if (!strncmp(line, "SwapCached:", 11)) {
+            /* Read the amount of cached swap in kB */
+            sscanf(line + 11, "%lu", &st_memory->caskb);
+        }
+        else if (!strncmp(line, "Active:", 7)) {
+            /* Read the amount of active memory in kB */
+            sscanf(line + 7, "%lu", &st_memory->activekb);
+        }
+        else if (!strncmp(line, "Inactive:", 9)) {
+            /* Read the amount of inactive memory in kB */
+            sscanf(line + 9, "%lu", &st_memory->inactkb);
+        }
+        else if (!strncmp(line, "SwapTotal:", 10)) {
+            /* Read the total amount of swap memory in kB */
+            sscanf(line + 10, "%lu", &st_memory->tlskb);
+        }
+        else if (!strncmp(line, "SwapFree:", 9)) {
+            /* Read the amount of free swap memory in kB */
+            sscanf(line + 9, "%lu", &st_memory->frskb);
+        }
+        else if (!strncmp(line, "Dirty:", 6)) {
+            /* Read the amount of dirty memory in kB */
+            sscanf(line + 6, "%lu", &st_memory->dirtykb);
+        }
+        else if (!strncmp(line, "Committed_AS:", 13)) {
+            /* Read the amount of commited memory in kB */
+            sscanf(line + 13, "%lu", &st_memory->comkb);
+        }
+        else if (!strncmp(line, "AnonPages:", 10)) {
+            /* Read the amount of pages mapped into userspace page tables in kB */
+            sscanf(line + 10, "%lu", &st_memory->anonpgkb);
+        }
+        else if (!strncmp(line, "Slab:", 5)) {
+            /* Read the amount of in-kernel data structures cache in kB */
+            sscanf(line + 5, "%lu", &st_memory->slabkb);
+        }
+        else if (!strncmp(line, "KernelStack:", 12)) {
+            /* Read the kernel stack utilization in kB */
+            sscanf(line + 12, "%lu", &st_memory->kstackkb);
+        }
+        else if (!strncmp(line, "PageTables:", 11)) {
+            /* Read the amount of memory dedicated to the lowest level of page tables in kB */
+            sscanf(line + 11, "%lu", &st_memory->pgtblkb);
+        }
+        else if (!strncmp(line, "VmallocUsed:", 12)) {
+            /* Read the amount of vmalloc area which is used in kB */
+            sscanf(line + 12, "%lu", &st_memory->vmusedkb);
+        }
     }
+
+    fclose(fp);
 }
 
 /***************************************************************************
- *    Elimina blancos a la izquierda. (Espacios, tabuladores, CR's  o LF's)
+ *  Free memory in kB
  ***************************************************************************/
-PUBLIC void delete_left_blanks(char *s)
+PUBLIC unsigned long free_ram_in_kb(void)
 {
-    unsigned l;
-    char c;
+    struct stats_memory st_mem;
 
-    /*----------------------------*
-     *  Busca el primer no blanco
-     *----------------------------*/
-    l=0;
-    while(1) {
-        c= *(s+l);
-        if(c=='\0')
-            break;
-        if(c==' ' || c=='\t' || c=='\n' || c=='\r')
-            l++;
-        else
-            break;
-    }
-    if(l>0) {
-        memmove(s,s+l,(unsigned long)strlen(s) -l + 1);
-    }
-}
+    memset(&st_mem, 0, STATS_MEMORY_SIZE);
+    read_meminfo(&st_mem);
 
-/***************************************************************************
- *    Justifica a la izquierda eliminado blancos a la derecha
- ***************************************************************************/
-PUBLIC void left_justify(char *s)
-{
-    if(s) {
-        /*---------------------------------*
-         *  Elimina blancos a la derecha
-         *---------------------------------*/
-        delete_right_blanks(s);
-
-        /*-----------------------------------*
-         *  Quita los blancos a la izquierda
-         *-----------------------------------*/
-        delete_left_blanks(s);
-    }
-}
-
-/***************************************************************************
- *  Convert n bytes of string to upper case
- ***************************************************************************/
-PUBLIC char *strntoupper(char* s, size_t n)
-{
-    if(!s || n == 0)
-        return 0;
-
-    char *p = s;
-    while (n > 0 && *p != '\0') {
-        int c = (int)*p;
-        *p = (char)toupper(c);
-        p++;
-        n--;
-    }
-
-    return s;
-}
-
-/***************************************************************************
- *  Convert n bytes of string to lower case
- ***************************************************************************/
-PUBLIC char *strntolower(char* s, size_t n)
-{
-    if(!s || n == 0)
-        return 0;
-
-    char *p = s;
-    while (n > 0 && *p != '\0') {
-        int c = (int)*p;
-        *p = (char)tolower(c);
-        p++;
-        n--;
-    }
-
-    return s;
-}
-
-/***************************************************************************
- *    cambia el character old_d por new_c. Retorna los caracteres cambiados
- ***************************************************************************/
-PUBLIC int change_char(char *s, char old_c, char new_c)
-{
-    int count = 0;
-
-    while(*s) {
-        if(*s == old_c) {
-            *s = new_c;
-            count++;
-        }
-        s++;
-    }
-    return count;
-}
-
-/***************************************************************************
- *  Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
- *  The string is modified (nulls inserted)!
- ***************************************************************************/
-PUBLIC char *get_parameter(char *s, char **save_ptr)
-{
-    char c;
-    char *p;
-
-    if(!s) {
-        if(save_ptr) {
-            *save_ptr = 0;
-        }
-        return 0;
-    }
-    /*
-     *  Find first no-blank
-     */
-    while(1) {
-        c = *s;
-        if(c==0)
-            return 0;
-        if(!(c==' ' || c=='\t'))
-            break;
-        s++;
-    }
-
-    /*
-     *  Check quotes
-     */
-    if(c=='\'' || c=='"') {
-        p = strchr(s+1, c);
-        if(p) {
-            *p = 0;
-            if(save_ptr) {
-                *save_ptr = p+1;
-            }
-            return s+1;
-        }
-    }
-
-    /*
-     *  Find first blank
-     */
-    p = s;
-    while(1) {
-        c = *s;
-        if(c==0) {
-            if(save_ptr) {
-                *save_ptr = 0;
-            }
-            return p;
-        }
-        if((c==' ' || c=='\t')) {
-            *s = 0;
-            if(save_ptr) {
-                *save_ptr = s+1;
-            }
-            return p;
-        }
-        s++;
-    }
-}
-
-/***************************************************************************
- *  Extract key=value or key='this value' parameter
- *  Return the value, the key in `key`
- *  The string is modified (nulls inserted)!
- ***************************************************************************/
-PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
-{
-    char c;
-    char *p;
-
-    if(!s) {
-        if(save_ptr) {
-            *save_ptr = 0;
-        }
-        return 0;
-    }
-    /*
-     *  Find first no-blank
-     */
-    while(1) {
-        c = *s;
-        if(c==0)
-            return 0;
-        if(!(c==' ' || c=='\t'))
-            break;
-        s++;
-    }
-
-    char *value = strchr(s, '=');
-    if(!value) {
-        if(key) {
-            *key = 0;
-        }
-        if(save_ptr) {
-            *save_ptr = s;
-        }
-        return 0;
-    }
-    *value = 0; // delete '='
-    value++;
-    left_justify(s);
-    if(key) {
-        *key = s;
-    }
-    s = value;
-    c = *s;
-
-    /*
-     *  Check quotes
-     */
-    if(c=='\'' || c=='"') {
-        p = strchr(s+1, c);
-        if(p) {
-            *p = 0;
-            if(save_ptr) {
-                *save_ptr = p+1;
-            }
-            return s+1;
-        } else {
-            if(save_ptr) {
-                *save_ptr = 0;
-            }
-            return 0;
-        }
-    }
-
-    /*
-     *  Find first blank
-     */
-    p = s;
-    while(1) {
-        c = *s;
-        if(c==0) {
-            if(save_ptr) {
-                *save_ptr = 0;
-            }
-            return p;
-        }
-        if((c==' ' || c=='\t')) {
-            *s = 0;
-            if(save_ptr) {
-                *save_ptr = s+1;
-            }
-            return p;
-        }
-        s++;
-    }
-}
-
-/***************************************************************************
- *  Simple json to real
- ***************************************************************************/
-PUBLIC double jn2real(json_t *jn_var)
-{
-    double val = 0.0;
-    if(json_is_real(jn_var)) {
-        val = json_real_value(jn_var);
-    } else if(json_is_integer(jn_var)) {
-        val = (double)json_integer_value(jn_var);
-    } else if(json_is_string(jn_var)) {
-        const char *s = json_string_value(jn_var);
-        val = atof(s);
-    } else if(json_is_true(jn_var)) {
-        val = 1.0;
-    } else if(json_is_false(jn_var)) {
-        val = 0.0;
-    } else if(json_is_null(jn_var)) {
-        val = 0.0;
-    }
-    return val;
-}
-
-/***************************************************************************
- *  Simple json to int
- ***************************************************************************/
-PUBLIC json_int_t jn2integer(json_t *jn_var)
-{
-    json_int_t val = 0;
-    if(json_is_real(jn_var)) {
-        val = (json_int_t)json_real_value(jn_var);
-    } else if(json_is_integer(jn_var)) {
-        val = json_integer_value(jn_var);
-    } else if(json_is_string(jn_var)) {
-        const char *v = json_string_value(jn_var);
-        if(*v == '0') {
-            val = strtoll(v, 0, 8);
-        } else if(*v == 'x' || *v == 'X') {
-            val = strtoll(v, 0, 16);
-        } else {
-            val = strtoll(v, 0, 10);
-        }
-    } else if(json_is_true(jn_var)) {
-        val = 1;
-    } else if(json_is_false(jn_var)) {
-        val = 0;
-    } else if(json_is_null(jn_var)) {
-        val = 0;
-    }
-    return val;
-}
-
-/***************************************************************************
- *  Simple json to string, WARNING free return with gbmem_free
- ***************************************************************************/
-PUBLIC char *jn2string(json_t *jn_var)
-{
-    char temp[PATH_MAX];
-    char *s="";
-
-    if(json_is_string(jn_var)) {
-        s = (char *)json_string_value(jn_var);
-    } else if(json_is_integer(jn_var)) {
-        json_int_t v = json_integer_value(jn_var);
-        snprintf(temp, sizeof(temp), "%"JSON_INTEGER_FORMAT, v);
-        s = temp;
-    } else if(json_is_real(jn_var)) {
-        double v = json_real_value(jn_var);
-        snprintf(temp, sizeof(temp), "%.17f", v);
-        s = temp;
-    } else if(json_is_boolean(jn_var)) {
-        s = json_is_true(jn_var)?"1":"0";
-    }
-
-    return GBMEM_STRDUP(s);
-}
-
-/***************************************************************************
- *  Simple json to bool
- ***************************************************************************/
-PUBLIC BOOL jn2bool(json_t *jn_var)
-{
-    BOOL val = 0;
-    if(json_is_real(jn_var)) {
-        val = json_real_value(jn_var)?1:0;
-    } else if(json_is_integer(jn_var)) {
-        val = json_integer_value(jn_var)?1:0;
-    } else if(json_is_string(jn_var)) {
-        const char *v = json_string_value(jn_var);
-        val = empty_string(v)?0:1;
-    } else if(json_is_true(jn_var)) {
-        val = 1;
-    } else if(json_is_false(jn_var)) {
-        val = 0;
-    } else if(json_is_null(jn_var)) {
-        val = 0;
-    }
-    return val;
-}
-
-/***************************************************************************
-    Only compare str/int/real/bool items
-    Complex types are done as matched
-    Return lower, iqual, higher (-1, 0, 1), like strcmp
- ***************************************************************************/
-PUBLIC int cmp_two_simple_json(
-    json_t *jn_var1,    // not owned
-    json_t *jn_var2     // not owned
-)
-{
-    /*
-     *  Discard complex types, done as matched
-     */
-    if(json_is_object(jn_var1) ||
-            json_is_object(jn_var2) ||
-            json_is_array(jn_var1) ||
-            json_is_array(jn_var2)) {
-        return 0;
-    }
-
-    /*
-     *  First try real
-     */
-    if(json_is_real(jn_var1) || json_is_real(jn_var2)) {
-        double val1 = jn2real(jn_var1);
-        double val2 = jn2real(jn_var2);
-        if(val1 > val2) {
-            return 1;
-        } else if(val1 < val2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    /*
-     *  Try integer
-     */
-    if(json_is_integer(jn_var1) || json_is_integer(jn_var2)) {
-        json_int_t val1 = jn2integer(jn_var1);
-        json_int_t val2 = jn2integer(jn_var2);
-        if(val1 > val2) {
-            return 1;
-        } else if(val1 < val2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    /*
-     *  Try boolean
-     */
-    if(json_is_boolean(jn_var1) || json_is_boolean(jn_var2)) {
-        json_int_t val1 = jn2integer(jn_var1);
-        json_int_t val2 = jn2integer(jn_var2);
-        if(val1 > val2) {
-            return 1;
-        } else if(val1 < val2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    /*
-     *  Try string
-     */
-    char *val1 = jn2string(jn_var1);
-    char *val2 = jn2string(jn_var2);
-    int ret = strcmp(val1, val2);
-    GBMEM_FREE(val1);
-    GBMEM_FREE(val2);
-    return ret;
-}
-
-/***************************************************************************
-    Split a string by delim returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free2().
-    HACK: No, It does NOT include the empty strings!
- ***************************************************************************/
-PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
-{
-    char *ptr;
-    int max_items = 0;
-
-    if(plist_size) {
-        max_items = *plist_size;
-        *plist_size = 0; // error case
-    }
-    char *buffer = GBMEM_STRDUP(str);
-    if(!buffer) {
-        return 0;
-    }
-
-    // Get list size
-    int list_size = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
-        list_size++;
-    }
-    GBMEM_FREE(buffer);
-
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
-    if(!buffer) {
-        return 0;
-    }
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
-    }
-
-    // Alloc list
-    int size = sizeof(char *) * (list_size + 1);
-    const char **list = GBMEM_MALLOC(size);
-
-    // Fill list
-    int i = 0;
-    for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
-        if (i < list_size) {
-            list[i++] = GBMEM_STRDUP(ptr);
-        } else {
-            break;
-        }
-    }
-    GBMEM_FREE(buffer);
-
-    if(plist_size) {
-        *plist_size = i;
-    }
-    return list;
-}
-
-/***************************************************************************
- *  Free split list content
- ***************************************************************************/
-PUBLIC void split_free2(const char **list)
-{
-    if(list) {
-        char **p = (char **)list;
-        while(*p) {
-            GBMEM_FREE(*p);
-            *p = 0;
-            p++;
-        }
-        GBMEM_FREE(list);
-    }
-}
-
-/***************************************************************************
-    Split string `str` by `delim` chars returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free3().
-    HACK: Yes, It does include the empty strings!
- ***************************************************************************/
-PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
-{
-    char *ptr, *p;
-    int max_items = 0;
-
-    if(plist_size) {
-        max_items = *plist_size;
-        *plist_size = 0; // error case
-    }
-    char *buffer = GBMEM_STRDUP(str);
-    if(!buffer) {
-        return 0;
-    }
-
-    // Get list size
-    int list_size = 0;
-
-    p = buffer;
-    while ((ptr = strsep(&p, delim)) != NULL) {
-        list_size++;
-    }
-    GBMEM_FREE(buffer);
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
-    }
-
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
-    if(!buffer) {
-        return 0;
-    }
-
-    // Alloc list
-    size_t size = sizeof(char *) * (list_size + 1);
-    const char **list = GBMEM_MALLOC(size);
-
-    // Fill list
-    int i = 0;
-    p = buffer;
-    while ((ptr = strsep(&p, delim)) != NULL) {
-        if (i < list_size) {
-            list[i] = GBMEM_STRDUP(ptr);
-            i++;
-        } else {
-            break;
-        }
-    }
-    GBMEM_FREE(buffer);
-
-    if(plist_size) {
-        *plist_size = list_size;
-    }
-    return list;
-}
-
-/***************************************************************************
- *  Free split list content
- ***************************************************************************/
-PUBLIC void split_free3(const char **list)
-{
-    if(list) {
-        char **p = (char **)list;
-        while(*p) {
-            GBMEM_FREE(*p);
-            *p = 0;
-            p++;
-        }
-        GBMEM_FREE(list);
-    }
-}
-
-/***************************************************************************
-    Get a the idx of string value in a strings json list.
- ***************************************************************************/
-PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case)
-{
-    if(!json_is_array(jn_list)) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "list MUST BE a json array",
-            NULL
-        );
-        gobj_trace_json(0, jn_list, "list MUST BE a json array");
-        return 0;
-    }
-
-    size_t idx;
-    json_t *jn_str;
-
-    json_array_foreach(jn_list, idx, jn_str) {
-        if(!json_is_string(jn_str)) {
-            continue;
-        }
-        const char *_str = json_string_value(jn_str);
-        if(ignore_case) {
-            if(strcasecmp(_str, str)==0)
-                return (int)idx;
-        } else {
-            if(strcmp(_str, str)==0)
-                return (int)idx;
-        }
-    }
-
-    return -1;
-}
-
-/***************************************************************************
-    Concat two strings
-    WARNING Remember free with str_concat_free().
- ***************************************************************************/
-PUBLIC char * str_concat(const char *str1, const char *str2)
-{
-    size_t len = 0;
-
-    if(str1) {
-        len += strlen(str1);
-    }
-    if(str2) {
-        len += strlen(str2);
-    }
-
-    char *s = GBMEM_MALLOC(len+1);
-    if(!s) {
-        return NULL;
-    }
-    if(str1) {
-        strcat(s, str1);
-    }
-    if(str2) {
-        strcat(s, str2);
-    }
-
-    return s;
-}
-
-/***************************************************************************
-    Concat three strings
-    WARNING Remember free with str_concat_free().
- ***************************************************************************/
-PUBLIC char * str_concat3(const char *str1, const char *str2, const char *str3)
-{
-    size_t len = 0;
-
-    if(str1) {
-        len += strlen(str1);
-    }
-    if(str2) {
-        len += strlen(str2);
-    }
-    if(str3) {
-        len += strlen(str3);
-    }
-
-    char *s = GBMEM_MALLOC(len+1);
-    if(!s) {
-        return NULL;
-    }
-    if(str1) {
-        strcat(s, str1);
-    }
-    if(str2) {
-        strcat(s, str2);
-    }
-    if(str3) {
-        strcat(s, str3);
-    }
-
-    return s;
-}
-
-/***************************************************************************
- *  Free concat
- ***************************************************************************/
-PUBLIC void str_concat_free(char *s)
-{
-    GBMEM_FREE(s)
+    return st_mem.frmkb + st_mem.camkb; // Include cache memory too
 }

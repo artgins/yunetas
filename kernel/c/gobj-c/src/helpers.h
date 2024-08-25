@@ -78,6 +78,68 @@ PUBLIC char *delete_left_char(char *s, char x);
 PUBLIC char *build_path(char *bf, size_t bfsize, ...);
 PUBLIC char *get_last_segment(char *path);
 PUBLIC char *pop_last_segment(char *path); // WARNING path modified
+PUBLIC char *helper_quote2doublequote(char *str);
+PUBLIC char *helper_doublequote2quote(char *str);
+PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
+PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si); // si ? 1000 : 1024
+PUBLIC void delete_right_blanks(char *s);
+PUBLIC void delete_left_blanks(char *s);
+PUBLIC void left_justify(char *s);
+PUBLIC char *strntoupper(char* s, size_t n);
+PUBLIC char *strntolower(char* s, size_t n);
+PUBLIC int change_char(char *s, char old_c, char new_c);
+
+/**rst**
+   Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
+   The string is modified (nulls inserted)!
+**rst**/
+PUBLIC char *get_parameter(char *s, char **save_ptr);
+
+/**rst**
+ *  Extract key=value or key='this value' parameter
+ *  Return the value, the key in `key`
+ *  The string is modified (nulls inserted)!
+**rst**/
+PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
+
+/**rst**
+    Split a string by delim returning the list of strings.
+    Return filling `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free2().
+    HACK: No, It does NOT include the empty strings!
+**rst**/
+PUBLIC const char ** split2(const char *str, const char *delim, int *list_size);
+PUBLIC void split_free2(const char **list);
+
+/**rst**
+    Split string `str` by `delim` chars returning the list of strings.
+    Return filling `list_size` if not null with items size,
+        It MUST be initialized to 0 (no limit) or to maximum items wanted.
+    WARNING Remember free with split_free3().
+    HACK: Yes, It does include the empty strings!
+**rst**/
+PUBLIC const char **split3(const char *str, const char *delim, int *plist_size);
+PUBLIC void split_free3(const char **list);
+
+/**rst**
+    Concat two strings or three strings
+    WARNING Remember free with str_concat_free().
+**rst**/
+PUBLIC char * str_concat(const char *str1, const char *str2);
+PUBLIC char * str_concat3(const char *str1, const char *str2, const char *str3);
+PUBLIC void str_concat_free(char *s);
+
+/**rst**
+    Return idx of str in string list.
+    Return -1 if not exist
+**rst**/
+PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
+
+/**rst**
+    Return TRUE if str is in string list.
+**rst**/
+PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
 
 /*------------------------------------*
  *          Json
@@ -208,15 +270,50 @@ PUBLIC uint64_t strings2bits(
 );
 
 /**rst**
-    Return idx of str in string list.
+    Get a the idx of string value in a strings json list.
     Return -1 if not exist
 **rst**/
-PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
+PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case);
 
 /**rst**
-    Return TRUE if str is in string list.
+    Simple json to real
 **rst**/
-PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
+PUBLIC double jn2real(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to int
+**rst**/
+PUBLIC json_int_t jn2integer(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to string, WARNING free return with gbmem_free
+**rst**/
+PUBLIC char *jn2string(
+    json_t *jn_var
+);
+
+/**rst**
+    Simple json to boolean
+**rst**/
+PUBLIC BOOL jn2bool(
+    json_t *jn_var
+);
+
+/**rst**
+    Only compare str/int/real/bool items
+    Complex types are done as matched
+    Return lower, iqual, higher (-1, 0, 1), like strcmp
+**rst**/
+PUBLIC int cmp_two_simple_json(
+    json_t *jn_var1,    // NOT owned
+    json_t *jn_var2     // NOT owned
+);
+
+PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
 
 /*---------------------------------*
  *      Walkdir functions
@@ -280,103 +377,7 @@ PUBLIC uint64_t start_msectimer(uint64_t miliseconds);   /* value <=0 will disab
 PUBLIC BOOL   test_msectimer(uint64_t value);           /* Return TRUE if timer has finish */
 PUBLIC uint64_t time_in_miliseconds(void);   // Return current time in miliseconds
 PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (standart time(&t))
-
-PUBLIC char *helper_quote2doublequote(char *str);
-PUBLIC char *helper_doublequote2quote(char *str);
-PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
-PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
-PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si); // si ? 1000 : 1024
-PUBLIC void delete_right_blanks(char *s);
-PUBLIC void delete_left_blanks(char *s);
-PUBLIC void left_justify(char *s);
-PUBLIC char *strntoupper(char* s, size_t n);
-PUBLIC char *strntolower(char* s, size_t n);
-PUBLIC int change_char(char *s, char old_c, char new_c);
-
-/**rst**
-   Extract parameter: delimited by blanks (\b\t) or quotes ('' "")
-   The string is modified (nulls inserted)!
-**rst**/
-PUBLIC char *get_parameter(char *s, char **save_ptr);
-
-/**rst**
- *  Extract key=value or key='this value' parameter
- *  Return the value, the key in `key`
- *  The string is modified (nulls inserted)!
-**rst**/
-PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
-
-/**rst**
-    Simple json to real
-**rst**/
-PUBLIC double jn2real(
-    json_t *jn_var
-);
-
-/**rst**
-    Simple json to int
-**rst**/
-PUBLIC json_int_t jn2integer(
-    json_t *jn_var
-);
-
-/**rst**
-    Simple json to string, WARNING free return with gbmem_free
-**rst**/
-PUBLIC char *jn2string(
-    json_t *jn_var
-);
-
-/**rst**
-    Simple json to boolean
-**rst**/
-PUBLIC BOOL jn2bool(
-    json_t *jn_var
-);
-
-/**rst**
-    Only compare str/int/real/bool items
-    Complex types are done as matched
-    Return lower, iqual, higher (-1, 0, 1), like strcmp
-**rst**/
-PUBLIC int cmp_two_simple_json(
-    json_t *jn_var1,    // NOT owned
-    json_t *jn_var2     // NOT owned
-);
-
-/**rst**
-    Split a string by delim returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free2().
-    HACK: No, It does NOT include the empty strings!
-**rst**/
-PUBLIC const char ** split2(const char *str, const char *delim, int *list_size);
-PUBLIC void split_free2(const char **list);
-
-/**rst**
-    Split string `str` by `delim` chars returning the list of strings.
-    Return filling `list_size` if not null with items size,
-        It MUST be initialized to 0 (no limit) or to maximum items wanted.
-    WARNING Remember free with split_free3().
-    HACK: Yes, It does include the empty strings!
-**rst**/
-PUBLIC const char **split3(const char *str, const char *delim, int *plist_size);
-PUBLIC void split_free3(const char **list);
-
-/**rst**
-    Get a the idx of string value in a strings json list.
-    Return -1 if not exist
-**rst**/
-PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case);
-
-/**rst**
-    Concat two strings or three strings
-    WARNING Remember free with str_concat_free().
-**rst**/
-PUBLIC char * str_concat(const char *str1, const char *str2);
-PUBLIC char * str_concat3(const char *str1, const char *str2, const char *str3);
-PUBLIC void str_concat_free(char *s);
+unsigned long free_ram_in_kb(void); /* Free memory in kB */
 
 
 #ifdef __cplusplus

@@ -146,7 +146,7 @@ Go to the yunetas directory in your project and activate:
 
 ## Install additional Python dependencies
 
-Install additional Python dependencies:
+Install additional Python dependencies (`scripts` directory will be added to path):
 
     cd ./scripts
     pip install -r requirements.txt

@@ -19,6 +19,7 @@
 #include <time.h>
 #include <gobj.h>
 #include <helpers.h>
+#include <timeranger2.h>
 
 /***************************************************************************
  *              Constants
@@ -305,6 +306,7 @@ PRIVATE BOOL list_db_cb(
 PRIVATE int list_databases(const char *path)
 {
     walk_dir_tree(
+        0,
         path,
         "__timeranger__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -341,6 +343,7 @@ PRIVATE int list_topics(const char *path)
 {
     printf("    Topics:\n");
     walk_dir_tree(
+        0,
         path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -358,20 +361,22 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *list,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     json_t *jn_record // owned
 )
 {
     static BOOL first_time = TRUE;
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     total_counter++;
     partial_counter++;
-    int verbose = kw_get_int(list, "verbose", 0, KW_REQUIRED);
+    int verbose = (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
-    print_md1_record(tranger, topic, md_record, title, sizeof(title));
+    tr2_print_md1_record(tranger, topic, md_record, title, sizeof(title));
 
     BOOL table_mode = FALSE;
-    json_t *match_cond = kw_get_dict(list, "match_cond", 0, KW_REQUIRED);
+    json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
         verbose = 3;
         table_mode = TRUE;
@@ -385,7 +390,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 0) {
-        print_md0_record(tranger, topic, md_record, title, sizeof(title));
+        tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(jn_record);
         return 0;
@@ -396,20 +401,20 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 2) {
-        print_md2_record(tranger, topic, md_record, title, sizeof(title));
+        tr2_print_md2_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(jn_record);
         return 0;
     }
 
     if(!jn_record) {
-        jn_record = tranger_read_record_content(tranger, topic, md_record);
+        jn_record = tranger2_read_record_content(tranger, topic, md_record);
     }
 
     if(kw_has_key(match_cond, "filter")) {
         verbose = 3;
-        json_t *fields2match = kw_get_dict(match_cond, "filter", 0, KW_REQUIRED);
-        json_t *record1 = kw_clone_by_keys(json_incref(jn_record), json_incref(fields2match), FALSE);
+        json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
+        json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
         if(!kwid_compare_records(
             record1,        // NOT owned
             fields2match,   // NOT owned
@@ -428,10 +433,11 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-            print_md0_record(tranger, topic, md_record, title, sizeof(title));
+            tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
+                gobj,
                 jn_record,   // owned
                 keys
             );
@@ -448,7 +454,7 @@ PRIVATE int load_record_callback(
                 first_time = FALSE;
                 col = 0;
                 json_object_foreach(jn_record, key, jn_value) {
-                    len = strlen(key);
+                    len = (int)strlen(key);
                     if(col == 0) {
                         printf("%*.*s", len, len, key);
                     } else {
@@ -479,7 +485,7 @@ PRIVATE int load_record_callback(
                 } else {
                     printf(" %s", s);
                 }
-                gbmem_free(s);
+                GBMEM_FREE(s);
                 col++;
             }
             printf("\n");
@@ -511,7 +517,7 @@ PRIVATE int _list_messages(list_params_t *list_params)
         "path", path,
         "database", database
     );
-    json_t * tranger = tranger_startup(jn_tranger);
+    json_t * tranger = tranger2_startup(0, jn_tranger);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
         exit(-1);
@@ -520,7 +526,7 @@ PRIVATE int _list_messages(list_params_t *list_params)
     /*-------------------------------*
      *  Open topic
      *-------------------------------*/
-    json_t * htopic = tranger_open_topic(
+    json_t * htopic = tranger2_open_topic(
         tranger,
         topic_name,
         FALSE
@@ -538,19 +544,19 @@ PRIVATE int _list_messages(list_params_t *list_params)
         "verbose", verbose
     );
 
-    json_t *tr_list = tranger_open_list(
+    json_t *tr_list = tranger2_open_list(
         tranger,
         jn_list
     );
     if(tr_list) {
-        tranger_close_list(tranger, tr_list);
+        tranger2_close_list(tranger, tr_list);
     }
 
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/
-    tranger_close_topic(tranger, topic_name);
-    tranger_shutdown(tranger);
+    tranger2_close_topic(tranger, topic_name);
+    tranger2_shutdown(tranger);
 
     return 0;
 }
@@ -562,10 +568,11 @@ PRIVATE int list_topic_messages(list_params_t *list_params)
 {
     char path_topic[PATH_MAX];
 
-    build_path3(path_topic, sizeof(path_topic),
+    build_path(path_topic, sizeof(path_topic),
         list_params->arguments->path,
         list_params->arguments->database,
-        list_params->arguments->topic
+        list_params->arguments->topic,
+        NULL
     );
 
     if(!file_exists(path_topic, "topic_desc.json")) {
