@@ -8,6 +8,8 @@ __pypackages__/
 yunetas.egg-info/
 *.pyc
 
+x.sh
+
 dist
 docs/build
 docs/_build
