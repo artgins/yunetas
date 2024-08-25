@@ -44,10 +44,10 @@ set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} "${YUNETAS_PARENT_BASE_DIR}/outputs
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)
 # TODO check if -fno-stack-protector is only for esp32
-    add_compile_options(-std=c99 -Wall -Wextra -g3 -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
+    add_compile_options(-std=c99 -Wall -Wextra -Wno-type-limits -Wno-sign-compare -g3 -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
     add_link_options(-no-pie)
 else()
-    add_compile_options(-std=c99 -Wall -Wextra -g3 -O -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
+    add_compile_options(-std=c99 -Wall -Wextra -Wno-type-limits -Wno-sign-compare -g3 -O -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
     add_link_options(-no-pie)
 endif()
 

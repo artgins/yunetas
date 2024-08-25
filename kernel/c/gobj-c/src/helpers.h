@@ -80,6 +80,10 @@ PUBLIC char *get_last_segment(char *path);
 PUBLIC char *pop_last_segment(char *path); // WARNING path modified
 PUBLIC char *helper_quote2doublequote(char *str);
 PUBLIC char *helper_doublequote2quote(char *str);
+/**rst**
+    Return TRUE if all characters (not empty) are numbers
+**rst**/
+PUBLIC BOOL all_numbers(const char* s);
 PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
 PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si); // si ? 1000 : 1024
 PUBLIC void delete_right_blanks(char *s);
@@ -314,6 +318,9 @@ PUBLIC int cmp_two_simple_json(
 );
 
 PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
+PUBLIC json_t * string2json(const char* str, BOOL verbose); /* only [] or {}, old legalstring2json()*/
+#define legalstring2json string2json
+#define str2json string2json
 
 /**rst**
     Set real precision (use in conversion of json to string functions)
@@ -376,6 +383,127 @@ PUBLIC char **get_ordered_filename_array(
 );
 PUBLIC void free_ordered_filename_array(char **array, int size);
 
+/*---------------------------------*
+ *      Time functions
+ *---------------------------------*/
+typedef uintmax_t timestamp_t;
+#define PRItime PRIuMAX
+#define parse_timestamp strtoumax
+#define TIME_MAX UINTMAX_MAX
+
+/*
+ * ARRAY_SIZE - get the number of elements in a visible array
+ *  <at> x: the array whose size you want.
+ *
+ * This does not work on pointers, or arrays declared as [], or
+ * function parameters.  With correct compiler support, such usage
+ * will cause a build error (see the build_assert_or_zero macro).
+ */
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
+#define bitsizeof(x)  (CHAR_BIT * sizeof(x))
+
+#define maximum_signed_value_of_type(a) \
+    (INTMAX_MAX >> (bitsizeof(intmax_t) - bitsizeof(a)))
+
+#define maximum_unsigned_value_of_type(a) \
+    (UINTMAX_MAX >> (bitsizeof(uintmax_t) - bitsizeof(a)))
+
+/*
+ * Signed integer overflow is undefined in C, so here's a helper macro
+ * to detect if the sum of two integers will overflow.
+ *
+ * Requires: a >= 0, typeof(a) equals typeof(b)
+ */
+#define signed_add_overflows(a, b) \
+    ((b) > maximum_signed_value_of_type(a) - (a))
+
+#define unsigned_add_overflows(a, b) \
+    ((b) > maximum_unsigned_value_of_type(a) - (a))
+
+/*
+ * If the string "str" begins with the string found in "prefix", return 1.
+ * The "out" parameter is set to "str + strlen(prefix)" (i.e., to the point in
+ * the string right after the prefix).
+ *
+ * Otherwise, return 0 and leave "out" untouched.
+ *
+ * Examples:
+ *
+ *   [extract branch name, fail if not a branch]
+ *   if (!skip_prefix(ref, "refs/heads/", &branch)
+ *    return -1;
+ *
+ *   [skip prefix if present, otherwise use whole string]
+ *   skip_prefix(name, "refs/heads/", &name);
+ */
+static inline int skip_prefix(const char *str, const char *prefix,
+                              const char **out)
+{
+    do {
+        if (!*prefix) {
+            *out = str;
+            return 1;
+        }
+    } while (*str++ == *prefix++);
+    return 0;
+}
+
+
+/*****************************************************************
+ *     Prototypes
+ *****************************************************************/
+struct date_mode {
+    enum date_mode_type {
+        DATE_NORMAL = 0,
+        DATE_RELATIVE,
+        DATE_SHORT,
+        DATE_ISO8601,
+        DATE_ISO8601_STRICT,
+        DATE_RFC2822,
+        DATE_STRFTIME,
+        DATE_RAW,
+        DATE_UNIX
+    } type;
+    char strftime_fmt[256];
+    int local;
+};
+
+time_t tm_to_time_t(const struct tm *tm);
+
+/*
+ * Convenience helper for passing a constant type, like:
+ *
+ *   show_date(t, tz, DATE_MODE(NORMAL));
+ */
+#define DATE_MODE(t) date_mode_from_type(DATE_##t)
+struct date_mode *date_mode_from_type(enum date_mode_type type);
+
+const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode);
+void show_date_relative(
+    timestamp_t time,
+    char *timebuf,
+    int timebufsize
+);
+int parse_date(
+    const char *date,
+    char *out,
+    int outsize
+);
+int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
+int parse_expiry_date(const char *date, timestamp_t *timestamp);
+void datestamp(
+    char *out,
+    int outsize
+);
+
+#define approxidate(s) approxidate_careful((s), NULL)
+timestamp_t approxidate_careful(const char *, int *);
+timestamp_t approxidate_relative(const char *date);
+void parse_date_format(const char *format, struct date_mode *mode);
+int date_overflows(timestamp_t date);
 
 /*---------------------------------*
  *      Utilities functions

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <argp.h>
 #include <time.h>
+#include <signal.h>
 #include <errno.h>
 #include <regex.h>
 #include <locale.h>
@@ -20,6 +21,8 @@
 #include <gobj.h>
 #include <helpers.h>
 #include <timeranger2.h>
+#include <stacktrace_with_bfd.h>
+#include <yunetas_ev_loop.h>
 
 /***************************************************************************
  *              Constants
@@ -84,12 +87,15 @@ typedef struct {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PUBLIC void yuno_catch_signals(void);
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
 PRIVATE int list_topics(const char *path);
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
+yev_loop_t *yev_loop;
+int time2exit = 10;
 struct arguments arguments;
 int total_counter = 0;
 int partial_counter = 0;
@@ -151,7 +157,10 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,
+    0,
+    0
 };
 
 /***************************************************************************
@@ -163,98 +172,98 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
      *  Get the input argument from argp_parse,
      *  which we know is a pointer to our arguments structure.
      */
-    struct arguments *arguments = state->input;
+    struct arguments *arguments_ = state->input;
 
     switch (key) {
     case 'a':
-        arguments->path= arg;
+        arguments_->path= arg;
         break;
     case 'b':
-        arguments->database= arg;
+        arguments_->database= arg;
         break;
     case 'c':
-        arguments->topic= arg;
+        arguments_->topic= arg;
         break;
     case 'r':
-        arguments->recursive = 1;
+        arguments_->recursive = 1;
         break;
     case 'l':
         if(arg) {
-            arguments->verbose = atoi(arg);
+            arguments_->verbose = atoi(arg);
         }
         break;
     case 'm':
-        arguments->mode = arg;
+        arguments_->mode = arg;
         break;
     case 'f':
-        arguments->fields = arg;
+        arguments_->fields = arg;
         break;
 
     case 1: // from_t
-        arguments->from_t = arg;
+        arguments_->from_t = arg;
         break;
     case 2: // to_t
-        arguments->to_t = arg;
+        arguments_->to_t = arg;
         break;
 
     case 4: // from_rowid
-        arguments->from_rowid = arg;
+        arguments_->from_rowid = arg;
         break;
     case 5: // to_rowid
-        arguments->to_rowid = arg;
+        arguments_->to_rowid = arg;
         break;
 
     case 9:
-        arguments->user_flag_mask_set = arg;
+        arguments_->user_flag_mask_set = arg;
         break;
     case 10:
-        arguments->user_flag_mask_notset = arg;
+        arguments_->user_flag_mask_notset = arg;
         break;
 
     case 13:
-        arguments->system_flag_mask_set = arg;
+        arguments_->system_flag_mask_set = arg;
         break;
     case 14:
-        arguments->system_flag_mask_notset = arg;
+        arguments_->system_flag_mask_notset = arg;
         break;
 
     case 15:
-        arguments->key = arg;
+        arguments_->key = arg;
         break;
     case 16:
-        arguments->notkey = arg;
+        arguments_->notkey = arg;
         break;
 
     case 17: // from_tm
-        arguments->from_tm = arg;
+        arguments_->from_tm = arg;
         break;
     case 18: // to_tm
-        arguments->to_tm = arg;
+        arguments_->to_tm = arg;
         break;
 
     case 19: // to_tm
-        arguments->rkey = arg;
+        arguments_->rkey = arg;
         break;
 
     case 20: // filter
-        arguments->filter= arg;
+        arguments_->filter= arg;
         break;
 
     case 21:
-        arguments->list_databases = 1;
+        arguments_->list_databases = 1;
         break;
 
     case ARGP_KEY_ARG:
         if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments. */
+            /* Too many arguments_. */
             argp_usage (state);
         }
-        arguments->args[state->arg_num] = arg;
+        arguments_->args[state->arg_num] = arg;
         break;
 
     case ARGP_KEY_END:
         if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments. */
+            /* Not enough arguments_. */
             argp_usage (state);
         }
         break;
@@ -415,12 +424,9 @@ PRIVATE int load_record_callback(
         verbose = 3;
         json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
         json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
-        if(!kwid_compare_records(
+        if(!json_equal(
             record1,        // NOT owned
-            fields2match,   // NOT owned
-            FALSE,          // BOOL without_metadata
-            FALSE,          // without_private
-            FALSE           // verbose
+            fields2match    // NOT owned
         )) {
             total_counter--;
             partial_counter--;
@@ -833,30 +839,61 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gobj_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifdef DEBUG
+    init_backtrace_with_bfd(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_bfd);
+#endif
+
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-
     uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_t)) * sizeof(md2_record_t);
-
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
-    gbmem_startup_system(
-        MEM_MAX_BLOCK,
-        MEM_MAX_SYSTEM_MEMORY
-    );
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // startup_persistent_attrs
+        NULL, // end_persistent_attrs
+        0,  // load_persistent_attrs
+        0,  // save_persistent_attrs
+        0,  // remove_persistent_attrs
+        0,  // list_persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL, // global_authenticate_parser
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY // max_system_memory, maximum system memory
     );
 
-    log_startup(
-        NAME,       // application name
-        VERSION,    // applicacion version
-        NAME        // executable program, to can trace stack
-    );
-    log_add_handler(NAME, "stdout", LOG_OPT_LOGGER, 0);
+    yuno_catch_signals();
 
+    /*--------------------------------*
+     *      Log handlers
+     *--------------------------------*/
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
     /*----------------------------------*
      *  Match conditions
@@ -1021,6 +1058,38 @@ int main(int argc, char *argv[])
         (unsigned long)(((double)total_counter)/dt)
     );
 
-    gbmem_shutdown();
-    return 0;
+    gobj_end();
+
+    return gobj_get_exit_code();
+}
+
+/***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int times = 0;
+    times++;
+    yev_loop->running = 0;
+    if(times > 1) {
+        exit(-1);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    alarm(time2exit);
 }
