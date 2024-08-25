@@ -102,6 +102,11 @@ typedef enum { // WARNING table with name's strings in 30_timeranger.c
     sf2_hard_deleted_record = 0x800000,
 } system_flag2_t;
 
+#define get_system_flag(md_record) (((md_record->__tm__) & 0x0ffffff000000000ULL) >> 36)
+#define get_user_flag(md_record) (((md_record->__t__) & 0x0ffffff000000000ULL) >> 36)
+#define get_time_t(md_record) ((md_record->__t__) & TIME_MASK)
+#define get_time_tm(md_record) ((md_record->__tm__) & TIME_MASK)
+
 #pragma pack(1)
 
 typedef struct { // Size: 96 bytes
