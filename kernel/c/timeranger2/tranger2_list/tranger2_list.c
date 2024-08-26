@@ -505,12 +505,13 @@ PRIVATE int list_messages(void)
     int verbose = arguments.verbose;
 
     /*-------------------------------*
-     *  Startup TimeRanger
+     *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
         "path", path,
         "database", database
     );
+
     json_t * tranger = tranger2_startup(0, jn_tranger);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);

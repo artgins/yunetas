@@ -107,12 +107,9 @@ add_subdirectory(modules/c/c_prot)
 #add_subdirectory(yunos/c)
 
 if (ENABLE_TESTS)
-    # Check for criterion
-    # find_package (Criterion REQUIRED)
-
     # Add tests
     enable_testing ()
-    # add_subdirectory(tests/c)
+    add_subdirectory(tests/c)
 endif ()
 
 if (ENABLE_PERFORMANCE)
