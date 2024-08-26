@@ -89,7 +89,7 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
-PRIVATE int _get_md_record_for_wr(
+PRIVATE int get_md_record_for_wr(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -120,32 +120,28 @@ PUBLIC json_t *tranger2_startup(
     json_t *jn_tranger // owned
 )
 {
-    /*
-     *  Como parámetro de entrada "jn_tanger",
-     *  se clona para no joder el original,
-     *  y porque se añaden campos de instancia, por ejemplo "fd_opened_files"
-     */
     json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
     json_object_update_existing(tranger, jn_tranger);
     json_object_set_new(tranger, "gobj", json_integer((json_int_t)(size_t)gobj));
     JSON_DECREF(jn_tranger)
 
     char path[PATH_MAX];
-    const char *path_ = kw_get_str(gobj, tranger, "path", "", 0);
-    build_path(path, sizeof(path), path_, "", NULL); // I want modify path
-    if(empty_string(path)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Cannot startup TimeRanger. What path?",
-            NULL
-        );
-        json_decref(tranger);
-        return 0;
+    if(1) {
+        const char *path_ = kw_get_str(gobj, tranger, "path", "", KW_REQUIRED);
+        if(empty_string(path_)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Cannot startup TimeRanger. What path?",
+                NULL
+            );
+            json_decref(tranger);
+            return 0;
+        }
+        build_path(path, sizeof(path), path_, "", NULL); // I want to modify the path
     }
-    kw_set_dict_value(gobj, tranger, "path", json_string(path));
 
-    const char *database = kw_get_str(gobj, tranger, "database", "", 0);
+    const char *database = kw_get_str(gobj, tranger, "database", "", KW_REQUIRED);
     if(empty_string(database)) {
         database = pop_last_segment(path);
         if(empty_string(database)) {
@@ -158,9 +154,13 @@ PUBLIC json_t *tranger2_startup(
             json_decref(tranger);
             return 0;
         }
-        kw_set_dict_value(gobj, tranger, "path", json_string(path));
-        kw_set_dict_value(gobj, tranger, "database", json_string(database));
+        json_object_set_new(tranger, "path", json_string(path));
+        json_object_set_new(tranger, "database", json_string(database));
     }
+
+    char directory[PATH_MAX];
+    build_path(directory, sizeof(directory), path, database, NULL);
+    kw_set_dict_value(gobj, tranger, "directory", json_string(directory));
 
     /*-------------------------------------*
      *  Build database directory and
@@ -180,9 +180,6 @@ PUBLIC json_t *tranger2_startup(
         0,
         KW_REQUIRED|KW_WILD_NUMBER
     );
-    char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), path, database, NULL);
-    kw_set_dict_value(gobj, tranger, "directory", json_string(directory));
 
     int fd = -1;
     if(file_exists(directory, "__timeranger__.json")) {
@@ -196,6 +193,7 @@ PUBLIC json_t *tranger2_startup(
             TRUE // silence
         );
         if(!jn_disk_tranger) {
+            // If can't open in exclusive mode then be a not master
             jn_disk_tranger = load_persistent_json(
                 gobj,
                 directory,
@@ -221,18 +219,21 @@ PUBLIC json_t *tranger2_startup(
                     "path",         "%s", directory,
                     NULL
                 );
+                json_decref(tranger);
+                return 0;
             }
             master = FALSE;
             json_object_set_new(tranger, "master", json_false());
         }
         json_object_update_existing(tranger, jn_disk_tranger);
         json_decref(jn_disk_tranger);
-    } else {
+
+    } else { // __timeranger__.json not exist
         if(!master) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot startup TimeRanger. Not found and not master",
+                "msg",          "%s", "Cannot startup TimeRanger. __timeranger__.json not found and not master",
                 "path",         "%s", directory,
                 NULL
             );
@@ -240,13 +241,13 @@ PUBLIC json_t *tranger2_startup(
             return 0;
         }
         /*
-         *  I'm MASTER
+         *  I'm MASTER and  __timeranger__.json not exist, create it
          */
         const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED);
         int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
         int rpermission = (int)kw_get_int(gobj, tranger, "rpermission", 0660, KW_REQUIRED);
+
         json_t *jn_tranger_ = json_object();
-        kw_get_str(gobj, jn_tranger_, "database", database, KW_CREATE);
         kw_get_str(gobj, jn_tranger_, "filename_mask", filename_mask, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "rpermission", rpermission, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "xpermission", xpermission, KW_CREATE);
@@ -268,39 +269,19 @@ PUBLIC json_t *tranger2_startup(
             "__timeranger__.json",
             on_critical_error,
             &fd,
-            master? TRUE:FALSE, //exclusive
+            TRUE, //exclusive
             TRUE // silence
         );
         if(!jn_disk_tranger) {
-            jn_disk_tranger = load_persistent_json(
-                gobj,
-                directory,
-                "__timeranger__.json",
-                on_critical_error,
-                &fd,
-                FALSE, //exclusive
-                TRUE // silence
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER_ERROR,
+                "msg",          "%s", "Cannot crate __timeranger__",
+                "path",         "%s", directory,
+                NULL
             );
-
-            if(jn_disk_tranger) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TRANGER_ERROR,
-                    "msg",          "%s", "Open as not master, __timeranger__.json locked",
-                    "path",         "%s", directory,
-                    NULL
-                );
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TRANGER_ERROR,
-                    "msg",          "%s", "Cannot open __timeranger__",
-                    "path",         "%s", directory,
-                    NULL
-                );
-            }
-            master = FALSE;
-            json_object_set_new(tranger, "master", json_false());
+            json_decref(tranger);
+            return 0;
         }
 
         json_object_update_existing(tranger, jn_disk_tranger);
@@ -2165,7 +2146,7 @@ PRIVATE int new_record_md_to_file(
 /***************************************************************************
     Get md record by rowid (by fd, for write)
  ***************************************************************************/
-PRIVATE int _get_md_record_for_wr(
+PRIVATE int get_md_record_for_wr(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -2338,7 +2319,7 @@ PUBLIC int tranger2_delete_record(
     }
 
     md2_record_t md_record;
-    if(_get_md_record_for_wr(
+    if(get_md_record_for_wr(
         gobj,
         tranger,
         topic,
@@ -2443,7 +2424,7 @@ PUBLIC int tranger2_write_mark1(
     }
 
     md2_record_t md_record;
-    if(_get_md_record_for_wr(
+    if(get_md_record_for_wr(
         gobj,
         tranger,
         topic,
@@ -2497,7 +2478,7 @@ PUBLIC int tranger2_write_user_flag(
     }
 
     md2_record_t md_record;
-    if(_get_md_record_for_wr(
+    if(get_md_record_for_wr(
         gobj,
         tranger,
         topic,
@@ -2542,7 +2523,7 @@ PUBLIC int tranger2_set_user_flag(
     }
 
     md2_record_t md_record;
-    if(_get_md_record_for_wr(
+    if(get_md_record_for_wr(
         gobj,
         tranger,
         topic,
@@ -2596,7 +2577,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
     }
 
     md2_record_t md_record;
-    if(_get_md_record_for_wr(
+    if(get_md_record_for_wr(
         gobj,
         tranger,
         topic,

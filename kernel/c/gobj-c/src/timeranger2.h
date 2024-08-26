@@ -130,6 +130,13 @@ static const json_desc_t tranger2_json_desc[] = {
 // Name                 Type    Default     Fillspace
 {"path",                "str",  "",         ""}, // If database exists then only needs (path,[database]) params
 {"database",            "str",  "",         ""}, // If null, path must contains the 'database'
+
+// Default for topics
+{"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
+{"xpermission" ,        "int",  "02770",    ""}, // Use in creation, default 02770;
+{"rpermission",         "int",  "0660",     ""}, // Use in creation, default 0660;
+
+// Volatil fields
 {"on_critical_error",   "int",  "2",        ""}, // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
 {"master",              "bool", "false",    ""}, // Volatil, the master is the only that can write.
 {"gobj",                "int",  "",         ""}, // Volatil, gobj of tranger
