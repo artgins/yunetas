@@ -1506,13 +1506,7 @@ PUBLIC json_t *load_json_from_file(
     build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(access(full_path, 0)!=0) {
-        gobj_log_critical(gobj, on_critical_error,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "json file not found",
-            "path",         "%s", full_path,
-            NULL
-        );
+        // Silence please. Caller must check the return.
         return 0;
     }
 

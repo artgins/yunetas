@@ -9,7 +9,7 @@ get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 #   Source
 ##############################################
 set(SRCS
-    test_tr1.c
+    test_create_topic.c
 )
 
 ##############################################

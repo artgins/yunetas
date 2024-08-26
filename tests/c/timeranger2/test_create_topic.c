@@ -56,7 +56,7 @@ int do_test(void)
         ),
         0
     );
-    tranger2_close_topic(tranger, "topic");
+    tranger2_close_topic(tranger, "topic_tr1");
 
     tranger2_shutdown(tranger);
 
