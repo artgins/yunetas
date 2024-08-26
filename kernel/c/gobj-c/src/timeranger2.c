@@ -164,7 +164,7 @@ PUBLIC json_t *tranger2_startup(
 
     /*-------------------------------------*
      *  Build database directory and
-     *  __timeranger__.json metadata file
+     *  __timeranger2__.json metadata file
      *-------------------------------------*/
     log_opt_t on_critical_error = kw_get_int(
         gobj,
@@ -182,11 +182,11 @@ PUBLIC json_t *tranger2_startup(
     );
 
     int fd = -1;
-    if(file_exists(directory, "__timeranger__.json")) {
+    if(file_exists(directory, "__timeranger2__.json")) {
         json_t *jn_disk_tranger = load_persistent_json(
             gobj,
             directory,
-            "__timeranger__.json",
+            "__timeranger2__.json",
             on_critical_error,
             &fd,
             master? TRUE:FALSE, //exclusive
@@ -197,7 +197,7 @@ PUBLIC json_t *tranger2_startup(
             jn_disk_tranger = load_persistent_json(
                 gobj,
                 directory,
-                "__timeranger__.json",
+                "__timeranger2__.json",
                 on_critical_error,
                 &fd,
                 FALSE, // exclusive
@@ -207,7 +207,7 @@ PUBLIC json_t *tranger2_startup(
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TRANGER_ERROR,
-                    "msg",          "%s", "Open as not master, __timeranger__.json locked",
+                    "msg",          "%s", "Open as not master, __timeranger2__.json locked",
                     "path",         "%s", directory,
                     NULL
                 );
@@ -228,12 +228,12 @@ PUBLIC json_t *tranger2_startup(
         json_object_update_existing(tranger, jn_disk_tranger);
         json_decref(jn_disk_tranger);
 
-    } else { // __timeranger__.json not exist
+    } else { // __timeranger2__.json not exist
         if(!master) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Cannot startup TimeRanger. __timeranger__.json not found and not master",
+                "msg",          "%s", "Cannot startup TimeRanger. __timeranger2__.json not found and not master",
                 "path",         "%s", directory,
                 NULL
             );
@@ -241,7 +241,7 @@ PUBLIC json_t *tranger2_startup(
             return 0;
         }
         /*
-         *  I'm MASTER and  __timeranger__.json not exist, create it
+         *  I'm MASTER and  __timeranger2__.json not exist, create it
          */
         const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED);
         int xpermission = (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED);
@@ -254,7 +254,7 @@ PUBLIC json_t *tranger2_startup(
         save_json_to_file(
             gobj,
             directory,
-            "__timeranger__.json",
+            "__timeranger2__.json",
             xpermission,
             rpermission,
             on_critical_error,
@@ -266,7 +266,7 @@ PUBLIC json_t *tranger2_startup(
         json_t *jn_disk_tranger = load_persistent_json(
             gobj,
             directory,
-            "__timeranger__.json",
+            "__timeranger2__.json",
             on_critical_error,
             &fd,
             TRUE, //exclusive
@@ -294,7 +294,7 @@ PUBLIC json_t *tranger2_startup(
     kw_get_dict(gobj, tranger, "fd_opened_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, tranger, "topics", json_object(), KW_CREATE);
 
-    kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger__.json", json_integer(fd));
+    kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
 
     return tranger;
 }
