@@ -422,7 +422,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             JSON_DECREF(jn_var);
             return 0;
         }
-        if(mkrdir(directory, 0, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(mkrdir(directory, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", directory,
@@ -533,7 +533,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         snprintf(full_path, sizeof(full_path), "%s/data",
             directory
         );
-        if(mkrdir(full_path, 0, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,

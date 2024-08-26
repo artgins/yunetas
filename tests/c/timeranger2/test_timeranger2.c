@@ -7,6 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
+#include <timeranger2.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
 
@@ -27,12 +28,35 @@ int times_periodic = 0;
 
 /***************************************************************************
  *              Test
+ *  HACK: Use gobj_set_exit_code(-1) to set error
  ***************************************************************************/
 int do_test(void)
 {
-    /*
-     *  HACK: Use gobj_set_exit_code(-1) to set error
-     */
+    char *path = "~/yuneta_tests/timeranger";
+    rmrdir(path);
+    mkrdir(path, 02770);
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+        "path", path,
+        "database", "database",
+        "master", 1
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger);
+
+    tranger2_create_topic(
+        tranger,
+        "topic",    // topic name
+        "id",       // pkey
+        "",         // tkey
+        0,          // system_latch
+        json_pack("{s:s, s:s}", // jn_cols, owned
+            "id", "",
+            "address", ""
+        ),
+        0
+    );
+    tranger2_close_topic(tranger, "topic");
+
+    tranger2_shutdown(tranger);
 
     return 0;
 }

@@ -398,106 +398,146 @@ PUBLIC int file_remove(const char *directory, const char *filename)
 }
 
 /***************************************************************************
- *  Make recursive dirs
- *  index va apuntando los segmentos del path en temp
+ *  Function to create directories recursively like "mkdir -p path"
  ***************************************************************************/
-PUBLIC int mkrdir(const char *path, int index, int permission)
+PUBLIC int mkrdir(const char *path, int permission)
 {
-    char bf[NAME_MAX];
-    if(*path == '/')
-        index++;
-    char *p = strchr(path + index, '/');
-    int len;
-    if(p) {
-        len = MIN((size_t)(p-path), sizeof(bf)-1);
-        strncpy(bf, path, len);
-        bf[len]=0;
-    } else {
-        len = MIN(strlen(path)+1, sizeof(bf)-1);
-        strncpy(bf, path, len);
-        bf[len]=0;
+    struct stat st;
+    char tmp[PATH_MAX];
+    char *p = NULL;
+    size_t len;
+
+    // Copy the path to a temporary buffer
+    snprintf(tmp, sizeof(tmp),"%s", path);
+    len = strlen(tmp);
+
+    if(tmp[len - 1] == '/') {
+        tmp[len - 1] = 0;
     }
 
-    if(access(bf, 0)!=0) {
-        if(newdir(bf, permission)<0) {
+    // Iterate over the path and create directories as needed
+    for(p = tmp + 1; *p; p++) {
+        if(*p == '/') {
+            *p = 0;
+            // Check if the directory exists
+            if(stat(tmp, &st) != 0) {
+                // If the directory doesn't exist, create it
+                if(newdir(tmp, permission)<0) {
+                    if(errno != EEXIST) {
+                        gobj_log_error(0, 0,
+                           "function",     "%s", __FUNCTION__,
+                           "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                           "msg",          "%s", "newdir() FAILED",
+                           "path",         "%s", tmp,
+                           "errno",        "%s", strerror(errno),
+                           NULL
+                        );
+                        return -1;
+                    }
+                }
+            } else if(!S_ISDIR(st.st_mode)) {
+                // If it's not a directory, return an error
+                return -1;
+            }
+            *p = '/';
+        }
+    }
+
+    // Create the final directory component
+    if(stat(tmp, &st) != 0) {
+        if(newdir(tmp, permission)<0) {
             if(errno != EEXIST) {
                 gobj_log_error(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "newdir() FAILED",
-                    "path",         "%s", bf,
-                    "errno",        "%s", strerror(errno),
-                    NULL
+                   "function",     "%s", __FUNCTION__,
+                   "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                   "msg",          "%s", "newdir() FAILED",
+                   "path",         "%s", tmp,
+                   "errno",        "%s", strerror(errno),
+                   NULL
                 );
                 return -1;
             }
         }
+    } else if(!S_ISDIR(st.st_mode)) {
+        return -1;
     }
-    if(p) {
-        // Have you got permissions to read next directory?
-        return mkrdir(path, p-path+1, permission);
-    }
+
     return 0;
 }
 
 /****************************************************************************
- *  Recursively remove a directory
+ *  Function to recursively remove a directory and its contents
  ****************************************************************************/
-PUBLIC int rmrdir(const char *root_dir)
+PUBLIC int rmrdir(const char *path)
 {
-    struct dirent *dent;
+    struct stat statbuf;
+    struct dirent *dir_entry;
     DIR *dir;
-    struct stat st;
+    char full_path[PATH_MAX];
 
-    if (!(dir = opendir(root_dir))) {
+    // Check if the path exists
+    if (stat(path, &statbuf) != 0) {
         return -1;
     }
 
-    while ((dent = readdir(dir))) {
-        char *dname = dent->d_name;
-        if (!strcmp(dname, ".") || !strcmp(dname, ".."))
-            continue;
-        char *path = malloc(strlen(root_dir) + strlen(dname) + 2);
-        if(!path) {
+    // If it's a regular file or symbolic link, remove it
+    if (S_ISREG(statbuf.st_mode) || S_ISLNK(statbuf.st_mode)) {
+        if (remove(path) != 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "no memory to path",
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "remove() FAILED",
+                "errno",        "%s", strerror(errno),
                 NULL
             );
-            closedir(dir);
             return -1;
         }
-        strcpy(path, root_dir);
-        strcat(path, "/");
-        strcat(path, dname);
-
-        if(stat(path, &st) == -1) {
-            closedir(dir);
-            free(path);
+    }
+        // If it's a directory, remove its contents recursively
+    else if (S_ISDIR(statbuf.st_mode)) {
+        dir = opendir(path);
+        if (dir == NULL) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "opendir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
             return -1;
         }
 
-        if(S_ISDIR(st.st_mode)) {
-            /* recursively follow dirs */
-            if(rmrdir(path)<0) {
-                closedir(dir);
-                free(path);
-                return -1;
+        while ((dir_entry = readdir(dir)) != NULL) {
+            // Skip the special entries "." and ".."
+            if (strcmp(dir_entry->d_name, ".") == 0 || strcmp(dir_entry->d_name, "..") == 0) {
+                continue;
             }
-        } else {
-            if(unlink(path) < 0) {
+
+            // Build the full path for the entry
+            snprintf(full_path, sizeof(full_path), "%s/%s", path, dir_entry->d_name);
+
+            // Recursively remove the entry
+            if (rmrdir(full_path) != 0) {
                 closedir(dir);
-                free(path);
                 return -1;
             }
         }
-        free(path);
+
+        closedir(dir);
+
+        // Finally, remove the directory itself
+        if (rmdir(path) != 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "rmdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
     }
-    closedir(dir);
-    if(rmdir(root_dir) < 0) {
-        return -1;
-    }
+
     return 0;
 }
 
@@ -1511,7 +1551,7 @@ PUBLIC int save_json_to_file(
             "msg",          "%s", "Parameter 'directory' or 'filename' NULL",
             NULL
         );
-        JSON_DECREF(jn_data);
+        JSON_DECREF(jn_data)
         return -1;
     }
 
@@ -1520,10 +1560,10 @@ PUBLIC int save_json_to_file(
      *-----------------------------------*/
     if(!is_directory(directory)) {
         if(!create) {
-            JSON_DECREF(jn_data);
+            JSON_DECREF(jn_data)
             return -1;
         }
-        if(mkrdir(directory, 0, xpermission)<0) {
+        if(mkrdir(directory, xpermission)<0) {
             gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -1532,7 +1572,7 @@ PUBLIC int save_json_to_file(
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            JSON_DECREF(jn_data);
+            JSON_DECREF(jn_data)
             return -1;
         }
     }
@@ -1561,7 +1601,7 @@ PUBLIC int save_json_to_file(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        JSON_DECREF(jn_data);
+        JSON_DECREF(jn_data)
         return -1;
     }
 
@@ -1573,14 +1613,14 @@ PUBLIC int save_json_to_file(
             "errno",        "%s", strerror(errno),
             NULL
         );
-        JSON_DECREF(jn_data);
+        JSON_DECREF(jn_data)
         return -1;
     }
     close(fp);
     if(only_read) {
         chmod(full_path, 0440);
     }
-    JSON_DECREF(jn_data);
+    JSON_DECREF(jn_data)
 
     return 0;
 }

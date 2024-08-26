@@ -108,7 +108,7 @@ PUBLIC char *yuneta_realm_dir(
 
     if(create) {
         if(access(bf, 0)!=0) {
-            mkrdir(bf, 0, yuneta_xpermission());
+            mkrdir(bf, yuneta_xpermission());
             if(access(bf, 0)!=0) {
                 *bf = 0;
                 return 0;
@@ -215,7 +215,7 @@ PUBLIC char *yuneta_store_dir(
 
     if(create) {
         if(access(bf, 0)!=0) {
-            mkrdir(bf, 0, yuneta_xpermission());
+            mkrdir(bf, yuneta_xpermission());
             if(access(bf, 0)!=0) {
                 *bf = 0;
                 return 0;
@@ -269,7 +269,7 @@ PUBLIC char *yuneta_realm_store_dir(
 
     if(create) {
         if(access(bf, 0)!=0) {
-            mkrdir(bf, 0, yuneta_xpermission());
+            mkrdir(bf, yuneta_xpermission());
             if(access(bf, 0)!=0) {
                 *bf = 0;
                 return 0;

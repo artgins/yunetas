@@ -66,7 +66,7 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename);
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir);
 PUBLIC int file_remove(const char *directory, const char *filename);
 
-PUBLIC int mkrdir(const char *path, int index, int permission);
+PUBLIC int mkrdir(const char *path, int permission);
 PUBLIC int rmrdir(const char *root_dir);
 PUBLIC int rmrcontentdir(const char *root_dir);
 
