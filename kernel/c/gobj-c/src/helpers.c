@@ -420,7 +420,7 @@ PUBLIC int mkrdir(const char *path, int permission)
         if(*p == '/') {
             *p = 0;
             // Check if the directory exists
-            if(stat(tmp, &st) != 0) {
+            if(access(tmp, F_OK) != 0) {
                 // If the directory doesn't exist, create it
                 if(newdir(tmp, permission)<0) {
                     if(errno != EEXIST) {
@@ -435,8 +435,16 @@ PUBLIC int mkrdir(const char *path, int permission)
                         return -1;
                     }
                 }
-            } else if(!S_ISDIR(st.st_mode)) {
+            } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
                 // If it's not a directory, return an error
+                gobj_log_error(0, 0,
+                   "function",     "%s", __FUNCTION__,
+                   "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                   "msg",          "%s", "Not a directory",
+                   "path",         "%s", tmp,
+                   "errno",        "%s", strerror(errno),
+                   NULL
+                );
                 return -1;
             }
             *p = '/';
@@ -444,7 +452,7 @@ PUBLIC int mkrdir(const char *path, int permission)
     }
 
     // Create the final directory component
-    if(stat(tmp, &st) != 0) {
+    if(access(tmp, F_OK) != 0) {
         if(newdir(tmp, permission)<0) {
             if(errno != EEXIST) {
                 gobj_log_error(0, 0,
@@ -458,7 +466,15 @@ PUBLIC int mkrdir(const char *path, int permission)
                 return -1;
             }
         }
-    } else if(!S_ISDIR(st.st_mode)) {
+    } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
+        gobj_log_error(0, 0,
+           "function",     "%s", __FUNCTION__,
+           "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+           "msg",          "%s", "Not a directory",
+           "path",         "%s", tmp,
+           "errno",        "%s", strerror(errno),
+           NULL
+        );
         return -1;
     }
 

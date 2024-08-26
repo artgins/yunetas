@@ -32,22 +32,24 @@ int times_periodic = 0;
  ***************************************************************************/
 int do_test(void)
 {
-    char *path = "~/yuneta_tests/timeranger";
+    char path[PATH_MAX];
+    const char *home = getenv("HOME");
+    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     rmrdir(path);
     mkrdir(path, 02770);
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
         "path", path,
-        "database", "database",
+        "database", "db_tr1",
         "master", 1
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
     tranger2_create_topic(
         tranger,
-        "topic",    // topic name
-        "id",       // pkey
-        "",         // tkey
-        0,          // system_latch
+        "topic_tr1",  // topic name
+        "id",           // pkey
+        "",             // tkey
+        0,              // system_latch
         json_pack("{s:s, s:s}", // jn_cols, owned
             "id", "",
             "address", ""
