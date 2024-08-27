@@ -109,7 +109,7 @@ PUBLIC void set_expected_results(
     JSON_DECREF(unexpected_log_messages)
     JSON_DECREF(expected)
 
-    expected_log_messages = errors_list;
+    expected_log_messages = errors_list?errors_list:json_array();
     unexpected_log_messages = json_array();
     expected = expected_;
 }

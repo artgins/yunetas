@@ -317,6 +317,23 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+    gobj_log_add_handler(
+        "test_stdout",
+        "stdout",
+        LOG_OPT_UP_WARNING,
+        0
+    );
+
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/

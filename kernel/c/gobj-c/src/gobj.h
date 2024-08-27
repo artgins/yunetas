@@ -252,6 +252,9 @@ typedef enum {
     LOG_HND_OPT_WARNING         = 0x0008,
     LOG_HND_OPT_INFO            = 0x0010,
     LOG_HND_OPT_DEBUG           = 0x0020,
+    LOG_HND_OPT_AUDIT           = 0x0040,
+    LOG_HND_OPT_MONITOR         = 0x0080,
+    LOG_HND_OPT_TRACE_STACK     = 0x0100,
 } log_handler_opt_t;
 
 #define LOG_OPT_UP_ERROR \

@@ -43,6 +43,11 @@ extern void jsonp_free(void *ptr);
 #define LOG_NOTICE      5       /* normal but significant condition */
 #define LOG_INFO        6       /* informational */
 #define LOG_DEBUG       7       /* debug-level messages */
+/*
+ *  Extra mine priority definitions
+ */
+#define LOG_AUDIT       8       // written without header
+#define LOG_MONITOR     9
 
 PRIVATE const char *priority_names[]={
     "EMERG",
@@ -52,7 +57,9 @@ PRIVATE const char *priority_names[]={
     "WARNING",
     "NOTICE",
     "INFO",
-    "DEBUG"
+    "DEBUG",
+    "AUDIT",
+    "MONITOR",
 };
 
 PRIVATE const char *log_handler_opt_names[]={
@@ -62,6 +69,9 @@ PRIVATE const char *log_handler_opt_names[]={
     "LOG_HND_OPT_WARNING",
     "LOG_HND_OPT_INFO",
     "LOG_HND_OPT_DEBUG",
+    "LOG_HND_OPT_AUDIT",
+    "LOG_HND_OPT_MONITOR",
+    "LOG_HND_OPT_TRACE_STACK",
     0
 };
 
@@ -408,6 +418,15 @@ PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
         break;
     case LOG_DEBUG:
         if(handler_options & LOG_HND_OPT_DEBUG)
+            ignore = FALSE;
+        break;
+
+    case LOG_AUDIT:
+        if(handler_options & LOG_HND_OPT_AUDIT)
+            ignore = FALSE;
+        break;
+    case LOG_MONITOR:
+        if(handler_options & LOG_HND_OPT_MONITOR)
             ignore = FALSE;
         break;
 
@@ -797,7 +816,8 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
                 break;
             }
         }
-        if(opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) {
+        if((opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) ||
+                ((lh->handler_options & LOG_HND_OPT_TRACE_STACK) && priority <=LOG_ERR)) {
             if(!backtrace_showed) {
                 if(show_backtrace_fn && lh->hr->fwrite_fn) {
                     show_backtrace_fn(lh->hr->fwrite_fn, lh->h);

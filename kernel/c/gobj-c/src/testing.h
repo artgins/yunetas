@@ -34,6 +34,7 @@ PUBLIC int test_json(
     json_t *jn_found  // owned
 );
 
+PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len);
 
 #ifdef __cplusplus
 }
