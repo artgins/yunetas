@@ -92,7 +92,7 @@ int do_test(void)
         }                                                                    \n\
         ";
         set_expected_results(
-            "tr_"TEST_NAME"_",      // test name
+            "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
@@ -101,42 +101,71 @@ int do_test(void)
     }
     result += test_file(file);
 
-//    /*
-//     *  Check __timeranger2__.json file
-//     */
-//    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "__timeranger2__.json", NULL);
-//    {
-//        char expected[]= "\
-//        {                                                                    \n\
-//          'filename_mask': '%Y-%m-%d',                                       \n\
-//          'rpermission': 432,                                                \n\
-//          'xpermission': 1528                                                \n\
-//        }                                                                    \n\
-//        ";
-//        set_expected_results(
-//            "tr_"TEST_NAME"_",      // test name
-//            json_pack("[]"          // error's list
-//            ),
-//            string2json(helper_quote2doublequote(expected), TRUE),
-//            TRUE
-//        );
-//    }
-//    result += test_file(file);
+    /*
+     *  Check "topic_desc.json" file
+     */
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
+    {
+        char expected[]= "\
+        {                                                                    \n\
+          'topic_name': 'topic_sample',                                      \n\
+          'pkey': 'id',                                                      \n\
+          'tkey': '',                                                        \n\
+          'system_flag': 4                                                   \n\
+        }                                                                    \n\
+        ";
 
-//    {}
-//    {
-//        "id": "",
-//        "address": ""
-//    }{
-//        "topic_name": "topic_sample",
-//            "pkey": "id",
-//            "tkey": "",
-//            "system_flag": 4
-//    }{
-//        "filename_mask": "%Y-%m-%d",
-//            "rpermission": 432,
-//            "xpermission": 1528
-//    }
+        set_expected_results(
+            "tr_"TEST_NAME"_check_topic_desc.json",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
+    }
+    result += test_file(file);
+
+    /*
+     *  Check "topic_cols.json" file
+     */
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
+    {
+        char expected[]= "\
+        {                                                                    \n\
+          'id': '',                                                          \n\
+          'address': ''                                                      \n\
+        }                                                                    \n\
+        ";
+
+        set_expected_results(
+            "tr_"TEST_NAME"_check_topic_cols.json",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
+    }
+    result += test_file(file);
+
+    /*
+     *  Check "topic_var.json" file
+     */
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
+    {
+        char expected[]= "\
+        {                                                                    \n\
+        }                                                                    \n\
+        ";
+
+        set_expected_results(
+            "tr_"TEST_NAME"_check_topic_var.json",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
+    }
+    result += test_file(file);
 
     /*
      *  Shutdown timeranger
