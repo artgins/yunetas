@@ -120,14 +120,14 @@ PUBLIC void set_expected_results(
 PUBLIC int test_file(const char *file)
 {
     int result = 0;
-    json_t *jn_file = load_json_from_file(0, file, "", 0);
+    json_t *jn_found = load_json_from_file(0, file, "", 0);
 
     gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
-    if(!match_record(jn_file, expected, TRUE, gbuf_path)) {
+    if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
             printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
-            gobj_trace_json(0, jn_file, "Record found");
+            gobj_trace_json(0, jn_found, "Record found");
             gobj_trace_json(0, expected, "Record expected");
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
@@ -139,7 +139,40 @@ PUBLIC int test_file(const char *file)
     }
 
     GBUFFER_DECREF(gbuf_path)
-    JSON_DECREF(jn_file)
+    JSON_DECREF(jn_found)
+
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
+    return result;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_json(json_t *jn_found)
+{
+    int result = 0;
+
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
+        result = -1;
+        if(verbose) {
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            gobj_trace_json(0, jn_found, "Record found");
+            gobj_trace_json(0, expected, "Record expected");
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result()) {
+            result = -1;
+        }
+    }
+
+    GBUFFER_DECREF(gbuf_path)
+    JSON_DECREF(jn_found)
 
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)

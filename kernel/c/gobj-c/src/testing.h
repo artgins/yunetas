@@ -14,6 +14,11 @@
 extern "C"{
 #endif
 
+/*
+ *  Firstly, use set_expected_results()
+ *  Then use test_file() or test_json() that return 0 if ok, -1 if error
+ */
+
 PUBLIC void set_expected_results(
     const char *name,
     json_t *errors_list,
@@ -21,7 +26,13 @@ PUBLIC void set_expected_results(
     BOOL verbose
 );
 
+/*
+ *  These functions free jsons set by set_expected_results()
+ */
 PUBLIC int test_file(const char *file);
+PUBLIC int test_json(
+    json_t *jn_found  // owned
+);
 
 
 #ifdef __cplusplus
