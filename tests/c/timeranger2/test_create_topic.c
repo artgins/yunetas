@@ -10,6 +10,7 @@
 #include <timeranger2.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
+#include <testing.h>
 
 #define TEST_NAME   "create_topic"
 #define TOPIC_NAME "topic_sample"
@@ -35,11 +36,13 @@ int times_periodic = 0;
  ***************************************************************************/
 int do_test(void)
 {
+    int result = 0;
+    char file[PATH_MAX];
+
     /*
      *  Write the tests in ~/tests_yuneta/
      */
     const char *home = getenv("HOME");
-
     char path[PATH_MAX];
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     rmrdir(path);
@@ -75,35 +78,46 @@ int do_test(void)
     /*
      *  TEST CONDITION
      */
-    const char *file;
-    char *expected;
-    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
-
-    file = "/__timeranger2__.json";
-    expected= "";
-
-
-    {}
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME,"__timeranger2__.json", NULL);
     {
-        "id": "",
-        "address": ""
-    }{
-        "topic_name": "topic_sample",
-            "pkey": "id",
-            "tkey": "",
-            "system_flag": 4
-    }{
-        "filename_mask": "%Y-%m-%d",
-            "rpermission": 432,
-            "xpermission": 1528
+        char expected[]= "\
+        {                                                                    \n\
+          'filename_mask': '%Y-%m-%d',                                       \n\
+          'rpermission': 432,                                                \n\
+          'xpermission': 1528                                                \n\
+        }                                                                    \n\
+        ";
+        set_expected_results(
+            "tr_"TEST_NAME"_",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
     }
+    result += test_file(file);
+
+//    {}
+//    {
+//        "id": "",
+//        "address": ""
+//    }{
+//        "topic_name": "topic_sample",
+//            "pkey": "id",
+//            "tkey": "",
+//            "system_flag": 4
+//    }{
+//        "filename_mask": "%Y-%m-%d",
+//            "rpermission": 432,
+//            "xpermission": 1528
+//    }
 
     /*
      *  Shutdown timeranger
      */
     tranger2_shutdown(tranger);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************
@@ -151,8 +165,8 @@ int main(int argc, char *argv[])
         NULL, // global_stats_parser
         NULL, // global_authz_checker
         NULL, // global_authenticate_parser
-        8*1024L,    // max_block, largest memory block
-        100*1024L   // max_system_memory, maximum system memory
+        64*1024L,    // max_block, largest memory block
+        256*1024L   // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();
@@ -174,7 +188,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    do_test();
+    int result = do_test();
 
     /*--------------------------------*
      *  Stop the event loop
@@ -184,7 +198,7 @@ int main(int argc, char *argv[])
 
     gobj_end();
 
-    return gobj_get_exit_code();
+    return result;
 }
 
 /***************************************************************************

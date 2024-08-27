@@ -7,12 +7,8 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
 #include <inttypes.h>
 #include <locale.h>
-#include <time.h>
 
 #include "ansi_escape_codes.h"
 #include "helpers.h"
@@ -28,22 +24,48 @@
  *      Structures
  ***************************************************************************/
 
-PRIVATE int show_log_output;
-
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE BOOL check_log_result(void);
+
+PRIVATE BOOL match_record(
+    json_t *record, // NOT owned
+    json_t *expected, // NOT owned
+    int verbose,
+    gbuffer_t *gbuf_path
+);
+PRIVATE BOOL match_list(
+    json_t *list, // NOT owned
+    json_t *expected, // NOT owned
+    int verbose,
+    gbuffer_t *gbuf_path
+);
+
+PRIVATE BOOL match_tranger_record(
+    json_t *tranger,
+    const char *topic_name,
+    json_int_t rowid,
+    uint32_t uflag,
+    uint32_t sflag,
+    const char *key,
+    json_t *record
+);
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
+PRIVATE const char *name = "";
 PRIVATE json_t *expected_log_messages = 0;
 PRIVATE json_t *unexpected_log_messages = 0;
+PRIVATE json_t *expected = 0;
+PRIVATE int show_log_output;
+PRIVATE BOOL verbose = FALSE;
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int capture_log_write(void* v, int priority, const char* bf, size_t len)
+PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 {
     json_t *msg = string2json(bf, FALSE);
     if(show_log_output) {
@@ -72,23 +94,64 @@ PRIVATE int capture_log_write(void* v, int priority, const char* bf, size_t len)
  *
  ***************************************************************************/
 PUBLIC void set_expected_results(
-    const char *name,
+    const char *name_,
     json_t *errors_list,
-    int verbose
+    json_t *expected_,
+    BOOL verbose_
 )
 {
+    name = name_;
+    verbose = verbose_;
     if(verbose) {
-        printf("Test '%s'\n", name);
+        printf("Test '%s'\n", name?name:"");
     }
     JSON_DECREF(expected_log_messages)
-    json_array_clear(unexpected_log_messages);
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
     expected_log_messages = errors_list;
+    unexpected_log_messages = json_array();
+    expected = expected_;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_file(const char *file)
+{
+    int result = 0;
+    json_t *jn_file = load_json_from_file(0, file, "", 0);
+
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    if(!match_record(jn_file, expected, TRUE, gbuf_path)) {
+        result = -1;
+        if(verbose) {
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            gobj_trace_json(0, jn_file, "Record found");
+            gobj_trace_json(0, expected, "Record expected");
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result()) {
+            result = -1;
+        }
+    }
+
+    GBUFFER_DECREF(gbuf_path)
+    JSON_DECREF(jn_file)
+
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
+    return result;
 }
 
 /***************************************************************************
  *  Return TRUE if all is ok.
  ***************************************************************************/
-PUBLIC BOOL check_log_result(const char *test, int verbose)
+PRIVATE BOOL check_log_result(void)
 {
     if(json_array_size(unexpected_log_messages)>0) {
         if(verbose) {
@@ -129,7 +192,7 @@ PUBLIC BOOL check_log_result(const char *test, int verbose)
 /***************************************************************************
  *  Save in ghelpers as kw_compare_dict()
  ***************************************************************************/
-PUBLIC BOOL match_record(
+PRIVATE BOOL match_record(
     json_t *record_, // NOT owned
     json_t *expected_, // NOT owned
     int verbose,
@@ -323,7 +386,7 @@ PUBLIC BOOL match_record(
 /***************************************************************************
  *  Save in ghelpers as kw_compare_list
  ***************************************************************************/
-PUBLIC BOOL match_list(
+PRIVATE BOOL match_list(
     json_t *list_, // NOT owned
     json_t *expected_, // NOT owned
     int verbose,
@@ -476,7 +539,7 @@ PUBLIC BOOL match_list(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC BOOL match_tranger_record(
+PRIVATE BOOL match_tranger_record(
     json_t *tranger,
     const char *topic_name,
     json_int_t rowid,

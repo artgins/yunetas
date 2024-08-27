@@ -419,8 +419,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "msg",          "%s", "Cannot open TimeRanger topic. Not found and no master",
                 NULL
             );
-            JSON_DECREF(jn_cols);
-            JSON_DECREF(jn_var);
+            JSON_DECREF(jn_cols)
+            JSON_DECREF(jn_var)
             return 0;
         }
         if(mkrdir(directory, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
@@ -570,7 +570,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 0 // TODO review
             );
             topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
-            JSON_DECREF(topic_var);
+            JSON_DECREF(topic_var)
             if(topic_new_version > topic_old_version) {
                 file_remove(directory, "topic_cols.json");
                 file_remove(directory, "topic_var.json");
@@ -1256,7 +1256,7 @@ PUBLIC int tranger2_write_topic_var(
             "msg",          "%s", "jn_topic_var is NOT DICT",
             NULL
         );
-        JSON_DECREF(jn_topic_var);
+        JSON_DECREF(jn_topic_var)
         return -1;
     }
 
@@ -1268,7 +1268,7 @@ PUBLIC int tranger2_write_topic_var(
             "msg",          "%s", "Only master can write",
             NULL
         );
-        JSON_DECREF(jn_topic_var);
+        JSON_DECREF(jn_topic_var)
         return -1;
     }
     char directory[PATH_MAX];
@@ -1339,7 +1339,7 @@ PUBLIC int tranger2_write_topic_cols(
             "msg",          "%s", "jn_topic_cols MUST BE dict or list",
             NULL
         );
-        JSON_DECREF(jn_topic_cols);
+        JSON_DECREF(jn_topic_cols)
         return -1;
     }
 
@@ -1351,7 +1351,7 @@ PUBLIC int tranger2_write_topic_cols(
             "msg",          "%s", "Only master can write",
             NULL
         );
-        JSON_DECREF(jn_topic_cols);
+        JSON_DECREF(jn_topic_cols)
         return -1;
     }
     char directory[PATH_MAX];
@@ -1783,7 +1783,7 @@ PUBLIC int tranger2_append_record(
             NULL
         );
         // TODO gobj_log_debug_json(gobj, 0, jn_record, "Cannot append record, NO master");
-        JSON_DECREF(jn_record);
+        JSON_DECREF(jn_record)
         return -1;
     }
 
@@ -1797,7 +1797,7 @@ PUBLIC int tranger2_append_record(
             NULL
         );
         // TODO log_debug_json(0, jn_record, "Cannot append record, topic not found");
-        JSON_DECREF(jn_record);
+        JSON_DECREF(jn_record)
         return -1;
     }
 
@@ -1839,7 +1839,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             // TODO log_debug_json(0, jn_record, "Cannot append record, lseek64() FAILED");
-            JSON_DECREF(jn_record);
+            JSON_DECREF(jn_record)
             return -1;
         }
     }
@@ -1898,7 +1898,7 @@ PUBLIC int tranger2_append_record(
                         NULL
                     );
                     // TOD log_debug_json(0, jn_record, "Cannot append record, Record without pkey");
-                    JSON_DECREF(jn_record);
+                    JSON_DECREF(jn_record)
                     return -1;
                 }
 //TODO                if(strlen(key_value) > sizeof(md_record->key.s)-1) {
@@ -1964,7 +1964,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
 //            TODO log_debug_json(0, jn_record, "Cannot append record, json_dumps() FAILED");
-            JSON_DECREF(jn_record);
+            JSON_DECREF(jn_record)
             return -1;
         }
         size_t size = strlen(srecord);
@@ -1980,7 +1980,7 @@ PUBLIC int tranger2_append_record(
             );
 //            log_debug_json(0, jn_record, "Cannot append record, gbuf_create() FAILED");
             jsonp_free(srecord);
-            JSON_DECREF(jn_record);
+            JSON_DECREF(jn_record)
             return -1;
         }
         gbuffer_append(gbuf, srecord, strlen(srecord));
@@ -2029,7 +2029,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             // TODO log_debug_json(0, jn_record, "Cannot append record, write FAILED");
-            JSON_DECREF(jn_record);
+            JSON_DECREF(jn_record)
             return -1;
         }
     }
@@ -2073,7 +2073,7 @@ PUBLIC int tranger2_append_record(
                     jn_record
                 );
                 if(ret < 0) {
-                    JSON_DECREF(jn_record);
+                    JSON_DECREF(jn_record)
                     return -1;
                 } else if(ret>0) {
                     json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
@@ -2092,7 +2092,7 @@ PUBLIC int tranger2_append_record(
         }
     }
 
-    JSON_DECREF(jn_record);
+    JSON_DECREF(jn_record)
     return 0;
 }
 
@@ -2624,7 +2624,7 @@ PUBLIC json_t *tranger2_open_list(
             "msg",          "%s", "tranger_open_list: what topic?",
             NULL
         );
-        JSON_DECREF(list);
+        JSON_DECREF(list)
         return 0;
     }
 
@@ -2734,7 +2734,7 @@ PUBLIC json_t *tranger2_open_list(
                  *      -1 break the load
                  */
                 if(ret < 0) {
-                    JSON_DECREF(jn_record);
+                    JSON_DECREF(jn_record)
                     break;
                 } else if(ret > 0) {
                     if(!jn_record) {
@@ -2747,7 +2747,7 @@ PUBLIC json_t *tranger2_open_list(
                     );
                 } else { // == 0
                     // user's callback manages the record
-                    JSON_DECREF(jn_record);
+                    JSON_DECREF(jn_record)
                 }
             } else {
                 if(!jn_record) {
@@ -3516,7 +3516,7 @@ PUBLIC int tranger2_find_record(
     }
     while(!end) {
         if(tranger2_match_record(tranger, topic, match_cond, md_record, &end)) {
-            JSON_DECREF(match_cond);
+            JSON_DECREF(match_cond)
             return 0;
         }
         if(end) {
@@ -3528,7 +3528,7 @@ PUBLIC int tranger2_find_record(
             end = tranger2_prev_record(tranger, topic, md_record);
         }
     }
-    JSON_DECREF(match_cond);
+    JSON_DECREF(match_cond)
     return -1;
 }
 
