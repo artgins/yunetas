@@ -277,7 +277,7 @@ PUBLIC json_t *tranger2_startup(
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TRANGER_ERROR,
-                "msg",          "%s", "Cannot crate __timeranger__",
+                "msg",          "%s", "Cannot create __timeranger2__.json",
                 "path",         "%s", directory,
                 NULL
             );
@@ -287,6 +287,14 @@ PUBLIC json_t *tranger2_startup(
 
         json_object_update_existing(tranger, jn_disk_tranger);
         json_decref(jn_disk_tranger);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating __timeranger2__.json",
+            "path",         "%s", directory,
+            NULL
+        );
     }
 
     /*
@@ -434,6 +442,15 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
         }
 
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating topic",
+            "path",         "%s", directory,
+            "topic",        "%s", topic_name,
+            NULL
+        );
+
         /*----------------------------------------*
          *      Create topic_idx.md
          *----------------------------------------*/
@@ -457,6 +474,15 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             return 0;
         }
         close(fp);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating topic_idx.md",
+            "path",         "%s", directory,
+            "topic",        "%s", topic_name,
+            NULL
+        );
 
         /*----------------------------------------*
          *      Create topic_desc.json
@@ -492,6 +518,15 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             topic_desc  // owned
         );
 
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating topic_desc.json",
+            "path",         "%s", directory,
+            "topic",        "%s", topic_name,
+            NULL
+        );
+
         /*----------------------------------------*
          *      Create topic_cols.json
          *----------------------------------------*/
@@ -505,7 +540,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Creating topic_cols.json",
-            "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+            "path",         "%s", directory,
             "topic",        "%s", topic_name,
             NULL
         );
@@ -523,7 +558,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Creating topic_var.json",
-            "database",     "%s", kw_get_str(gobj, tranger, "database", "", KW_REQUIRED),
+            "path",         "%s", directory,
             "topic",        "%s", topic_name,
             NULL
         );

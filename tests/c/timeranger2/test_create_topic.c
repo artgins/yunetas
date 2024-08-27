@@ -76,9 +76,13 @@ int do_test(void)
     tranger2_close_topic(tranger, TOPIC_NAME);
 
     /*
-     *  TEST CONDITION
+     *  TESTS
      */
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME,"__timeranger2__.json", NULL);
+
+    /*
+     *  Check __timeranger2__.json file
+     */
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME, "__timeranger2__.json", NULL);
     {
         char expected[]= "\
         {                                                                    \n\
@@ -96,6 +100,28 @@ int do_test(void)
         );
     }
     result += test_file(file);
+
+//    /*
+//     *  Check __timeranger2__.json file
+//     */
+//    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "__timeranger2__.json", NULL);
+//    {
+//        char expected[]= "\
+//        {                                                                    \n\
+//          'filename_mask': '%Y-%m-%d',                                       \n\
+//          'rpermission': 432,                                                \n\
+//          'xpermission': 1528                                                \n\
+//        }                                                                    \n\
+//        ";
+//        set_expected_results(
+//            "tr_"TEST_NAME"_",      // test name
+//            json_pack("[]"          // error's list
+//            ),
+//            string2json(helper_quote2doublequote(expected), TRUE),
+//            TRUE
+//        );
+//    }
+//    result += test_file(file);
 
 //    {}
 //    {
