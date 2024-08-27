@@ -58,9 +58,9 @@ int do_test(void)
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
-    /*
-     *  CREATE CONDITION
-     */
+    /*--------------------------------*
+     *      CREATE CONDITIONS
+     *--------------------------------*/
     tranger2_create_topic(
         tranger,
         TOPIC_NAME,  // topic name
@@ -73,23 +73,20 @@ int do_test(void)
         ),
         0
     );
-    tranger2_close_topic(tranger, TOPIC_NAME);
 
-    /*
-     *  TESTS
-     */
+    print_json2("XXX", tranger);
 
-    /*
+    /*------------------------------------*
      *  Check __timeranger2__.json file
-     */
+     *------------------------------------*/
     build_path(file, sizeof(file), path, "tr_"TEST_NAME, "__timeranger2__.json", NULL);
-    {
+    if(1) {
         char expected[]= "\
-        {                                                                    \n\
-          'filename_mask': '%Y-%m-%d',                                       \n\
-          'rpermission': 432,                                                \n\
-          'xpermission': 1528                                                \n\
-        }                                                                    \n\
+        { \
+          'filename_mask': '%Y-%m-%d', \
+          'rpermission': 432, \
+          'xpermission': 1528 \
+        } \
         ";
         set_expected_results(
             "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
@@ -98,21 +95,21 @@ int do_test(void)
             string2json(helper_quote2doublequote(expected), TRUE),
             TRUE
         );
+        result += test_file(file);
     }
-    result += test_file(file);
 
-    /*
+    /*------------------------------------*
      *  Check "topic_desc.json" file
-     */
+     *------------------------------------*/
     build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
-    {
+    if(1) {
         char expected[]= "\
-        {                                                                    \n\
-          'topic_name': 'topic_sample',                                      \n\
-          'pkey': 'id',                                                      \n\
-          'tkey': '',                                                        \n\
-          'system_flag': 4                                                   \n\
-        }                                                                    \n\
+        { \
+          'topic_name': 'topic_sample', \
+          'pkey': 'id', \
+          'tkey': '', \
+          'system_flag': 4 \
+        } \
         ";
 
         set_expected_results(
@@ -122,19 +119,19 @@ int do_test(void)
             string2json(helper_quote2doublequote(expected), TRUE),
             TRUE
         );
+        result += test_file(file);
     }
-    result += test_file(file);
 
-    /*
+    /*------------------------------------*
      *  Check "topic_cols.json" file
-     */
+     *------------------------------------*/
     build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
-    {
+    if(1) {
         char expected[]= "\
-        {                                                                    \n\
-          'id': '',                                                          \n\
-          'address': ''                                                      \n\
-        }                                                                    \n\
+        { \
+          'id': '', \
+          'address': '' \
+        } \
         ";
 
         set_expected_results(
@@ -144,17 +141,17 @@ int do_test(void)
             string2json(helper_quote2doublequote(expected), TRUE),
             TRUE
         );
+        result += test_file(file);
     }
-    result += test_file(file);
 
-    /*
+    /*------------------------------------*
      *  Check "topic_var.json" file
-     */
+     *------------------------------------*/
     build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
-    {
+    if(1) {
         char expected[]= "\
-        {                                                                    \n\
-        }                                                                    \n\
+        { \
+        } \
         ";
 
         set_expected_results(
@@ -164,8 +161,97 @@ int do_test(void)
             string2json(helper_quote2doublequote(expected), TRUE),
             TRUE
         );
+        result += test_file(file);
     }
-    result += test_file(file);
+
+    /*------------------------------------------*
+     *  Check tranger memory with topic opened
+     *------------------------------------------*/
+    if(1) {
+        char expected[]= "\
+        { \
+            'path': '/home/gines/tests_yuneta', \
+            'database': 'tr_create_topic', \
+            'filename_mask': '%Y-%m-%d', \
+            'xpermission': 1528, \
+            'rpermission': 432, \
+            'on_critical_error': 2, \
+            'master': true, \
+            'gobj': 0, \
+            'directory': '/home/gines/tests_yuneta/tr_create_topic', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 99999 \
+            }, \
+            'topics': { \
+                'topic_sample': { \
+                    'topic_name': 'topic_sample', \
+                        'pkey': 'id', \
+                        'tkey': '', \
+                        'system_flag': 4, \
+                        'cols': { \
+                        'id': '', \
+                            'address': '' \
+                    }, \
+                    'directory': '/home/gines/tests_yuneta/tr_create_topic/topic_sample', \
+                        '__last_rowid__': 0, \
+                        '_topic_idx_fd': 99999, \
+                        'fd_opened_files': {}, \
+                    'file_opened_files': {}, \
+                    'lists': [] \
+                } \
+            } \
+        } \
+        ";
+
+        set_expected_results(
+            "tr_"TEST_NAME"_check_tranger_mem1",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
+    /*
+     *  Close topic
+     */
+    tranger2_close_topic(tranger, TOPIC_NAME);
+
+    /*------------------------------------------*
+     *  Check tranger memory with topic opened
+     *------------------------------------------*/
+    if(1) {
+        char expected[]= "\
+        { \
+          'path': '/home/gines/tests_yuneta', \
+          'database': 'tr_create_topic', \
+          'filename_mask': '%Y-%m-%d', \
+          'xpermission': 1528, \
+          'rpermission': 432, \
+          'on_critical_error': 2, \
+          'master': true, \
+          'gobj': 0, \
+          'directory': '/home/gines/tests_yuneta/tr_create_topic', \
+          'fd_opened_files': { \
+            '__timeranger2__.json': 9999 \
+          }, \
+          'topics': {} \
+        } \
+        ";
+
+        set_expected_results(
+            "tr_"TEST_NAME"_check_tranger_mem2",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
+    print_json2("YYY", tranger);
+
 
     /*
      *  Shutdown timeranger

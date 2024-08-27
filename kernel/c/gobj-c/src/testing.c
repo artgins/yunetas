@@ -276,8 +276,6 @@ PRIVATE BOOL match_record(
 
             case JSON_OBJECT:
                 {
-                    json_object_del(record, "__md_treedb__");
-                    json_object_del(expected, "__md_treedb__");
                     void *n; const char *key; json_t *value;
                     json_object_foreach_safe(record, n, key, value) {
                         if(!kw_has_key(expected, key)) {
@@ -293,7 +291,6 @@ PRIVATE BOOL match_record(
                         }
                         json_t *value2 = json_object_get(expected, key);
                         if(json_typeof(value)==JSON_OBJECT) {
-
                             size_t original_position = 0;
                             if(gbuf_path) {
                                 original_position = gbuffer_totalbytes(gbuf_path);
@@ -363,7 +360,14 @@ PRIVATE BOOL match_record(
                             json_object_del(expected, key);
 
                         } else {
-                            if(!json_is_identical(value, value2)) {
+                            if(key[0]=='_') {
+                                /*
+                                 *  HACK private or metadata values are ignored
+                                 */
+                                json_object_del(record, key);
+                                json_object_del(expected, key);
+
+                            } else if(!json_is_identical(value, value2)) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
                                     gobj_trace_msg(0, "match_record('%s'): no identical '%s'",
@@ -451,7 +455,7 @@ PRIVATE BOOL match_list(
     if(json_typeof(list) != json_typeof(expected)) { // json_typeof CONTROLADO
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(0, "match_list('%s'): diferent json type", p);
+            gobj_trace_msg(0, "match_list('%s'): different json type", p);
         }
         ret = FALSE;
     } else {
@@ -465,7 +469,7 @@ PRIVATE BOOL match_list(
                      *  List with id records
                      *--------------------------------*/
                     if(id1) {
-                        size_t idx2 = kwid_find_record_in_list(0, expected, id1, FALSE);
+                        int idx2 = kwid_find_record_in_list(0, expected, id1, FALSE);
                         if(idx2 < 0) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";

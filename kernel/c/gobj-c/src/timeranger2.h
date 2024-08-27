@@ -16,16 +16,6 @@
  *          For now, a single master process opens it with exclusive write permission.
  *          Non-masters processes open the database in read-only mode.
  *
- *          Only read, persistent
- *              "path"
- *              "database"
- *
- *          Only read, volatil, defining in run-time
- *              "directory"
- *              "on_critical_error",
- *              "master",
- *              "topics",
- *
  *
  *      /{topic}            Topic directory
  *
@@ -166,7 +156,7 @@ static const json_desc_t topic_json_desc[] = {
 
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
-    json_t *jn_tranger // owned
+    json_t *jn_tranger // owned, See tranger2_json_desc for parameters
 );
 
 /**rst**
