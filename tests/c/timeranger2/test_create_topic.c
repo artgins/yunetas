@@ -74,7 +74,7 @@ int do_test(void)
         0
     );
 
-    print_json2("XXX", tranger);
+    print_json2("XXX", tranger); // TODO TEST
 
     /*------------------------------------*
      *  Check __timeranger2__.json file
@@ -93,6 +93,7 @@ int do_test(void)
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
             TRUE
         );
         result += test_file(file);
@@ -117,6 +118,7 @@ int do_test(void)
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
             TRUE
         );
         result += test_file(file);
@@ -139,6 +141,7 @@ int do_test(void)
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
             TRUE
         );
         result += test_file(file);
@@ -159,6 +162,7 @@ int do_test(void)
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
             TRUE
         );
         result += test_file(file);
@@ -194,7 +198,7 @@ int do_test(void)
                     }, \
                     'directory': '/home/gines/tests_yuneta/tr_create_topic/topic_sample', \
                         '__last_rowid__': 0, \
-                        '_topic_idx_fd': 99999, \
+                        'topic_idx_fd': 99999, \
                         'fd_opened_files': {}, \
                     'file_opened_files': {}, \
                     'lists': [] \
@@ -203,11 +207,19 @@ int do_test(void)
         } \
         ";
 
+        const char *ignore_keys[]= {
+            "path",
+            "directory",
+            "__timeranger2__.json",
+            "topic_idx_fd",
+            NULL
+        };
         set_expected_results(
             "tr_"TEST_NAME"_check_tranger_mem1",      // test name
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
             TRUE
         );
         result += test_json(json_incref(tranger));
@@ -240,17 +252,25 @@ int do_test(void)
         } \
         ";
 
+        const char *ignore_keys[]= {
+            "path",
+            "directory",
+            "__timeranger2__.json",
+            "topic_idx_fd",
+            NULL
+        };
         set_expected_results(
             "tr_"TEST_NAME"_check_tranger_mem2",      // test name
             json_pack("[]"          // error's list
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
             TRUE
         );
         result += test_json(json_incref(tranger));
     }
 
-    print_json2("YYY", tranger);
+    print_json2("YYY", tranger); // TODO TEST
 
 
     /*

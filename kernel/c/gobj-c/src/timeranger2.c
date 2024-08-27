@@ -30,7 +30,7 @@ PRIVATE const char *topic_fields[] = {
     "cols",
     "directory",
     "__last_rowid__",
-    "_topic_idx_fd",
+    "topic_idx_fd",
     "fd_opened_files",
     "file_opened_files",
     "lists",
@@ -769,7 +769,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
     kw_get_int(gobj, topic, "__last_rowid__", 0, KW_CREATE);
 
-    kw_get_int(gobj, topic, "_topic_idx_fd", -1, KW_CREATE);
+    kw_get_int(gobj, topic, "topic_idx_fd", -1, KW_CREATE);
 
     kw_get_dict(gobj, topic, "fd_opened_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "file_opened_files", json_object(), KW_CREATE);
@@ -820,7 +820,7 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
         );
         return -1;
     }
-    json_object_set_new(topic, "_topic_idx_fd", json_integer(fd));
+    json_object_set_new(topic, "topic_idx_fd", json_integer(fd));
 
     /*
      *  Get last rowid
@@ -852,10 +852,10 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
  ***************************************************************************/
 PRIVATE int close_topic_idx_fd(json_t *tranger, json_t *topic)
 {
-    int fd = (int)kw_get_int(0, topic, "_topic_idx_fd", -1, KW_REQUIRED);
+    int fd = (int)kw_get_int(0, topic, "topic_idx_fd", -1, KW_REQUIRED);
     if(fd >= 0) {
         close(fd);
-        json_object_set_new(topic, "_topic_idx_fd", json_integer(-1));
+        json_object_set_new(topic, "topic_idx_fd", json_integer(-1));
     }
     return 0;
 }
@@ -868,7 +868,7 @@ PRIVATE int get_topic_idx_fd(
     json_t *topic
 )
 {
-    int fd = (int)kw_get_int(0, topic, "_topic_idx_fd", -1, KW_REQUIRED);
+    int fd = (int)kw_get_int(0, topic, "topic_idx_fd", -1, KW_REQUIRED);
     if(fd<0) {
         system_flag2_t system_flag = kw_get_int(0, topic, "system_flag", 0, KW_REQUIRED);
         if((system_flag & sf2_no_md_disk)) {

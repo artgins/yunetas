@@ -23,6 +23,7 @@ PUBLIC void set_expected_results(
     const char *name,
     json_t *errors_list,
     json_t *expected,
+    const char **ignore_keys,
     BOOL verbose
 );
 

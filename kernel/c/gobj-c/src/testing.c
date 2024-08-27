@@ -61,6 +61,7 @@ PRIVATE json_t *unexpected_log_messages = 0;
 PRIVATE json_t *expected = 0;
 PRIVATE int show_log_output;
 PRIVATE BOOL verbose = FALSE;
+PRIVATE const char **ignore_keys = NULL;
 
 /***************************************************************************
  *
@@ -97,6 +98,7 @@ PUBLIC void set_expected_results(
     const char *name_,
     json_t *errors_list,
     json_t *expected_,
+    const char **ignore_keys_,
     BOOL verbose_
 )
 {
@@ -112,6 +114,7 @@ PUBLIC void set_expected_results(
     expected_log_messages = errors_list?errors_list:json_array();
     unexpected_log_messages = json_array();
     expected = expected_;
+    ignore_keys = ignore_keys_;
 }
 
 /***************************************************************************
@@ -360,9 +363,9 @@ PRIVATE BOOL match_record(
                             json_object_del(expected, key);
 
                         } else {
-                            if(key[0]=='_') {
+                            if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
                                 /*
-                                 *  HACK private or metadata values are ignored
+                                 *  HACK keys in list are ignored
                                  */
                             } else if(!json_is_identical(value, value2)) {
                                 if(verbose) {
@@ -373,7 +376,7 @@ PRIVATE BOOL match_record(
                                     );
                                 }
                                 ret = FALSE;
-//                                break;
+                                //break;
                             }
                             json_object_del(record, key);
                             json_object_del(expected, key);
