@@ -105,8 +105,6 @@ typedef int hgen_t;
  *              Prototypes
  ***************************************************************/
 PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
-PRIVATE int stdout_write(void *v, int priority, const char *bf, size_t len);
-PRIVATE int stdout_fwrite(void* v, int priority, const char* format, ...);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap);
 PRIVATE void discover(hgobj gobj, hgen_t hgen);

@@ -276,55 +276,50 @@ int do_test(void)
      *  Check re-open tranger as master
      *------------------------------------------*/
     if(1) {
-        json_t *jn_tr = 0;
-        json_t *tr = 0;
-        jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
+        json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
             "path", path,
             "database", "tr_"TEST_NAME,
             "master", 1,
             "on_critical_error", 0
         );
-        tr = tranger2_startup(0, jn_tr);
+        json_t *tr = tranger2_startup(0, jn_tr);
 
-//        char expected[]= "\
-//        { \
-//          'path': 'tests_yuneta', \
-//          'database': 'tr_create_topic', \
-//          'filename_mask': '%Y-%m-%d', \
-//          'xpermission': 1528, \
-//          'rpermission': 432, \
-//          'on_critical_error': 0, \
-//          'master': false, \
-//          'gobj': 0, \
-//          'directory': 'tests_yuneta/tr_create_topic', \
-//          'fd_opened_files': { \
-//            '__timeranger2__.json': 9999 \
-//          }, \
-//          'topics': {} \
-//        } \
-//        ";
-//
-//        const char *ignore_keys[]= {
-//            "path",
-//            "directory",
-//            "__timeranger2__.json",
-//            "topic_idx_fd",
-//            NULL
-//        };
-//        set_expected_results(
-//            "tr_"TEST_NAME"_check_tranger_reopen_as_master",      // test name
-//            json_pack("[]"          // error's list
-//            ),
-//            string2json(helper_quote2doublequote(expected), TRUE),
-//            ignore_keys,
-//            TRUE
-//        );
-//        result += test_json(json_incref(tr));
+        char expected[]= "\
+        { \
+          'path': 'tests_yuneta', \
+          'database': 'tr_create_topic', \
+          'filename_mask': '%Y-%m-%d', \
+          'xpermission': 1528, \
+          'rpermission': 432, \
+          'on_critical_error': 0, \
+          'master': false, \
+          'gobj': 0, \
+          'directory': 'tests_yuneta/tr_create_topic', \
+          'fd_opened_files': { \
+            '__timeranger2__.json': 9999 \
+          }, \
+          'topics': {} \
+        } \
+        ";
 
-//        tranger2_shutdown(tr);
-        if(tr) {
-            json_decref(tr);
-        }
+        const char *ignore_keys[]= {
+            "path",
+            "directory",
+            "__timeranger2__.json",
+            "topic_idx_fd",
+            NULL
+        };
+        set_expected_results(
+            "tr_"TEST_NAME"_check_tranger_reopen_as_master",      // test name
+            json_pack("[]"          // error's list
+            ),
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tr));
+
+        tranger2_shutdown(tr);
     }
 
     /*

@@ -1990,6 +1990,8 @@ PUBLIC int gobj_log_add_handler(
 );
 PUBLIC int gobj_log_del_handler(const char *handler_name); // delete all handlers if handle_name is empty
 PUBLIC json_t *gobj_log_list_handlers(void);
+PUBLIC int stdout_write(void *v, int priority, const char *bf, size_t len);
+PUBLIC int stdout_fwrite(void* v, int priority, const char* format, ...);
 
 PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...); // WARNING don't put format printf here
 PUBLIC void gobj_log_critical(hgobj gobj, log_opt_t opt, ...);
