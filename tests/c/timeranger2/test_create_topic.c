@@ -11,6 +11,9 @@
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
 
+#define TEST_NAME   "create_topic"
+#define TOPIC_NAME "topic_sample"
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -32,21 +35,32 @@ int times_periodic = 0;
  ***************************************************************************/
 int do_test(void)
 {
-    char path[PATH_MAX];
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
     const char *home = getenv("HOME");
+
+    char path[PATH_MAX];
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     rmrdir(path);
     mkrdir(path, 02770);
+
+    /*
+     *  Startup/create the timeranger db
+     */
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
         "path", path,
-        "database", "db_tr1",
+        "database", "tr_"TEST_NAME,
         "master", 1
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
+    /*
+     *  CREATE CONDITION
+     */
     tranger2_create_topic(
         tranger,
-        "topic_tr1",  // topic name
+        TOPIC_NAME,  // topic name
         "id",           // pkey
         "",             // tkey
         0,              // system_latch
@@ -56,8 +70,37 @@ int do_test(void)
         ),
         0
     );
-    tranger2_close_topic(tranger, "topic_tr1");
+    tranger2_close_topic(tranger, TOPIC_NAME);
 
+    /*
+     *  TEST CONDITION
+     */
+    const char *file;
+    char *expected;
+    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
+
+    file = "/__timeranger2__.json";
+    expected= "";
+
+
+    {}
+    {
+        "id": "",
+        "address": ""
+    }{
+        "topic_name": "topic_sample",
+            "pkey": "id",
+            "tkey": "",
+            "system_flag": 4
+    }{
+        "filename_mask": "%Y-%m-%d",
+            "rpermission": 432,
+            "xpermission": 1528
+    }
+
+    /*
+     *  Shutdown timeranger
+     */
     tranger2_shutdown(tranger);
 
     return 0;

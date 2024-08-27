@@ -217,6 +217,18 @@ PUBLIC json_t *kw_get_list(
 );
 
 /**rst**
+   Get the value in idx position from an json array .
+   Return the ``idx` json value from the ``kw`` list.
+   If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
+**rst**/
+PUBLIC json_t *kw_get_list_value(
+    hgobj gobj,
+    json_t* kw,
+    int idx,
+    kw_flag_t flag
+);
+
+/**rst**
    Return the ``path` int value from the ``kw`` dict.
    If it's ``KW_REQUIRED`` and ``path`` not exist then log an error.
    If ``path`` doesn't exist then return the ``default_value``.
@@ -398,6 +410,7 @@ PUBLIC int kw_walk(
     int (*callback)(hgobj gobj, json_t *kw, const char *key, json_t *value)
 );
 
+
 /*---------------------------------*
  *          KWID
  *---------------------------------*/
@@ -420,6 +433,19 @@ PUBLIC json_t *kwid_get(
     kw_flag_t flag,
     size_t *idx     // If not null set the idx in case of array
 );
+
+/**rst**
+    Utility for databases.
+    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
+    Return -1 if not found
+**rst**/
+int kwid_find_record_in_list(
+    hgobj gobj,
+    json_t *kw_list,
+    const char *id,
+    BOOL verbose
+);
+
 
 #ifdef __cplusplus
 }

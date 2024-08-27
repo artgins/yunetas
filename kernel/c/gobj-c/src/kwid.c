@@ -821,6 +821,46 @@ PUBLIC json_t *kw_get_list(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *kw_get_list_value(
+    hgobj gobj,
+    json_t *kw,
+    int idx,
+    kw_flag_t flag)
+{
+    if(!json_is_array(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw MUST BE a json array",
+            NULL
+        );
+        return 0;
+    }
+    if(idx >= json_array_size(kw)) {
+        if(flag & KW_REQUIRED) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "list idx NOT FOUND",
+                "idx",          "%d", (int)idx,
+                "array_size",   "%d", (int)json_array_size(kw),
+                NULL
+            );
+        }
+        return 0;
+    }
+
+    json_t *v = json_array_get(kw, idx);
+    if(v && (flag & KW_EXTRACT)) {
+        JSON_INCREF(v);
+        json_array_remove(kw, idx);
+    }
+    return v;
+}
+
+/***************************************************************************
  *  Get an int value from an json object searched by path
  ***************************************************************************/
 PUBLIC json_int_t kw_get_int(
@@ -1768,4 +1808,57 @@ PUBLIC json_t *kwid_get(
     }
 
     return NULL;
+}
+
+/***************************************************************************
+    Utility for databases.
+    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
+    Return -1 if not found
+ ***************************************************************************/
+int kwid_find_record_in_list(
+    hgobj gobj,
+    json_t *kw_list,
+    const char *id,
+    BOOL verbose
+)
+{
+    if(!id || !json_is_array(kw_list)) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "id NULL or kw_list is not a list",
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    int idx; json_t *record;
+    json_array_foreach(kw_list, idx, record) {
+        const char *id_ = kw_get_str(gobj, record, "id", 0, 0);
+        if(!id_) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "list item is not a id record",
+                NULL
+            );
+            return -1;
+        }
+        if(strcmp(id, id_)==0) {
+            return idx;
+        }
+    }
+
+    if(verbose) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "record not found in this list",
+            "id",           "%s", id,
+            NULL
+        );
+    }
+    return 0;
 }

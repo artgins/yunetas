@@ -316,6 +316,13 @@ PUBLIC int cmp_two_simple_json(
     json_t *jn_var1,    // NOT owned
     json_t *jn_var2     // NOT owned
 );
+/**rst**
+    Compare two json and return TRUE if they are identical.
+**rst**/
+PUBLIC BOOL json_is_identical(
+    json_t *kw1,    // NOT owned
+    json_t *kw2     // NOT owned
+);
 
 PUBLIC json_t * anystring2json(const char *bf, size_t len, BOOL verbose);
 PUBLIC json_t * string2json(const char* str, BOOL verbose); /* only [] or {}, old legalstring2json()*/

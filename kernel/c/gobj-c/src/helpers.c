@@ -2087,6 +2087,25 @@ PUBLIC int cmp_two_simple_json(
 }
 
 /***************************************************************************
+    Compare two json and return TRUE if they are identical.
+ ***************************************************************************/
+PUBLIC BOOL json_is_identical(
+    json_t *kw1,    // not owned
+    json_t *kw2     // not owned
+)
+{
+    if(!kw1 || !kw2) {
+        return FALSE;
+    }
+    char *kw1_ = json2uglystr(kw1);
+    char *kw2_ = json2uglystr(kw2);
+    int ret = strcmp(kw1_, kw2_);
+    GBMEM_FREE(kw1_)
+    GBMEM_FREE(kw2_)
+    return ret==0?TRUE:FALSE;
+}
+
+/***************************************************************************
  *  Convert any json string to json binary.
  ***************************************************************************/
 PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
