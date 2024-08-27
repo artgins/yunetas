@@ -31,12 +31,12 @@ foreach(test ${SRCS})
     add_executable(${binary} ${test})
 
     target_link_libraries(${binary}
-        /yuneta/development/outputs/lib/libyunetas-c_prot.a
-        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-        /yuneta/development/outputs/lib/libyunetas-gobj.a
+        libyunetas-c_prot.a
+        libyunetas-core-linux.a
+        libyunetas-gobj.a
 
-        /yuneta/development/outputs/lib/libjansson.a
-        /yuneta/development/outputs/lib/liburing.a
+        libjansson.a
+        liburing.a
         m
         #z rt m
         uuid

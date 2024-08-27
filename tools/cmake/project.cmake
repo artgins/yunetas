@@ -39,7 +39,7 @@ add_definitions(-D_GNU_SOURCE)
 add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
 
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
-set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} "${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
+link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)
