@@ -74,7 +74,7 @@ int do_test(void)
         0
     );
 
-    print_json2("XXX", tranger); // TODO TEST
+//    print_json2("XXX", tranger); // TODO TEST
 
     /*------------------------------------*
      *  Check __timeranger2__.json file
@@ -174,7 +174,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-            'path': '/home/gines/tests_yuneta', \
+            'path': 'tests_yuneta', \
             'database': 'tr_create_topic', \
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
@@ -182,7 +182,7 @@ int do_test(void)
             'on_critical_error': 2, \
             'master': true, \
             'gobj': 0, \
-            'directory': '/home/gines/tests_yuneta/tr_create_topic', \
+            'directory': 'tests_yuneta/tr_create_topic', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 99999 \
             }, \
@@ -196,7 +196,7 @@ int do_test(void)
                         'id': '', \
                             'address': '' \
                     }, \
-                    'directory': '/home/gines/tests_yuneta/tr_create_topic/topic_sample', \
+                    'directory': 'tests_yuneta/tr_create_topic/topic_sample', \
                         '__last_rowid__': 0, \
                         'topic_idx_fd': 99999, \
                         'fd_opened_files': {}, \
@@ -236,7 +236,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'path': '/home/gines/tests_yuneta', \
+          'path': 'tests_yuneta', \
           'database': 'tr_create_topic', \
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
@@ -244,7 +244,7 @@ int do_test(void)
           'on_critical_error': 2, \
           'master': true, \
           'gobj': 0, \
-          'directory': '/home/gines/tests_yuneta/tr_create_topic', \
+          'directory': 'tests_yuneta/tr_create_topic', \
           'fd_opened_files': { \
             '__timeranger2__.json': 9999 \
           }, \
@@ -270,8 +270,62 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-    print_json2("YYY", tranger); // TODO TEST
+//    print_json2("YYY", tranger); // TODO TEST
 
+    /*------------------------------------------*
+     *  Check re-open tranger as master
+     *------------------------------------------*/
+    if(1) {
+        json_t *jn_tr = 0;
+        json_t *tr = 0;
+        jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path,
+            "database", "tr_"TEST_NAME,
+            "master", 1,
+            "on_critical_error", 0
+        );
+        tr = tranger2_startup(0, jn_tr);
+
+//        char expected[]= "\
+//        { \
+//          'path': 'tests_yuneta', \
+//          'database': 'tr_create_topic', \
+//          'filename_mask': '%Y-%m-%d', \
+//          'xpermission': 1528, \
+//          'rpermission': 432, \
+//          'on_critical_error': 0, \
+//          'master': false, \
+//          'gobj': 0, \
+//          'directory': 'tests_yuneta/tr_create_topic', \
+//          'fd_opened_files': { \
+//            '__timeranger2__.json': 9999 \
+//          }, \
+//          'topics': {} \
+//        } \
+//        ";
+//
+//        const char *ignore_keys[]= {
+//            "path",
+//            "directory",
+//            "__timeranger2__.json",
+//            "topic_idx_fd",
+//            NULL
+//        };
+//        set_expected_results(
+//            "tr_"TEST_NAME"_check_tranger_reopen_as_master",      // test name
+//            json_pack("[]"          // error's list
+//            ),
+//            string2json(helper_quote2doublequote(expected), TRUE),
+//            ignore_keys,
+//            TRUE
+//        );
+//        result += test_json(json_incref(tr));
+
+//        tranger2_shutdown(tr);
+        if(tr) {
+            json_decref(tr);
+        }
+    }
 
     /*
      *  Shutdown timeranger
@@ -308,6 +362,9 @@ int main(int argc, char *argv[])
 
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
+
+    unsigned long memory_check_list[] = {1627, 1628, 1769, 0}; // WARNING: list ended with 0
+    set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_bfd);

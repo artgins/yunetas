@@ -300,9 +300,8 @@ PUBLIC json_t *tranger2_startup(
     /*
      *  Load Only read, volatil, defining in run-time
      */
-    kw_get_dict(gobj, tranger, "fd_opened_files", json_object(), KW_CREATE);
-    kw_get_dict(gobj, tranger, "topics", json_object(), KW_CREATE);
-
+    kw_set_dict_value(gobj, tranger, "fd_opened_files", json_object());
+    kw_set_dict_value(gobj, tranger, "topics", json_object());
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
 
     return tranger;
