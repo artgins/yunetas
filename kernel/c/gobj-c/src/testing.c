@@ -364,9 +364,6 @@ PRIVATE BOOL match_record(
                                 /*
                                  *  HACK private or metadata values are ignored
                                  */
-                                json_object_del(record, key);
-                                json_object_del(expected, key);
-
                             } else if(!json_is_identical(value, value2)) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
@@ -376,11 +373,10 @@ PRIVATE BOOL match_record(
                                     );
                                 }
                                 ret = FALSE;
-                                break;
-                            } else {
-                                json_object_del(record, key);
-                                json_object_del(expected, key);
+//                                break;
                             }
+                            json_object_del(record, key);
+                            json_object_del(expected, key);
                         }
                     }
 
