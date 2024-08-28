@@ -566,20 +566,20 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create data directory
          *----------------------------------------*/
-// TODO ya no existen el data by topic, ahora es data by key
-//        snprintf(full_path, sizeof(full_path), "%s/data",
-//            directory
-//        );
-//        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-//            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//                "function",     "%s", __FUNCTION__,
-//                "path",         "%s", full_path,
-//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-//                "errno",        "%s", strerror(errno),
-//                NULL
-//            );
-//        }
+        char full_path[PATH_MAX];
+        snprintf(full_path, sizeof(full_path), "%s/data",
+            directory
+        );
+        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", full_path,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
     } else {
         /*---------------------------------------------*
          *  Exists the directory but check
@@ -779,13 +779,14 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  Open topic index
      */
-    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
-    if(!(system_flag & sf2_no_md_disk)) {
-        if(open_topic_idx_fd(tranger, topic)<0) {
-            json_decref(topic);
-            return 0;
-        }
-    }
+// TODO no idx in topic, moved to keys
+//    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+//    if(!(system_flag & sf2_no_md_disk)) {
+//        if(open_topic_idx_fd(tranger, topic)<0) {
+//            json_decref(topic);
+//            return 0;
+//        }
+//    }
 
     return topic;
 }

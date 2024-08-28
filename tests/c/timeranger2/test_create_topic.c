@@ -53,10 +53,9 @@ int do_test(void)
      *-------------------------------------------------*/
     set_expected_results(
         "tr_"TEST_NAME"_check_tranger_startup", // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating topic",
-            "msg", "Creating topic_idx.md",
             "msg", "Creating topic_desc.json",
             "msg", "Creating topic_cols.json",
             "msg", "Creating topic_var.json"
@@ -65,14 +64,15 @@ int do_test(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path,
         "database", "tr_"TEST_NAME,
-        "master", 1
+        "master", 1,
+        "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
-    tranger2_create_topic(
+    json_t *topic = tranger2_create_topic(
         tranger,
         TOPIC_NAME,  // topic name
         "id",           // pkey
@@ -84,6 +84,10 @@ int do_test(void)
         ),
         0
     );
+    if(!topic) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------*
@@ -185,7 +189,7 @@ int do_test(void)
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
-            'on_critical_error': 2, \
+            'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
             'directory': 'tests_yuneta/tr_create_topic', \
@@ -256,7 +260,7 @@ int do_test(void)
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
           'rpermission': 432, \
-          'on_critical_error': 2, \
+          'on_critical_error': 0, \
           'master': true, \
           'gobj': 0, \
           'directory': 'tests_yuneta/tr_create_topic', \
