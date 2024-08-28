@@ -49,7 +49,7 @@ int do_test(void)
     mkrdir(path, 02770);
 
     /*-------------------------------------------------*
-     *  Startup/create the timeranger db and a topic
+     *      Startup the timeranger db
      *-------------------------------------------------*/
     set_expected_results(
         "tr_"TEST_NAME"_check_tranger_startup", // test name
@@ -72,24 +72,6 @@ int do_test(void)
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
-    json_t *topic = tranger2_create_topic(
-        tranger,
-        TOPIC_NAME,  // topic name
-        "id",           // pkey
-        "",             // tkey
-        0,              // system_latch
-        json_pack("{s:s, s:s}", // jn_cols, owned
-            "id", "",
-            "address", ""
-        ),
-        0
-    );
-    if(!topic) {
-        tranger2_shutdown(tranger);
-        return -1;
-    }
-    result += test_json(NULL);  // NULL: we want to check only the logs
-
     /*------------------------------------*
      *  Check __timeranger2__.json file
      *------------------------------------*/
@@ -111,6 +93,27 @@ int do_test(void)
         );
         result += test_file(file);
     }
+
+    /*-------------------------------------------------*
+     *      Create a topic
+     *-------------------------------------------------*/
+    json_t *topic = tranger2_create_topic(
+        tranger,
+        TOPIC_NAME,  // topic name
+        "id",           // pkey
+        "",             // tkey
+        0,              // system_latch
+        json_pack("{s:s, s:s}", // jn_cols, owned
+            "id", "",
+            "address", ""
+        ),
+        0
+    );
+    if(!topic) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------*
      *  Check "topic_desc.json" file

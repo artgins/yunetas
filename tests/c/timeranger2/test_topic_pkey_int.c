@@ -49,19 +49,44 @@ int do_test(void)
     mkrdir(path, 02770);
 
     /*-------------------------------------------------*
-     *  Startup/create the timeranger db and a topic
+     *      Startup the timeranger db
      *-------------------------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
         "path", path,
         "database", "tr_"TEST_NAME,
         "master", 1,
         "on_critical_error", 0,
-        "filename_mask", "%Y-%m-%d",
+        "filename_mask", "%Y",
         "xpermission" , 02700,
         "rpermission", 0600
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
+    /*------------------------------------*
+     *  Check __timeranger2__.json file
+     *------------------------------------*/
+    build_path(file, sizeof(file), path, "tr_"TEST_NAME, "__timeranger2__.json", NULL);
+    if(1) {
+        char expected[]= "\
+        { \
+          'filename_mask': '%Y', \
+          'rpermission': 384, \
+          'xpermission': 1472 \
+        } \
+        ";
+        set_expected_results(
+            "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
+            TRUE
+        );
+        result += test_file(file);
+    }
+
+    /*-------------------------------------------------*
+     *      Create a topic
+     *-------------------------------------------------*/
     json_t *topic = tranger2_create_topic(
         tranger,
         TOPIC_NAME,  // topic name
@@ -77,28 +102,6 @@ int do_test(void)
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
-    }
-
-    /*------------------------------------*
-     *  Check __timeranger2__.json file
-     *------------------------------------*/
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME, "__timeranger2__.json", NULL);
-    if(1) {
-        char expected[]= "\
-        { \
-          'filename_mask': '%Y-%m-%d', \
-          'rpermission': 432, \
-          'xpermission': 1528 \
-        } \
-        ";
-        set_expected_results(
-            "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
-            NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
-            NULL,
-            TRUE
-        );
-        result += test_file(file);
     }
 
     /*------------------------------------*
@@ -174,10 +177,10 @@ int do_test(void)
         char expected[]= "\
         { \
             'path': 'tests_yuneta', \
-            'database': 'tr_create_topic', \
-            'filename_mask': '%Y-%m-%d', \
-            'xpermission': 1528, \
-            'rpermission': 432, \
+            'database': 'tr_topic_pkey_int', \
+            'filename_mask': '%Y', \
+            'xpermission': 1472, \
+            'rpermission': 384, \
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
@@ -245,10 +248,10 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'tests_yuneta', \
-          'database': 'tr_create_topic', \
-          'filename_mask': '%Y-%m-%d', \
-          'xpermission': 1528, \
-          'rpermission': 432, \
+          'database': 'tr_topic_pkey_int', \
+          'filename_mask': '%Y', \
+          'xpermission': 1472, \
+          'rpermission': 384, \
           'on_critical_error': 0, \
           'master': true, \
           'gobj': 0, \
@@ -284,10 +287,10 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'tests_yuneta', \
-          'database': 'tr_create_topic', \
-          'filename_mask': '%Y-%m-%d', \
-          'xpermission': 1528, \
-          'rpermission': 432, \
+          'database': 'tr_topic_pkey_int', \
+          'filename_mask': '%Y', \
+          'xpermission': 1472, \
+          'rpermission': 384, \
           'on_critical_error': 0, \
           'master': false, \
           'gobj': 0, \
