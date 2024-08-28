@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_create_topic.c
+ *          test_topic_pkey_int.c
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -13,7 +13,7 @@
 #include <testing.h>
 
 #define TEST_NAME   "create_topic"
-#define TOPIC_NAME  "topic_sample"
+#define TOPIC_NAME  "topic_pkey_int"
 
 /***************************************************************
  *              Prototypes
@@ -119,7 +119,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'topic_name': 'topic_sample', \
+          'topic_name': 'topic_pkey_int', \
           'pkey': 'id', \
           'tkey': '', \
           'system_flag': 1 \
@@ -197,8 +197,8 @@ int do_test(void)
                 '__timeranger2__.json': 99999 \
             }, \
             'topics': { \
-                'topic_sample': { \
-                    'topic_name': 'topic_sample', \
+                'topic_pkey_int': { \
+                    'topic_name': 'topic_pkey_int', \
                         'pkey': 'id', \
                         'tkey': '', \
                         'system_flag': 1, \
@@ -206,7 +206,7 @@ int do_test(void)
                         'id': '', \
                             'address': '' \
                     }, \
-                    'directory': 'tests_yuneta/tr_create_topic/topic_sample', \
+                    'directory': 'tests_yuneta/tr_create_topic/topic_pkey_int', \
                         '__last_rowid__': 0, \
                         'topic_idx_fd': 99999, \
                         'fd_opened_files': {}, \

@@ -21,6 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_create_topic.c
+    test_topic_pkey_int.c
 )
 
 ##############################################
