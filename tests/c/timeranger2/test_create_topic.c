@@ -53,7 +53,14 @@ int do_test(void)
      *-------------------------------------------------*/
     set_expected_results(
         "tr_"TEST_NAME"_check_tranger_startup", // test name
-        NULL,   // error's list, It must not be any log error
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_idx.md",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json"
+        ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
@@ -422,7 +429,7 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
     gobj_log_add_handler(
         "test_stdout",
         "stdout",
