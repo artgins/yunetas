@@ -48,9 +48,16 @@ int do_test(void)
     rmrdir(path);
     mkrdir(path, 02770);
 
-    /*
-     *  Startup/create the timeranger db
-     */
+    /*-------------------------------------------------*
+     *  Startup/create the timeranger db and a topic
+     *-------------------------------------------------*/
+    set_expected_results(
+        "tr_"TEST_NAME"_check_tranger_startup", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
         "path", path,
         "database", "tr_"TEST_NAME,
@@ -58,9 +65,6 @@ int do_test(void)
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
-    /*--------------------------------*
-     *      CREATE CONDITIONS
-     *--------------------------------*/
     tranger2_create_topic(
         tranger,
         TOPIC_NAME,  // topic name
@@ -73,8 +77,7 @@ int do_test(void)
         ),
         0
     );
-
-//    print_json2("XXX", tranger); // TODO TEST
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------*
      *  Check __timeranger2__.json file
@@ -225,13 +228,13 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-    /*
-     *  Close topic
-     */
+    /*------------------------*
+     *      Close topic
+     *------------------------*/
     tranger2_close_topic(tranger, TOPIC_NAME);
 
     /*------------------------------------------*
-     *  Check tranger memory with topic opened
+     *  Check tranger memory with topic closed
      *------------------------------------------*/
     if(1) {
         char expected[]= "\
@@ -270,8 +273,6 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-//    print_json2("YYY", tranger); // TODO TEST
-
     /*------------------------------------------*
      *  Check re-open tranger as master
      *------------------------------------------*/
@@ -293,7 +294,6 @@ int do_test(void)
           'topics': {} \
         } \
         ";
-
         const char *ignore_keys[]= {
             "path",
             "directory",

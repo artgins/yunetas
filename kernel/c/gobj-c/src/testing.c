@@ -154,8 +154,11 @@ PUBLIC int test_json(json_t *jn_found)
 {
     int result = 0;
 
+    /*
+     *  If jn_found && expected are NULL we want to check only the logs
+     */
     gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
-    if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
+    if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
             printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
