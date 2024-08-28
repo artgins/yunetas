@@ -79,7 +79,6 @@ extern "C"{
 
 typedef enum { // WARNING table with name's strings in 30_timeranger.c
     sf2_string_key          = 0x000001,
-    sf2_rowid_key           = 0x000002,
     sf2_int_key             = 0x000004,
     sf2_zip_record          = 0x000010,
     sf2_cipher_record       = 0x000020,
@@ -176,11 +175,10 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
        HACK IDEMPOTENT function
 
    if no key type is specified, then
-        if(!empty_string(pkey)) {
-            system_flag |= sf2_string_key;
-        } else {
-            system_flag |= sf2_rowid_key;
-        }
+        if pkey defined:
+            sf2_string_key
+        else
+            sf2_int_key;
 
 **rst**/
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS

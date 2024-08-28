@@ -498,7 +498,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             if(!empty_string(pkey)) {
                 system_flag |= sf2_string_key;
             } else {
-                system_flag |= sf2_rowid_key;
+                system_flag |= sf2_int_key;
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
@@ -1975,15 +1975,6 @@ PUBLIC int tranger2_append_record(
 //            }
             break;
 
-        case sf2_rowid_key:
-// TODO           md_record->key.i = md_record->__rowid__;
-//            json_object_set_new(
-//                jn_record,
-//                pkey,
-//                json_integer(md_record->key.i)
-//            );
-            break;
-
         default:
             // No pkey
             break;
@@ -3165,7 +3156,7 @@ PUBLIC BOOL tranger2_match_record(
     uint32_t __user_flag__ = get_user_flag(md_record);
     if(kw_has_key(match_cond, "key")) {
         int json_type = json_typeof(json_object_get(match_cond, "key"));
-        if(__system_flag__ & (sf2_int_key|sf2_rowid_key)) {
+        if(__system_flag__ & (sf2_int_key)) {
             switch(json_type) {
             case JSON_OBJECT:
                 {
@@ -3508,7 +3499,7 @@ PUBLIC BOOL tranger2_match_record(
     }
 
     if(kw_has_key(match_cond, "notkey")) {
-        if(__system_flag__ & (sf2_int_key|sf2_rowid_key)) {
+        if(__system_flag__ & (sf2_int_key)) {
             json_int_t notkey = kw_get_int(gobj, match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
 //  TODO          if(md_record->key.i == notkey) {
 //                return FALSE;
@@ -3791,7 +3782,7 @@ PUBLIC void tr2_print_md0_record(
             (uint64_t)md_record->__tm__,
             fecha_tm
         );
-    } else if(key_type & (sf2_int_key|sf2_rowid_key)) {
+    } else if(key_type & (sf2_int_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
@@ -3889,7 +3880,7 @@ PUBLIC void tr2_print_md1_record(
             t_m,
             fecha_tm
         );
-    } else if(key_type & (sf2_int_key|sf2_rowid_key)) {
+    } else if(key_type & (sf2_int_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
