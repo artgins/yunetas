@@ -172,7 +172,16 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
 /**rst**
    Create topic if not exist. Alias create table.
-   HACK IDEMPOTENT function
+
+       HACK IDEMPOTENT function
+
+   if no key type is specified, then
+        if(!empty_string(pkey)) {
+            system_flag |= sf2_string_key;
+        } else {
+            system_flag |= sf2_rowid_key;
+        }
+
 **rst**/
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If topic exists then only needs (tranger, topic_name) parameters

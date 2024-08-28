@@ -496,7 +496,9 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
-                system_flag |= sf2_int_key;
+                system_flag |= sf2_string_key;
+            } else {
+                system_flag |= sf2_rowid_key;
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);

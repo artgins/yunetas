@@ -122,7 +122,7 @@ int do_test(void)
           'topic_name': 'topic_sample', \
           'pkey': 'id', \
           'tkey': '', \
-          'system_flag': 4 \
+          'system_flag': 1 \
         } \
         ";
 
@@ -201,7 +201,7 @@ int do_test(void)
                     'topic_name': 'topic_sample', \
                         'pkey': 'id', \
                         'tkey': '', \
-                        'system_flag': 4, \
+                        'system_flag': 1, \
                         'cols': { \
                         'id': '', \
                             'address': '' \
