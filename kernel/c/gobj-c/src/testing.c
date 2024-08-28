@@ -68,9 +68,7 @@ PRIVATE const char **ignore_keys = NULL;
 PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 {
     json_t *msg = string2json(bf, FALSE);
-    if(verbose) {
-//        stdout_write(NULL, priority, bf, len);
-    }
+
     if(expected_log_messages) {
         json_t *expected_msg = kw_get_list_value(0, expected_log_messages, 0, 0);
         if(expected_msg) {

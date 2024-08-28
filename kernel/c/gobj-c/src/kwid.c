@@ -1477,7 +1477,7 @@ PRIVATE BOOL _kw_match_simple(
     level++;
 
     if(json_is_array(jn_filter)) {
-        // Empty array evaluate as false, until a match condition occurs.
+        // Empty array evaluates as false, until a match condition occurs.
         matched = FALSE;
         size_t idx;
         json_t *jn_filter_value;
@@ -1531,10 +1531,10 @@ PRIVATE BOOL _kw_match_simple(
              *  Get the record value, firstly by path else by name
              */
             json_t *jn_record_value;
-            // Firstly try the key as pointers
+            // Firstly, try the key as pointers
             jn_record_value = kw_get_dict_value(0, kw, path, 0, 0);
             if(!jn_record_value) {
-                // Secondly try the key with points (.) as full key
+                // Secondly, try the key with points (.) as full key
                 jn_record_value = json_object_get(kw, path);
             }
             if(!jn_record_value) {
@@ -1574,7 +1574,7 @@ PUBLIC BOOL kw_match_simple(
         return TRUE;
     }
     if(json_is_object(jn_filter) && json_object_size(jn_filter)==0) {
-        // A empty object at first level evaluate as true.
+        // An empty object at first level evaluates as true.
         json_decref(jn_filter);
         return TRUE;
     }

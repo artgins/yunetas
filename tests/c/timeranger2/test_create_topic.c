@@ -93,8 +93,7 @@ int do_test(void)
         ";
         set_expected_results(
             "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
             TRUE
@@ -118,8 +117,7 @@ int do_test(void)
 
         set_expected_results(
             "tr_"TEST_NAME"_check_topic_desc.json",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
             TRUE
@@ -141,8 +139,7 @@ int do_test(void)
 
         set_expected_results(
             "tr_"TEST_NAME"_check_topic_cols.json",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
             TRUE
@@ -162,8 +159,7 @@ int do_test(void)
 
         set_expected_results(
             "tr_"TEST_NAME"_check_topic_var.json",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
             TRUE
@@ -219,8 +215,7 @@ int do_test(void)
         };
         set_expected_results(
             "tr_"TEST_NAME"_check_tranger_mem1",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
             TRUE
@@ -231,7 +226,17 @@ int do_test(void)
     /*------------------------*
      *      Close topic
      *------------------------*/
+    set_expected_results(
+        "tr_"TEST_NAME"_check_close_topic", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
     tranger2_close_topic(tranger, TOPIC_NAME);
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------------*
      *  Check tranger memory with topic closed
@@ -264,8 +269,7 @@ int do_test(void)
         };
         set_expected_results(
             "tr_"TEST_NAME"_check_tranger_mem2",      // test name
-            json_pack("[]"          // error's list
-            ),
+            NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
             TRUE
@@ -301,9 +305,12 @@ int do_test(void)
             "topic_idx_fd",
             NULL
         };
+
         set_expected_results(
             "tr_"TEST_NAME"_check_tranger_reopen_as_master",      // test name
-            json_pack("[]"          // error's list
+            json_pack("[{s:s},{s:s}]", // error's list
+                "msg", "Cannot open json file",
+                "msg", "Open as not master, __timeranger2__.json locked"
             ),
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -320,13 +327,29 @@ int do_test(void)
 
         result += test_json(json_incref(tr));
 
+        set_expected_results(
+            "tr_"TEST_NAME"_tranger_shutdown", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
         tranger2_shutdown(tr);
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*
      *  Shutdown timeranger
      */
+    set_expected_results(
+        "tr_"TEST_NAME"_tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
     tranger2_shutdown(tranger);
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     return result;
 }
