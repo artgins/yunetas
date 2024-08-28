@@ -55,9 +55,9 @@ Versions in C, Python and Javascript.
 - [openresty](https://openresty.org/)
 
 
-# Contents
+[//]: # (# Contents)
 
-Here is a reference to  {ref}`python-packages`
+[//]: # (Here is a reference to  {ref}`python-packages`)
 
 ```{toctree}
 :maxdepth: 1
