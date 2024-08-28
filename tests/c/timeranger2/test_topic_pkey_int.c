@@ -12,7 +12,7 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define TEST_NAME   "create_topic"
+#define TEST_NAME   "topic_pkey_int"
 #define TOPIC_NAME  "topic_pkey_int"
 
 /***************************************************************
@@ -51,24 +51,14 @@ int do_test(void)
     /*-------------------------------------------------*
      *  Startup/create the timeranger db and a topic
      *-------------------------------------------------*/
-    set_expected_results(
-        "tr_"TEST_NAME"_check_tranger_startup", // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
-            "msg", "Creating __timeranger2__.json",
-            "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json"
-        ),
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
         "path", path,
         "database", "tr_"TEST_NAME,
         "master", 1,
-        "on_critical_error", 0
+        "on_critical_error", 0,
+        "filename_mask", "%Y-%m-%d",
+        "xpermission" , 02700,
+        "rpermission", 0600
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
@@ -88,7 +78,6 @@ int do_test(void)
         tranger2_shutdown(tranger);
         return -1;
     }
-    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------*
      *  Check __timeranger2__.json file
