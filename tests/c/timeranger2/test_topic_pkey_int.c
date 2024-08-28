@@ -92,6 +92,7 @@ int do_test(void)
         TOPIC_NAME,  // topic name
         "id",           // pkey
         "",             // tkey
+        NULL,           // jn_topic_desc
         0,              // system_latch
         json_pack("{s:s, s:s}", // jn_cols, owned
             "id", "",

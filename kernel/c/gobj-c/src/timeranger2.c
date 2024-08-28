@@ -118,7 +118,7 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic);
  ***************************************************************************/
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
-    json_t *jn_tranger // owned
+    json_t *jn_tranger // owned, See tranger2_json_desc for parameters
 )
 {
     json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
@@ -364,6 +364,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     const char *topic_name,
     const char *pkey,
     const char *tkey,
+    json_t *jn_topic,   // owned, See topic_json_desc for parameters
     system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned
@@ -1259,6 +1260,7 @@ PUBLIC json_t *tranger2_backup_topic(
         topic_name,
         kw_get_str(gobj, topic_desc, "pkey", "", KW_REQUIRED),
         kw_get_str(gobj, topic_desc, "tkey", "", KW_REQUIRED),
+        NULL, // TODO get jn_topic
         (system_flag2_t)kw_get_int(gobj, topic_desc, "system_flag", 0, KW_REQUIRED),
         topic_cols,     // owned
         jn_topic_var    // owned

@@ -186,6 +186,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     const char *topic_name,
     const char *pkey,
     const char *tkey,
+    json_t *jn_topic,   // owned, See topic_json_desc for parameters
     system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned
