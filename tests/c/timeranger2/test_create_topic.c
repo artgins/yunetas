@@ -276,14 +276,6 @@ int do_test(void)
      *  Check re-open tranger as master
      *------------------------------------------*/
     if(1) {
-        json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
-            "path", path,
-            "database", "tr_"TEST_NAME,
-            "master", 1,
-            "on_critical_error", 0
-        );
-        json_t *tr = tranger2_startup(0, jn_tr);
-
         char expected[]= "\
         { \
           'path': 'tests_yuneta', \
@@ -317,6 +309,15 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
+
+        json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
+            "path", path,
+            "database", "tr_"TEST_NAME,
+            "master", 1,
+            "on_critical_error", 0
+        );
+        json_t *tr = tranger2_startup(0, jn_tr);
+
         result += test_json(json_incref(tr));
 
         tranger2_shutdown(tr);

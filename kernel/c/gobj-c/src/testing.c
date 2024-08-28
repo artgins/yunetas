@@ -69,22 +69,18 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 {
     json_t *msg = string2json(bf, FALSE);
     if(verbose) {
-        stdout_write(NULL, priority, bf, len);
+//        stdout_write(NULL, priority, bf, len);
     }
-    if(!expected_log_messages) {
-        // Avoid log_error in kw_ function
-        JSON_DECREF(msg)
-        return -1;
-    }
-    json_t *expected_msg = kw_get_list_value(0, expected_log_messages, 0, 0);
-
-    if(expected_msg) {
-        JSON_INCREF(expected_msg)
-        if(kw_match_simple(msg, expected_msg)) {
-            kw_get_list_value(0, expected_log_messages, 0, KW_EXTRACT);
-            JSON_DECREF(expected_msg)
-            JSON_DECREF(msg)
-            return -1; // It's only mine
+    if(expected_log_messages) {
+        json_t *expected_msg = kw_get_list_value(0, expected_log_messages, 0, 0);
+        if(expected_msg) {
+            JSON_INCREF(expected_msg)
+            if(kw_match_simple(msg, expected_msg)) {
+                kw_get_list_value(0, expected_log_messages, 0, KW_EXTRACT);
+                JSON_DECREF(expected_msg)
+                JSON_DECREF(msg)
+                return -1; // It's only mine
+            }
         }
     }
     json_array_append_new(unexpected_log_messages, msg);
