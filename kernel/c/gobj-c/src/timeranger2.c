@@ -450,38 +450,39 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             NULL
         );
 
-        /*----------------------------------------*
-         *      Create topic_idx.md
-         *----------------------------------------*/
-        char full_path[PATH_MAX];
-        snprintf(full_path, sizeof(full_path), "%s/%s",
-            directory,
-            "topic_idx.md"
-        );
-        int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
-        if(fp < 0) {
-            gobj_log_error(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot create topic_idx.md file.",
-                "filename",     "%s", full_path,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            JSON_DECREF(jn_cols)
-            JSON_DECREF(jn_var)
-            return 0;
-        }
-        close(fp);
-
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating topic_idx.md",
-            "path",         "%s", directory,
-            "topic",        "%s", topic_name,
-            NULL
-        );
+//        /*----------------------------------------*
+//         *      Create topic_idx.md
+//         *----------------------------------------*/
+// TODO ya no existen el index by topic, ahora es idx by key
+//        char full_path[PATH_MAX];
+//        snprintf(full_path, sizeof(full_path), "%s/%s",
+//            directory,
+//            "topic_idx.md"
+//        );
+//        int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+//        if(fp < 0) {
+//            gobj_log_error(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//                "msg",          "%s", "Cannot create topic_idx.md file.",
+//                "filename",     "%s", full_path,
+//                "errno",        "%s", strerror(errno),
+//                NULL
+//            );
+//            JSON_DECREF(jn_cols)
+//            JSON_DECREF(jn_var)
+//            return 0;
+//        }
+//        close(fp);
+//
+//        gobj_log_info(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INFO,
+//            "msg",          "%s", "Creating topic_idx.md",
+//            "path",         "%s", directory,
+//            "topic",        "%s", topic_name,
+//            NULL
+//        );
 
         /*----------------------------------------*
          *      Create topic_desc.json
@@ -565,19 +566,20 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create data directory
          *----------------------------------------*/
-        snprintf(full_path, sizeof(full_path), "%s/data",
-            directory
-        );
-        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "path",         "%s", full_path,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-        }
+// TODO ya no existen el data by topic, ahora es data by key
+//        snprintf(full_path, sizeof(full_path), "%s/data",
+//            directory
+//        );
+//        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+//            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+//                "function",     "%s", __FUNCTION__,
+//                "path",         "%s", full_path,
+//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+//                "errno",        "%s", strerror(errno),
+//                NULL
+//            );
+//        }
     } else {
         /*---------------------------------------------*
          *  Exists the directory but check
