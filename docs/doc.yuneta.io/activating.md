@@ -1,6 +1,6 @@
 # Activating Yunetas
 
-After Yunetas is installed, activate it to start working on your projects.
+Once Yunetas is installed, activate it to begin working on your projects.
 
 If you are using conda:
 
