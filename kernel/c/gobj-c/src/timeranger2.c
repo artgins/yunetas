@@ -875,10 +875,10 @@ PRIVATE int get_topic_idx_fd(
 {
     int fd = (int)kw_get_int(0, topic, "topic_idx_fd", -1, KW_REQUIRED);
     if(fd<0) {
-        system_flag2_t system_flag = kw_get_int(0, topic, "system_flag", 0, KW_REQUIRED);
-        if((system_flag & sf2_no_md_disk)) {
-            return -1;
-        }
+//        system_flag2_t system_flag = kw_get_int(0, topic, "system_flag", 0, KW_REQUIRED);
+//        if((system_flag & sf2_no_md_disk)) {
+//            return -1;
+//        }
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,

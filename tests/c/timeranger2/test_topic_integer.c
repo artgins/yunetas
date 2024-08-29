@@ -93,7 +93,7 @@ int do_test(void)
         "id",           // pkey
         "",             // tkey
         NULL,           // jn_topic_desc
-        0,              // system_flag
+        sf2_int_key|sf2_tm_ms,    // system_flag
         json_pack("{s:s, s:s}", // jn_cols, owned
             "id", "",
             "address", ""
