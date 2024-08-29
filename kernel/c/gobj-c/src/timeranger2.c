@@ -1831,7 +1831,7 @@ PUBLIC int tranger2_append_record(
             "topic",        "%s", topic_name,
             NULL
         );
-        // TODO gobj_log_debug_json(gobj, 0, jn_record, "Cannot append record, NO master");
+        gobj_trace_json(gobj, jn_record, "Cannot append record, NO master");
         JSON_DECREF(jn_record)
         return -1;
     }
@@ -1845,10 +1845,12 @@ PUBLIC int tranger2_append_record(
             "topic",        "%s", topic_name,
             NULL
         );
-        // TODO log_debug_json(0, jn_record, "Cannot append record, topic not found");
+        gobj_trace_json(gobj, jn_record, "Cannot append record, topic not found");
         JSON_DECREF(jn_record)
         return -1;
     }
+
+print_json2("TOPIC", topic); // TODO TEST
 
     /*--------------------------------------------*
      *  If time not specified, use the now time
@@ -1887,7 +1889,7 @@ PUBLIC int tranger2_append_record(
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            // TODO log_debug_json(0, jn_record, "Cannot append record, lseek64() FAILED");
+            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek64() FAILED");
             JSON_DECREF(jn_record)
             return -1;
         }
@@ -2068,7 +2070,7 @@ PUBLIC int tranger2_append_record(
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            // TODO log_debug_json(0, jn_record, "Cannot append record, write FAILED");
+            gobj_trace_json(gobj, jn_record, "Cannot append record, write FAILED");
             JSON_DECREF(jn_record)
             return -1;
         }

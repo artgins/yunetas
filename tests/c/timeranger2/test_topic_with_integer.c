@@ -94,18 +94,19 @@ int do_test(void)
      *-------------------------------------------------*/
     json_t *topic = tranger2_create_topic(
         tranger,
-        TOPIC_NAME,  // topic name
+        TOPIC_NAME,     // topic name
         "id",           // pkey
-        "",             // tkey
+        "tm",           // tkey
         json_pack("{s:i, s:s, s:i, s:i}", // jn_topic_desc
             "on_critical_error", 4,
             "filename_mask", "%Y-%m-%d",
             "xpermission" , 02770,
             "rpermission", 0660
         ),
-        sf2_int_key|sf2_tm_ms,    // system_flag
-        json_pack("{s:s, s:s}", // jn_cols, owned
+        sf2_int_key|sf2_t_ms|sf2_tm_ms,    // system_flag
+        json_pack("{s:s, s:I, s:s}", // jn_cols, owned
             "id", "",
+            "tm", (json_int_t)0,
             "content", ""
         ),
         0
@@ -124,8 +125,8 @@ int do_test(void)
         { \
             'topic_name': 'topic_with_integer', \
             'pkey': 'id', \
-            'tkey': '', \
-            'system_flag': 516, \
+            'tkey': 'tm', \
+            'system_flag': 772, \
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
             'rpermission': 432 \
@@ -150,6 +151,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'id': '', \
+          'tm': 0, \
           'content': '' \
         } \
         ";
@@ -206,13 +208,14 @@ int do_test(void)
                 'topic_with_integer': { \
                     'topic_name': 'topic_with_integer', \
                     'pkey': 'id', \
-                    'tkey': '', \
-                    'system_flag': 516, \
+                    'tkey': 'tm', \
+                    'system_flag': 772, \
                     'filename_mask': '%Y-%m-%d', \
                     'xpermission': 1528, \
                     'rpermission': 432, \
                     'cols': { \
                         'id': '', \
+                        'tm': 0, \
                         'content': '' \
                     }, \
                     'directory': 'xxx', \
@@ -248,8 +251,9 @@ int do_test(void)
      *-------------------------------------*/
     for(json_int_t i=0; i<MAX_RECORDS; i++) {
         if(i % 2 == 0) {
-            json_t *jn_record1 = json_pack("{s:I, s:s}",
+            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
                 "id", i+1,
+                "tm", (json_int_t)time_in_miliseconds(),
                 "content",
                 "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
                 "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
@@ -258,8 +262,9 @@ int do_test(void)
             md2_record_t md_record;
             tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);
         } else {
-            json_t *jn_record1 = json_pack("{s:I, s:s}",
+            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
                 "id", i+1,
+                "tm", (json_int_t)time_in_miliseconds(),
                 "content",
                 "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el."
                 "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el.x"
