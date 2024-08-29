@@ -133,6 +133,7 @@ static const json_desc_t tranger2_json_desc[] = {
 
 static const json_desc_t topic_json_desc[] = {
 // Name                 Type    Default     Fillspace
+{"on_critical_error",   "int",  "2",        ""}, // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
 {"filename_mask",       "str",  "%Y-%m-%d", ""}, // Organization of tables (file name format, see strftime())
 {"xpermission" ,        "int",  "02770",    ""}, // Use in creation, default 02770;
 {"rpermission",         "int",  "0660",     ""}, // Use in creation, default 0660;
@@ -185,7 +186,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    json_t *jn_topic,   // owned, See topic_json_desc for parameters
+    json_t *jn_topic_ext,   // owned, See topic_json_desc for parameters
     system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned

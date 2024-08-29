@@ -12,7 +12,7 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define TEST_NAME   "create_topic"
+#define TEST_NAME   "tr_create_topic"
 #define TOPIC_NAME  "topic_sample"
 
 /***************************************************************
@@ -44,15 +44,18 @@ int do_test(void)
      */
     const char *home = getenv("HOME");
     char path[PATH_MAX];
+
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
-    rmrdir(path);
     mkrdir(path, 02770);
+
+    build_path(path, sizeof(path), home, "tests_yuneta", TOPIC_NAME, NULL);
+    rmrdir(path);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
     set_expected_results(
-        "tr_"TEST_NAME"_check_tranger_startup", // test name
+        "tr__check_tranger_startup", // test name
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
             "msg", "Creating __timeranger2__.json",
             "msg", "Creating topic",
@@ -66,7 +69,7 @@ int do_test(void)
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path,
-        "database", "tr_"TEST_NAME,
+        "database", TEST_NAME,
         "master", 1,
         "on_critical_error", 0
     );
@@ -75,7 +78,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check __timeranger2__.json file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME, "__timeranger2__.json", NULL);
+    build_path(file, sizeof(file), path, TEST_NAME, "__timeranger2__.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -85,7 +88,7 @@ int do_test(void)
         } \
         ";
         set_expected_results(
-            "tr_"TEST_NAME"_check__timeranger2__.json",      // test name
+            "check__timeranger2__.json",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
@@ -119,7 +122,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_desc.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
+    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -131,7 +134,7 @@ int do_test(void)
         ";
 
         set_expected_results(
-            "tr_"TEST_NAME"_check_topic_desc.json",      // test name
+            "check_topic_desc.json",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
@@ -143,7 +146,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_cols.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
+    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -153,7 +156,7 @@ int do_test(void)
         ";
 
         set_expected_results(
-            "tr_"TEST_NAME"_check_topic_cols.json",      // test name
+            "check_topic_cols.json",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
@@ -165,7 +168,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_var.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, "tr_"TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
+    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -173,7 +176,7 @@ int do_test(void)
         ";
 
         set_expected_results(
-            "tr_"TEST_NAME"_check_topic_var.json",      // test name
+            "check_topic_var.json",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
@@ -188,7 +191,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-            'path': 'tests_yuneta', \
+            'path': 'xxx', \
             'database': 'tr_create_topic', \
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
@@ -196,7 +199,7 @@ int do_test(void)
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
-            'directory': 'tests_yuneta/tr_create_topic', \
+            'directory': 'xxx', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 99999 \
             }, \
@@ -210,7 +213,7 @@ int do_test(void)
                         'id': '', \
                             'address': '' \
                     }, \
-                    'directory': 'tests_yuneta/tr_create_topic/topic_sample', \
+                    'directory': 'xxx', \
                         '__last_rowid__': 0, \
                         'topic_idx_fd': 99999, \
                         'fd_opened_files': {}, \
@@ -229,7 +232,7 @@ int do_test(void)
             NULL
         };
         set_expected_results(
-            "tr_"TEST_NAME"_check_tranger_mem1",      // test name
+            "check_tranger_mem1",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -242,7 +245,7 @@ int do_test(void)
      *      Close topic
      *------------------------*/
     set_expected_results(
-        "tr_"TEST_NAME"_check_close_topic", // test name
+        "check_close_topic", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -259,7 +262,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'path': 'tests_yuneta', \
+          'path': 'xxx', \
           'database': 'tr_create_topic', \
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
@@ -267,7 +270,7 @@ int do_test(void)
           'on_critical_error': 0, \
           'master': true, \
           'gobj': 0, \
-          'directory': 'tests_yuneta/tr_create_topic', \
+          'directory': 'xxx', \
           'fd_opened_files': { \
             '__timeranger2__.json': 9999 \
           }, \
@@ -283,7 +286,7 @@ int do_test(void)
             NULL
         };
         set_expected_results(
-            "tr_"TEST_NAME"_check_tranger_mem2",      // test name
+            "check_tranger_mem2",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -298,7 +301,7 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'path': 'tests_yuneta', \
+          'path': 'xxx', \
           'database': 'tr_create_topic', \
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
@@ -306,7 +309,7 @@ int do_test(void)
           'on_critical_error': 0, \
           'master': false, \
           'gobj': 0, \
-          'directory': 'tests_yuneta/tr_create_topic', \
+          'directory': 'xxx', \
           'fd_opened_files': { \
             '__timeranger2__.json': 9999 \
           }, \
@@ -322,7 +325,7 @@ int do_test(void)
         };
 
         set_expected_results(
-            "tr_"TEST_NAME"_check_tranger_reopen_as_master",      // test name
+            "check_tranger_reopen_as_master",      // test name
             json_pack("[{s:s},{s:s}]", // error's list
                 "msg", "Cannot open json file",
                 "msg", "Open as not master, __timeranger2__.json locked"
@@ -334,7 +337,7 @@ int do_test(void)
 
         json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
             "path", path,
-            "database", "tr_"TEST_NAME,
+            "database", TEST_NAME,
             "master", 1,
             "on_critical_error", 0
         );
@@ -343,7 +346,7 @@ int do_test(void)
         result += test_json(json_incref(tr));
 
         set_expected_results(
-            "tr_"TEST_NAME"_tranger_shutdown", // test name
+            "tranger_shutdown", // test name
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
@@ -357,7 +360,7 @@ int do_test(void)
      *  Shutdown timeranger
      */
     set_expected_results(
-        "tr_"TEST_NAME"_tranger_shutdown", // test name
+        "tranger_shutdown", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys

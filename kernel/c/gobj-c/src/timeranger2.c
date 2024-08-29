@@ -364,7 +364,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    json_t *jn_topic,   // owned, See topic_json_desc for parameters
+    json_t *jn_topic_ext, // owned, See topic_json_desc for parameters, overwrite certain tranger params.
     system_flag2_t system_flag,
     json_t *jn_cols,    // owned
     json_t *jn_var      // owned
@@ -503,6 +503,14 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
+
+        if(jn_topic_ext) {
+            json_t *jn_topic_ext_ = create_json_record(gobj, topic_json_desc); // no master by default
+            json_object_update_existing(jn_topic_ext_, jn_topic_ext);
+            json_object_update(jn_topic_desc, jn_topic_ext_);
+            JSON_DECREF(jn_topic_ext_)
+            JSON_DECREF(jn_topic_ext)
+        }
 
         json_t *topic_desc = kw_clone_by_path(
             gobj,
