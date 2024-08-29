@@ -48,12 +48,13 @@ int do_test(void)
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     mkrdir(path, 02770);
 
-    build_path(path, sizeof(path), home, "tests_yuneta", TOPIC_NAME, NULL);
+    build_path(path, sizeof(path), home, "tests_yuneta", TEST_NAME, NULL);
     rmrdir(path);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
+    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
         "path", path,
         "database", TEST_NAME,

@@ -12,7 +12,7 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define TEST_NAME   "tr_create_topic"
+#define TEST_NAME   "tr_tranger_startup"
 #define TOPIC_NAME  "topic_sample"
 
 /***************************************************************
@@ -48,12 +48,13 @@ int do_test(void)
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     mkrdir(path, 02770);
 
-    build_path(path, sizeof(path), home, "tests_yuneta", TOPIC_NAME, NULL);
+    build_path(path, sizeof(path), home, "tests_yuneta", TEST_NAME, NULL);
     rmrdir(path);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
+    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     set_expected_results(
         "tr__check_tranger_startup", // test name
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
@@ -192,7 +193,7 @@ int do_test(void)
         char expected[]= "\
         { \
             'path': 'xxx', \
-            'database': 'tr_create_topic', \
+            'database': 'tr_tranger_startup', \
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
@@ -263,7 +264,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'xxx', \
-          'database': 'tr_create_topic', \
+          'database': 'tr_tranger_startup', \
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
           'rpermission': 432, \
@@ -302,7 +303,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'xxx', \
-          'database': 'tr_create_topic', \
+          'database': 'tr_tranger_startup', \
           'filename_mask': '%Y-%m-%d', \
           'xpermission': 1528, \
           'rpermission': 432, \
