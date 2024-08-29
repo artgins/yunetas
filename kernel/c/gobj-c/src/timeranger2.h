@@ -174,7 +174,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
        HACK IDEMPOTENT function
 
-   if no key type is specified, then
+   if key type is not specified, then it will be:
         if pkey defined:
             sf2_string_key
         else
