@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_topic_pkey_int.c
+ *          test_topic_with_integer.c
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -12,8 +12,8 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define TEST_NAME   "topic_pkey_int"
-#define TOPIC_NAME  "topic_pkey_int"
+#define TEST_NAME   "topic_with_integer"
+#define TOPIC_NAME  "topic_with_integer"
 
 /***************************************************************
  *              Prototypes
@@ -92,11 +92,16 @@ int do_test(void)
         TOPIC_NAME,  // topic name
         "id",           // pkey
         "",             // tkey
-        NULL,           // jn_topic_desc
+        json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}", // jn_topic_desc
+            "on_critical_error", 1,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02770,
+            "rpermission", 0660
+        ),
         sf2_int_key|sf2_tm_ms,    // system_flag
         json_pack("{s:s, s:s}", // jn_cols, owned
             "id", "",
-            "address", ""
+            "content", ""
         ),
         0
     );
@@ -112,10 +117,10 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'topic_name': 'topic_pkey_int', \
+          'topic_name': 'topic_with_integer', \
           'pkey': 'id', \
           'tkey': '', \
-          'system_flag': 1 \
+          'system_flag': 516 \
         } \
         ";
 
@@ -137,7 +142,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'id': '', \
-          'address': '' \
+          'content': '' \
         } \
         ";
 
@@ -178,7 +183,7 @@ int do_test(void)
         char expected[]= "\
         { \
             'path': 'tests_yuneta', \
-            'database': 'tr_topic_pkey_int', \
+            'database': 'tr_topic_with_integer', \
             'filename_mask': '%Y', \
             'xpermission': 1472, \
             'rpermission': 384, \
@@ -190,19 +195,19 @@ int do_test(void)
                 '__timeranger2__.json': 99999 \
             }, \
             'topics': { \
-                'topic_pkey_int': { \
-                    'topic_name': 'topic_pkey_int', \
+                'topic_with_integer': { \
+                    'topic_name': 'topic_with_integer', \
                         'pkey': 'id', \
                         'tkey': '', \
-                        'system_flag': 1, \
+                        'system_flag': 516, \
                         'cols': { \
                         'id': '', \
-                            'address': '' \
+                        'content': '' \
                     }, \
-                    'directory': 'tests_yuneta/tr_create_topic/topic_pkey_int', \
-                        '__last_rowid__': 0, \
-                        'topic_idx_fd': 99999, \
-                        'fd_opened_files': {}, \
+                    'directory': 'tests_yuneta/tr_create_topic/topic_with_integer', \
+                    '__last_rowid__': 0, \
+                    'topic_idx_fd': 99999, \
+                    'fd_opened_files': {}, \
                     'file_opened_files': {}, \
                     'lists': [] \
                 } \
@@ -249,7 +254,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'tests_yuneta', \
-          'database': 'tr_topic_pkey_int', \
+          'database': 'tr_topic_with_integer', \
           'filename_mask': '%Y', \
           'xpermission': 1472, \
           'rpermission': 384, \
@@ -288,7 +293,7 @@ int do_test(void)
         char expected[]= "\
         { \
           'path': 'tests_yuneta', \
-          'database': 'tr_topic_pkey_int', \
+          'database': 'tr_topic_with_integer', \
           'filename_mask': '%Y', \
           'xpermission': 1472, \
           'rpermission': 384, \

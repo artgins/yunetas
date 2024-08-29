@@ -21,7 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_tranger_startup.c
-    test_topic_integer.c
+    test_topic_with_integer.c
 )
 
 ##############################################
