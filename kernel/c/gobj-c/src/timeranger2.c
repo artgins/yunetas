@@ -1556,8 +1556,8 @@ PRIVATE char *get_record_content_fullpath(
     struct tm *tm = gmtime((time_t *)&__t__);
     const char *topic_name = tranger2_topic_name(topic);
 
-    char format[64];
-    const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d.json", KW_REQUIRED);
+    char format[120];
+    const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED);
 
     if(strchr(filename_mask, '%')) {
         strftime(format, sizeof(format), filename_mask, tm);
@@ -1572,7 +1572,7 @@ PRIVATE char *get_record_content_fullpath(
             tm->tm_yday+1,          // 001-365
             tm->tm_hour
         );
-        // TODO translate_string(format, sizeof(format), sfechahora, filename_mask, "DD/MM/CCYY/ZZZ/HH");
+        translate_string(format, sizeof(format), sfechahora, filename_mask, "DD/MM/CCYY/ZZZ/HH");
     }
 
     const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);

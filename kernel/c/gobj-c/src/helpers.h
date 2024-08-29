@@ -91,6 +91,13 @@ PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);
 PUBLIC char *strntoupper(char* s, size_t n);
 PUBLIC char *strntolower(char* s, size_t n);
+PUBLIC char *translate_string(
+    char *to,
+    int tolen,
+    const char *from,
+    const char *mk_to,
+    const char *mk_from
+);
 PUBLIC int change_char(char *s, char old_c, char new_c);
 
 /**rst**

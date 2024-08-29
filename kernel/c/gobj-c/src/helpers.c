@@ -958,6 +958,60 @@ PUBLIC char *strntolower(char* s, size_t n)
     return s;
 }
 
+/****************************************************************************
+ *  Translate characters from the string 'from' to the string 'to'.
+ *  Usage:
+ *        char * translate_string(char *to,
+ *                                char *from,
+ *                                char *mk_to,
+ *                                char *mk_from);
+ *  Description:
+ *        Move characters from 'from' to 'to' using the masks
+ *  Return:
+ *        A pointer to string 'to'.
+ ****************************************************************************/
+PUBLIC char * translate_string(
+    char *to,
+    int tolen,
+    const char *from,
+    const char *mk_to,
+    const char *mk_from
+) {
+    int pos;
+    char chr;
+    char *chr_pos;
+
+    tolen--;
+    if(tolen<1)
+        return to;
+    strncpy(to, mk_to, tolen);
+    to[tolen] = 0;
+
+    while((chr = *mk_from++) != 0) {
+        if((chr_pos = strchr(mk_to,chr)) == NULL) {
+            from++;
+            continue ;
+        }
+        pos = (int) (chr_pos - mk_to);
+        if(pos > tolen) {
+            break;
+        }
+        to[pos++] = *from++ ;
+
+        while(chr == *mk_from) {
+            if(chr == mk_to[pos]) {
+                if(pos > tolen) {
+                    break;
+                }
+                to[pos++] = *from;
+            }
+            mk_from++ ;
+            from++;
+        }
+    }
+    return to;
+}
+
 /***************************************************************************
  *    cambia el character old_d por new_c. Retorna los caracteres cambiados
  ***************************************************************************/
