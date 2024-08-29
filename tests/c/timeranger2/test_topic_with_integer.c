@@ -213,7 +213,7 @@ int do_test(void)
                         'id': '', \
                         'content': '' \
                     }, \
-                    'directory': 'tests_yuneta/tr_create_topic/topic_with_integer', \
+                    'directory': 'xxx', \
                     '__last_rowid__': 0, \
                     'topic_idx_fd': 99999, \
                     'fd_opened_files': {}, \
