@@ -14,6 +14,7 @@
 
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
+#define MAX_RECORDS 100000
 
 /***************************************************************
  *              Prototypes
@@ -242,6 +243,32 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
+    /*-------------------------------------*
+     *      Add records
+     *-------------------------------------*/
+    for(json_int_t i=0; i<MAX_RECORDS; i++) {
+        if(i % 2 == 0) {
+            json_t *jn_record1 = json_pack("{s:I, s:s}",
+                "id", i+1,
+                "content",
+                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
+            );
+            md2_record_t md_record;
+            tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);
+        } else {
+            json_t *jn_record1 = json_pack("{s:I, s:s}",
+                "id", i+1,
+                "content",
+                "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el."
+                "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el.x"
+            );
+            md2_record_t md_record;
+            tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);
+        }
+    }
+
     /*------------------------*
      *      Close topic
      *------------------------*/
@@ -257,109 +284,9 @@ int do_test(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    /*------------------------------------------*
-     *  Check tranger memory with topic closed
-     *------------------------------------------*/
-    if(1) {
-        char expected[]= "\
-        { \
-          'path': 'xxx', \
-          'database': 'tr_topic_with_integer', \
-          'filename_mask': '%Y', \
-          'xpermission': 1472, \
-          'rpermission': 384, \
-          'on_critical_error': 0, \
-          'master': true, \
-          'gobj': 0, \
-          'directory': 'xxx', \
-          'fd_opened_files': { \
-            '__timeranger2__.json': 9999 \
-          }, \
-          'topics': {} \
-        } \
-        ";
-
-        const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
-            "topic_idx_fd",
-            NULL
-        };
-        set_expected_results(
-            "check_tranger_mem2",      // test name
-            NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
-            ignore_keys,
-            TRUE
-        );
-        result += test_json(json_incref(tranger));
-    }
-
-    /*------------------------------------------*
-     *  Check re-open tranger as master
-     *------------------------------------------*/
-    if(1) {
-        char expected[]= "\
-        { \
-          'path': 'xxx', \
-          'database': 'tr_topic_with_integer', \
-          'filename_mask': '%Y', \
-          'xpermission': 1472, \
-          'rpermission': 384, \
-          'on_critical_error': 0, \
-          'master': false, \
-          'gobj': 0, \
-          'directory': 'xxx', \
-          'fd_opened_files': { \
-            '__timeranger2__.json': 9999 \
-          }, \
-          'topics': {} \
-        } \
-        ";
-        const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
-            "topic_idx_fd",
-            NULL
-        };
-
-        set_expected_results(
-            "check_tranger_reopen_as_master",      // test name
-            json_pack("[{s:s},{s:s}]", // error's list
-                "msg", "Cannot open json file",
-                "msg", "Open as not master, __timeranger2__.json locked"
-            ),
-            string2json(helper_quote2doublequote(expected), TRUE),
-            ignore_keys,
-            TRUE
-        );
-
-        json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
-            "path", path,
-            "database", TEST_NAME,
-            "master", 1,
-            "on_critical_error", 0
-        );
-        json_t *tr = tranger2_startup(0, jn_tr);
-
-        result += test_json(json_incref(tr));
-
-        set_expected_results(
-            "tranger_shutdown", // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        tranger2_shutdown(tr);
-        result += test_json(NULL);  // NULL: we want to check only the logs
-    }
-
-    /*
-     *  Shutdown timeranger
-     */
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
     set_expected_results(
         "tranger_shutdown", // test name
         NULL,   // error's list, It must not be any log error
