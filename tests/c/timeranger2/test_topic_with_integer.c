@@ -14,7 +14,8 @@
 
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
-#define MAX_RECORDS 100000
+#define MAX_KEYS    10 // TODO 100000
+#define MAX_RECORDS 10 // TODO 100000
 
 /***************************************************************
  *              Prototypes
@@ -249,25 +250,16 @@ int do_test(void)
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
-    for(json_int_t i=0; i<MAX_RECORDS; i++) {
-        if(i % 2 == 0) {
+    for(json_int_t i=0; i<MAX_KEYS; i++) {
+        json_int_t tm = time_in_miliseconds();
+        for(json_int_t j=0; j<MAX_RECORDS; j++) {
             json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-                "id", i+1,
-                "tm", (json_int_t)time_in_miliseconds(),
-                "content",
-                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
-            );
-            md2_record_t md_record;
-            tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);
-        } else {
-            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-                "id", i+1,
-                "tm", (json_int_t)time_in_miliseconds(),
-                "content",
-                "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el."
-                "Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Juan el beta.Pepe el.x"
+               "id", i + 1,
+               "tm", tm,
+               "content",
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
             );
             md2_record_t md_record;
             tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);

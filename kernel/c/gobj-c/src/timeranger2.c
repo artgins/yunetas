@@ -382,8 +382,18 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     if(!jn_var) {
         jn_var = json_object();
     }
-    if(!pkey) {
-        pkey = "";
+    if(empty_string(pkey)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            "msg",          "%s", "tranger_create_topic(): What pkey?",
+            NULL
+        );
+        JSON_DECREF(jn_cols)
+        JSON_DECREF(jn_var)
+        JSON_DECREF(jn_topic_ext)
+        return 0;
     }
     if(!tkey) {
         tkey = "";
@@ -398,6 +408,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         );
         JSON_DECREF(jn_cols)
         JSON_DECREF(jn_var)
+        JSON_DECREF(jn_topic_ext)
         return 0;
     }
     json_int_t topic_new_version = kw_get_int(gobj, jn_var, "topic_version", 0, KW_WILD_NUMBER);
@@ -429,6 +440,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
             JSON_DECREF(jn_cols)
             JSON_DECREF(jn_var)
+            JSON_DECREF(jn_topic_ext)
             return 0;
         }
         if(mkrdir(directory, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
@@ -472,6 +484,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
 //            );
 //            JSON_DECREF(jn_cols)
 //            JSON_DECREF(jn_var)
+//        JSON_DECREF(jn_topic_ext)
 //            return 0;
 //        }
 //        close(fp);
@@ -509,7 +522,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             json_object_update_existing(jn_topic_ext_, jn_topic_ext);
             json_object_update(jn_topic_desc, jn_topic_ext_);
             JSON_DECREF(jn_topic_ext_)
-            JSON_DECREF(jn_topic_ext)
         }
 
         json_t *topic_desc = kw_clone_by_path(
@@ -574,23 +586,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             NULL
         );
 
-        /*----------------------------------------*
-         *      Create data directory
-         *----------------------------------------*/
-        char full_path[PATH_MAX];
-        snprintf(full_path, sizeof(full_path), "%s/data",
-            directory
-        );
-        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "path",         "%s", full_path,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-        }
     } else {
         /*---------------------------------------------*
          *  Exists the directory but check
@@ -667,6 +662,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
 
     JSON_DECREF(jn_cols)
     JSON_DECREF(jn_var)
+    JSON_DECREF(jn_topic_ext)
 
     return tranger2_open_topic(tranger, topic_name, TRUE);
 }
@@ -1547,6 +1543,7 @@ PUBLIC json_t *tranger2_filter_topic_fields(
 PRIVATE char *get_record_content_fullpath(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     char *bf,
     int bfsize,
     uint64_t __t__ // WARNING must be in seconds!
@@ -1554,10 +1551,15 @@ PRIVATE char *get_record_content_fullpath(
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     struct tm *tm = gmtime((time_t *)&__t__);
-    const char *topic_name = tranger2_topic_name(topic);
 
-    char format[120];
-    const char *filename_mask = kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED);
+    char format[NAME_MAX];
+    const char *filename_mask = kw_get_str(
+        gobj,
+        topic,
+        "filename_mask",
+        kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED),
+        0
+    );
 
     if(strchr(filename_mask, '%')) {
         strftime(format, sizeof(format), filename_mask, tm);
@@ -1577,9 +1579,32 @@ PRIVATE char *get_record_content_fullpath(
 
     const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);
 
-    snprintf(bf, bfsize, "%s/data/%s-%s.json",
+    snprintf(bf, bfsize, "%s/%s/data",
         topic_dir,
-        topic_name,
+        key
+    );
+    if(access(bf, 0)!=0) {
+        int xpermission = (int)kw_get_int(
+            gobj,
+            topic,
+            "xpermission",
+            (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED),
+            0
+        );
+        if(mkrdir(bf, xpermission)<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", bf,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    snprintf(bf, bfsize, "%s/%s/data/%s.json",
+        topic_dir,
+        key,
         format
     );
 
@@ -1589,7 +1614,7 @@ PRIVATE char *get_record_content_fullpath(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
+PRIVATE int get_content_fd(json_t *tranger, json_t *topic, const char *key, uint64_t __t__)
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
@@ -1606,6 +1631,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
     get_record_content_fullpath(
         tranger,
         topic,
+        key,
         full_path,
         sizeof(full_path),
         (system_flag & sf2_t_ms)? __t__/1000:__t__
@@ -1709,7 +1735,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
+PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, const char *key, uint64_t __t__)
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
@@ -1724,6 +1750,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
     get_record_content_fullpath(
         tranger,
         topic,
+        key,
         full_path,
         sizeof(full_path),
         (system_flag & sf2_t_ms)? __t__/1000:__t__
@@ -1865,14 +1892,128 @@ print_json2("TOPIC", topic); // TODO TEST
     }
 
     /*--------------------------------------------*
+     *  Prepare new record metadata
+     *--------------------------------------------*/
+    memset(md_record, 0, sizeof(md2_record_t));
+    md_record->__t__ = __t__;
+
+    /*-----------------------------------*
+     *  Get the primary-key
+     *-----------------------------------*/
+    const char *pkey = kw_get_str(gobj, topic, "pkey", "", KW_REQUIRED);
+    system_flag2_t system_flag_key_type = __system_flag__ & KEY_TYPE_MASK2;
+
+    const char *key_value = NULL;
+    char key_int[NAME_MAX+1];
+
+    switch(system_flag_key_type) {
+        case sf2_string_key:
+            {
+                key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
+                if(empty_string(key_value)) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_JSON_ERROR,
+                        "msg",          "%s", "Cannot append record, no pkey",
+                        "topic",        "%s", topic_name,
+                        "pkey",         "%s", pkey,
+                        NULL
+                    );
+                    gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey");
+                    JSON_DECREF(jn_record)
+                    return -1;
+                }
+                if(strlen(key_value) > NAME_MAX) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "Cannot append record, pkey too long",
+                        "topic",        "%s", topic_name,
+                        "key_value",    "%s", pkey,
+                        "size",         "%d", strlen(key_value),
+                        "maxsize",      "%d", NAME_MAX,
+                        NULL
+                    );
+                    gobj_trace_json(gobj, jn_record, "Cannot append record, pkey too long");
+                    JSON_DECREF(jn_record)
+                    return -1;
+                }
+            }
+            break;
+
+        case sf2_int_key:
+            uint64_t i = (uint64_t)kw_get_int(
+                gobj,
+                jn_record,
+                pkey,
+                0,
+                KW_REQUIRED|KW_WILD_NUMBER
+            );
+            if(!i) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msg",          "%s", "Cannot append record, no pkey",
+                    "topic",        "%s", topic_name,
+                    "pkey",         "%s", pkey,
+                    NULL
+                );
+                gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey");
+                JSON_DECREF(jn_record)
+                return -1;
+            }
+            snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
+            key_value = key_int;
+            break;
+
+        default:
+            // No pkey
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msg",          "%s", "Cannot append record, no pkey type",
+                "topic",        "%s", topic_name,
+                "pkey",         "%s", pkey,
+                NULL
+            );
+            gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey type");
+            JSON_DECREF(jn_record)
+            return -1;
+    }
+
+    /*--------------------------------------------*
+     *  Get and save the t-key if exists
+     *--------------------------------------------*/
+    const char *tkey = kw_get_str(gobj, topic, "tkey", "", KW_REQUIRED);
+    if(!empty_string(tkey)) {
+        json_t *jn_tval = kw_get_dict_value(gobj, jn_record, tkey, 0, 0);
+        if(!jn_tval) {
+            md_record->__tm__ = 0; // No tkey value, mark with 0
+        } else {
+            if(json_is_string(jn_tval)) {
+                int offset;
+                timestamp_t timestamp; // TODO if is it a millisecond time?
+                parse_date_basic(json_string_value(jn_tval), &timestamp, &offset);
+                md_record->__tm__ = timestamp;
+            } else if(json_is_integer(jn_tval)) {
+                md_record->__tm__ = json_integer_value(jn_tval);
+            } else {
+                md_record->__tm__ = 0; // No tkey value, mark with 0
+            }
+        }
+    } else {
+        md_record->__tm__ = 0;  // No tkey value, mark with 0
+    }
+
+    /*--------------------------------------------*
      *  Get last_rowid
      *--------------------------------------------*/
     json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
 
-    /*--------------------------------------------*
-     *  Recover file corresponds to __t__
-     *--------------------------------------------*/
-    int content_fp = get_content_fd(tranger, topic, __t__);  // Can be -1, sf_no_disk
+    /*------------------------------------------------------*
+     *  Recover content file handler corresponds to __t__
+     *------------------------------------------------------*/
+    int content_fp = get_content_fd(tranger, topic, key_value, __t__);  // Can be -1, if sf_no_disk
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -1893,109 +2034,11 @@ print_json2("TOPIC", topic); // TODO TEST
             JSON_DECREF(jn_record)
             return -1;
         }
-    }
+        md_record->__offset__ = __offset__;
 
-    /*--------------------------------------------*
-     *  Prepare new record metadata
-     *--------------------------------------------*/
-    memset(md_record, 0, sizeof(md2_record_t));
-//    md_record->__user_flag__ = user_flag; TODO
-//    md_record->__system_flag__ = __system_flag__;
-    md_record->__t__ = __t__;
-//    md_record->__rowid__ = __last_rowid__ + 1;
-    md_record->__offset__ = __offset__;
-
-    /*--------------------------------------------*
-     *  Get and save the t-key if exists
-     *--------------------------------------------*/
-    const char *tkey = kw_get_str(gobj, topic, "tkey", "", KW_REQUIRED);
-    if(!empty_string(tkey)) {
-        json_t *jn_tval = kw_get_dict_value(gobj, jn_record, tkey, 0, 0);
-        if(!jn_tval) {
-            md_record->__tm__ = 0; // No tkey value, mark with 0
-        } else {
-            if(json_is_string(jn_tval)) {
-                int offset;
-                timestamp_t timestamp; // TODO if is it a millisecond time?
-                parse_date_basic(json_string_value(jn_tval), &timestamp, &offset);
-                md_record->__tm__ = timestamp;
-            } else if(json_is_number(jn_tval)) {
-                md_record->__tm__ = json_number_value(jn_tval);
-            } else {
-                md_record->__tm__ = 0; // No tkey value, mark with 0
-            }
-        }
-    } else {
-        md_record->__tm__ = 0;  // No tkey value, mark with 0
-    }
-
-    /*--------------------------------------------*
-     *  Get and save the primary-key if exists
-     *--------------------------------------------*/
-    const char *pkey = kw_get_str(gobj, topic, "pkey", "", KW_REQUIRED);
-    system_flag2_t system_flag_key_type = get_system_flag(md_record) & KEY_TYPE_MASK2;
-
-    switch(system_flag_key_type) {
-        case sf2_string_key:
-            {
-                const char *key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
-                if(!key_value) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_JSON_ERROR,
-                        "msg",          "%s", "Cannot append record, Record without pkey",
-                        "topic",        "%s", topic_name,
-                        "pkey",         "%s", pkey,
-                        NULL
-                    );
-                    // TOD log_debug_json(0, jn_record, "Cannot append record, Record without pkey");
-                    JSON_DECREF(jn_record)
-                    return -1;
-                }
-//TODO                if(strlen(key_value) > sizeof(md_record->key.s)-1) {
-//                    log_error(0,
-//                        "gobj",         "%s", __FILE__,
-//                        "function",     "%s", __FUNCTION__,
-//                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//                        "msg",          "%s", "key value TOO large",
-//                        "topic",        "%s", topic_name,
-//                        "key_value",    "%s", pkey,
-//                        "size",         "%d", strlen(key_value),
-//                        "maxsize",      "%d", sizeof(md_record->key.s)-1,
-//                        NULL
-//                    );
-//                }
-//                strncpy(md_record->key.s, key_value, sizeof(md_record->key.s)-1);
-            }
-            break;
-
-        case sf2_int_key:
-// TODO           if(kw_has_path(jn_record, pkey)) {
-//                md_record->key.i = kw_get_int(
-//                    jn_record,
-//                    pkey,
-//                    0,
-//                    KW_REQUIRED|KW_WILD_NUMBER
-//                );
-//            } else {
-//                md_record->key.i = md_record->__rowid__;
-//                json_object_set_new(
-//                    jn_record,
-//                    pkey,
-//                    json_integer(md_record->key.i)
-//                );
-//            }
-            break;
-
-        default:
-            // No pkey
-            break;
-    }
-
-    /*--------------------------------------------*
-     *  Get the record's content, always json
-     *--------------------------------------------*/
-    if(content_fp >= 0) {
+        /*--------------------------------------------*
+         *  Get the record's content, always json
+         *--------------------------------------------*/
         char *srecord = json_dumps(jn_record, JSON_COMPACT|JSON_ENCODE_ANY);
         if(!srecord) {
             gobj_log_error(gobj, 0,
@@ -2005,62 +2048,43 @@ print_json2("TOPIC", topic); // TODO TEST
                 "topic",        "%s", topic_name,
                 NULL
             );
-//            TODO log_debug_json(0, jn_record, "Cannot append record, json_dumps() FAILED");
+            gobj_trace_json(gobj, jn_record, "Cannot append record, json_dumps() FAILED");
             JSON_DECREF(jn_record)
             return -1;
         }
         size_t size = strlen(srecord);
-
-        gbuffer_t *gbuf = gbuffer_create(size, size);
-        if(!gbuf) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot append record. gbuf_create() FAILED",
-                "topic",        "%s", topic_name,
-                NULL
-            );
-//            log_debug_json(0, jn_record, "Cannot append record, gbuf_create() FAILED");
-            jsonp_free(srecord);
-            JSON_DECREF(jn_record)
-            return -1;
-        }
-        gbuffer_append(gbuf, srecord, strlen(srecord));
-        jsonp_free(srecord);
+        char *p = srecord;
 
         /*
-         *  Saving: first compress, second encrypt
+         *  Saving: first compress, second encrypt (TODO sure this order?)
          */
 //        if(md_record->__system_flag__ & sf_zip_record) {
 //            // if(topic->compress_callback) { TODO
 //            //     gbuf = topic->compress_callback(
-//            //         topic->user_data,
 //            //         topic,
-//            //         gbuf    // must be owned
+//            //         srecord
 //            //     );
 //            // }
 //        }
 //        if(md_record->__system_flag__ & sf_cipher_record) {
 //            // if(topic->encrypt_callback) { TODO
 //            //     gbuf = topic->encrypt_callback(
-//            //         topic->user_data,
 //            //         topic,
-//            //         gbuf    // must be owned
+//            //         srecord
 //            //     );
 //            // }
 //        }
-        md_record->__size__ = gbuffer_leftbytes(gbuf) + 1; // put the final null
+
+        md_record->__size__ = size + 1; // put the final null
 
         /*-------------------------*
          *  Write record content
          *-------------------------*/
-        char *p = gbuffer_cur_rd_pointer(gbuf);
-        int ln = write( // write new (record content)
+        size_t ln = write( // write new (record content)
             content_fp,
             p,
             md_record->__size__
         );
-        gbuffer_decref(gbuf);
         if(ln != md_record->__size__) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
@@ -2072,8 +2096,11 @@ print_json2("TOPIC", topic); // TODO TEST
             );
             gobj_trace_json(gobj, jn_record, "Cannot append record, write FAILED");
             JSON_DECREF(jn_record)
+            jsonp_free(srecord);
             return -1;
         }
+
+        jsonp_free(srecord);
     }
 
     /*--------------------------------------------*
@@ -2377,7 +2404,7 @@ PUBLIC int tranger2_delete_record(
     /*--------------------------------------------*
      *  Recover file corresponds to __t__
      *--------------------------------------------*/
-    int fd = get_content_fd(tranger, topic, md_record.__t__);
+    int fd = get_content_fd(tranger, topic, "TODO", md_record.__t__); // TODO
     if(fd<0) {
         // Error already logged
         return -1;
@@ -3036,7 +3063,7 @@ PUBLIC json_t *tranger2_read_record_content(
     /*--------------------------------------------*
      *  Recover file corresponds to __t__
      *--------------------------------------------*/
-    FILE *file = get_content_file(tranger, topic, md_record->__t__);
+    FILE *file = get_content_file(tranger, topic, "TODO", md_record->__t__); // TODO
     if(!file) {
         // Error already logged
         return 0;

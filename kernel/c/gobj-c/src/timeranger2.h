@@ -82,7 +82,7 @@ typedef enum { // WARNING table with name's strings in 30_timeranger.c
     sf2_int_key             = 0x000004,
     sf2_zip_record          = 0x000010,
     sf2_cipher_record       = 0x000020,
-    sf2_t_ms                = 0x000100,   // record time in miliseconds
+    sf2_t_ms                = 0x000100,   // record time in miliseconds TODO need diff between t and tm?
     sf2_tm_ms               = 0x000200,   // message time in miliseconds
     sf2_no_record_disk      = 0x001000,
     sf2_loading_from_disk   = 0x010000,
@@ -182,7 +182,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
 **rst**/
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
-    json_t *tranger,    // If topic exists then only needs (tranger, topic_name) parameters
+    json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
     const char *topic_name,
     const char *pkey,
     const char *tkey,
