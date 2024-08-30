@@ -240,7 +240,8 @@ int do_test(void)
                     }, \
                     'directory': 'xxx', \
                     'fd_opened_files': {}, \
-                    'lists': [] \
+                    'lists': [], \
+                    'cache': {} \
                 } \
             } \
         } \

@@ -771,6 +771,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
     kw_get_dict(gobj, topic, "fd_opened_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
+    kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
     /*-------------------------------*
      *      Load key files TODO
@@ -2548,6 +2549,7 @@ PUBLIC json_t *tranger2_open_list(
         kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
         list
     );
+
     /*
      *  Load volatil, defining in run-time
      */
@@ -2561,6 +2563,9 @@ PUBLIC json_t *tranger2_open_list(
 
 size_t __last_rowid__ = 0; // TODO quita
 return list;
+
+//    int content_fp = get_topic_fd(tranger, topic, key, TRUE, __t__);  // Can be -1, if sf_no_disk
+//    int md2_fp = get_topic_fd(tranger, topic, key, FALSE, __t__);  // Can be -1, if sf_no_disk
 
     BOOL end = FALSE;
     md2_record_t md_record;

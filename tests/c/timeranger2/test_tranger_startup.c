@@ -200,6 +200,7 @@ int do_test(void)
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
+            'trace_level': 0, \
             'directory': 'xxx', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 99999 \
@@ -216,7 +217,8 @@ int do_test(void)
                     }, \
                     'directory': 'xxx', \
                     'fd_opened_files': {}, \
-                    'lists': [] \
+                    'lists': [], \
+                    'cache': {} \
                 } \
             } \
         } \
@@ -260,19 +262,20 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'path': 'xxx', \
-          'database': 'tr_tranger_startup', \
-          'filename_mask': '%Y-%m-%d', \
-          'xpermission': 1528, \
-          'rpermission': 432, \
-          'on_critical_error': 0, \
-          'master': true, \
-          'gobj': 0, \
-          'directory': 'xxx', \
-          'fd_opened_files': { \
+            'path': 'xxx', \
+            'database': 'tr_tranger_startup', \
+            'filename_mask': '%Y-%m-%d', \
+            'xpermission': 1528, \
+            'rpermission': 432, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 0, \
+            'directory': 'xxx', \
+            'fd_opened_files': { \
             '__timeranger2__.json': 9999 \
-          }, \
-          'topics': {} \
+            }, \
+            'topics': {} \
         } \
         ";
 
@@ -299,19 +302,20 @@ int do_test(void)
     if(1) {
         char expected[]= "\
         { \
-          'path': 'xxx', \
-          'database': 'tr_tranger_startup', \
-          'filename_mask': '%Y-%m-%d', \
-          'xpermission': 1528, \
-          'rpermission': 432, \
-          'on_critical_error': 0, \
-          'master': false, \
-          'gobj': 0, \
-          'directory': 'xxx', \
-          'fd_opened_files': { \
+            'path': 'xxx', \
+            'database': 'tr_tranger_startup', \
+            'filename_mask': '%Y-%m-%d', \
+            'xpermission': 1528, \
+            'rpermission': 432, \
+            'on_critical_error': 0, \
+            'master': false, \
+            'gobj': 0, \
+            'trace_level': 0, \
+            'directory': 'xxx', \
+            'fd_opened_files': { \
             '__timeranger2__.json': 9999 \
-          }, \
-          'topics': {} \
+            }, \
+            'topics': {} \
         } \
         ";
         const char *ignore_keys[]= {
