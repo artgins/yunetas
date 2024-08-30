@@ -767,6 +767,9 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "fd_opened_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
 
+    /*-------------------------------*
+     *      Load key files TODO
+     *-------------------------------*/
     /*
      *  Open topic index
      */
@@ -818,6 +821,7 @@ PUBLIC json_int_t tranger2_topic_size(
     json_t *topic
 )
 {
+    // TODO
     return kw_get_int(0, topic, "__last_rowid__", 0, KW_REQUIRED);
 }
 
@@ -883,7 +887,7 @@ PRIVATE int close_fd_opened_files(
 
     json_t *fd_opened_files = kw_get_dict(0, topic, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach_safe(fd_opened_files, tmp, key, jn_value) {
-        int fd = (int)kw_get_int(0, fd_opened_files, key, 0, KW_REQUIRED);
+        int fd = (int)kw_get_int(0, fd_opened_files, key, -1, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
@@ -1465,6 +1469,7 @@ PRIVATE char *get_record_fullpath(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     struct tm *tm = gmtime((time_t *)&__t__);
     const char *subdir = for_data?"data":"md2";
 
@@ -1504,22 +1509,24 @@ PRIVATE char *get_record_fullpath(
         subdir
     );
     if(access(bf, 0)!=0) {
-        int xpermission = (int)kw_get_int(
-            gobj,
-            topic,
-            "xpermission",
-            (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED),
-            0
-        );
-        if(mkrdir(bf, xpermission)<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "function",     "%s", __FUNCTION__,
-                "path",         "%s", bf,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
-                NULL
+        if(master) {
+            int xpermission = (int)kw_get_int(
+                gobj,
+                topic,
+                "xpermission",
+                (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED),
+                0
             );
+            if(mkrdir(bf, xpermission)<0) {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "path",         "%s", bf,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            }
         }
     }
     snprintf(bf, bfsize, "%s/%s/%s/%s.json",
@@ -1731,8 +1738,6 @@ PUBLIC int tranger2_append_record(
         return -1;
     }
 
-//print_json2("TOPIC", topic); // TODO TEST
-
     /*--------------------------------------------*
      *  If time not specified, use the now time
      *--------------------------------------------*/
@@ -1796,28 +1801,30 @@ PUBLIC int tranger2_append_record(
             break;
 
         case sf2_int_key:
-            uint64_t i = (uint64_t)kw_get_int(
-                gobj,
-                jn_record,
-                pkey,
-                0,
-                KW_REQUIRED|KW_WILD_NUMBER
-            );
-            if(!i) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_JSON_ERROR,
-                    "msg",          "%s", "Cannot append record, no pkey",
-                    "topic",        "%s", topic_name,
-                    "pkey",         "%s", pkey,
-                    NULL
+            {
+                uint64_t i = (uint64_t)kw_get_int(
+                    gobj,
+                    jn_record,
+                    pkey,
+                    0,
+                    KW_REQUIRED|KW_WILD_NUMBER
                 );
-                gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey");
-                JSON_DECREF(jn_record)
-                return -1;
+                if(!i) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_JSON_ERROR,
+                        "msg",          "%s", "Cannot append record, no pkey",
+                        "topic",        "%s", topic_name,
+                        "pkey",         "%s", pkey,
+                        NULL
+                    );
+                    gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey");
+                    JSON_DECREF(jn_record)
+                    return -1;
+                }
+                snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
+                key_value = key_int;
             }
-            snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
-            key_value = key_int;
             break;
 
         default:
