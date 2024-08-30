@@ -282,6 +282,8 @@ int do_test(void)
         }
     }
 
+    print_json2("XXX after loading records", tranger); // TODO TEST
+
     if(1) {
         /*-------------------------------------*
          *      List all records

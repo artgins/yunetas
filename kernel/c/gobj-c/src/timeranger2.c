@@ -98,6 +98,11 @@ PRIVATE int get_md_record_for_wr(
     BOOL verbose
 );
 
+PRIVATE int close_fd_opened_files(
+    hgobj gobj,
+    json_t *topic
+);
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -858,41 +863,10 @@ PUBLIC int tranger2_close_topic(
         return -1;
     }
 
-    const char *key;
-    json_t *jn_value;
-    json_t *fd_opened_files = kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED);
-    json_object_foreach(fd_opened_files, key, jn_value) {
-        int fd = (int)kw_get_int(gobj, fd_opened_files, key, 0, KW_REQUIRED);
-        if(fd >= 0) {
-            close(fd);
-        }
-    }
+    close_fd_opened_files(gobj, topic);
 
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int close_fd_opened_files(
-    json_t *topic
-)
-{
-    json_t *jn_value;
-    const char *key;
-    void *tmp;
-
-    json_t *fd_opened_files = kw_get_dict(0, topic, "fd_opened_files", 0, KW_REQUIRED);
-    json_object_foreach_safe(fd_opened_files, tmp, key, jn_value) {
-        int fd = (int)kw_get_int(0, fd_opened_files, key, -1, KW_REQUIRED);
-        if(fd >= 0) {
-            close(fd);
-        }
-        json_object_del(fd_opened_files, key);
-    }
 
     return 0;
 }
@@ -1597,7 +1571,7 @@ PRIVATE int get_topic_fd(
                     "msg",          "%s", "TOO MANY OPEN FILES",
                     NULL
                 );
-                close_fd_opened_files(topic);
+                close_fd_opened_files(gobj, topic);
 
                 fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
                 if(fp < 0) {
@@ -1665,6 +1639,30 @@ PRIVATE int get_topic_fd(
         );
     }
     return fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_fd_opened_files(
+    hgobj gobj,
+    json_t *topic
+)
+{
+    json_t *jn_value;
+    const char *key;
+    void *tmp;
+
+    json_t *fd_opened_files = kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED);
+    json_object_foreach_safe(fd_opened_files, tmp, key, jn_value) {
+        int fd = (int)kw_get_int(gobj, fd_opened_files, key, -1, KW_REQUIRED);
+        if(fd >= 0) {
+            close(fd);
+        }
+        json_object_del(fd_opened_files, key);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -2558,16 +2556,11 @@ PUBLIC json_t *tranger2_open_list(
     /*
      *  Load from disk
      */
-    json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-    if(__last_rowid__ <= 0) {
-        if(master) {
-            return list;
-        }
-        // HACK no "master" (tranger readonly) don't have updated __last_rowid__
-    }
-
     BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+
+size_t __last_rowid__ = 0; // TODO quita
+return list;
 
     BOOL end = FALSE;
     md2_record_t md_record;
