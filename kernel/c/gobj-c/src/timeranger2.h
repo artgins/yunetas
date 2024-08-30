@@ -432,6 +432,7 @@ typedef int (*tranger2_load_record_callback_t)(
 static const json_desc_t list_json_desc[] = {
 // Name                     Type        Default     Fillspace
 {"topic_name",              "str",      "",         ""},
+{"id",                      "str",      "",         ""},    // id of the list, optional
 {"match_cond",              "dict",     "{}",       ""},
 {"load_record_callback",    "int",      "",         ""},
 {0}

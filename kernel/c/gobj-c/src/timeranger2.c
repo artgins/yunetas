@@ -103,6 +103,8 @@ PRIVATE int close_fd_opened_files(
     json_t *topic
 );
 
+PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -2678,6 +2680,30 @@ return list;
 }
 
 /***************************************************************************
+    Close list
+ ***************************************************************************/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+)
+{
+    if(!list) {
+        // silence
+        return -1;
+    }
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(topic) {
+        json_array_remove(
+            kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
+            json_array_find_idx(kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED), list)
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
 
  ***************************************************************************/
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
@@ -2717,30 +2743,6 @@ PUBLIC json_t *tranger2_get_list(
                 return list;
             }
         }
-    }
-    return 0;
-}
-
-/***************************************************************************
-    Close list
- ***************************************************************************/
-PUBLIC int tranger2_close_list(
-    json_t *tranger,
-    json_t *list
-)
-{
-    if(!list) {
-        // silence
-        return -1;
-    }
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        json_array_remove(
-            kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
-            json_array_find_idx(kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED), list)
-        );
     }
     return 0;
 }
