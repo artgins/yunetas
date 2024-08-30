@@ -8,6 +8,7 @@
  ****************************************************************************/
 #pragma once
 
+#include "ansi_escape_codes.h"
 #include "gobj.h"
 
 #ifdef __cplusplus

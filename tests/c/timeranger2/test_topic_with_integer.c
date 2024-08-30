@@ -33,6 +33,23 @@ int times_once = 0;
 int times_periodic = 0;
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+size_t leidos = 0;
+int load_all_records_callback(
+    json_t *tranger,
+    json_t *topic,
+    json_t *list,
+    md2_record_t *md_record,
+    json_t *jn_record
+)
+{
+    leidos++;
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
+/***************************************************************************
  *              Test
  *  HACK: Use gobj_set_exit_code(-1) to set error
  ***************************************************************************/
@@ -260,6 +277,35 @@ int do_test(void)
             );
             md2_record_t md_record;
             tranger2_append_record(tranger, TOPIC_NAME, tm+MAX_RECORDS, 0, &md_record, jn_record1);
+        }
+    }
+
+    if(1) {
+        /*-------------------------------------*
+         *      List all records
+         *-------------------------------------*/
+        leidos = 0;
+
+        json_t *jn_list = json_pack("{s:s, s:o, s:I}",
+            "topic_name", TOPIC_NAME,
+            "match_cond", json_object(),
+            "load_record_callback", (json_int_t)(size_t)load_all_records_callback
+        );
+        json_t *tr_list = tranger2_open_list(
+            tranger,
+            jn_list
+        );
+
+        tranger2_close_list(
+            tranger,
+            tr_list
+        );
+
+        if(leidos != MAX_RECORDS) {
+            printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
+               (int)leidos, MAX_RECORDS
+            );
+            result += -1;
         }
     }
 
