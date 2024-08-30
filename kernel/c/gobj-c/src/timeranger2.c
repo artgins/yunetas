@@ -15,6 +15,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include <glob.h>
 #include "timeranger2.h"
 
 extern void jsonp_free(void *ptr); // json low level
@@ -104,6 +105,7 @@ PRIVATE int close_fd_opened_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
+PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *tranger, json_t *topic, json_t *match_cond);
 
 /***************************************************************
  *              Data
@@ -1533,6 +1535,17 @@ PRIVATE int get_topic_fd(
         return -1;
     }
 
+    if(empty_string(key)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "topic",        "%s", topic,
+            "msg",          "%s", "key is empty",
+            NULL
+        );
+        return -1;
+    }
+
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*-----------------------------*
@@ -2558,6 +2571,11 @@ PUBLIC json_t *tranger2_open_list(
     json_t *data = kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
 
     /*
+     *  Get keys to get
+     */
+    json_t *jn_keys = find_keys_in_disk(gobj, tranger, topic, match_cond);
+
+    /*
      *  Load from disk
      */
     BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
@@ -2716,6 +2734,20 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
         }
     }
     return idx;
+}
+
+/***************************************************************************
+
+ ***************************************************************************/
+PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *tranger, json_t *topic, json_t *match_cond)
+{
+    json_t *jn_keys = json_object();
+
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+
+
+    glob();
+    return jn_keys;
 }
 
 /***************************************************************************

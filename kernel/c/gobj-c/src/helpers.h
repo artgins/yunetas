@@ -354,6 +354,7 @@ PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
  *      Walkdir functions
  *---------------------------------*/
 typedef BOOL (*walkdir_cb)(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found

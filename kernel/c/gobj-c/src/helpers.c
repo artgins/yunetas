@@ -2391,7 +2391,7 @@ PRIVATE int _walk_tree(
 
         if(type) {
             if (regexec(reg, dname, 0, 0, 0)==0) {
-                if(!(cb)(user_data, type, path, root_dir, dname, level, index)) {
+                if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, index)) {
                     // returning FALSE: don't want continue traverse
                     break;
                 }
@@ -2406,7 +2406,7 @@ PRIVATE int _walk_tree(
 
 /****************************************************************************
  *  Walk directory tree
- *  Se matchea un único pattern a todo lo encontrado.
+ *  Only one pattern is use for all found
  ****************************************************************************/
 PUBLIC int walk_dir_tree(
     hgobj gobj,
@@ -2449,6 +2449,7 @@ PUBLIC int walk_dir_tree(
  *  Get number of files
  ****************************************************************************/
 PRIVATE BOOL _nfiles_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,
     char *fullpath,
@@ -2518,6 +2519,7 @@ struct myfiles_s {
     int *idx;
 };
 PRIVATE BOOL _fill_array_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,
     char *fullpath,
@@ -2532,8 +2534,7 @@ PRIVATE BOOL _fill_array_cb(
     int ln = strlen(fullpath);
     char *ptr = malloc(ln+1);
     if(!ptr) {
-        gobj_log_error(0, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "malloc() FAILED",
