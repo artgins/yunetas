@@ -24,6 +24,19 @@
     #include <syslog.h>
 #endif
 
+#include <arpa/inet.h>   // For htonl and htons
+#include <endian.h>      // For __BYTE_ORDER, __LITTLE_ENDIAN, etc.
+// Fallback definitions if <endian.h> is not available
+#ifndef __BYTE_ORDER
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
+#define __BYTE_ORDER __BYTE_ORDER__
+#define __LITTLE_ENDIAN __ORDER_LITTLE_ENDIAN__
+#define __BIG_ENDIAN __ORDER_BIG_ENDIAN__
+#else
+#error "Byte order macros are not defined"
+#endif
+#endif
+
 #ifdef ESP_PLATFORM
     #include <esp_log.h>
     #define O_LARGEFILE 0
@@ -4361,4 +4374,19 @@ PUBLIC unsigned long free_ram_in_kb(void)
     read_meminfo(&st_mem);
 
     return st_mem.frmkb + st_mem.camkb; // Include cache memory too
+}
+
+/***************************************************************************
+ *  Convert a 64-bit integer to network byte order
+ ***************************************************************************/
+PUBLIC uint64_t htonll(uint64_t value)
+{
+    // If the system is little-endian, reverse the byte order
+    if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+        uint32_t high_part = htonl((uint32_t)(value >> 32));
+        uint32_t low_part = htonl((uint32_t)(value & 0xFFFFFFFFLL));
+        return (((uint64_t)low_part) << 32) | high_part;
+    } else {
+        return value;
+    }
 }

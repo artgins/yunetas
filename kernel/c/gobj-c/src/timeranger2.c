@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include "timeranger2.h"
 
-extern void jsonp_free(void *ptr); // TODO ???
+extern void jsonp_free(void *ptr); // json low level
 
 /***************************************************************
  *              Constants
@@ -102,9 +102,6 @@ PRIVATE int get_md_record_for_wr(
  *              Data
  ***************************************************************/
 
-/***************************************************************************
- *
- ***************************************************************************/
 /***************************************************************************
  *  Startup TimeRanger database
  ***************************************************************************/
@@ -1961,9 +1958,15 @@ PUBLIC int tranger2_append_record(
     int md2_fp = get_topic_fd(tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
+        md2_record_t big_endian;
+        big_endian.__t__ = htonll(md_record->__t__);
+        big_endian.__tm__ = htonll(md_record->__tm__);
+        big_endian.__offset__ = htonll(md_record->__offset__);
+        big_endian.__size__ = htonll(md_record->__size__);
+
         size_t ln = write( // write new (record content)
             md2_fp,
-            md_record,
+            &big_endian,
             sizeof(md2_record_t)
         );
         if(ln != sizeof(md2_record_t)) {

@@ -259,7 +259,7 @@ int do_test(void)
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
             );
             md2_record_t md_record;
-            tranger2_append_record(tranger, TOPIC_NAME, 0, 0, &md_record, jn_record1);
+            tranger2_append_record(tranger, TOPIC_NAME, tm, 0, &md_record, jn_record1);
         }
     }
 

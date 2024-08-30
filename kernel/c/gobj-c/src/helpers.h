@@ -534,6 +534,7 @@ PUBLIC BOOL   test_msectimer(uint64_t value);           /* Return TRUE if timer 
 PUBLIC uint64_t time_in_miliseconds(void);   // Return current time in miliseconds
 PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (standart time(&t))
 unsigned long free_ram_in_kb(void); /* Free memory in kB */
+PUBLIC uint64_t htonll(uint64_t value); /* Convert a 64-bit integer to network byte order*/
 
 
 #ifdef __cplusplus
