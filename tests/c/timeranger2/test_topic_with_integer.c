@@ -74,14 +74,15 @@ int do_test(void)
      *      Startup the timeranger db
      *-------------------------------------------------*/
     build_path(path, sizeof(path), home, "tests_yuneta", NULL);
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i}",
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
         "path", path,
         "database", TEST_NAME,
         "master", 1,
         "on_critical_error", 0,
         "filename_mask", "%Y",
         "xpermission" , 02700,
-        "rpermission", 0600
+        "rpermission", 0600,
+        "trace_level", 1
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
 
@@ -218,6 +219,7 @@ int do_test(void)
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
+            'trace_level': 1, \
             'directory': 'xxx', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 99999 \

@@ -128,6 +128,8 @@ static const json_desc_t tranger2_json_desc[] = {
 {"on_critical_error",   "int",  "2",        ""}, // Volatil, default LOG_OPT_EXIT_ZERO (Zero to avoid restart)
 {"master",              "bool", "false",    ""}, // Volatil, the master is the only that can write.
 {"gobj",                "int",  "",         ""}, // Volatil, gobj of tranger
+{"trace_level",         "int",  "0",        ""}, // Volatil, trace level
+
 {0}
 };
 
