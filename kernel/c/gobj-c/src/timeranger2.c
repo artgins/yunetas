@@ -866,13 +866,6 @@ PUBLIC int tranger2_close_topic(
             close(fd);
         }
     }
-    json_t *file_opened_files = kw_get_dict(gobj, topic, "file_opened_files", 0, KW_REQUIRED);
-    json_object_foreach(file_opened_files, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(gobj, file_opened_files, key, 0, KW_REQUIRED);
-        if(file) {
-            fclose(file);
-        }
-    }
 
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
@@ -898,29 +891,6 @@ PRIVATE int close_fd_opened_files(
             close(fd);
         }
         json_object_del(fd_opened_files, key);
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int close_file_opened_files(
-    json_t *topic
-)
-{
-    json_t *jn_value;
-    const char *key;
-    void *tmp;
-
-    json_t *file_opened_files = kw_get_dict(0, topic, "file_opened_files", 0, KW_REQUIRED);
-    json_object_foreach_safe(file_opened_files, tmp, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(0, file_opened_files, key, 0, KW_REQUIRED);
-        if(file) {
-            fclose(file);
-        }
-        json_object_del(file_opened_files, key);
     }
 
     return 0;
@@ -1764,7 +1734,7 @@ PUBLIC int tranger2_append_record(
         return -1;
     }
 
-print_json2("TOPIC", topic); // TODO TEST
+//print_json2("TOPIC", topic); // TODO TEST
 
     /*--------------------------------------------*
      *  If time not specified, use the now time

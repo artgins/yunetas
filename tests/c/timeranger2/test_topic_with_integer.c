@@ -220,10 +220,7 @@ int do_test(void)
                         'content': '' \
                     }, \
                     'directory': 'xxx', \
-                    '__last_rowid__': 0, \
-                    'topic_idx_fd': 99999, \
                     'fd_opened_files': {}, \
-                    'file_opened_files': {}, \
                     'lists': [] \
                 } \
             } \
