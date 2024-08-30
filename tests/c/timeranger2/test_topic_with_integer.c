@@ -104,7 +104,7 @@ int do_test(void)
             "xpermission" , 02770,
             "rpermission", 0660
         ),
-        sf2_int_key|sf2_t_ms|sf2_tm_ms,    // system_flag
+        sf2_int_key,    // system_flag
         json_pack("{s:s, s:I, s:s}", // jn_cols, owned
             "id", "",
             "tm", (json_int_t)0,
@@ -127,7 +127,7 @@ int do_test(void)
             'topic_name': 'topic_with_integer', \
             'pkey': 'id', \
             'tkey': 'tm', \
-            'system_flag': 772, \
+            'system_flag': 4, \
             'filename_mask': '%Y-%m-%d', \
             'xpermission': 1528, \
             'rpermission': 432 \
@@ -210,7 +210,7 @@ int do_test(void)
                     'topic_name': 'topic_with_integer', \
                     'pkey': 'id', \
                     'tkey': 'tm', \
-                    'system_flag': 772, \
+                    'system_flag': 4, \
                     'filename_mask': '%Y-%m-%d', \
                     'xpermission': 1528, \
                     'rpermission': 432, \
@@ -248,18 +248,18 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     for(json_int_t i=0; i<MAX_KEYS; i++) {
-        json_int_t tm = time_in_miliseconds();
+        uint64_t tm = time_in_seconds() - MAX_RECORDS;
         for(json_int_t j=0; j<MAX_RECORDS; j++) {
             json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
                "id", i + 1,
-               "tm", tm,
+               "tm", tm+j,
                "content",
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
             );
             md2_record_t md_record;
-            tranger2_append_record(tranger, TOPIC_NAME, tm, 0, &md_record, jn_record1);
+            tranger2_append_record(tranger, TOPIC_NAME, tm+MAX_RECORDS, 0, &md_record, jn_record1);
         }
     }
 

@@ -465,10 +465,6 @@ static inline int skip_prefix(const char *str, const char *prefix,
     return 0;
 }
 
-
-/*****************************************************************
- *     Prototypes
- *****************************************************************/
 struct date_mode {
     enum date_mode_type {
         DATE_NORMAL = 0,
