@@ -331,6 +331,7 @@ PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
 typedef enum {
     WD_RECURSIVE            = 0x0001,   /* traverse all tree */
     WD_HIDDENFILES          = 0x0002,   /* show hidden files too */
+    WD_ONLY_NAMES           = 0x0004,   /* save only names (without full path) */
     WD_MATCH_DIRECTORY      = 0x0010,   /* if pattern is used on dir names */
     WD_MATCH_REGULAR_FILE   = 0x0020,   /* if pattern is used on regular files */
     WD_MATCH_PIPE           = 0x0040,   /* if pattern is used on pipes */
@@ -354,7 +355,7 @@ typedef BOOL (*walkdir_cb)(
     const char *directory,  // directory of found filename
     char *name,             // dname[256]  filename
     int level,              // level of tree where the file is found
-    int index               // index of the file inside directory, relative to 0
+    wd_option opt           // option parameter
 );
 /*
  *  Walk directory tree calling callback witch each file found.

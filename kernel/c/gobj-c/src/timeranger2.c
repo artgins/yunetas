@@ -2558,6 +2558,23 @@ PUBLIC json_t *tranger2_open_list(
     );
 
     /*
+     *  Get keys to get
+     */
+    json_t *jn_keys = find_keys_in_disk(gobj, topic, match_cond);
+    if(!jn_keys) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger_open_list: what topic?",
+            NULL
+        );
+        JSON_DECREF(list)
+        return 0;
+    }
+
+print_json2("KEYS", jn_keys); // TODO TEST
+
+    /*
      *  Add the list to the topic
      */
     json_array_append_new(
@@ -2569,13 +2586,6 @@ PUBLIC json_t *tranger2_open_list(
      *  Load volatil, defining in run-time
      */
     json_t *data = kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
-
-    /*
-     *  Get keys to get
-     */
-    json_t *jn_keys = find_keys_in_disk(gobj, topic, match_cond);
-
-print_json2("KEYS", jn_keys); // TODO TEST
 
     /*
      *  Load from disk
@@ -2741,23 +2751,6 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
 /***************************************************************************
  *  Returns list of searched keys that exist on disk
  ***************************************************************************/
-PRIVATE BOOL search_by_paths_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where the file is found
-    int index               // index of the file inside directory, relative to 0
-)
-{
-    json_t *jn_keys = user_data;
-
-    json_array_append_new(jn_keys, json_string(name));
-    return TRUE; // to continue
-}
-
 PRIVATE json_t *find_keys_in_disk(
     hgobj gobj,
     json_t *topic,      // not owned
@@ -2787,14 +2780,20 @@ PRIVATE json_t *find_keys_in_disk(
         pattern = ".*";
     }
 
-    walk_dir_tree(
-        0,
+    int dirs_size;
+    char **dirs = get_ordered_filename_array(
+        gobj,
         directory,
         pattern,
-        WD_MATCH_DIRECTORY,
-        search_by_paths_cb,
-        jn_keys
+        WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
+        &dirs_size
     );
+
+    for(int i=0; i<dirs_size; i++) {
+        json_array_append_new(jn_keys, json_string(dirs[i]));
+    }
+    free_ordered_filename_array(dirs, dirs_size);
+
     return jn_keys;
 }
 

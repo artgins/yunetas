@@ -587,18 +587,11 @@ PUBLIC int rmrcontentdir(const char *root_dir)
         char *dname = dent->d_name;
         if (!strcmp(dname, ".") || !strcmp(dname, ".."))
             continue;
-        char *path = malloc(strlen(root_dir) + strlen(dname) + 2);
-        if(!path) {
-            closedir(dir);
-            return -1;
-        }
-        strcpy(path, root_dir);
-        strcat(path, "/");
-        strcat(path, dname);
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), root_dir, dname);
 
         if(stat(path, &st) == -1) {
             closedir(dir);
-            free(path);
             return -1;
         }
 
@@ -606,17 +599,14 @@ PUBLIC int rmrcontentdir(const char *root_dir)
             /* recursively follow dirs */
             if(rmrdir(path)<0) {
                 closedir(dir);
-                free(path);
                 return -1;
             }
         } else {
             if(unlink(path) < 0) {
                 closedir(dir);
-                free(path);
                 return -1;
             }
         }
-        free(path);
     }
     closedir(dir);
     return 0;
@@ -2295,7 +2285,6 @@ PRIVATE int _walk_tree(
     struct stat st;
     wd_found_type type;
     level++;
-    int index=0;
 
     if (!(dir = opendir(root_dir))) {
         // DO NOT take trace of:
@@ -2374,11 +2363,10 @@ PRIVATE int _walk_tree(
 
         if(type) {
             if (regexec(reg, dname, 0, 0, 0)==0) {
-                if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, index)) {
+                if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, opt)) {
                     // returning FALSE: don't want to continue traversing
                     break;
                 }
-                index++;
             }
         }
 
@@ -2445,7 +2433,7 @@ PRIVATE BOOL _nfiles_cb(
     const char *directory,
     char *filename, // dname[256]
     int level,
-    int index)
+    wd_option opt)
 {
     int *nfiles = user_data;
     (*nfiles)++;
@@ -2515,30 +2503,52 @@ PRIVATE BOOL _fill_array_cb(
     const char *directory,
     char *filename, // dname[256]
     int level,
-    int index)
+    wd_option opt)
 {
     struct myfiles_s *myfiles = user_data;
     char **files = myfiles->files;
     int idx = *(myfiles->idx);
-    int ln = strlen(fullpath);
-    char *ptr = malloc(ln+1);
-    if(!ptr) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "malloc() FAILED",
-            "error",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
-           NULL
-        );
-        return FALSE; // don't continue traverse tree
+
+    size_t ln;
+    char *ptr;
+    if(opt & WD_ONLY_NAMES) {
+        ln = strlen(filename);
+        ptr = GBMEM_MALLOC(ln+1);
+        if(!ptr) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "malloc() FAILED",
+                "error",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+               NULL
+            );
+            return FALSE; // don't continue traverse tree
+        }
+        memcpy(ptr, filename, ln);
+        ptr[ln] = 0;
+
+    } else {
+        ln = strlen(fullpath);
+        ptr = GBMEM_MALLOC(ln+1);
+        if(!ptr) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "malloc() FAILED",
+                "error",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+               NULL
+            );
+            return FALSE; // don't continue traverse tree
+        }
+        memcpy(ptr, fullpath, ln);
+        ptr[ln] = 0;
     }
-    memcpy(ptr, fullpath, ln);
-    ptr[ln] = 0;
 
     *(files+idx) = ptr;
     (*myfiles->idx)++;
-    return TRUE; // continue traverse tree
+    return TRUE; // continue traversing tree
 }
 PUBLIC char **get_ordered_filename_array(
     hgobj gobj,
@@ -2590,9 +2600,9 @@ PUBLIC char **get_ordered_filename_array(
     }
 
     int ln = sizeof(char *) * (nfiles+1);
-    // TODO check if required too much memory. Avoid use of swap memory.
+    // TODO check if too much memory is required . Avoid use of swap memory.
 
-    char **files = malloc(ln);
+    char **files = GBMEM_MALLOC(ln);
     if(!files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2640,10 +2650,10 @@ PUBLIC void free_ordered_filename_array(char **array, int size)
     for(int i=0; i<size; i++) {
         char *ptr = *(array+i);
         if(ptr) {
-            free(ptr);
+            GBMEM_FREE(ptr)
         }
     }
-    free(array);
+    GBMEM_FREE(array)
 }
 
 /****************************************************************************
