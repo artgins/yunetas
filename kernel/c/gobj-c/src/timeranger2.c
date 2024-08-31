@@ -2573,7 +2573,7 @@ PUBLIC json_t *tranger2_open_list(
     }
 
 print_json2("KEYS", jn_keys); // TODO TEST
-
+json_decref(jn_keys);
     /*
      *  Add the list to the topic
      */
