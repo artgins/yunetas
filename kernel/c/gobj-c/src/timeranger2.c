@@ -2744,9 +2744,7 @@ PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *tranger, json_t *topic, js
     json_t *jn_keys = json_object();
 
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-
-
-    glob();
+int x;
     return jn_keys;
 }
 
