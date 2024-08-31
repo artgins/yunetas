@@ -105,7 +105,7 @@ PRIVATE int close_fd_opened_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *tranger, json_t *topic, json_t *match_cond);
+PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *topic, json_t *match_cond);
 
 /***************************************************************
  *              Data
@@ -2558,7 +2558,7 @@ PUBLIC json_t *tranger2_open_list(
     );
 
     /*
-     *  Add list to topic
+     *  Add the list to the topic
      */
     json_array_append_new(
         kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
@@ -2573,7 +2573,9 @@ PUBLIC json_t *tranger2_open_list(
     /*
      *  Get keys to get
      */
-    json_t *jn_keys = find_keys_in_disk(gobj, tranger, topic, match_cond);
+    json_t *jn_keys = find_keys_in_disk(gobj, topic, match_cond);
+
+print_json2("KEYS", jn_keys); // TODO TEST
 
     /*
      *  Load from disk
@@ -2737,14 +2739,62 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
 }
 
 /***************************************************************************
-
+ *  Returns list of searched keys that exist on disk
  ***************************************************************************/
-PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *tranger, json_t *topic, json_t *match_cond)
+PRIVATE BOOL search_by_paths_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where the file is found
+    int index               // index of the file inside directory, relative to 0
+)
 {
-    json_t *jn_keys = json_object();
+    json_t *jn_keys = user_data;
+
+    json_array_append_new(jn_keys, json_string(name));
+    return TRUE; // to continue
+}
+
+PRIVATE json_t *find_keys_in_disk(
+    hgobj gobj,
+    json_t *topic,      // not owned
+    json_t *match_cond  // not owned
+)
+{
+    json_t *jn_keys = json_array();
 
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-int x;
+
+    /*
+     *  Only wants a key ?
+     */
+    const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
+    if(!empty_string(key)) {
+        if(file_exists(directory, key)) {
+            json_array_append_new(jn_keys, json_string(key));
+            return jn_keys;
+        }
+    }
+
+    const char *pattern;
+    const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
+    if(!empty_string(rkey)) {
+        pattern = rkey;
+    } else {
+        pattern = ".*";
+    }
+
+    walk_dir_tree(
+        0,
+        directory,
+        pattern,
+        WD_MATCH_DIRECTORY,
+        search_by_paths_cb,
+        jn_keys
+    );
     return jn_keys;
 }
 

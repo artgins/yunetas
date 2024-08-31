@@ -2298,9 +2298,9 @@ PRIVATE int _walk_tree(
     int index=0;
 
     if (!(dir = opendir(root_dir))) {
-        // NO saques traza de:
-        // EACCES Permission denied (lo dará cuando es un fichero abierto por otro, por ejemplo)
-        // ENOENT No such file or directory (links rotos, por ejemplo)
+        // DO NOT take trace of:
+        // EACCES Permission denied (when it is a file opened by another, for example)
+        // ENOENT No such file or directory (Broken links, for example)
         if(!(errno==EACCES ||errno==ENOENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2317,32 +2317,20 @@ PRIVATE int _walk_tree(
 
     while ((dent = readdir(dir))) {
         char *dname = dent->d_name;
-        if (!strcmp(dname, ".") || !strcmp(dname, ".."))
+        if(!strcmp(dname, ".") || !strcmp(dname, "..")) {
             continue;
-        if (!(opt & WD_HIDDENFILES) && dname[0] == '.')
-            continue;
-
-        char *path = NULL;
-        if(root_dir[strlen(root_dir)-1] == '/') {
-            path = str_concat(root_dir, dname);
-        } else {
-            path = str_concat3(root_dir, "/", dname);
         }
-        if(!path) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "No memory",
-                "size",         "%d", strlen(root_dir)+1+strlen(dname),
-                NULL
-            );
-            break;
+        if(!(opt & WD_HIDDENFILES) && dname[0] == '.') {
+            continue;
         }
 
-        if(stat(path, &st) == -1) {
-            // NO saques traza de:
-            // EACCES Permission denied (lo dará cuando es un fichero abierto por otro, por ejemplo)
-            // ENOENT No such file or directory (links rotos, por ejemplo)
+        char path[PATH_MAX];
+        build_path(path, sizeof(path), root_dir, dname, NULL);
+
+        if(lstat(path, &st) == -1) {
+            // DO NOT take trace of:
+            // EACCES Permission denied (when it is a file opened by another, for example)
+            // ENOENT No such file or directory (Broken links, for example)
             if(!(errno==EACCES ||errno==ENOENT)) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -2354,16 +2342,11 @@ PRIVATE int _walk_tree(
                     NULL
                 );
             }
-            str_concat_free(path);
             continue;
         }
 
         type = 0;
         if(S_ISDIR(st.st_mode)) {
-            /* recursively follow dirs */
-            if((opt & WD_RECURSIVE)) {
-                _walk_tree(gobj, path, reg, user_data, opt, level, cb);
-            }
             if ((opt & WD_MATCH_DIRECTORY)) {
                 type = WD_TYPE_DIRECTORY;
             }
@@ -2392,13 +2375,19 @@ PRIVATE int _walk_tree(
         if(type) {
             if (regexec(reg, dname, 0, 0, 0)==0) {
                 if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, index)) {
-                    // returning FALSE: don't want continue traverse
+                    // returning FALSE: don't want to continue traversing
                     break;
                 }
                 index++;
             }
         }
-        str_concat_free(path);
+
+        /* recursively follow dirs */
+        if(S_ISDIR(st.st_mode)) {
+            if ((opt & WD_RECURSIVE)) {
+                _walk_tree(gobj, path, reg, user_data, opt, level, cb);
+            }
+        }
     }
     closedir(dir);
     return 0;
