@@ -2,6 +2,8 @@
 title: Yuneta Simplified
 ---
 
+# Yuneta Simplified
+
 ::::{grid}
 :reverse:
 :gutter: 2 1 1 1
@@ -19,7 +21,7 @@ title: Yuneta Simplified
 :columns: 8
 :class: sd-fs-3
 
-**Yuneta Simplified**, Asynchronous Development Framework 
+An Asynchronous Development Framework 
 
 ::::
 
