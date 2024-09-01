@@ -1423,7 +1423,6 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
     }
     if(fd<0) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot open TimeRanger topic_idx fd",
@@ -1662,7 +1661,6 @@ PRIVATE int get_topic_fd(
         }
         if(fd<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open content file",
@@ -2173,7 +2171,6 @@ PRIVATE int get_md_record_for_wr(
 //
 //// TODO   if(md_record->__rowid__ != rowid) {
 ////        log_error(0,
-////            "gobj",         "%s", __FILE__,
 ////            "function",     "%s", __FUNCTION__,
 ////            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
 ////            "msg",          "%s", "md_record corrupted, item rowid not match",
@@ -2850,27 +2847,65 @@ PRIVATE int load_topic_metadata(
  ***************************************************************************/
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
 {
-    json_int_t from_t = 0;
-    json_int_t to_t = 0;
-    json_int_t from_tm = 0;
-    json_int_t to_tm = 0;
+    uint64_t from_t = (uint64_t)(-1);
+    uint64_t to_t = 0;
+    uint64_t from_tm = (uint64_t)(-1);
+    uint64_t to_tm = 0;
     char path[PATH_MAX];
 
     build_path(path, sizeof(path), directory, key, NULL);
 
-    int dirs_size;
-    char **dirs = get_ordered_filename_array(
+    int files_md_size;
+    char **files_md = get_ordered_filename_array(
         gobj,
         path,
         ".*\\.md2",
         WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
-        &dirs_size
+        &files_md_size
     );
-    for(int i=0; i<dirs_size; i++) {
-        printf("%s: %s\n", key, dirs[i]);
+    for(int i=0; i<files_md_size; i++) {
+        printf("%s: %s\n", key, files_md[i]);
+        md2_record_t md_record;
+        build_path(path, sizeof(path), directory, key, files_md[i], NULL);
+        int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
+        if(fd<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot open md2 file",
+                "path",         "%s", path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+
+        size_t ln = read(fd, &md_record, sizeof(md_record));
+        if(ln == sizeof(md_record)) {
+            md_record.__t__ = htonll(md_record.__t__);
+            md_record.__tm__ = htonll(md_record.__tm__);
+            md_record.__offset__ = htonll(md_record.__offset__);
+            md_record.__size__ = htonll(md_record.__size__);
+        }
+
+        if(md_record.__t__ < from_t) {
+            from_t = md_record.__t__;
+        }
+        if(md_record.__t__ > to_t) {
+            to_t = md_record.__t__;
+        }
+
+        if(md_record.__tm__ < from_tm) {
+            from_tm = md_record.__tm__;
+        }
+        if(md_record.__tm__ > to_tm) {
+            to_tm = md_record.__tm__;
+        }
+
+        close(fd);
     }
 
-    free_ordered_filename_array(dirs, dirs_size);
+    free_ordered_filename_array(files_md, files_md_size);
 
     json_t *t_range = json_object();
     json_object_set_new(t_range, "t1", json_integer(from_t));
@@ -3619,7 +3654,6 @@ PUBLIC int tranger2_first_record(
 
 // TODO   if(md_record->__rowid__ != 1) {
 //        log_error(0,
-//            "gobj",         "%s", __FILE__,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
 //            "msg",          "%s", "md_records corrupted, first item is not 1",
@@ -3660,7 +3694,6 @@ PUBLIC int tranger2_last_record(
 
 // TODO   if(md_record->__rowid__ != rowid) {
 //        log_error(0,
-//            "gobj",         "%s", __FILE__,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
 //            "msg",          "%s", "md_records corrupted, last item is not last_rowid",
@@ -3702,7 +3735,6 @@ PUBLIC int tranger2_next_record(
 //
 //    if(md_record->__rowid__ != rowid) {
 //        log_error(0,
-//            "gobj",         "%s", __FILE__,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
 //            "msg",          "%s", "md_records corrupted, last item is not last_rowid",
@@ -3746,7 +3778,6 @@ PUBLIC int tranger2_prev_record(
 //
 //    if(md_record->__rowid__ != rowid) {
 //        log_error(0,
-//            "gobj",         "%s", __FILE__,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
 //            "msg",          "%s", "md_records corrupted, last item is not last_rowid",

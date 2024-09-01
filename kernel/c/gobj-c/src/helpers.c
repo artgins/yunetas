@@ -4390,3 +4390,18 @@ PUBLIC uint64_t htonll(uint64_t value)
         return value;
     }
 }
+
+/***************************************************************************
+ *  Convert a 64-bit integer to host byte order
+ ***************************************************************************/
+PUBLIC uint64_t ntohll(uint64_t value)
+{
+    // If the system is little-endian, reverse the byte order
+    if (__BYTE_ORDER == __LITTLE_ENDIAN) {
+        uint32_t high_part = ntohl((uint32_t)(value >> 32));
+        uint32_t low_part = ntohl((uint32_t)(value & 0xFFFFFFFFLL));
+        return (((uint64_t)low_part) << 32) | high_part;
+    } else {
+        return value;
+    }
+}

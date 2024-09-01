@@ -14,7 +14,7 @@
 
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
-#define MAX_KEYS    10 // TODO 100000
+#define MAX_KEYS    1 // TODO 100000
 #define MAX_RECORDS 10 // TODO 100000
 
 /***************************************************************
@@ -267,6 +267,7 @@ int do_test(void)
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
+    printf("first time: %"PRIu64"\n", time_in_seconds());
     for(json_int_t i=0; i<MAX_KEYS; i++) {
         uint64_t tm = time_in_seconds() - MAX_RECORDS;
         for(json_int_t j=0; j<MAX_RECORDS; j++) {
@@ -280,10 +281,12 @@ int do_test(void)
             );
             md2_record_t md_record;
             tranger2_append_record(tranger, TOPIC_NAME, tm+MAX_RECORDS, 0, &md_record, jn_record1);
+            sleep(1);
         }
     }
+    printf("last time: %"PRIu64"\n", time_in_seconds());
 
-    print_json2("XXX after loading records", tranger); // TODO TEST
+//    print_json2("XXX after loading records", tranger); // TODO TEST
 
     if(1) {
         /*-------------------------------------*
