@@ -105,13 +105,18 @@ PRIVATE int close_fd_opened_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *find_keys_in_disk(hgobj gobj, const char *directory, json_t *match_cond);
+PRIVATE json_t *find_keys_in_disk(
+    hgobj gobj,
+    const char *directory,
+    json_t *match_cond  // not owned
+);
 PRIVATE int load_topic_metadata(
     hgobj gobj,
     const char *directory,
     json_t *topic_cache,    // not owned
     json_t *jn_keys         // not owned
 );
+PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
 
 /***************************************************************
  *              Data
@@ -787,20 +792,19 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
      *      Load keys and metadata from disk
      *-----------------------------------------*/
     // TODO this cache must be update in tranger2_append_record() of open_list() ???!!!
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, json_object());
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
     json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!cache) {
         json_decref(jn_keys);
         return NULL;
     }
-
-//    json_t *topic_cache = kw_get_dict(gobj, cache, topic_name, json_object(), KW_CREATE);
-//    load_topic_metadata(
-//        gobj,
-//        directory,
-//        topic_cache,    // not owned
-//        jn_keys         // not owned
-//    );
+    json_t *topic_cache = kw_get_dict(gobj, cache, topic_name, json_object(), KW_CREATE);
+    load_topic_metadata(
+        gobj,
+        directory,
+        topic_cache,    // not owned
+        jn_keys         // not owned
+    );
     json_decref(jn_keys);
 
     /*
@@ -1473,7 +1477,6 @@ PRIVATE char *get_record_fullpath(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     struct tm *tm = gmtime((time_t *)&__t__);
-    const char *subdir = for_data?"dt":"md";
 
     char format[NAME_MAX];
     const char *filename_mask = kw_get_str(
@@ -1505,10 +1508,9 @@ PRIVATE char *get_record_fullpath(
     /*
      *  Check the subdir directory, create it not exist
      */
-    snprintf(bf, bfsize, "%s/%s/%s",
+    snprintf(bf, bfsize, "%s/%s",
         topic_dir,
-        key,
-        subdir
+        key
     );
     if(access(bf, 0)!=0) {
         if(master) {
@@ -1531,10 +1533,9 @@ PRIVATE char *get_record_fullpath(
             }
         }
     }
-    snprintf(bf, bfsize, "%s/%s/%s/%s.%s",
+    snprintf(bf, bfsize, "%s/%s/%s.%s",
         topic_dir,
         key,
-        subdir,
         format,
         for_data?"json":"md2"
     );
@@ -2601,15 +2602,14 @@ PUBLIC json_t *tranger2_open_list(
     /*
      *  Load from disk
      */
+    // TODO esto no debe estar aquí, en topic_open(), y actualizado con append_record()
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, json_object());
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, match_cond);
     json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!cache) {
         json_decref(jn_keys);
         return NULL;
     }
-
     json_t *topic_cache = kw_get_dict(gobj, cache, topic_name, json_object(), KW_CREATE);
     load_topic_metadata(
         gobj,
@@ -2617,7 +2617,6 @@ PUBLIC json_t *tranger2_open_list(
         topic_cache,    // not owned
         jn_keys         // not owned
     );
-
     json_decref(jn_keys);
 
     /*
@@ -2830,7 +2829,6 @@ PRIVATE json_t *find_keys_in_disk(
 /***************************************************************************
  *  Load metadata of topic in cache:
  *      list of keys with its range of time available
- *          (first __t__ and last __t__)
  ***************************************************************************/
 PRIVATE int load_topic_metadata(
     hgobj gobj,
@@ -2841,9 +2839,31 @@ PRIVATE int load_topic_metadata(
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = json_string_value(jn_key);
-        json_object_set_new(topic_cache, key, json_object());
+        json_t *t_range = get_time_range(gobj, directory, key);
+        json_object_set_new(topic_cache, key, t_range);
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Get range time of a key
+ ***************************************************************************/
+PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
+{
+    json_int_t from_t = 0;
+    json_int_t to_t = 0;
+    json_int_t from_tm = 0;
+    json_int_t to_tm = 0;
+
+    // TODO find in disk
+
+    json_t *t_range = json_object();
+    json_object_set_new(t_range, "t1", json_integer(from_t));
+    json_object_set_new(t_range, "t2", json_integer(to_t));
+    json_object_set_new(t_range, "tm1", json_integer(from_tm));
+    json_object_set_new(t_range, "tm2", json_integer(to_tm));
+
+    return t_range;
 }
 
 /***************************************************************************
