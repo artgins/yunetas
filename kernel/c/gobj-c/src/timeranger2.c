@@ -106,6 +106,12 @@ PRIVATE int close_fd_opened_files(
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
 PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *topic, json_t *match_cond);
+PRIVATE int load_topic_metadata(
+    hgobj gobj,
+    const char *directory,
+    json_t *cache,      // not owned
+    json_t *jn_keys     // owned
+);
 
 /***************************************************************
  *              Data
@@ -687,7 +693,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
             "msg",          "%s", "tranger_open_topic(): What topic name?",
             NULL
         );
-        return 0;
+        return NULL;
     }
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
@@ -717,7 +723,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
                 NULL
             );
         }
-        return 0;
+        return NULL;
     }
 
     /*-------------------------------*
@@ -778,8 +784,27 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
     /*-------------------------------*
-     *      Load key files TODO
+     *      Load keys from files
      *-------------------------------*/
+    json_t *jn_keys = find_keys_in_disk(gobj, topic, json_object());
+
+    /*-------------------------------*
+     *      Load metadata of keys
+     *-------------------------------*/
+    json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
+    if(!cache) {
+        json_decref(jn_keys);
+        return NULL;
+    }
+    load_topic_metadata(
+        gobj,
+        directory,
+        cache,      // not owned
+        jn_keys     // owned
+    );
+
+    print_json2("TOPIC loaded", topic); // TODO TEST
+
     /*
      *  Open topic index
      */
@@ -1508,11 +1533,12 @@ PRIVATE char *get_record_fullpath(
             }
         }
     }
-    snprintf(bf, bfsize, "%s/%s/%s/%s.json",
+    snprintf(bf, bfsize, "%s/%s/%s/%s.%s",
         topic_dir,
         key,
         subdir,
-        format
+        format,
+        for_data?"json":"md2"
     );
 
     return bf;
@@ -2532,6 +2558,9 @@ PUBLIC json_t *tranger2_open_list(
 
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
+    /*
+     *  Here the topic is opened if it's not opened
+     */
     json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED));
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -2557,23 +2586,6 @@ PUBLIC json_t *tranger2_open_list(
         0
     );
 
-    /*
-     *  Get keys to get
-     */
-    json_t *jn_keys = find_keys_in_disk(gobj, topic, match_cond);
-    if(!jn_keys) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger_open_list: what topic?",
-            NULL
-        );
-        JSON_DECREF(list)
-        return 0;
-    }
-
-print_json2("KEYS", jn_keys); // TODO TEST
-json_decref(jn_keys);
     /*
      *  Add the list to the topic
      */
@@ -2795,6 +2807,24 @@ PRIVATE json_t *find_keys_in_disk(
     free_ordered_filename_array(dirs, dirs_size);
 
     return jn_keys;
+}
+
+/***************************************************************************
+ *  Load metadata of topic in cache:
+ *      list of keys with its range of time available
+ *          (first __t__ and last __t__)
+ ***************************************************************************/
+PRIVATE int load_topic_metadata(
+    hgobj gobj,
+    const char *directory,
+    json_t *cache,      // not owned
+    json_t *jn_keys     // owned
+) {
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+
+    }
+    return 0;
 }
 
 /***************************************************************************
