@@ -278,13 +278,14 @@ static inline double ts_diff2 (struct timespec start, struct timespec end)
  *
  ***************************************************************************/
 PRIVATE BOOL list_db_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     char *p = strrchr(fullpath, '/');
@@ -319,13 +320,14 @@ PRIVATE int list_databases(const char *path)
  *
  ***************************************************************************/
 PRIVATE BOOL list_topic_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     char *p = strrchr(directory, '/');
@@ -586,13 +588,14 @@ PRIVATE int list_topic_messages(void)
  *
  ***************************************************************************/
 PRIVATE BOOL list_recursive_topic_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     partial_counter = 0;
@@ -633,13 +636,14 @@ PRIVATE int list_recursive_topics(void)
  *
  ***************************************************************************/
 PRIVATE BOOL search_topic_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     partial_counter = 0;
@@ -684,13 +688,14 @@ PRIVATE int search_topics(void)
 }
 
 PRIVATE BOOL search_by_databases_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     arguments.path = (char *)directory;
@@ -717,13 +722,14 @@ PRIVATE int search_by_databases()
 }
 
 PRIVATE BOOL search_by_paths_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     arguments.path = (char *)fullpath;

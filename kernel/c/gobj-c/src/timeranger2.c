@@ -74,11 +74,6 @@ PRIVATE const char *sf_names[24+1] = {
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef struct { // TODO build a cache system.
-    json_t *jn_record;  // Living with recount > 0
-    json_t *jn_cache;   // Cache (clone of jn_record).
-    uint16_t timeout_cache;  // Timeout to free json when refcount is 0. Max 0xFFFF = 18,2 horas.
-} json_cache_t;
 
 /***************************************************************
  *              Prototypes
@@ -1914,7 +1909,7 @@ PUBLIC int tranger2_append_record(
     off64_t __offset__ = 0;
     if(content_fp >= 0) {
         __offset__ = lseek64(content_fp, 0, SEEK_END);
-        if(__offset__ == -1) {
+        if(__offset__ < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -2002,6 +1997,20 @@ PUBLIC int tranger2_append_record(
     int md2_fp = get_topic_fd(tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
+        if(offset < 0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot append record, lseek64() FAILED",
+                "topic",        "%s", topic_name,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek64() FAILED");
+            JSON_DECREF(jn_record)
+            return -1;
+        }
+
         md2_record_t big_endian;
         big_endian.__t__ = htonll(md_record->__t__);
         big_endian.__tm__ = htonll(md_record->__tm__);
@@ -2847,6 +2856,7 @@ PRIVATE int load_topic_metadata(
  ***************************************************************************/
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
 {
+    uint64_t last_rowid = 0;
     uint64_t from_t = (uint64_t)(-1);
     uint64_t to_t = 0;
     uint64_t from_tm = (uint64_t)(-1);
@@ -2864,7 +2874,9 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         &files_md_size
     );
     for(int i=0; i<files_md_size; i++) {
-        printf("%s: %s\n", key, files_md[i]);
+
+printf("%s: %s\n", key, files_md[i]); // TODO TEST
+
         md2_record_t md_record;
         build_path(path, sizeof(path), directory, key, files_md[i], NULL);
         int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
@@ -2880,12 +2892,111 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             continue;
         }
 
-        size_t ln = read(fd, &md_record, sizeof(md_record));
+        /*
+         *  Read first record
+         */
+        ssize_t ln = read(fd, &md_record, sizeof(md_record));
         if(ln == sizeof(md_record)) {
             md_record.__t__ = htonll(md_record.__t__);
             md_record.__tm__ = htonll(md_record.__tm__);
             md_record.__offset__ = htonll(md_record.__offset__);
             md_record.__size__ = htonll(md_record.__size__);
+        } else {
+            if(ln<0) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read md2 file",
+                    "path",         "%s", path,
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+                close(fd);
+            } else if(ln==0) {
+                // No data
+                close(fd);
+            }
+            continue;
+        }
+
+        if(md_record.__t__ < from_t) {
+            from_t = md_record.__t__;
+        }
+        if(md_record.__t__ > to_t) {
+            to_t = md_record.__t__;
+        }
+
+        if(md_record.__tm__ < from_tm) {
+            from_tm = md_record.__tm__;
+        }
+        if(md_record.__tm__ > to_tm) {
+            to_tm = md_record.__tm__;
+        }
+
+        /*
+         *  Seek the last record
+         */
+        off64_t offset = lseek64(fd, 0, SEEK_END);
+        if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Cannot read last record, md2 file corrupted",
+                "path",         "%s", path,
+                "offset",       "%ld", (long)offset,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+        if(offset == 0) {
+            // No records
+            close(fd);
+            continue;
+        }
+
+        last_rowid += offset/sizeof(md2_record_t);
+
+        /*
+         *  Read last record
+         */
+        offset -= sizeof(md2_record_t);
+        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
+        if(offset2 < 0 || offset2 != offset) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+
+        ln = read(fd, &md_record, sizeof(md_record));
+        if(ln == sizeof(md_record)) {
+            md_record.__t__ = htonll(md_record.__t__);
+            md_record.__tm__ = htonll(md_record.__tm__);
+            md_record.__offset__ = htonll(md_record.__offset__);
+            md_record.__size__ = htonll(md_record.__size__);
+        } else {
+            if(ln<0) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read md2 file",
+                    "path",         "%s", path,
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+                close(fd);
+            } else if(ln==0) {
+                // No data
+                close(fd);
+            }
+            continue;
         }
 
         if(md_record.__t__ < from_t) {
@@ -2908,10 +3019,11 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
     free_ordered_filename_array(files_md, files_md_size);
 
     json_t *t_range = json_object();
-    json_object_set_new(t_range, "t1", json_integer(from_t));
-    json_object_set_new(t_range, "t2", json_integer(to_t));
-    json_object_set_new(t_range, "tm1", json_integer(from_tm));
-    json_object_set_new(t_range, "tm2", json_integer(to_tm));
+    json_object_set_new(t_range, "t_1", json_integer((json_int_t)from_t));
+    json_object_set_new(t_range, "t_2", json_integer((json_int_t)to_t));
+    json_object_set_new(t_range, "tm_1", json_integer((json_int_t)from_tm));
+    json_object_set_new(t_range, "tm_2", json_integer((json_int_t)to_tm));
+    json_object_set_new(t_range, "rows", json_integer((json_int_t)last_rowid));
 
     return t_range;
 }
