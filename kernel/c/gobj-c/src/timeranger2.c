@@ -105,12 +105,12 @@ PRIVATE int close_fd_opened_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *find_keys_in_disk(hgobj gobj, json_t *topic, json_t *match_cond);
+PRIVATE json_t *find_keys_in_disk(hgobj gobj, const char *directory, json_t *match_cond);
 PRIVATE int load_topic_metadata(
     hgobj gobj,
     const char *directory,
-    json_t *cache,      // not owned
-    json_t *jn_keys     // owned
+    json_t *topic_cache,    // not owned
+    json_t *jn_keys         // not owned
 );
 
 /***************************************************************
@@ -783,27 +783,25 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
-    /*-------------------------------*
-     *      Load keys from files
-     *-------------------------------*/
-    json_t *jn_keys = find_keys_in_disk(gobj, topic, json_object());
-
-    /*-------------------------------*
-     *      Load metadata of keys
-     *-------------------------------*/
+    /*-----------------------------------------*
+     *      Load keys and metadata from disk
+     *-----------------------------------------*/
+    // TODO this cache must be update in tranger2_append_record() of open_list() ???!!!
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, json_object());
     json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!cache) {
         json_decref(jn_keys);
         return NULL;
     }
-    load_topic_metadata(
-        gobj,
-        directory,
-        cache,      // not owned
-        jn_keys     // owned
-    );
 
-    print_json2("TOPIC loaded", topic); // TODO TEST
+//    json_t *topic_cache = kw_get_dict(gobj, cache, topic_name, json_object(), KW_CREATE);
+//    load_topic_metadata(
+//        gobj,
+//        directory,
+//        topic_cache,    // not owned
+//        jn_keys         // not owned
+//    );
+    json_decref(jn_keys);
 
     /*
      *  Open topic index
@@ -2561,7 +2559,8 @@ PUBLIC json_t *tranger2_open_list(
     /*
      *  Here the topic is opened if it's not opened
      */
-    json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED));
+    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2602,9 +2601,30 @@ PUBLIC json_t *tranger2_open_list(
     /*
      *  Load from disk
      */
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, json_object());
+    json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
+    if(!cache) {
+        json_decref(jn_keys);
+        return NULL;
+    }
+
+    json_t *topic_cache = kw_get_dict(gobj, cache, topic_name, json_object(), KW_CREATE);
+    load_topic_metadata(
+        gobj,
+        directory,
+        topic_cache,    // not owned
+        jn_keys         // not owned
+    );
+
+    json_decref(jn_keys);
+
+    /*
+     *  Search
+     */
     BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-
 size_t __last_rowid__ = 0; // TODO quita
 return list;
 
@@ -2765,13 +2785,11 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
  ***************************************************************************/
 PRIVATE json_t *find_keys_in_disk(
     hgobj gobj,
-    json_t *topic,      // not owned
+    const char *directory,
     json_t *match_cond  // not owned
 )
 {
     json_t *jn_keys = json_array();
-
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
 
     /*
      *  Only wants a key ?
@@ -2817,12 +2835,13 @@ PRIVATE json_t *find_keys_in_disk(
 PRIVATE int load_topic_metadata(
     hgobj gobj,
     const char *directory,
-    json_t *cache,      // not owned
-    json_t *jn_keys     // owned
+    json_t *topic_cache,    // not owned
+    json_t *jn_keys         // not owned
 ) {
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
-
+        const char *key = json_string_value(jn_key);
+        json_object_set_new(topic_cache, key, json_object());
     }
     return 0;
 }

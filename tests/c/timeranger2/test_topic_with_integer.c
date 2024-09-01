@@ -291,22 +291,22 @@ int do_test(void)
          *-------------------------------------*/
         leidos = 0;
 
-        json_t *jn_list = json_pack("{s:s, s:o, s:I}",
-            "topic_name", TOPIC_NAME,
-            "match_cond", json_object(),
-            "load_record_callback", (json_int_t)(size_t)load_all_records_callback
-        );
-        json_t *tr_list = tranger2_open_list(
-            tranger,
-            jn_list
-        );
-
-print_json2("XXX after open list", tranger); // TODO TEST
-
-        tranger2_close_list(
-            tranger,
-            tr_list
-        );
+//        json_t *jn_list = json_pack("{s:s, s:o, s:I}",
+//            "topic_name", TOPIC_NAME,
+//            "match_cond", json_object(),
+//            "load_record_callback", (json_int_t)(size_t)load_all_records_callback
+//        );
+//        json_t *tr_list = tranger2_open_list(
+//            tranger,
+//            jn_list
+//        );
+//
+//print_json2("XXX after open list", tranger); // TODO TEST
+//
+//        tranger2_close_list(
+//            tranger,
+//            tr_list
+//        );
 
         if(leidos != MAX_RECORDS) {
             printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
@@ -444,6 +444,11 @@ int main(int argc, char *argv[])
     yev_loop_destroy(yev_loop);
 
     gobj_end();
+
+    if(get_cur_system_memory()!=0) {
+        printf("system memory not free\n");
+        result += -1;
+    }
 
     return result;
 }
