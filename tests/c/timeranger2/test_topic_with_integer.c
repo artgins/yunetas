@@ -301,6 +301,8 @@ int do_test(void)
             jn_list
         );
 
+print_json2("XXX after open list", tranger); // TODO TEST
+
         tranger2_close_list(
             tranger,
             tr_list

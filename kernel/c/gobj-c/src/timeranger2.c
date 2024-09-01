@@ -1475,7 +1475,7 @@ PRIVATE char *get_record_fullpath(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     struct tm *tm = gmtime((time_t *)&__t__);
-    const char *subdir = for_data?"data":"md2";
+    const char *subdir = for_data?"dt":"md";
 
     char format[NAME_MAX];
     const char *filename_mask = kw_get_str(
