@@ -2854,8 +2854,23 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
     json_int_t to_t = 0;
     json_int_t from_tm = 0;
     json_int_t to_tm = 0;
+    char path[PATH_MAX];
 
-    // TODO find in disk
+    build_path(path, sizeof(path), directory, key, NULL);
+
+    int dirs_size;
+    char **dirs = get_ordered_filename_array(
+        gobj,
+        path,
+        ".*\\.md2",
+        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
+        &dirs_size
+    );
+    for(int i=0; i<dirs_size; i++) {
+        printf("%s: %s\n", key, dirs[i]);
+    }
+
+    free_ordered_filename_array(dirs, dirs_size);
 
     json_t *t_range = json_object();
     json_object_set_new(t_range, "t1", json_integer(from_t));
