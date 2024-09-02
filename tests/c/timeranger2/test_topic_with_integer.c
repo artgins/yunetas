@@ -143,17 +143,18 @@ int do_test(void)
      *------------------------------------*/
     build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
     if(1) {
-        char expected[]= "\
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
         { \
-            'topic_name': 'topic_with_integer', \
+            'topic_name': '%s', \
             'pkey': 'id', \
             'tkey': 'tm', \
             'system_flag': 4, \
-            'filename_mask': '%Y-%m-%d', \
+            'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432 \
         } \
-        ";
+        ", TOPIC_NAME);
 
         set_expected_results(
             "check_topic_desc.json",      // test name
@@ -212,28 +213,29 @@ int do_test(void)
      *  Check tranger memory with topic opened
      *------------------------------------------*/
     if(1) {
-        char expected[]= "\
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
         { \
-            'path': 'xxx', \
-            'database': 'tr_topic_with_integer', \
-            'filename_mask': '%Y', \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
             'xpermission': 1472, \
             'rpermission': 384, \
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 1, \
-            'directory': 'xxx', \
+            'directory': '%s', \
             'fd_opened_files': { \
-                '__timeranger2__.json': 99999 \
+                '__timeranger2__.json': 6 \
             }, \
             'topics': { \
-                'topic_with_integer': { \
-                    'topic_name': 'topic_with_integer', \
+                '%s': { \
+                    'topic_name': '%s', \
                     'pkey': 'id', \
                     'tkey': 'tm', \
                     'system_flag': 4, \
-                    'filename_mask': '%Y-%m-%d', \
+                    'filename_mask': '%%Y-%%m-%%d', \
                     'xpermission': 1528, \
                     'rpermission': 432, \
                     'cols': { \
@@ -241,7 +243,7 @@ int do_test(void)
                         'tm': 0, \
                         'content': '' \
                     }, \
-                    'directory': 'xxx', \
+                    'directory': '%s', \
                     'fd_opened_files': {}, \
                     'lists': [], \
                     'cache': { \
@@ -250,12 +252,9 @@ int do_test(void)
                 } \
             } \
         } \
-        ";
+        ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
 
         const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
             NULL
         };
         set_expected_results(

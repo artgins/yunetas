@@ -231,7 +231,6 @@ int do_test(void)
         ", path_root, path_database, path_topic);
 
         const char *ignore_keys[]= {
-//            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -263,29 +262,27 @@ int do_test(void)
      *  Check tranger memory with topic closed
      *------------------------------------------*/
     if(1) {
-        char expected[]= "\
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
         { \
-            'path': 'xxx', \
+            'path': '%s', \
             'database': 'tr_tranger_startup', \
-            'filename_mask': '%Y-%m-%d', \
+            'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 0, \
-            'directory': 'xxx', \
+            'directory': '%s', \
             'fd_opened_files': { \
-            '__timeranger2__.json': 9999 \
+            '__timeranger2__.json': 6 \
             }, \
             'topics': {} \
         } \
-        ";
+        ", path_root, path_database);
 
         const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -302,28 +299,26 @@ int do_test(void)
      *  Check re-open tranger as master
      *------------------------------------------*/
     if(1) {
-        char expected[]= "\
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
         { \
-            'path': 'xxx', \
+            'path': '%s', \
             'database': 'tr_tranger_startup', \
-            'filename_mask': '%Y-%m-%d', \
+            'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
             'on_critical_error': 0, \
             'master': false, \
             'gobj': 0, \
             'trace_level': 0, \
-            'directory': 'xxx', \
+            'directory': '%s', \
             'fd_opened_files': { \
-            '__timeranger2__.json': 9999 \
+            '__timeranger2__.json': -1 \
             }, \
             'topics': {} \
         } \
-        ";
+        ", path_root, path_database);
         const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
             NULL
         };
 
