@@ -221,7 +221,8 @@ int do_test(void)
                             'address': '' \
                     }, \
                     'directory': '%s', \
-                    'fd_opened_files': {}, \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': {}, \
                     'lists': [], \
                     'cache': { \
                         'topic_sample': {} \
@@ -280,7 +281,7 @@ int do_test(void)
             'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
-            '__timeranger2__.json': 9999 \
+                '__timeranger2__.json': 9999 \
             }, \
             'topics': {} \
         } \
@@ -320,7 +321,7 @@ int do_test(void)
             'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
-            '__timeranger2__.json': -1 \
+                '__timeranger2__.json': -1 \
             }, \
             'topics': {} \
         } \

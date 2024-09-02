@@ -30,12 +30,9 @@ PRIVATE const char *topic_fields[] = {
     "system_flag",
     "cols",
     "directory",
-//    "__last_rowid__",
-//    "topic_idx_fd",
-    "fd_opened_files",
-//    "file_opened_files",
+    "wr_fd_files",
+    "rd_fd_files",
     "lists",
-
     "filename_mask",
     "xpermission",
     "rpermission",
@@ -779,7 +776,8 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
      *  Load volatil, defining in run-time
      */
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
-    kw_get_dict(gobj, topic, "fd_opened_files", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "wr_fd_files", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
@@ -1545,6 +1543,7 @@ PRIVATE int get_topic_fd(
     json_t *topic,
     const char *key,
     BOOL for_data,
+    BOOL for_write,
     uint64_t __t__
 )
 {
@@ -1642,7 +1641,13 @@ PRIVATE int get_topic_fd(
      *-----------------------------*/
     int fd = (int)kw_get_int(
         gobj,
-         kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED),
+         kw_get_dict(
+             gobj,
+             topic,
+             for_write?"wr_fd_files":"rd_fd_files",
+             0,
+             KW_REQUIRED
+         ),
         full_path,
         -1,
         0
@@ -1667,7 +1672,13 @@ PRIVATE int get_topic_fd(
         }
 
         json_object_set_new(
-            kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED),
+            kw_get_dict(
+                gobj,
+                topic,
+                for_write?"wr_fd_files":"rd_fd_files",
+                0,
+                KW_REQUIRED
+            ),
             full_path,
             json_integer(fd)
         );
@@ -1687,13 +1698,21 @@ PRIVATE int close_fd_opened_files(
     const char *key;
     void *tmp;
 
-    json_t *fd_opened_files = kw_get_dict(gobj, topic, "fd_opened_files", 0, KW_REQUIRED);
-    json_object_foreach_safe(fd_opened_files, tmp, key, jn_value) {
-        int fd = (int)kw_get_int(gobj, fd_opened_files, key, -1, KW_REQUIRED);
+    json_t *wr_fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
+    json_object_foreach_safe(wr_fd_files, tmp, key, jn_value) {
+        int fd = (int)kw_get_int(gobj, wr_fd_files, key, -1, KW_REQUIRED);
         if(fd >= 0) {
             close(fd);
         }
-        json_object_del(fd_opened_files, key);
+        json_object_del(wr_fd_files, key);
+    }
+    json_t *rd_fd_files = kw_get_dict(gobj, topic, "rd_fd_files", 0, KW_REQUIRED);
+    json_object_foreach_safe(rd_fd_files, tmp, key, jn_value) {
+        int fd = (int)kw_get_int(gobj, rd_fd_files, key, -1, KW_REQUIRED);
+        if(fd >= 0) {
+            close(fd);
+        }
+        json_object_del(rd_fd_files, key);
     }
 
     return 0;
@@ -1899,9 +1918,9 @@ PUBLIC int tranger2_append_record(
     }
 
     /*------------------------------------------------------*
-     *  Recover content file handler corresponds to __t__
+     *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_fd(tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
+    int content_fp = get_topic_fd(tranger, topic, key_value, TRUE, TRUE, __t__);  // Can be -1, if sf_no_disk
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -1994,7 +2013,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Save md, to file
      *--------------------------------------------*/
-    int md2_fp = get_topic_fd(tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
+    int md2_fp = get_topic_fd(tranger, topic, key_value, FALSE, TRUE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
         if(offset < 0) {

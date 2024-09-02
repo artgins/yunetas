@@ -244,7 +244,8 @@ int do_test(void)
                         'content': '' \
                     }, \
                     'directory': '%s', \
-                    'fd_opened_files': {}, \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': {}, \
                     'lists': [], \
                     'cache': { \
                         'topic_with_integer': {} \
