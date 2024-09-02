@@ -2856,7 +2856,7 @@ PRIVATE int load_topic_metadata(
  ***************************************************************************/
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
 {
-    uint64_t last_rowid = 0;
+    uint64_t total_rows = 0;
     uint64_t global_from_t = (uint64_t)(-1);
     uint64_t global_to_t = 0;
     uint64_t global_from_tm = (uint64_t)(-1);
@@ -2876,7 +2876,8 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         &files_md_size
     );
     for(int i=0; i<files_md_size; i++) {
-        md2_record_t md_record;
+        md2_record_t md_first_record;
+        md2_record_t md_last_record;
         build_path(path, sizeof(path), directory, key, files_md[i], NULL);
         int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
         if(fd<0) {
@@ -2894,12 +2895,12 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         /*
          *  Read first record
          */
-        ssize_t ln = read(fd, &md_record, sizeof(md_record));
-        if(ln == sizeof(md_record)) {
-            md_record.__t__ = htonll(md_record.__t__);
-            md_record.__tm__ = htonll(md_record.__tm__);
-            md_record.__offset__ = htonll(md_record.__offset__);
-            md_record.__size__ = htonll(md_record.__size__);
+        ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
+        if(ln == sizeof(md_first_record)) {
+            md_first_record.__t__ = htonll(md_first_record.__t__);
+            md_first_record.__tm__ = htonll(md_first_record.__tm__);
+            md_first_record.__offset__ = htonll(md_first_record.__offset__);
+            md_first_record.__size__ = htonll(md_first_record.__size__);
         } else {
             if(ln<0) {
                 gobj_log_critical(gobj, 0,
@@ -2915,20 +2916,6 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             }
             close(fd);
             continue;
-        }
-
-        if(md_record.__t__ < global_from_t) {
-            global_from_t = md_record.__t__;
-        }
-        if(md_record.__t__ > global_to_t) {
-            global_to_t = md_record.__t__;
-        }
-
-        if(md_record.__tm__ < global_from_tm) {
-            global_from_tm = md_record.__tm__;
-        }
-        if(md_record.__tm__ > global_to_tm) {
-            global_to_tm = md_record.__tm__;
         }
 
         /*
@@ -2954,7 +2941,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             continue;
         }
 
-        last_rowid += offset/sizeof(md2_record_t);
+        uint64_t partial_rows = offset/sizeof(md2_record_t);
 
         /*
          *  Read last record
@@ -2973,12 +2960,12 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             continue;
         }
 
-        ln = read(fd, &md_record, sizeof(md_record));
-        if(ln == sizeof(md_record)) {
-            md_record.__t__ = htonll(md_record.__t__);
-            md_record.__tm__ = htonll(md_record.__tm__);
-            md_record.__offset__ = htonll(md_record.__offset__);
-            md_record.__size__ = htonll(md_record.__size__);
+        ln = read(fd, &md_last_record, sizeof(md_last_record));
+        if(ln == sizeof(md_last_record)) {
+            md_last_record.__t__ = htonll(md_last_record.__t__);
+            md_last_record.__tm__ = htonll(md_last_record.__tm__);
+            md_last_record.__offset__ = htonll(md_last_record.__offset__);
+            md_last_record.__size__ = htonll(md_last_record.__size__);
         } else {
             if(ln<0) {
                 gobj_log_critical(gobj, 0,
@@ -2996,19 +2983,83 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             continue;
         }
 
-        if(md_record.__t__ < global_from_t) {
-            global_from_t = md_record.__t__;
+        if(md_first_record.__t__ < global_from_t) {
+            global_from_t = md_first_record.__t__;
         }
-        if(md_record.__t__ > global_to_t) {
-            global_to_t = md_record.__t__;
+        if(md_first_record.__t__ > global_to_t) {
+            global_to_t = md_first_record.__t__;
         }
 
-        if(md_record.__tm__ < global_from_tm) {
-            global_from_tm = md_record.__tm__;
+        if(md_first_record.__tm__ < global_from_tm) {
+            global_from_tm = md_first_record.__tm__;
         }
-        if(md_record.__tm__ > global_to_tm) {
-            global_to_tm = md_record.__tm__;
+        if(md_first_record.__tm__ > global_to_tm) {
+            global_to_tm = md_first_record.__tm__;
         }
+
+        if(md_last_record.__t__ < global_from_t) {
+            global_from_t = md_last_record.__t__;
+        }
+        if(md_last_record.__t__ > global_to_t) {
+            global_to_t = md_last_record.__t__;
+        }
+
+        if(md_last_record.__tm__ < global_from_tm) {
+            global_from_tm = md_last_record.__tm__;
+        }
+        if(md_last_record.__tm__ > global_to_tm) {
+            global_to_tm = md_last_record.__tm__;
+        }
+
+        uint64_t partial_from_t = (uint64_t)(-1);
+        uint64_t partial_to_t = 0;
+        uint64_t partial_from_tm = (uint64_t)(-1);
+        uint64_t partial_to_tm = 0;
+
+        if(md_first_record.__t__ < partial_from_t) {
+            partial_from_t = md_first_record.__t__;
+        }
+        if(md_first_record.__t__ > partial_to_t) {
+            partial_to_t = md_first_record.__t__;
+        }
+
+        if(md_first_record.__tm__ < partial_from_tm) {
+            partial_from_tm = md_first_record.__tm__;
+        }
+        if(md_first_record.__tm__ > partial_to_tm) {
+            partial_to_tm = md_first_record.__tm__;
+        }
+
+        if(md_last_record.__t__ < partial_from_t) {
+            partial_from_t = md_last_record.__t__;
+        }
+        if(md_last_record.__t__ > partial_to_t) {
+            partial_to_t = md_last_record.__t__;
+        }
+
+        if(md_last_record.__tm__ < partial_from_tm) {
+            partial_from_tm = md_last_record.__tm__;
+        }
+        if(md_last_record.__tm__ > partial_to_tm) {
+            partial_to_tm = md_last_record.__tm__;
+        }
+
+        char *p = strrchr(files_md[i], '.');    // save file name without extension
+        if(p) {
+            *p = 0;
+        }
+        json_t *partial_range = kw_get_dict(gobj, t_range, files_md[i], json_object(), KW_CREATE);
+        if(p) {
+            *p = '.';
+        }
+
+        json_object_set_new(partial_range, "fr_t", json_integer((json_int_t)partial_from_t));
+        json_object_set_new(partial_range, "to_t", json_integer((json_int_t)partial_to_t));
+        json_object_set_new(partial_range, "fr_tm", json_integer((json_int_t)partial_from_tm));
+        json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
+        json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
+
+        total_rows += partial_rows;
 
         close(fd);
     }
@@ -3020,7 +3071,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
     json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
     json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
     json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
-    json_object_set_new(total_range, "last_rowid", json_integer((json_int_t)last_rowid));
+    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
 
     return t_range;
 }
