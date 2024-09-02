@@ -128,14 +128,15 @@ int do_test(void)
      *------------------------------------*/
     build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
     if(1) {
-        char expected[]= "\
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
         { \
-          'topic_name': 'topic_sample', \
+          'topic_name': '%s', \
           'pkey': 'id', \
           'tkey': '', \
           'system_flag': 1 \
         } \
-        ";
+        ", TOPIC_NAME);
 
         set_expected_results(
             "check_topic_desc.json",      // test name
@@ -197,7 +198,7 @@ int do_test(void)
         snprintf(expected, sizeof(expected), "\
         { \
             'path': '%s', \
-            'database': 'tr_tranger_startup', \
+            'database': '%s', \
             'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
@@ -210,8 +211,8 @@ int do_test(void)
                 '__timeranger2__.json': 6 \
             }, \
             'topics': { \
-                'topic_sample': { \
-                    'topic_name': 'topic_sample', \
+                '%s': { \
+                    'topic_name': '%s', \
                         'pkey': 'id', \
                         'tkey': '', \
                         'system_flag': 1, \
@@ -228,7 +229,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", path_root, path_database, path_topic);
+        ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
 
         const char *ignore_keys[]= {
             NULL
