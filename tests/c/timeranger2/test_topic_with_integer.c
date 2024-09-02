@@ -14,8 +14,8 @@
 
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
-#define MAX_KEYS    1 // TODO 100000
-#define MAX_RECORDS 1000 // TODO 100000
+#define MAX_KEYS    2 // TODO 100000
+#define MAX_RECORDS 100000 // TODO 100000
 
 /***************************************************************
  *              Prototypes
@@ -296,7 +296,7 @@ int do_test(void)
         /*-------------------------------------*
          *      List all records
          *-------------------------------------*/
-        leidos = 1000;
+        leidos = MAX_RECORDS; // TODO deja = 0
 
         json_t *jn_list = json_pack("{s:s, s:o, s:I}",
             "topic_name", TOPIC_NAME,
