@@ -897,8 +897,6 @@ PUBLIC int tranger2_close_topic(
 
     close_fd_opened_files(gobj, topic, NULL);
 
-print_json2("XXXXXXXXXXXX", topic);
-
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
 
@@ -1722,11 +1720,11 @@ PRIVATE int _close_fd_files(
 
     json_object_foreach_safe(fd_files, tmp, key, jn_value) {
         if(json_is_object(jn_value)) {
-            json_t *jn_value2;
-            const char *key2;
-            void *tmp2;
-            json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
-                if(empty_string(key_) || strcmp(key2, key_)==0) {
+            if(empty_string(key_) || strcmp(key, key_)==0) {
+                json_t *jn_value2;
+                const char *key2;
+                void *tmp2;
+                json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
                     int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
                     if(fd >= 0) {
                         close(fd);
@@ -1983,6 +1981,15 @@ PUBLIC int tranger2_append_record(
         }
     } else {
         md_record->__tm__ = 0;  // No tkey value, mark with 0
+    }
+
+    /*------------------------------------------------------*
+     *  Check if there are many files opened
+     *------------------------------------------------------*/
+    // no required, could not exist the key_value
+    json_t *wr_fd = kw_get_subdict_value(gobj, topic, "wr_fd_files", key_value, 0, 0);
+    if(json_object_size(wr_fd)>4) {
+        close_fd_wr_files(gobj, topic, key_value);
     }
 
     /*------------------------------------------------------*
