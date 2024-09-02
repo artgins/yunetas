@@ -336,6 +336,8 @@ print_json2("XXX after open list", tranger); // TODO TEST
 
     tranger2_close_topic(tranger, TOPIC_NAME);
 
+print_json2("closed topic", tranger);
+
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*

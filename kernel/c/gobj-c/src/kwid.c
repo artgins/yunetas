@@ -474,7 +474,7 @@ PUBLIC int kw_set_dict_value(
             "path",         "%s", path,
             NULL
         );
-        JSON_DECREF(value);
+        JSON_DECREF(value)
         return 0;
     }
 
@@ -504,9 +504,12 @@ PUBLIC int kw_set_dict_value(
         case JSON_OBJECT:
             next = json_object_get(v, segment);
             if(!next) {
-                // TODO if not the last segment, write a json_object()
-                json_object_set(v, segment, value);
-                next = value;
+                if(i < list_size-1) {
+                    next = json_object();
+                    json_object_set_new(v, segment, next);
+                } else {
+                    json_object_set(v, segment, value);
+                }
             }
             v = next;
             break;
