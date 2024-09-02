@@ -93,7 +93,13 @@ PRIVATE int get_md_record_for_wr(
 
 PRIVATE int close_fd_opened_files(
     hgobj gobj,
-    json_t *topic
+    json_t *topic,
+    const char *key
+);
+PRIVATE int close_fd_wr_files(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
@@ -889,7 +895,9 @@ PUBLIC int tranger2_close_topic(
 
     // TODO no debería chequear si hay alguna lista abierta usando el topic???
 
-    close_fd_opened_files(gobj, topic);
+    close_fd_opened_files(gobj, topic, NULL);
+
+print_json2("XXXXXXXXXXXX", topic);
 
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_del(jn_topics, topic_name);
@@ -1593,12 +1601,12 @@ PRIVATE int get_topic_fd(
         /*----------------------------------------*
          *  Create (only)the new file if master
          *----------------------------------------*/
-        if(!master) {
+        if(!master || !for_write) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "path",         "%s", full_path,
-                "msg",          "%s", "content file not found",
+                "msg",          "%s", "file not found",
                 NULL
             );
             return -1;
@@ -1614,7 +1622,7 @@ PRIVATE int get_topic_fd(
                     "msg",          "%s", "TOO MANY OPEN FILES",
                     NULL
                 );
-                close_fd_opened_files(gobj, topic);
+                close_fd_wr_files(gobj, topic, key);
 
                 fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
                 if(fp < 0) {
@@ -1671,10 +1679,11 @@ PRIVATE int get_topic_fd(
             fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
         }
         if(fd<0) {
-            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            gobj_log_critical(gobj,
+                master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open content file",
+                "msg",          "%s", "Cannot open file",
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
@@ -1701,59 +1710,79 @@ PRIVATE int get_topic_fd(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int close_fd_opened_files(
+PRIVATE int _close_fd_files(
     hgobj gobj,
-    json_t *topic
+    json_t *fd_files,
+    const char *key_
 )
 {
     json_t *jn_value;
     const char *key;
     void *tmp;
 
+    json_object_foreach_safe(fd_files, tmp, key, jn_value) {
+        if(json_is_object(jn_value)) {
+            json_t *jn_value2;
+            const char *key2;
+            void *tmp2;
+            json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
+                if(empty_string(key_) || strcmp(key2, key_)==0) {
+                    int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
+                    if(fd >= 0) {
+                        close(fd);
+                    }
+                    json_object_del(jn_value, key2);
+                }
+            }
+        } else {
+            int fd = (int)kw_get_int(gobj, fd_files, key, -1, KW_REQUIRED);
+            if(fd >= 0) {
+                close(fd);
+            }
+            json_object_del(fd_files, key);
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_fd_wr_files(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+)
+{
     json_t *fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
-    json_object_foreach_safe(fd_files, tmp, key, jn_value) {
-        if(json_is_object(jn_value)) {
-            json_t *jn_value2;
-            const char *key2;
-            void *tmp2;
-            json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
-                int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
-                if(fd >= 0) {
-                    close(fd);
-                }
-                json_object_del(jn_value, key2);
-            }
-        } else {
-            int fd = (int)kw_get_int(gobj, fd_files, key, -1, KW_REQUIRED);
-            if(fd >= 0) {
-                close(fd);
-            }
-            json_object_del(fd_files, key);
-        }
-    }
+    return _close_fd_files(gobj, fd_files, key);
+}
 
-    fd_files = kw_get_dict(gobj, topic, "rd_fd_files", 0, KW_REQUIRED);
-    json_object_foreach_safe(fd_files, tmp, key, jn_value) {
-        if(json_is_object(jn_value)) {
-            json_t *jn_value2;
-            const char *key2;
-            void *tmp2;
-            json_object_foreach_safe(jn_value, tmp2, key2, jn_value2) {
-                int fd = (int)kw_get_int(gobj, jn_value, key2, -1, KW_REQUIRED);
-                if(fd >= 0) {
-                    close(fd);
-                }
-                json_object_del(jn_value, key2);
-            }
-        } else {
-            int fd = (int)kw_get_int(gobj, fd_files, key, -1, KW_REQUIRED);
-            if(fd >= 0) {
-                close(fd);
-            }
-            json_object_del(fd_files, key);
-        }
-    }
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_fd_rd_files(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+)
+{
+    json_t *fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
+    return _close_fd_files(gobj, fd_files, key);
+}
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_fd_opened_files(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+)
+{
+    close_fd_wr_files(gobj, topic, key);
+    close_fd_rd_files(gobj, topic, key);
     return 0;
 }
 
