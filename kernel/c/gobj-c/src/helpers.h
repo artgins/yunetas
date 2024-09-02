@@ -527,6 +527,7 @@ PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (
 unsigned long free_ram_in_kb(void); /* Free memory in kB */
 PUBLIC uint64_t htonll(uint64_t value); /* Convert a 64-bit integer to network byte order*/
 PUBLIC uint64_t ntohll(uint64_t value); /* Convert a 64-bit integer to host byte order */
+PUBLIC void list_open_files(void);
 
 
 #ifdef __cplusplus

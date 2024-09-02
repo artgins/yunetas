@@ -4405,3 +4405,55 @@ PUBLIC uint64_t ntohll(uint64_t value)
         return value;
     }
 }
+
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <dirent.h>
+//#include <unistd.h>
+//#include <limits.h>
+//#include <string.h>
+
+/***************************************************************************
+ *  Convert a 64-bit integer to host byte order
+ ***************************************************************************/
+PUBLIC void list_open_files(void)
+{
+    char fd_dir_path[PATH_MAX];
+    char file_path[2*PATH_MAX];
+    char resolved_path[PATH_MAX];
+    struct dirent *entry;
+    DIR *dir;
+
+    // Get the directory path for the file descriptors of the current process
+    snprintf(fd_dir_path, sizeof(fd_dir_path), "/proc/self/fd");
+
+    // Open the /proc/self/fd directory
+    dir = opendir(fd_dir_path);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    // Iterate over each entry in the directory
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip the '.' and '..' entries
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        // Construct the full path to the file descriptor link
+        snprintf(file_path, sizeof(file_path), "%s/%s", fd_dir_path, entry->d_name);
+
+        // Resolve the symbolic link to get the actual file path
+        ssize_t len = readlink(file_path, resolved_path, sizeof(resolved_path) - 1);
+        if (len != -1) {
+            resolved_path[len] = '\0';
+            printf("FD %s: %s\n", entry->d_name, resolved_path);
+        } else {
+            perror("readlink");
+        }
+    }
+
+    // Close the directory
+    closedir(dir);
+}

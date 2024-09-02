@@ -227,7 +227,7 @@ int do_test(void)
             'trace_level': 1, \
             'directory': '%s', \
             'fd_opened_files': { \
-                '__timeranger2__.json': 6 \
+                '__timeranger2__.json': 9999 \
             }, \
             'topics': { \
                 '%s': { \
@@ -255,6 +255,7 @@ int do_test(void)
         ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
 
         const char *ignore_keys[]= {
+            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -270,6 +271,7 @@ int do_test(void)
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
+    print_json2("XXX before loading records", tranger); // TODO TEST
     uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
         uint64_t tm = t1;
@@ -288,13 +290,13 @@ int do_test(void)
     }
     printf("last time: %"PRIu64"\n", time_in_seconds());
 
-//    print_json2("XXX after loading records", tranger); // TODO TEST
+    print_json2("XXX after loading records", tranger); // TODO TEST
 
     if(1) {
         /*-------------------------------------*
          *      List all records
          *-------------------------------------*/
-        leidos = 0;
+        leidos = 1000;
 
         json_t *jn_list = json_pack("{s:s, s:o, s:I}",
             "topic_name", TOPIC_NAME,

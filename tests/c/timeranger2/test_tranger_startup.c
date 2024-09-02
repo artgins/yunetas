@@ -208,7 +208,7 @@ int do_test(void)
             'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
-                '__timeranger2__.json': 6 \
+                '__timeranger2__.json': 9999 \
             }, \
             'topics': { \
                 '%s': { \
@@ -232,6 +232,7 @@ int do_test(void)
         ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
 
         const char *ignore_keys[]= {
+            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -243,6 +244,8 @@ int do_test(void)
         );
         result += test_json(json_incref(tranger));
     }
+
+    list_open_files();
 
     /*------------------------*
      *      Close topic
@@ -277,13 +280,14 @@ int do_test(void)
             'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
-            '__timeranger2__.json': 6 \
+            '__timeranger2__.json': 9999 \
             }, \
             'topics': {} \
         } \
         ", path_root, path_database);
 
         const char *ignore_keys[]= {
+            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -295,6 +299,8 @@ int do_test(void)
         );
         result += test_json(json_incref(tranger));
     }
+
+    list_open_files();
 
     /*------------------------------------------*
      *  Check re-open tranger as master
