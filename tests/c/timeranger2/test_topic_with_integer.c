@@ -256,7 +256,6 @@ int do_test(void)
             "path",
             "directory",
             "__timeranger2__.json",
-            "topic_idx_fd",
             NULL
         };
         set_expected_results(

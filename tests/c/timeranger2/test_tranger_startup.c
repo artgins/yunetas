@@ -193,7 +193,7 @@ int do_test(void)
      *  Check tranger memory with topic opened
      *------------------------------------------*/
     if(1) {
-        char expected[2000];
+        char expected[16*1024];
         snprintf(expected, sizeof(expected), "\
         { \
             'path': '%s', \
@@ -207,7 +207,7 @@ int do_test(void)
             'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
-                '__timeranger2__.json': 99999 \
+                '__timeranger2__.json': 6 \
             }, \
             'topics': { \
                 'topic_sample': { \
@@ -228,13 +228,10 @@ int do_test(void)
                 } \
             } \
         } \
-        ", "xxx", "xxx", "xxx");
+        ", path_root, path_database, path_topic);
 
         const char *ignore_keys[]= {
-            "path",
-            "directory",
-            "__timeranger2__.json",
-            "topic_idx_fd",
+//            "__timeranger2__.json",
             NULL
         };
         set_expected_results(
@@ -289,7 +286,6 @@ int do_test(void)
             "path",
             "directory",
             "__timeranger2__.json",
-            "topic_idx_fd",
             NULL
         };
         set_expected_results(
@@ -328,7 +324,6 @@ int do_test(void)
             "path",
             "directory",
             "__timeranger2__.json",
-            "topic_idx_fd",
             NULL
         };
 
