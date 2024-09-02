@@ -218,7 +218,9 @@ int do_test(void)
                     'directory': 'xxx', \
                     'fd_opened_files': {}, \
                     'lists': [], \
-                    'cache': {} \
+                    'cache': { \
+                        'topic_sample': {} \
+                    } \
                 } \
             } \
         } \

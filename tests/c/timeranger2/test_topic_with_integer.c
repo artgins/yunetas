@@ -15,7 +15,7 @@
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
 #define MAX_KEYS    1 // TODO 100000
-#define MAX_RECORDS 10 // TODO 100000
+#define MAX_RECORDS 1000 // TODO 100000
 
 /***************************************************************
  *              Prototypes
@@ -241,7 +241,9 @@ int do_test(void)
                     'directory': 'xxx', \
                     'fd_opened_files': {}, \
                     'lists': [], \
-                    'cache': {} \
+                    'cache': { \
+                        'topic_with_integer': {} \
+                    } \
                 } \
             } \
         } \
@@ -267,9 +269,9 @@ int do_test(void)
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
-    printf("first time: %"PRIu64"\n", time_in_seconds());
+    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
-        uint64_t tm = time_in_seconds() - MAX_RECORDS;
+        uint64_t tm = t1;
         for(json_int_t j=0; j<MAX_RECORDS; j++) {
             json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
                "id", i + 1,
@@ -280,8 +282,7 @@ int do_test(void)
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
             );
             md2_record_t md_record;
-            tranger2_append_record(tranger, TOPIC_NAME, tm+MAX_RECORDS, 0, &md_record, jn_record1);
-            sleep(1);
+            tranger2_append_record(tranger, TOPIC_NAME, tm+j+1, 0, &md_record, jn_record1);
         }
     }
     printf("last time: %"PRIu64"\n", time_in_seconds());
