@@ -43,18 +43,21 @@ int do_test(void)
      *  Write the tests in ~/tests_yuneta/
      */
     const char *home = getenv("HOME");
-    char path[PATH_MAX];
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
 
-    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
-    mkrdir(path, 02770);
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
 
-    build_path(path, sizeof(path), home, "tests_yuneta", TEST_NAME, NULL);
-    rmrdir(path);
+    build_path(path_database, sizeof(path_database), path_root, TEST_NAME, NULL);
+    rmrdir(path_database);
+
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     set_expected_results(
         "tr__check_tranger_startup", // test name
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
@@ -69,7 +72,7 @@ int do_test(void)
         TRUE    // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
-        "path", path,
+        "path", path_root,
         "database", TEST_NAME,
         "master", 1,
         "on_critical_error", 0
@@ -79,7 +82,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check __timeranger2__.json file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, "__timeranger2__.json", NULL);
+    build_path(file, sizeof(file), path_database, "__timeranger2__.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -123,7 +126,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_desc.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -147,7 +150,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_cols.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_cols.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -169,7 +172,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_var.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_var.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -190,18 +193,19 @@ int do_test(void)
      *  Check tranger memory with topic opened
      *------------------------------------------*/
     if(1) {
-        char expected[]= "\
+        char expected[2000];
+        snprintf(expected, sizeof(expected), "\
         { \
-            'path': 'xxx', \
+            'path': '%s', \
             'database': 'tr_tranger_startup', \
-            'filename_mask': '%Y-%m-%d', \
+            'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 0, \
-            'directory': 'xxx', \
+            'directory': '%s', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 99999 \
             }, \
@@ -215,7 +219,7 @@ int do_test(void)
                         'id': '', \
                             'address': '' \
                     }, \
-                    'directory': 'xxx', \
+                    'directory': '%s', \
                     'fd_opened_files': {}, \
                     'lists': [], \
                     'cache': { \
@@ -224,7 +228,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ";
+        ", "xxx", "xxx", "xxx");
 
         const char *ignore_keys[]= {
             "path",
@@ -340,7 +344,7 @@ int do_test(void)
         );
 
         json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
-            "path", path,
+            "path", path_root,
             "database", TEST_NAME,
             "master", 1,
             "on_critical_error", 0

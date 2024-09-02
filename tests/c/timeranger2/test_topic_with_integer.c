@@ -62,20 +62,23 @@ int do_test(void)
      *  Write the tests in ~/tests_yuneta/
      */
     const char *home = getenv("HOME");
-    char path[PATH_MAX];
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
 
-    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
-    mkrdir(path, 02770);
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
 
-    build_path(path, sizeof(path), home, "tests_yuneta", TEST_NAME, NULL);
-    rmrdir(path);
+    build_path(path_database, sizeof(path_database), path_root, TEST_NAME, NULL);
+    rmrdir(path_database);
+
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    build_path(path, sizeof(path), home, "tests_yuneta", NULL);
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
-        "path", path,
+        "path", path_root,
         "database", TEST_NAME,
         "master", 1,
         "on_critical_error", 0,
@@ -89,7 +92,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check __timeranger2__.json file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, "__timeranger2__.json", NULL);
+    build_path(file, sizeof(file), path_database, "__timeranger2__.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -138,7 +141,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_desc.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_desc.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -165,7 +168,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_cols.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_cols.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_cols.json", NULL);
     if(1) {
         char expected[]= "\
         { \
@@ -188,7 +191,7 @@ int do_test(void)
     /*------------------------------------*
      *  Check "topic_var.json" file
      *------------------------------------*/
-    build_path(file, sizeof(file), path, TEST_NAME, TOPIC_NAME, "topic_var.json", NULL);
+    build_path(file, sizeof(file), path_topic, "topic_var.json", NULL);
     if(1) {
         char expected[]= "\
         { \
