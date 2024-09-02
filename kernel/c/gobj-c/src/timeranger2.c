@@ -2864,6 +2864,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
     char path[PATH_MAX];
 
     json_t *t_range = json_object();
+    json_t *t_range_files = kw_get_dict(gobj, t_range, "files", json_array(), KW_CREATE);
 
     build_path(path, sizeof(path), directory, key, NULL);
 
@@ -3048,7 +3049,8 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         if(p) {
             *p = 0;
         }
-        json_t *partial_range = kw_get_dict(gobj, t_range, files_md[i], json_object(), KW_CREATE);
+        json_t *partial_range = json_object();
+        json_object_set_new(partial_range, "name", json_string(files_md[i]));
         if(p) {
             *p = '.';
         }
@@ -3059,6 +3061,8 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
         json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
 
+        json_array_append_new(t_range_files, partial_range);
+
         total_rows += partial_rows;
 
         close(fd);
@@ -3066,7 +3070,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
 
     free_ordered_filename_array(files_md, files_md_size);
 
-    json_t *total_range = kw_get_dict(gobj, t_range, "__total__", json_object(), KW_CREATE);
+    json_t *total_range = kw_get_dict(gobj, t_range, "total", json_object(), KW_CREATE);
     json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
     json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
     json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
