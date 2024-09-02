@@ -786,7 +786,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
-    // TODO this cache must be update in tranger2_append_record() of open_list() ???!!!
+    // TODO this cache must be update in tranger2_append_record() or open_list() ???!!!
     json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
     json_t *cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!cache) {
@@ -2857,11 +2857,13 @@ PRIVATE int load_topic_metadata(
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
 {
     uint64_t last_rowid = 0;
-    uint64_t from_t = (uint64_t)(-1);
-    uint64_t to_t = 0;
-    uint64_t from_tm = (uint64_t)(-1);
-    uint64_t to_tm = 0;
+    uint64_t global_from_t = (uint64_t)(-1);
+    uint64_t global_to_t = 0;
+    uint64_t global_from_tm = (uint64_t)(-1);
+    uint64_t global_to_tm = 0;
     char path[PATH_MAX];
+
+    json_t *t_range = json_object();
 
     build_path(path, sizeof(path), directory, key, NULL);
 
@@ -2874,9 +2876,6 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         &files_md_size
     );
     for(int i=0; i<files_md_size; i++) {
-
-printf("%s: %s\n", key, files_md[i]); // TODO TEST
-
         md2_record_t md_record;
         build_path(path, sizeof(path), directory, key, files_md[i], NULL);
         int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
@@ -2911,26 +2910,25 @@ printf("%s: %s\n", key, files_md[i]); // TODO TEST
                     "errno",        "%s", strerror(errno),
                     NULL
                 );
-                close(fd);
             } else if(ln==0) {
                 // No data
-                close(fd);
             }
+            close(fd);
             continue;
         }
 
-        if(md_record.__t__ < from_t) {
-            from_t = md_record.__t__;
+        if(md_record.__t__ < global_from_t) {
+            global_from_t = md_record.__t__;
         }
-        if(md_record.__t__ > to_t) {
-            to_t = md_record.__t__;
+        if(md_record.__t__ > global_to_t) {
+            global_to_t = md_record.__t__;
         }
 
-        if(md_record.__tm__ < from_tm) {
-            from_tm = md_record.__tm__;
+        if(md_record.__tm__ < global_from_tm) {
+            global_from_tm = md_record.__tm__;
         }
-        if(md_record.__tm__ > to_tm) {
-            to_tm = md_record.__tm__;
+        if(md_record.__tm__ > global_to_tm) {
+            global_to_tm = md_record.__tm__;
         }
 
         /*
@@ -2991,26 +2989,25 @@ printf("%s: %s\n", key, files_md[i]); // TODO TEST
                     "errno",        "%s", strerror(errno),
                     NULL
                 );
-                close(fd);
             } else if(ln==0) {
                 // No data
-                close(fd);
             }
+            close(fd);
             continue;
         }
 
-        if(md_record.__t__ < from_t) {
-            from_t = md_record.__t__;
+        if(md_record.__t__ < global_from_t) {
+            global_from_t = md_record.__t__;
         }
-        if(md_record.__t__ > to_t) {
-            to_t = md_record.__t__;
+        if(md_record.__t__ > global_to_t) {
+            global_to_t = md_record.__t__;
         }
 
-        if(md_record.__tm__ < from_tm) {
-            from_tm = md_record.__tm__;
+        if(md_record.__tm__ < global_from_tm) {
+            global_from_tm = md_record.__tm__;
         }
-        if(md_record.__tm__ > to_tm) {
-            to_tm = md_record.__tm__;
+        if(md_record.__tm__ > global_to_tm) {
+            global_to_tm = md_record.__tm__;
         }
 
         close(fd);
@@ -3018,12 +3015,12 @@ printf("%s: %s\n", key, files_md[i]); // TODO TEST
 
     free_ordered_filename_array(files_md, files_md_size);
 
-    json_t *t_range = json_object();
-    json_object_set_new(t_range, "t_1", json_integer((json_int_t)from_t));
-    json_object_set_new(t_range, "t_2", json_integer((json_int_t)to_t));
-    json_object_set_new(t_range, "tm_1", json_integer((json_int_t)from_tm));
-    json_object_set_new(t_range, "tm_2", json_integer((json_int_t)to_tm));
-    json_object_set_new(t_range, "rows", json_integer((json_int_t)last_rowid));
+    json_t *total_range = kw_get_dict(gobj, t_range, "__total__", json_object(), KW_CREATE);
+    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
+    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
+    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
+    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
+    json_object_set_new(total_range, "last_rowid", json_integer((json_int_t)last_rowid));
 
     return t_range;
 }
