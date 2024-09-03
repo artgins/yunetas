@@ -1529,12 +1529,11 @@ PRIVATE char *get_t_filename(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_topic_fd(
+PRIVATE int get_topic_wr_fd(
     json_t *tranger,
     json_t *topic,
     const char *key,
     BOOL for_data,
-    BOOL for_write,
     uint64_t __t__
 )
 {
@@ -1617,7 +1616,7 @@ PRIVATE int get_topic_fd(
         /*----------------------------------------*
          *  Create (only)the new file if master
          *----------------------------------------*/
-        if(!master || !for_write) {
+        if(!master) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1688,7 +1687,7 @@ PRIVATE int get_topic_fd(
         kw_get_dict(
             gobj,
             topic,
-            for_write?"wr_fd_files":"rd_fd_files",
+            "wr_fd_files", // for_write?"wr_fd_files":"rd_fd_files",
             0,
             KW_REQUIRED
         ),
@@ -1721,7 +1720,7 @@ PRIVATE int get_topic_fd(
             kw_get_dict(
                 gobj,
                 topic,
-                for_write?"wr_fd_files":"rd_fd_files",
+                "wr_fd_files",
                 0,
                 KW_REQUIRED
             ),
@@ -2013,7 +2012,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_fd(tranger, topic, key_value, TRUE, TRUE, __t__);  // Can be -1, if sf_no_disk
+    int content_fp = get_topic_wr_fd(tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -2106,7 +2105,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Save md, to file
      *--------------------------------------------*/
-    int md2_fp = get_topic_fd(tranger, topic, key_value, FALSE, TRUE, __t__);  // Can be -1, if sf_no_disk
+    int md2_fp = get_topic_wr_fd(tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
         if(offset < 0) {
@@ -2397,7 +2396,7 @@ PUBLIC int tranger2_delete_record(
 //    /*--------------------------------------------*
 //     *  Recover file corresponds to __t__
 //     *--------------------------------------------*/
-//    int fd = get_topic_fd(tranger, topic, "TODO", TRUE, md_record.__t__); // TODO
+//    int fd = get_topic_wr_fd(tranger, topic, "TODO", TRUE, md_record.__t__); // TODO
 //    if(fd<0) {
 //        // Error already logged
 //        return -1;
