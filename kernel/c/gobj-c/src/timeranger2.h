@@ -217,7 +217,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 /**rst**
    Get topic size (number of records)
 **rst**/
-PUBLIC json_int_t tranger2_topic_size(
+PUBLIC uint64_t tranger2_topic_size(
     json_t *tranger,
     const char *topic_name,
     const char *key
@@ -462,9 +462,9 @@ PUBLIC int tranger2_close_list(
 );
 
 /**rst**
-    Get record by rowid
+    Get record metadata by rowid
 **rst**/
-PUBLIC int tranger2_get_record(
+PUBLIC int tranger2_get_record_md(
     json_t *tranger,
     json_t *topic,
     const char *key,

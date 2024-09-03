@@ -584,7 +584,7 @@ PRIVATE BOOL match_tranger_record(
 {
     md2_record_t md_record;
 
-    if(tranger2_get_record(tranger, tranger2_topic(tranger, topic_name), key, rowid, &md_record, TRUE)<0) {
+    if(tranger2_get_record_md(tranger, tranger2_topic(tranger, topic_name), key, rowid, &md_record, TRUE)<0) {
         return FALSE;
     }
 
