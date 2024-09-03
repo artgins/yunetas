@@ -36,9 +36,10 @@ int times_periodic = 0;
  *
  ***************************************************************************/
 size_t leidos = 0;
-int load_all_records_callback(
+int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *list,
     md2_record_t *md_record,
     json_t *jn_record
@@ -288,7 +289,7 @@ int do_test(void)
             tranger2_append_record(tranger, TOPIC_NAME, tm+j+1, 0, &md_record, jn_record1);
         }
     }
-    printf("last time: %"PRIu64"\n", time_in_seconds());
+    printf("last time: %"PRIu64"\n", time_in_seconds()); //  TODO TEST
 
     print_json2("XXX after loading records", tranger); // TODO TEST
 
@@ -296,12 +297,12 @@ int do_test(void)
         /*-------------------------------------*
          *      List all records
          *-------------------------------------*/
-        leidos = MAX_RECORDS; // TODO deja = 0
+        leidos = 0;
 
         json_t *jn_list = json_pack("{s:s, s:o, s:I}",
             "topic_name", TOPIC_NAME,
             "match_cond", json_object(),
-            "load_record_callback", (json_int_t)(size_t)load_all_records_callback
+            "load_record_callback", (json_int_t)(size_t)all_load_record_callback
         );
         json_t *tr_list = tranger2_open_list(
             tranger,

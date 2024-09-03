@@ -584,13 +584,14 @@ PRIVATE BOOL match_tranger_record(
 {
     md2_record_t md_record;
 
-    if(tranger2_get_record(tranger, tranger2_topic(tranger, topic_name), rowid, &md_record, TRUE)<0) {
+    if(tranger2_get_record(tranger, tranger2_topic(tranger, topic_name), key, rowid, &md_record, TRUE)<0) {
         return FALSE;
     }
 
     json_t *record_ = tranger2_read_record_content(
         tranger,
         tranger2_topic(tranger, topic_name),
+        key,
         &md_record
     );
     if(!record) {

@@ -115,6 +115,7 @@ PRIVATE int load_topic_metadata(
     json_t *jn_keys         // not owned
 );
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
+PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 
 /***************************************************************
  *              Data
@@ -2140,6 +2141,7 @@ PUBLIC int tranger2_append_record(
         if(tranger2_match_record(
                 tranger,
                 topic,
+                key_value,
                 kw_get_dict(gobj, list, "match_cond", 0, 0),
                 md_record,
                 0
@@ -2158,6 +2160,7 @@ PUBLIC int tranger2_append_record(
                 int ret = load_record_callback(
                     tranger,
                     topic,
+                    key_value,
                     list,
                     md_record,
                     jn_record
@@ -2703,6 +2706,7 @@ PUBLIC json_t *tranger2_open_list(
      *  Load from disk
      */
     // TODO esto no debe estar aquí, en topic_open(), y actualizado con append_record()
+    // TODO porque recargamos el cache
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
     json_t *jn_keys = find_keys_in_disk(gobj, directory, match_cond);
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
@@ -2716,89 +2720,106 @@ PUBLIC json_t *tranger2_open_list(
         topic_cache,    // not owned
         jn_keys         // not owned
     );
-    json_decref(jn_keys);
 
     /*
      *  Search
      */
     BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-size_t __last_rowid__ = 0; // TODO quita
-return list;
 
-//    int content_fp = get_topic_fd(tranger, topic, key, TRUE, __t__);  // Can be -1, if sf_no_disk
-//    int md2_fp = get_topic_fd(tranger, topic, key, FALSE, __t__);  // Can be -1, if sf_no_disk
+    /*
+     *  Loop over keys
+     */
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
 
-    BOOL end = FALSE;
-    md2_record_t md_record;
-    memset(&md_record, 0, sizeof(md2_record_t));
-    if(!backward) {
-        json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
-        if(from_rowid>0) {
-            end = tranger2_get_record(tranger, topic, from_rowid, &md_record, TRUE);
-        } else if(from_rowid<0 && (__last_rowid__ + from_rowid)>0) {
-            from_rowid = __last_rowid__ + from_rowid;
-            end = tranger2_get_record(tranger, topic, from_rowid, &md_record, TRUE);
-        } else {
-            end = tranger2_first_record(tranger, topic, &md_record);
-        }
-    } else {
-        json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
-        if(to_rowid>0) {
-            end = tranger2_get_record(tranger, topic, to_rowid, &md_record, TRUE);
-        } else if(to_rowid<0 && (__last_rowid__ + to_rowid)>0) {
-            to_rowid = __last_rowid__ + to_rowid;
-            end = tranger2_get_record(tranger, topic, to_rowid, &md_record, TRUE);
-        } else {
-            end = tranger2_last_record(tranger, topic, &md_record);
-        }
-    }
-
-    while(!end) {
-        if(trace_level) {
-            tr2_print_md1_record(tranger, topic, &md_record, title, sizeof(title));
-        }
-        if(tranger2_match_record(
-                tranger,
-                topic,
-                match_cond,
-                &md_record,
-                &end
-            )) {
-
-            if(trace_level) {
-                // TODO trace_msg0("ok - %s", title);
+        BOOL end = FALSE;
+        md2_record_t md_record;
+        memset(&md_record, 0, sizeof(md2_record_t));
+        if(!backward) {
+            json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
+            if(from_rowid>0) {
+                end = tranger2_get_record(tranger, topic, key, from_rowid, &md_record, TRUE);
+            } else if(from_rowid<0 && (__last_rowid__ + from_rowid)>0) {
+                from_rowid = __last_rowid__ + from_rowid;
+                end = tranger2_get_record(tranger, topic, key, from_rowid, &md_record, TRUE);
+            } else {
+                end = tranger2_first_record(tranger, topic, key, &md_record);
             }
+        } else {
+            json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
+            if(to_rowid>0) {
+                end = tranger2_get_record(tranger, topic, key, to_rowid, &md_record, TRUE);
+            } else if(to_rowid<0 && (__last_rowid__ + to_rowid)>0) {
+                to_rowid = __last_rowid__ + to_rowid;
+                end = tranger2_get_record(tranger, topic, key, to_rowid, &md_record, TRUE);
+            } else {
+                end = tranger2_last_record(tranger, topic, key, &md_record);
+            }
+        }
 
-            json_t *jn_record = 0;
-// TODO           md_record.__system_flag__ |= sf_loading_from_disk;
-//            if(!only_md) {
-//                jn_record = tranger_read_record_content(tranger, topic, &md_record);
-//            }
-
-            if(load_record_callback) {
-                /*--------------------------------------------*
-                 *  Put record metadata in json record
-                 *--------------------------------------------*/
-                // Inform user list: record from disk
-                JSON_INCREF(jn_record)
-                int ret = load_record_callback(
+        while(!end) {
+            if(trace_level) {
+                tr2_print_md1_record(tranger, topic, key, &md_record, title, sizeof(title));
+            }
+            if(tranger2_match_record(
                     tranger,
                     topic,
-                    list,
+                    key,
+                    match_cond,
                     &md_record,
-                    jn_record
-                );
-                /*
-                 *  Return:
-                 *      0 do nothing (callback will create their own list, or not),
-                 *      1 add record to returned list.data,
-                 *      -1 break the load
-                 */
-                if(ret < 0) {
-                    JSON_DECREF(jn_record)
-                    break;
-                } else if(ret > 0) {
+                    &end
+                )) {
+
+                if(trace_level) {
+                    // TODO trace_msg0("ok - %s", title);
+                }
+
+                json_t *jn_record = 0;
+    // TODO           md_record.__system_flag__ |= sf_loading_from_disk;
+    //            if(!only_md) {
+    //                jn_record = tranger_read_record_content(tranger, topic, &md_record);
+    //            }
+
+                if(load_record_callback) {
+                    /*--------------------------------------------*
+                     *  Put record metadata in json record
+                     *--------------------------------------------*/
+                    // Inform user list: record from disk
+                    JSON_INCREF(jn_record)
+                    int ret = load_record_callback(
+                        tranger,
+                        topic,
+                        key,
+                        list,
+                        &md_record,
+                        jn_record
+                    );
+                    /*
+                     *  Return:
+                     *      0 do nothing (callback will create their own list, or not),
+                     *      1 add record to returned list.data,
+                     *      -1 break the load
+                     */
+                    if(ret < 0) {
+                        JSON_DECREF(jn_record)
+                        break;
+                    } else if(ret > 0) {
+                        if(!jn_record) {
+                            jn_record = json_object();
+                        }
+                        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(&md_record));
+                        json_array_append_new(
+                            data,
+                            jn_record // owned
+                        );
+                    } else { // == 0
+                        // user's callback manages the record
+                        JSON_DECREF(jn_record)
+                    }
+                } else {
                     if(!jn_record) {
                         jn_record = json_object();
                     }
@@ -2807,34 +2828,24 @@ return list;
                         data,
                         jn_record // owned
                     );
-                } else { // == 0
-                    // user's callback manages the record
-                    JSON_DECREF(jn_record)
                 }
             } else {
-                if(!jn_record) {
-                    jn_record = json_object();
+                if(trace_level) {
+                    // TODO trace_msg0("XX - %s", title);
                 }
-                json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(&md_record));
-                json_array_append_new(
-                    data,
-                    jn_record // owned
-                );
             }
-        } else {
-            if(trace_level) {
-                // TODO trace_msg0("XX - %s", title);
+            if(end) {
+                break;
             }
-        }
-        if(end) {
-            break;
-        }
-        if(!backward) {
-            end = tranger2_next_record(tranger, topic, &md_record);
-        } else {
-            end = tranger2_prev_record(tranger, topic, &md_record);
+            if(!backward) {
+                end = tranger2_next_record(tranger, topic, key, &md_record);
+            } else {
+                end = tranger2_prev_record(tranger, topic, key, &md_record);
+            }
         }
     }
+
+    json_decref(jn_keys);
 
     return list;
 }
@@ -2942,6 +2953,16 @@ PRIVATE int load_topic_metadata(
         json_object_set_new(topic_cache, key, t_range);
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Get key rows (topic key size)
+ ***************************************************************************/
+PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
+{
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "cache`%s`total`rows", key);
+    return kw_get_int(gobj, topic, path, 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -3208,6 +3229,7 @@ PUBLIC json_t *tranger2_get_list(
 PUBLIC int tranger2_get_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     uint64_t rowid,
     md2_record_t *md_record,
     BOOL verbose
@@ -3340,6 +3362,7 @@ PUBLIC int tranger2_get_record(
 PUBLIC json_t *tranger2_read_record_content(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md_record
 )
 {
@@ -3457,6 +3480,7 @@ PUBLIC json_t *tranger2_read_record_content(
 PUBLIC BOOL tranger2_match_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *match_cond,  // not owned
     const md2_record_t *md_record,
     BOOL *end
@@ -3472,7 +3496,7 @@ PUBLIC BOOL tranger2_match_record(
         return TRUE;
     }
     md2_record_t md_record_last;
-    tranger2_last_record(tranger, topic, &md_record_last);
+    tranger2_last_record(tranger, topic, key, &md_record_last);
     uint64_t __last_rowid__ = 0; // TODO md_record_last.__rowid__;
     uint64_t __last_t__ = md_record_last.__t__;
     uint64_t __last_tm__ = md_record_last.__tm__;
@@ -3855,6 +3879,7 @@ PUBLIC BOOL tranger2_match_record(
 PUBLIC int tranger2_find_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *match_cond,  // owned
     md2_record_t *md_record
 )
@@ -3867,12 +3892,12 @@ PUBLIC int tranger2_find_record(
 
     BOOL end = FALSE;
     if(!backward) {
-        end = tranger2_first_record(tranger, topic, md_record);
+        end = tranger2_first_record(tranger, topic, key, md_record);
     } else {
-        end = tranger2_last_record(tranger, topic, md_record);
+        end = tranger2_last_record(tranger, topic, key, md_record);
     }
     while(!end) {
-        if(tranger2_match_record(tranger, topic, match_cond, md_record, &end)) {
+        if(tranger2_match_record(tranger, topic, key, match_cond, md_record, &end)) {
             JSON_DECREF(match_cond)
             return 0;
         }
@@ -3880,9 +3905,9 @@ PUBLIC int tranger2_find_record(
             break;
         }
         if(!backward) {
-            end = tranger2_next_record(tranger, topic, md_record);
+            end = tranger2_next_record(tranger, topic, key, md_record);
         } else {
-            end = tranger2_prev_record(tranger, topic, md_record);
+            end = tranger2_prev_record(tranger, topic, key, md_record);
         }
     }
     JSON_DECREF(match_cond)
@@ -3895,6 +3920,7 @@ PUBLIC int tranger2_find_record(
 PUBLIC int tranger2_first_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md_record
 )
 {
@@ -3902,6 +3928,7 @@ PUBLIC int tranger2_first_record(
     if(tranger2_get_record(
         tranger,
         topic,
+        key,
         rowid,
         md_record,
         FALSE
@@ -3934,6 +3961,7 @@ PUBLIC int tranger2_first_record(
 PUBLIC int tranger2_last_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md_record
 )
 {
@@ -3942,6 +3970,7 @@ PUBLIC int tranger2_last_record(
     if(tranger2_get_record(
         tranger,
         topic,
+        key,
         rowid,
         md_record,
         FALSE
@@ -3975,6 +4004,7 @@ PUBLIC int tranger2_last_record(
 PUBLIC int tranger2_next_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md_record
 )
 {
@@ -4016,6 +4046,7 @@ PUBLIC int tranger2_next_record(
 PUBLIC int tranger2_prev_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md_record
 )
 {
@@ -4059,13 +4090,14 @@ PUBLIC int tranger2_prev_record(
 PUBLIC void tr2_print_md0_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md_record,
     char *bf,
     int bfsize
 )
 {
     uint64_t __rowid__ = 0; // TODO get from ???
-    const char *key = "";         // TODO get from ???
+//    const char *key = "";         // TODO get from ???
     uint64_t ikey = 0;
 
     char fecha[90];
@@ -4148,13 +4180,14 @@ PUBLIC void tr2_print_md0_record(
 PUBLIC void tr2_print_md1_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md_record,
     char *bf,
     int bfsize
 )
 {
     uint64_t __rowid__ = 0; // TODO get from ???
-    const char *key = "";         // TODO get from ???
+//    const char *key = "";         // TODO get from ???
     uint64_t ikey = 0;
 
     struct tm *tm;
@@ -4252,6 +4285,7 @@ PUBLIC void tr2_print_md1_record(
 PUBLIC void tr2_print_md2_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md_record,
     char *bf,
     int bfsize
@@ -4289,6 +4323,7 @@ PUBLIC void tr2_print_md2_record(
 PUBLIC void tr2_print_record_filename(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md_record,
     char *bf,
     int bfsize

@@ -418,6 +418,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *list,
     md2_record_t *md2_record,
     /*
@@ -464,6 +465,7 @@ PUBLIC int tranger2_close_list(
 PUBLIC int tranger2_get_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     uint64_t rowid,
     md2_record_t *md2_record,
     BOOL verbose
@@ -475,6 +477,7 @@ PUBLIC int tranger2_get_record(
 PUBLIC json_t *tranger2_read_record_content(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md2_record
 );
 
@@ -484,6 +487,7 @@ PUBLIC json_t *tranger2_read_record_content(
 PUBLIC BOOL tranger2_match_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *match_cond,  // not owned
     const md2_record_t *md2_record,
     BOOL *end
@@ -495,6 +499,7 @@ PUBLIC BOOL tranger2_match_record(
 PUBLIC int tranger2_find_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *match_cond,  // owned
     md2_record_t *md2_record
 );
@@ -505,21 +510,25 @@ PUBLIC int tranger2_find_record(
 PUBLIC int tranger2_first_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md2_record
 );
 PUBLIC int tranger2_last_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md2_record
 );
 PUBLIC int tranger2_next_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md2_record
 );
 PUBLIC int tranger2_prev_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     md2_record_t *md2_record
 );
 
@@ -531,6 +540,7 @@ PUBLIC int tranger2_prev_record(
 PUBLIC void tr2_print_md0_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md2_record,
     char *bf,
     int bfsize
@@ -538,6 +548,7 @@ PUBLIC void tr2_print_md0_record(
 PUBLIC void tr2_print_md1_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md2_record,
     char *bf,
     int bfsize
@@ -545,6 +556,7 @@ PUBLIC void tr2_print_md1_record(
 PUBLIC void tr2_print_md2_record(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md2_record,
     char *bf,
     int bfsize
@@ -553,6 +565,7 @@ PUBLIC void tr2_print_md2_record(
 PUBLIC void tr2_print_record_filename(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const md2_record_t *md2_record,
     char *bf,
     int bfsize

@@ -360,6 +360,7 @@ PRIVATE int list_topics(const char *path)
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *list,
     md2_record_t *md_record,
     json_t *jn_record // owned
@@ -373,7 +374,7 @@ PRIVATE int load_record_callback(
     int verbose = (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
-    tr2_print_md1_record(tranger, topic, md_record, title, sizeof(title));
+// TODO review   tr2_print_md1_record(tranger, topic, key, md_record, title, sizeof(title));
 
     BOOL table_mode = FALSE;
     json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
@@ -390,7 +391,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 0) {
-        tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
+        // TODO review tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(jn_record);
         return 0;
@@ -401,14 +402,14 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 2) {
-        tr2_print_md2_record(tranger, topic, md_record, title, sizeof(title));
+        // TODO review tr2_print_md2_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(jn_record);
         return 0;
     }
 
     if(!jn_record) {
-        jn_record = tranger2_read_record_content(tranger, topic, md_record);
+        jn_record = tranger2_read_record_content(tranger, topic, key, md_record);
     }
 
     if(kw_has_key(match_cond, "filter")) {
@@ -430,7 +431,7 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-            tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
+            tr2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
