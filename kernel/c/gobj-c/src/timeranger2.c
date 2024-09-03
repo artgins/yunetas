@@ -116,6 +116,16 @@ PRIVATE int load_topic_metadata(
 );
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
+PRIVATE int tranger2_get_record_md( // Get record metadata by rowid
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    uint64_t rowid,
+    md2_record_t *md2_record,
+    BOOL verbose
+);
+
 
 /***************************************************************
  *              Data
@@ -2751,20 +2761,20 @@ return list;
         if(!backward) {
             json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
             if(from_rowid>0) {
-                end = tranger2_get_record_md(tranger, topic, key, from_rowid, &md_record, TRUE);
+                end = tranger2_get_record_md(gobj, tranger, topic, key, from_rowid, &md_record, TRUE);
             } else if(from_rowid<0 && (__last_rowid__ + from_rowid)>0) {
                 from_rowid = __last_rowid__ + from_rowid;
-                end = tranger2_get_record_md(tranger, topic, key, from_rowid, &md_record, TRUE);
+                end = tranger2_get_record_md(gobj, tranger, topic, key, from_rowid, &md_record, TRUE);
             } else {
                 end = tranger2_first_record(tranger, topic, key, &md_record);
             }
         } else {
             json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
             if(to_rowid>0) {
-                end = tranger2_get_record_md(tranger, topic, key, to_rowid, &md_record, TRUE);
+                end = tranger2_get_record_md(gobj, tranger, topic, key, to_rowid, &md_record, TRUE);
             } else if(to_rowid<0 && (__last_rowid__ + to_rowid)>0) {
                 to_rowid = __last_rowid__ + to_rowid;
-                end = tranger2_get_record_md(tranger, topic, key, to_rowid, &md_record, TRUE);
+                end = tranger2_get_record_md(gobj, tranger, topic, key, to_rowid, &md_record, TRUE);
             } else {
                 end = tranger2_last_record(tranger, topic, key, &md_record);
             }
@@ -3242,7 +3252,8 @@ PUBLIC json_t *tranger2_get_list(
 /***************************************************************************
     Get md record by rowid (by FILE, for reads)
  ***************************************************************************/
-PUBLIC int tranger2_get_record_md(
+PRIVATE int tranger2_get_record_md(
+    hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -3251,8 +3262,6 @@ PUBLIC int tranger2_get_record_md(
     BOOL verbose
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
     memset(md_record, 0, sizeof(md2_record_t));
 
     if(rowid == 0) {
@@ -3940,8 +3949,11 @@ PUBLIC int tranger2_first_record(
     md2_record_t *md_record
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     json_int_t rowid = 1;
+
     if(tranger2_get_record_md(
+        gobj,
         tranger,
         topic,
         key,
@@ -3987,6 +3999,7 @@ PUBLIC int tranger2_last_record(
 
     json_int_t rowid = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
     if(tranger2_get_record_md(
+        gobj,
         tranger,
         topic,
         key,
@@ -4027,6 +4040,7 @@ PUBLIC int tranger2_next_record(
     md2_record_t *md_record
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 //   TODO json_int_t rowid = md_record->__rowid__ + 1;
 //
 //    if(tranger2_get_record_md(
@@ -4069,6 +4083,7 @@ PUBLIC int tranger2_prev_record(
     md2_record_t *md_record
 )
 {
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 //   TODO  json_int_t rowid = md_record->__rowid__ - 1;
 //    if(md_record->__rowid__ < 1) {
 //        return 0;

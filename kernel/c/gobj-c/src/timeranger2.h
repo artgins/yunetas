@@ -462,18 +462,6 @@ PUBLIC int tranger2_close_list(
 );
 
 /**rst**
-    Get record metadata by rowid
-**rst**/
-PUBLIC int tranger2_get_record_md(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    uint64_t rowid,
-    md2_record_t *md2_record,
-    BOOL verbose
-);
-
-/**rst**
     Read record content. Return must be decref!
 **rst**/
 PUBLIC json_t *tranger2_read_record_content(
