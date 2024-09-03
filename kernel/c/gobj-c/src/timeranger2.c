@@ -4182,8 +4182,8 @@ PUBLIC int tranger2_find_record(
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
             BOOL matched = TRUE;
-            json_int_t first_row = partial_rows2;           // first row of this segment
-            json_int_t last_row = partial_rows2 + rows2;    // last row of this segment
+            json_int_t first_row = partial_rows2;               // first row of this segment
+            json_int_t last_row = partial_rows2 + rows2 - 1;    // last row of this segment
             matched &= (first_row >= from_rowid);
             matched &= (last_row <= to_rowid);
             if(matched) {
