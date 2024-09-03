@@ -118,9 +118,8 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
-    json_t *tranger,
     json_t *topic,
-    const char *key,
+    json_t *segment,
     uint64_t rowid,
     md2_record_t *md2_record,
     BOOL verbose
@@ -3236,94 +3235,14 @@ PUBLIC json_t *tranger2_get_list(
  ***************************************************************************/
 PRIVATE int get_md_by_rowid(
     hgobj gobj,
-    json_t *tranger,
     json_t *topic,
-    const char *key,
+    json_t *segment,
     uint64_t rowid,
     md2_record_t *md_record,
     BOOL verbose
 )
 {
     memset(md_record, 0, sizeof(md2_record_t));
-
-    /*-------------------------------------*
-     *      Recover cache data
-     *-------------------------------------*/
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
-    if(!cache_files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "rowid",        "%lu", (unsigned long)rowid,
-            NULL
-        );
-        return -1;
-    }
-    snprintf(path, sizeof(path), "cache`%s`total", key);
-    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
-    if(!cache_total) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "rowid",        "%lu", (unsigned long)rowid,
-            NULL
-        );
-        return -1;
-    }
-
-    /*-------------------------------------*
-     *      Check the rowid in totals
-     *-------------------------------------*/
-
-    /*-------------------------------------*
-     *      Search file with the rowid
-     *-------------------------------------*/
-
-
-
-
-
-    if(rowid == 0) {
-        if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid must be > 0",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "rowid",        "%lu", (unsigned long)rowid,
-                NULL
-            );
-        }
-        return -1;
-    }
-
-    // TODO HACK no "master" (tranger readonly) don't have updated __last_rowid__
-    uint64_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
-    if(__last_rowid__ == 0) {
-        return -1;
-    }
-    if(rowid > __last_rowid__) {
-        if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid greater than last_rowid",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "rowid",        "%lu", (unsigned long)rowid,
-                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-                NULL
-            );
-        }
-        return -1;
-    }
 
     /*
      *  Find in the cache the range md
@@ -3924,7 +3843,7 @@ PUBLIC BOOL tranger2_match_record(
 }
 
 /***************************************************************************
-    Get a list segments that match
+ *  Get a list segments that match
  ***************************************************************************/
 PRIVATE json_t *get_segments(
     hgobj gobj,
@@ -4169,6 +4088,7 @@ PRIVATE json_t *get_segments(
                 json_t *jn_segment = json_deep_copy(cache_file);
                 json_object_set_new(jn_segment, "first_row", json_integer(first_row));
                 json_object_set_new(jn_segment, "last_row", json_integer(last_row));
+                json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }
             partial_rows2 += rows2;
@@ -4194,6 +4114,7 @@ PRIVATE json_t *get_segments(
                 json_t *jn_segment = json_deep_copy(cache_file);
                 json_object_set_new(jn_segment, "first_row", json_integer(first_row));
                 json_object_set_new(jn_segment, "last_row", json_integer(last_row));
+                json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }
             partial_rows2 -= rows2;
@@ -4201,6 +4122,30 @@ PRIVATE json_t *get_segments(
     }
 
     return jn_segments;
+}
+
+/***************************************************************************
+ *  Get first rowid from a list segments
+ ***************************************************************************/
+PRIVATE json_t *get_first_list_segment(hgobj gobj, json_t *jn_segments)
+{
+    size_t size = json_array_size(jn_segments);
+    if(size==0) {
+        return 0;
+    }
+    return json_array_get(jn_segments, 0);
+}
+
+/***************************************************************************
+ *  Get last rowid from a list segments
+ ***************************************************************************/
+PRIVATE json_t *get_last_list_segment(hgobj gobj, json_t *jn_segments)
+{
+    size_t size = json_array_size(jn_segments);
+    if(size==0) {
+        return 0;
+    }
+    return json_array_get(jn_segments, size-1);
 }
 
 /***************************************************************************
@@ -4230,286 +4175,11 @@ PUBLIC int tranger2_find_record(
         match_cond  // NOT owned
     );
 
-    print_json2("SEGMENTS", jn_segments);
+    print_json2("SEGMENTS", jn_segments); // TODO TEST
 
-    /*-------------------------------------*
-     *      Recover cache data
-     *-------------------------------------*/
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
-    if(!cache_files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        JSON_DECREF(match_cond)
-        return -1;
-    }
-    snprintf(path, sizeof(path), "cache`%s`total", key);
-    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
-    if(!cache_total) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        JSON_DECREF(match_cond)
-        return -1;
-    }
-
-    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
-    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
-    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
-    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
-    json_int_t total_rows = kw_get_int(gobj, cache_total, "rows", 0, KW_REQUIRED);
-
-    if(total_rows == 0) {
-        // NO rows
-        JSON_DECREF(match_cond)
-        return -1;
-    }
-
-    /*-------------------------------------*
-     *      Check range rows in totals
-     *-------------------------------------*/
-    json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
-    if(from_rowid == 0) {
-        from_rowid = 1;
-    } else if(from_rowid > total_rows) {
-        // positive offset
-        // not exist
-        JSON_DECREF(match_cond)
-        return -1;
-    } else {
-        // negative offset
-        if(from_rowid < -total_rows) {
-            // out of range, begin at 0
-            from_rowid = 1;
-        } else {
-            from_rowid = total_rows + from_rowid;
-        }
-    }
-
-    json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-    if(to_rowid == 0) {
-        to_rowid = total_rows;
-    } else if(to_rowid > total_rows) {
-        // positive offset
-        // out of range, begin at 0
-        to_rowid = total_rows;
-    } else {
-        // negative offset
-        if(to_rowid < -total_rows) {
-            // not exist
-            JSON_DECREF(match_cond)
-            return -1;
-        } else {
-            to_rowid = total_rows + to_rowid;
-        }
-    }
-
-    if(to_rowid < from_rowid) {
-        // Bad range
-        JSON_DECREF(match_cond)
-        return -1;
-    }
-
-    /*-------------------------------------*
-     *      Check range t in totals
-     *-------------------------------------*/
-    json_int_t from_t = 0;
-    json_t *jn_from_t = json_object_get(match_cond, "from_t");
-    if(json_is_string(jn_from_t) && strchr(json_string_value(jn_from_t), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        from_t = (json_int_t)timestamp;
-    } else {
-        from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
-    }
-
-    if(from_t == 0) {
-        from_t = total_from_t;
-    } else {
-        if(from_t > total_to_t) {
-            // not exist
-            JSON_DECREF(match_cond)
-            return -1;
-        } else if(from_t < total_from_t) {
-            // out of range, begin at start
-            from_t = total_from_t;
-        }
-    }
-
-    json_int_t to_t = 0;
-    json_t *jn_to_t = json_object_get(match_cond, "to_t");
-    if(json_is_string(jn_to_t) && strchr(json_string_value(jn_to_t), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        to_t = (json_int_t)timestamp;
-    } else {
-        to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
-    }
-
-    if(to_t == 0) {
-        from_t = total_to_t;
-    } else {
-        if(to_t > total_to_t) {
-            // out of range, begin at the end
-            to_t = total_to_t;
-        } else if(to_t < total_from_t) {
-            // not exist
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-    }
-
-    /*-------------------------------------*
-     *      Check range tm in totals
-     *-------------------------------------*/
-    json_int_t from_tm = 0;
-    json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-    if(json_is_string(jn_from_tm) && strchr(json_string_value(jn_from_tm), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        from_tm = (json_int_t)timestamp;
-    } else {
-        from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
-    }
-
-    if(from_tm == 0) {
-        from_tm = total_from_tm;
-    } else {
-        if (from_tm > total_to_tm) {
-            // not exist
-            JSON_DECREF(match_cond)
-            return -1;
-        } else if (from_tm < total_from_tm) {
-            // out of range, begin at start
-            from_tm = total_from_tm;
-        }
-    }
-
-    json_int_t to_tm = 0;
-    json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-    if(json_is_string(jn_to_tm) && strchr(json_string_value(jn_to_tm), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-
-        to_tm = (json_int_t)timestamp;
-    } else {
-        to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
-    }
-
-    if(to_tm == 0) {
-        to_tm = total_to_tm;
-    } else {
-        if (to_tm > total_to_tm) {
-            // out of range, begin at the end
-            to_tm = total_to_tm;
-        } else if (to_tm < total_from_tm) {
-            // not exist
-            JSON_DECREF(match_cond)
-            return -1;
-        }
-    }
-
-    /*------------------------------------------*
-     *  Search the first file in cache files
-     *  to begin the loop
-     *------------------------------------------*/
-    const char *filename=NULL;
-    json_int_t from_t_2;
-    json_int_t to_t_2;
-    json_int_t from_tm_2;
-    json_int_t to_tm_2;
-    uint64_t rowid_starting = 0;
-
-    if(!backward) {
-        int idx; json_t *cache_file;
-        json_int_t partial_rows2 = 1;
-        json_int_t rows2;
-        json_array_foreach(cache_files, idx, cache_file) {
-            filename = kw_get_str(gobj, cache_file, "name", "", KW_REQUIRED);
-            from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-            to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-            from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-            to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
-
-            BOOL matched = TRUE;
-            json_int_t first_row = partial_rows2;               // first row of this segment
-            json_int_t last_row = partial_rows2 + rows2 - 1;    // last row of this segment
-            matched &= (first_row >= from_rowid);
-            matched &= (last_row <= to_rowid);
-            if(matched) {
-                rowid_starting = first_row;
-                break;
-            }
-            partial_rows2 += rows2;
-        }
-    } else {
-        int idx; json_t *cache_file;
-        json_int_t partial_rows2 = total_rows;
-        json_int_t rows2;
-        json_array_backward(cache_files, idx, cache_file) {
-            filename = kw_get_str(gobj, cache_file, "name", "", KW_REQUIRED);
-            from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-            to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-            from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-            to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
-
-            BOOL matched = TRUE;
-            json_int_t last_row = partial_rows2;            // last row of this segment
-            json_int_t first_row = partial_rows2 - rows2;   // last row of this segment
-            matched &= (first_row >= from_rowid);
-            matched &= (last_row <= to_rowid);
-            if(matched) {
-                rowid_starting = last_row;
-                break;
-            }
-            partial_rows2 -= rows2;
-        }
-    }
-
-    if(empty_string(filename)) {
+    if(json_array_size(jn_segments)==0) {
         // NO match
+        JSON_DECREF(jn_segments)
         JSON_DECREF(match_cond)
         return -1;
     }
@@ -4517,12 +4187,20 @@ PUBLIC int tranger2_find_record(
     /*-------------------------------------*
      *      Loop
      *-------------------------------------*/
+    json_int_t starting_row;
+    json_t *segment;
+    if(!backward) {
+        segment = get_first_list_segment(gobj, jn_segments);
+        starting_row = kw_get_int(gobj, segment, "first_row", 0, KW_REQUIRED);
+    } else {
+        segment = get_last_list_segment(gobj, jn_segments);
+        starting_row = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
+    }
     BOOL end = get_md_by_rowid( // Get record metadata by rowid
         gobj,
-        tranger,
         topic,
-        key,
-        rowid_starting,
+        segment,
+        starting_row,
         md_record,
         TRUE
     );
@@ -4558,17 +4236,17 @@ PUBLIC int tranger2_first_record(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     json_int_t rowid = 1;
 
-    if(get_md_by_rowid(
-        gobj,
-        tranger,
-        topic,
-        key,
-        rowid,
-        md_record,
-        FALSE
-    )<0) {
-        return -1;
-    }
+//    if(get_md_by_rowid(
+//        gobj,
+//        tranger,
+//        topic,
+//        key,
+//        rowid,
+//        md_record,
+//        FALSE
+//    )<0) {
+//        return -1;
+//    }
 
 // TODO   if(md_record->__rowid__ != 1) {
 //        log_error(0,
@@ -4603,18 +4281,17 @@ PUBLIC int tranger2_last_record(
 
 //    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
 
-    json_int_t rowid = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-    if(get_md_by_rowid(
-        gobj,
-        tranger,
-        topic,
-        key,
-        rowid,
-        md_record,
-        FALSE
-    )<0) {
-        return -1;
-    }
+//    json_int_t rowid = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
+//    if(get_md_by_rowid(
+//        gobj,
+//        topic,
+//        key,
+//        rowid,
+//        md_record,
+//        FALSE
+//    )<0) {
+//        return -1;
+//    }
 
 // TODO   if(md_record->__rowid__ != rowid) {
 //        log_error(0,
