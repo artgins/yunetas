@@ -116,7 +116,7 @@ PRIVATE int load_topic_metadata(
 );
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
-PRIVATE int tranger2_get_record_md( // Get record metadata by rowid
+PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -2744,41 +2744,23 @@ PUBLIC json_t *tranger2_open_list(
     BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
-json_decref(jn_keys); // TODO remove
-return list;
-
     /*
      *  Loop over keys
      */
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = json_string_value(jn_key);
-        json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
-
-        BOOL end = FALSE;
+        BOOL end = 0;
         md2_record_t md_record;
         memset(&md_record, 0, sizeof(md2_record_t));
-        if(!backward) {
-            json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
-            if(from_rowid>0) {
-                end = tranger2_get_record_md(gobj, tranger, topic, key, from_rowid, &md_record, TRUE);
-            } else if(from_rowid<0 && (__last_rowid__ + from_rowid)>0) {
-                from_rowid = __last_rowid__ + from_rowid;
-                end = tranger2_get_record_md(gobj, tranger, topic, key, from_rowid, &md_record, TRUE);
-            } else {
-                end = tranger2_first_record(tranger, topic, key, &md_record);
-            }
-        } else {
-            json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
-            if(to_rowid>0) {
-                end = tranger2_get_record_md(gobj, tranger, topic, key, to_rowid, &md_record, TRUE);
-            } else if(to_rowid<0 && (__last_rowid__ + to_rowid)>0) {
-                to_rowid = __last_rowid__ + to_rowid;
-                end = tranger2_get_record_md(gobj, tranger, topic, key, to_rowid, &md_record, TRUE);
-            } else {
-                end = tranger2_last_record(tranger, topic, key, &md_record);
-            }
-        }
+
+        end = tranger2_find_record(
+            tranger,
+            topic,
+            key,
+            json_incref(match_cond),  // owned
+            &md_record
+        );
 
         while(!end) {
             if(trace_level) {
@@ -3252,7 +3234,7 @@ PUBLIC json_t *tranger2_get_list(
 /***************************************************************************
     Get md record by rowid (by FILE, for reads)
  ***************************************************************************/
-PRIVATE int tranger2_get_record_md(
+PRIVATE int get_md_by_rowid(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3264,11 +3246,56 @@ PRIVATE int tranger2_get_record_md(
 {
     memset(md_record, 0, sizeof(md2_record_t));
 
+    /*-------------------------------------*
+     *      Recover cache data
+     *-------------------------------------*/
+    char path[NAME_MAX];
+    snprintf(path, sizeof(path), "cache`%s`files", key);
+    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
+    if(!cache_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "rowid",        "%lu", (unsigned long)rowid,
+            NULL
+        );
+        return -1;
+    }
+    snprintf(path, sizeof(path), "cache`%s`total", key);
+    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+    if(!cache_total) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "rowid",        "%lu", (unsigned long)rowid,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-------------------------------------*
+     *      Check the rowid in totals
+     *-------------------------------------*/
+
+    /*-------------------------------------*
+     *      Search file with the rowid
+     *-------------------------------------*/
+
+
+
+
+
     if(rowid == 0) {
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "rowid must be > 0",
                 "topic",        "%s", tranger2_topic_name(topic),
                 "rowid",        "%lu", (unsigned long)rowid,
@@ -3278,29 +3305,29 @@ PRIVATE int tranger2_get_record_md(
         return -1;
     }
 
+    // TODO HACK no "master" (tranger readonly) don't have updated __last_rowid__
     uint64_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
-
-    // HACK no "master" (tranger readonly) don't have updated __last_rowid__
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
-    if(master) {
-        if(__last_rowid__ <= 0) {
-            return -1;
-        }
-        if(rowid > __last_rowid__) {
-            if(verbose) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "rowid greater than last_rowid",
-                    "topic",        "%s", tranger2_topic_name(topic),
-                    "rowid",        "%lu", (unsigned long)rowid,
-                    "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-                    NULL
-                );
-            }
-            return -1;
-        }
+    if(__last_rowid__ == 0) {
+        return -1;
     }
+    if(rowid > __last_rowid__) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "rowid greater than last_rowid",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "rowid",        "%lu", (unsigned long)rowid,
+                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    /*
+     *  Find in the cache the range md
+     */
 
 //    {
 //        /*----------------------------------*
@@ -3915,12 +3942,241 @@ PUBLIC int tranger2_find_record(
     }
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
-    BOOL end = FALSE;
-    if(!backward) {
-        end = tranger2_first_record(tranger, topic, key, md_record);
-    } else {
-        end = tranger2_last_record(tranger, topic, key, md_record);
+    /*-------------------------------------*
+     *      Recover cache data
+     *-------------------------------------*/
+    char path[NAME_MAX];
+    snprintf(path, sizeof(path), "cache`%s`files", key);
+    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
+    if(!cache_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        JSON_DECREF(match_cond)
+        return -1;
     }
+    snprintf(path, sizeof(path), "cache`%s`total", key);
+    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+    if(!cache_total) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        JSON_DECREF(match_cond)
+        return -1;
+    }
+
+    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
+    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
+    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
+    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
+    json_int_t total_rows = kw_get_int(gobj, cache_total, "rows", 0, KW_REQUIRED);
+
+    if(total_rows == 0) {
+        // NO rows
+        JSON_DECREF(match_cond)
+        return -1;
+    }
+
+    /*-------------------------------------*
+     *      Check range rows in totals
+     *-------------------------------------*/
+    json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
+    if(from_rowid == 0) {
+        from_rowid = total_rows?1:0;
+    } else if(from_rowid > total_rows) {
+        // positive offset
+        // not exist
+        JSON_DECREF(match_cond)
+        return -1;
+    } else {
+        // negative offset
+        if(from_rowid < -total_rows) {
+            // out of range, begin at 0
+            from_rowid = 0;
+        }
+    }
+
+    json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+    if(to_rowid == 0) {
+        to_rowid = total_rows;
+    } else if(to_rowid > total_rows) {
+        // positive offset
+        // out of range, begin at 0
+        to_rowid = total_rows;
+    } else {
+        // negative offset
+        if(to_rowid < -total_rows) {
+            // not exist
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+    }
+
+    /*-------------------------------------*
+     *      Check range t in totals
+     *-------------------------------------*/
+    json_int_t from_t = 0;
+    json_t *jn_from_t = json_object_get(match_cond, "from_t");
+    if(json_is_string(jn_from_t) && strchr(json_string_value(jn_from_t), 'T')!=0) {
+        int offset;
+        timestamp_t timestamp;
+        if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+        // TODO if(__system_flag__ & (sf2_tm_ms)) {
+        //    timestamp *= 1000; // TODO lost milisecond precision?
+        //}
+        from_t = (json_int_t)timestamp;
+    } else {
+        from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
+    }
+
+    if(from_t == 0) {
+        from_t = total_from_t;
+    } else {
+        if(from_t > total_to_t) {
+            // not exist
+            JSON_DECREF(match_cond)
+            return -1;
+        } else if(from_t < total_from_t) {
+            // out of range, begin at start
+            from_t = total_from_t;
+        }
+    }
+
+    json_int_t to_t = 0;
+    json_t *jn_to_t = json_object_get(match_cond, "to_t");
+    if(json_is_string(jn_to_t) && strchr(json_string_value(jn_to_t), 'T')!=0) {
+        int offset;
+        timestamp_t timestamp;
+        if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+        // TODO if(__system_flag__ & (sf2_tm_ms)) {
+        //    timestamp *= 1000; // TODO lost milisecond precision?
+        //}
+        to_t = (json_int_t)timestamp;
+    } else {
+        to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
+    }
+
+    if(to_t == 0) {
+        from_t = total_to_t;
+    } else {
+        if(to_t > total_to_t) {
+            // out of range, begin at the end
+            to_t = total_to_t;
+        } else if(to_t < total_from_t) {
+            // not exist
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+    }
+
+    /*-------------------------------------*
+     *      Check range tm in totals
+     *-------------------------------------*/
+    json_int_t from_tm = 0;
+    json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
+    if(json_is_string(jn_from_tm) && strchr(json_string_value(jn_from_tm), 'T')!=0) {
+        int offset;
+        timestamp_t timestamp;
+        if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+        // TODO if(__system_flag__ & (sf2_tm_ms)) {
+        //    timestamp *= 1000; // TODO lost milisecond precision?
+        //}
+        from_tm = (json_int_t)timestamp;
+    } else {
+        from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
+    }
+
+    if(from_tm == 0) {
+        from_tm = total_from_tm;
+    } else {
+        if (from_tm > total_to_tm) {
+            // not exist
+            JSON_DECREF(match_cond)
+            return -1;
+        } else if (from_tm < total_from_tm) {
+            // out of range, begin at start
+            from_tm = total_from_tm;
+        }
+    }
+
+    json_int_t to_tm = 0;
+    json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
+    if(json_is_string(jn_to_tm) && strchr(json_string_value(jn_to_tm), 'T')!=0) {
+        int offset;
+        timestamp_t timestamp;
+        if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+        // TODO if(__system_flag__ & (sf2_tm_ms)) {
+        //    timestamp *= 1000; // TODO lost milisecond precision?
+        //}
+
+        to_tm = (json_int_t)timestamp;
+    } else {
+        to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
+    }
+
+    if(to_tm == 0) {
+        to_tm = total_to_tm;
+    } else {
+        if (to_tm > total_to_tm) {
+            // out of range, begin at the end
+            to_tm = total_to_tm;
+        } else if (to_tm < total_from_tm) {
+            // not exist
+            JSON_DECREF(match_cond)
+            return -1;
+        }
+    }
+
+    /*-------------------------------------*
+     *  Search in cache files the file
+     *-------------------------------------*/
+    backward = TRUE; // TODO remove
+    if(!backward) {
+        int idx; json_t *cache_file;
+        json_array_foreach(cache_files, idx, cache_file) {
+            printf("idx %d", idx);
+            print_json2("foreach", cache_file);
+        }
+    } else {
+        int idx; json_t *cache_file;
+        json_array_backward(cache_files, idx, cache_file) {
+            printf("idx %d", idx);
+            print_json2("backeach", cache_file);
+
+        }
+    }
+
+    /*-------------------------------------*
+     *      Loop
+     *-------------------------------------*/
+    BOOL end = FALSE;
+//    if(!backward) {
+//        end = tranger2_first_record(tranger, topic, key, md_record);
+//    } else {
+//        end = tranger2_last_record(tranger, topic, key, md_record);
+//    }
     while(!end) {
         if(tranger2_match_record(tranger, topic, key, match_cond, md_record, &end)) {
             JSON_DECREF(match_cond)
@@ -3952,7 +4208,7 @@ PUBLIC int tranger2_first_record(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     json_int_t rowid = 1;
 
-    if(tranger2_get_record_md(
+    if(get_md_by_rowid(
         gobj,
         tranger,
         topic,
@@ -3998,7 +4254,7 @@ PUBLIC int tranger2_last_record(
 //    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
 
     json_int_t rowid = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-    if(tranger2_get_record_md(
+    if(get_md_by_rowid(
         gobj,
         tranger,
         topic,
@@ -4043,7 +4299,7 @@ PUBLIC int tranger2_next_record(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 //   TODO json_int_t rowid = md_record->__rowid__ + 1;
 //
-//    if(tranger2_get_record_md(
+//    if(get_md_by_rowid(
 //        tranger,
 //        topic,
 //        rowid,
@@ -4088,7 +4344,7 @@ PUBLIC int tranger2_prev_record(
 //    if(md_record->__rowid__ < 1) {
 //        return 0;
 //    }
-//    if(tranger2_get_record_md(
+//    if(get_md_by_rowid(
 //        tranger,
 //        topic,
 //        rowid,

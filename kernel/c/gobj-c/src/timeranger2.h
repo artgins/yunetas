@@ -398,14 +398,16 @@ PUBLIC uint32_t tranger2_read_user_flag(
         to_rowid
         from_t
         to_t
+        from_tm
+        to_tm
+
         user_flag
         not_user_flag
         user_flag_mask_set
         user_flag_mask_notset
+
         key
         notkey
-        from_tm
-        to_tm
         rkey    regular expression of key
         filter  dict with fields to match
 
