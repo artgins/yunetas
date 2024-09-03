@@ -118,11 +118,12 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
+    json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *segment,
     uint64_t rowid,
-    md2_record_t *md2_record,
-    BOOL verbose
+    md2_record_t *md_record
 );
 
 
@@ -1530,6 +1531,7 @@ PRIVATE char *get_t_filename(
  *
  ***************************************************************************/
 PRIVATE int get_topic_wr_fd(
+    hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -1537,7 +1539,6 @@ PRIVATE int get_topic_wr_fd(
     uint64_t __t__
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
     if((system_flag & sf2_no_record_disk)) {
         return -1;
@@ -1734,7 +1735,94 @@ PRIVATE int get_topic_wr_fd(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int _close_fd_files(
+PRIVATE int get_topic_rd_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *segment,
+    BOOL for_data
+)
+{
+    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    if((system_flag & sf2_no_record_disk)) {
+        return -1;
+    }
+
+    /*-----------------------------*
+     *      Check file
+     *-----------------------------*/
+    const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);
+    const char *name = kw_get_str(gobj, segment, "name", "", KW_REQUIRED);
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.%s", name, for_data?"json":"md2");
+
+    char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), topic_dir, key, filename, NULL);
+    if(access(full_path, 0)!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "path",         "%s", full_path,
+            "msg",          "%s", "file not found",
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------*
+     *      Open content file
+     *-----------------------------*/
+    char relative_path[PATH_MAX];
+    snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
+    int fd = (int)kw_get_int(
+        gobj,
+        kw_get_dict(
+            gobj,
+            topic,
+            "rd_fd_files",
+            0,
+            KW_REQUIRED
+        ),
+        relative_path,
+        -1,
+        0
+    );
+
+    if(fd<0) {
+        fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+        if(fd<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot open file",
+                "path",         "%s", full_path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+
+        kw_set_dict_value(
+            gobj,
+            kw_get_dict(
+                gobj,
+                topic,
+                "rd_fd_files",
+                0,
+                KW_REQUIRED
+            ),
+            relative_path,
+            json_integer(fd)
+        );
+    }
+    return fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_fd_files(
     hgobj gobj,
     json_t *fd_files,
     const char *key_
@@ -1780,7 +1868,7 @@ PRIVATE int close_fd_wr_files(
 )
 {
     json_t *fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
-    return _close_fd_files(gobj, fd_files, key);
+    return close_fd_files(gobj, fd_files, key);
 }
 
 /***************************************************************************
@@ -1793,7 +1881,7 @@ PRIVATE int close_fd_rd_files(
 )
 {
     json_t *fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
-    return _close_fd_files(gobj, fd_files, key);
+    return close_fd_files(gobj, fd_files, key);
 }
 
 /***************************************************************************
@@ -2012,7 +2100,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_wr_fd(tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
+    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -2105,7 +2193,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Save md, to file
      *--------------------------------------------*/
-    int md2_fp = get_topic_wr_fd(tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
+    int md2_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
         if(offset < 0) {
@@ -3230,18 +3318,28 @@ PUBLIC json_t *tranger2_get_list(
 }
 
 /***************************************************************************
-    Get md record by rowid (by FILE, for reads)
+ *  Get md record by rowid
+ *  A segment represents a file .json / .md2
+ *
+ *  Requirements:
+ *      rowid belongs to the segment
+ *  Internally
+ *
  ***************************************************************************/
 PRIVATE int get_md_by_rowid(
     hgobj gobj,
+    json_t *tranger,
     json_t *topic,
+    const char *key,
     json_t *segment,
     uint64_t rowid,
-    md2_record_t *md_record,
-    BOOL verbose
+    md2_record_t *md_record
 )
 {
     memset(md_record, 0, sizeof(md2_record_t));
+
+    int fd = get_topic_rd_fd(gobj, tranger, topic, key, segment, FALSE);
+
 
     /*
      *  Find in the cache the range md
@@ -4197,11 +4295,12 @@ PUBLIC int tranger2_find_record(
     }
     BOOL end = get_md_by_rowid( // Get record metadata by rowid
         gobj,
+        tranger,
         topic,
+        key,
         segment,
         starting_row,
-        md_record,
-        TRUE
+        md_record
     );
 
     while(!end) {
