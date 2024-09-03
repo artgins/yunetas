@@ -42,16 +42,6 @@ PRIVATE BOOL match_list(
     gbuffer_t *gbuf_path
 );
 
-PRIVATE BOOL match_tranger_record(
-    json_t *tranger,
-    const char *topic_name,
-    json_int_t rowid,
-    uint32_t uflag,
-    uint32_t sflag,
-    const char *key,
-    json_t *record
-);
-
 /***************************************************************************
  *      Data
  ***************************************************************************/
@@ -566,38 +556,5 @@ PRIVATE BOOL match_list(
 
     JSON_DECREF(list)
     JSON_DECREF(expected__)
-    return ret;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE BOOL match_tranger_record(
-    json_t *tranger,
-    const char *topic_name,
-    json_int_t rowid,
-    uint32_t uflag,
-    uint32_t sflag,
-    const char *key,
-    json_t *record
-)
-{
-    md2_record_t md_record;
-
-    if(tranger2_get_record_md(tranger, tranger2_topic(tranger, topic_name), key, rowid, &md_record, TRUE)<0) {
-        return FALSE;
-    }
-
-    json_t *record_ = tranger2_read_record_content(
-        tranger,
-        tranger2_topic(tranger, topic_name),
-        key,
-        &md_record
-    );
-    if(!record) {
-        return FALSE;
-    }
-    BOOL ret = match_record(record, record_, TRUE, 0);
-    json_decref(record_);
     return ret;
 }
