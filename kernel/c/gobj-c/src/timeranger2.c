@@ -3992,7 +3992,7 @@ PUBLIC int tranger2_find_record(
      *-------------------------------------*/
     json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
-        from_rowid = total_rows?1:0;
+        from_rowid = 1;
     } else if(from_rowid > total_rows) {
         // positive offset
         // not exist
@@ -4002,7 +4002,9 @@ PUBLIC int tranger2_find_record(
         // negative offset
         if(from_rowid < -total_rows) {
             // out of range, begin at 0
-            from_rowid = 0;
+            from_rowid = 1;
+        } else {
+            from_rowid = total_rows + from_rowid;
         }
     }
 
@@ -4019,7 +4021,15 @@ PUBLIC int tranger2_find_record(
             // not exist
             JSON_DECREF(match_cond)
             return -1;
+        } else {
+            to_rowid = total_rows + to_rowid;
         }
+    }
+
+    if(to_rowid < from_rowid) {
+        // Bad range
+        JSON_DECREF(match_cond)
+        return -1;
     }
 
     /*-------------------------------------*
@@ -4149,22 +4159,59 @@ PUBLIC int tranger2_find_record(
         }
     }
 
-    /*-------------------------------------*
-     *  Search in cache files the file
-     *-------------------------------------*/
-    backward = TRUE; // TODO remove
+    /*------------------------------------------*
+     *  Search the first file in cache files
+     *  to begin the loop
+     *------------------------------------------*/
+    const char *filename=NULL;
+    json_int_t from_t_2;
+    json_int_t to_t_2;
+    json_int_t from_tm_2;
+    json_int_t to_tm_2;
+
     if(!backward) {
         int idx; json_t *cache_file;
+        json_int_t partial_rows2 = 1;
+        json_int_t rows2;
         json_array_foreach(cache_files, idx, cache_file) {
-            printf("idx %d", idx);
-            print_json2("foreach", cache_file);
+            filename = kw_get_str(gobj, cache_file, "name", "", KW_REQUIRED);
+            from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+            to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+            from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+            to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
+
+            BOOL matched = TRUE;
+            json_int_t first_row = partial_rows2;           // first row of this segment
+            json_int_t last_row = partial_rows2 + rows2;    // last row of this segment
+            matched &= (first_row >= from_rowid);
+            matched &= (last_row <= to_rowid);
+            if(matched) {
+                break;
+            }
+            partial_rows2 += rows2;
         }
     } else {
         int idx; json_t *cache_file;
+        json_int_t partial_rows2 = total_rows;
+        json_int_t rows2;
         json_array_backward(cache_files, idx, cache_file) {
-            printf("idx %d", idx);
-            print_json2("backeach", cache_file);
+            filename = kw_get_str(gobj, cache_file, "name", "", KW_REQUIRED);
+            from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+            to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+            from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+            to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
+            BOOL matched = TRUE;
+            json_int_t last_row = partial_rows2;            // last row of this segment
+            json_int_t first_row = partial_rows2 - rows2;   // last row of this segment
+            matched &= (first_row >= from_rowid);
+            matched &= (last_row <= to_rowid);
+            if(matched) {
+                break;
+            }
+            partial_rows2 -= rows2;
         }
     }
 
