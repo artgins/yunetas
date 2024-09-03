@@ -218,7 +218,9 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
    Get topic size (number of records)
 **rst**/
 PUBLIC json_int_t tranger2_topic_size(
-    json_t *topic
+    json_t *tranger,
+    const char *topic_name,
+    const char *key
 );
 
 /**rst**

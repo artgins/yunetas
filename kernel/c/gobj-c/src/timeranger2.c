@@ -854,11 +854,19 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
    Get topic size (number of records)
  ***************************************************************************/
 PUBLIC json_int_t tranger2_topic_size(
-    json_t *topic
+    json_t *tranger,
+    const char *topic_name,
+    const char *key
 )
 {
-    // TODO
-    return kw_get_int(0, topic, "__last_rowid__", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(!topic) {
+        // Must be open?
+        return 0;
+    }
+    return get_topic_key_rows(gobj, topic, key);
 }
 
 /***************************************************************************
@@ -2658,8 +2666,6 @@ PUBLIC json_t *tranger2_open_list(
     json_object_update(list, jn_list);
     JSON_DECREF(jn_list)
 
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
-
     /*
      *  Here the topic is opened if it's not opened
      */
@@ -2778,10 +2784,10 @@ PUBLIC json_t *tranger2_open_list(
                 }
 
                 json_t *jn_record = 0;
-    // TODO           md_record.__system_flag__ |= sf_loading_from_disk;
-    //            if(!only_md) {
-    //                jn_record = tranger_read_record_content(tranger, topic, &md_record);
-    //            }
+                // TODO           md_record.__system_flag__ |= sf_loading_from_disk;
+                if(!only_md) {
+                    jn_record = tranger2_read_record_content(tranger, topic, key, &md_record);
+                }
 
                 if(load_record_callback) {
                     /*--------------------------------------------*
@@ -2961,8 +2967,14 @@ PRIVATE int load_topic_metadata(
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
 {
     char path[PATH_MAX];
+
+    // Silence, please
+
+    if(empty_string(key)) {
+        return 0;
+    }
     snprintf(path, sizeof(path), "cache`%s`total`rows", key);
-    return kw_get_int(gobj, topic, path, 0, KW_REQUIRED);
+    return kw_get_int(gobj, topic, path, 0, 0);
 }
 
 /***************************************************************************
@@ -3236,7 +3248,6 @@ PUBLIC int tranger2_get_record(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     memset(md_record, 0, sizeof(md2_record_t));
 
@@ -3244,8 +3255,8 @@ PUBLIC int tranger2_get_record(
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid 0",
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "rowid must be > 0",
                 "topic",        "%s", tranger2_topic_name(topic),
                 "rowid",        "%lu", (unsigned long)rowid,
                 NULL
@@ -3257,25 +3268,25 @@ PUBLIC int tranger2_get_record(
     uint64_t __last_rowid__ = (uint64_t)kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
 
     // HACK no "master" (tranger readonly) don't have updated __last_rowid__
-    if(master) {
-        if(__last_rowid__ <= 0) {
-            return -1;
-        }
-        if(rowid > __last_rowid__) {
-            if(verbose) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "rowid greater than last_rowid",
-                    "topic",        "%s", tranger2_topic_name(topic),
-                    "rowid",        "%lu", (unsigned long)rowid,
-                    "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-                    NULL
-                );
-            }
-            return -1;
-        }
-    }
+// TODO   if(master) {
+//        if(__last_rowid__ <= 0) {
+//            return -1;
+//        }
+//        if(rowid > __last_rowid__) {
+//            if(verbose) {
+//                gobj_log_error(gobj, 0,
+//                    "function",     "%s", __FUNCTION__,
+//                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                    "msg",          "%s", "rowid greater than last_rowid",
+//                    "topic",        "%s", tranger2_topic_name(topic),
+//                    "rowid",        "%lu", (unsigned long)rowid,
+//                    "last_rowid",   "%lu", (unsigned long)__last_rowid__,
+//                    NULL
+//                );
+//            }
+//            return -1;
+//        }
+//    }
 
     {
         /*----------------------------------*
@@ -3347,12 +3358,12 @@ PUBLIC int tranger2_get_record(
 //        return -1;
 //    }
 
-    if(!master) {
-        // HACK no "master" (tranger readonly): found new records
-//  TODO      if(md_record->__rowid__ > __last_rowid__) {
-//            json_object_set_new(topic, "__last_rowid__", json_integer(md_record->__rowid__));
-//        }
-    }
+//    if(!master) {
+//        // HACK no "master" (tranger readonly): found new records
+////  TODO      if(md_record->__rowid__ > __last_rowid__) {
+////            json_object_set_new(topic, "__last_rowid__", json_integer(md_record->__rowid__));
+////        }
+//    }
     return 0;
 }
 
