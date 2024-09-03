@@ -1610,6 +1610,15 @@ PRIVATE int get_topic_fd(
             return -1;
         }
 
+        /*-----------------------------------------*
+         *  Check if there are many files opened
+         *-----------------------------------------*/
+        json_t *wr_fd = kw_get_subdict_value(gobj, topic, "wr_fd_files", key, 0, 0); // no required
+        // it could be the first time
+        if(json_object_size(wr_fd)>=2) {
+            close_fd_wr_files(gobj, topic, key);
+        }
+
         int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
             if(errno == EMFILE) {
@@ -1981,15 +1990,6 @@ PUBLIC int tranger2_append_record(
         }
     } else {
         md_record->__tm__ = 0;  // No tkey value, mark with 0
-    }
-
-    /*------------------------------------------------------*
-     *  Check if there are many files opened
-     *------------------------------------------------------*/
-    // no required, could not exist the key_value
-    json_t *wr_fd = kw_get_subdict_value(gobj, topic, "wr_fd_files", key_value, 0, 0);
-    if(json_object_size(wr_fd)>4) {
-        close_fd_wr_files(gobj, topic, key_value);
     }
 
     /*------------------------------------------------------*
