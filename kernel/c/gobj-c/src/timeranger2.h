@@ -495,6 +495,7 @@ PUBLIC int tranger2_iterator_size(
 PUBLIC int tranger2_iterator_first(
     json_t *tranger,
     json_t *iterator,
+    json_int_t *rowid,
     md2_record_t *md_record,
     json_t **record
 );
@@ -505,6 +506,7 @@ PUBLIC int tranger2_iterator_first(
 PUBLIC int tranger2_iterator_next(
     json_t *tranger,
     json_t *iterator,
+    json_int_t *rowid,
     md2_record_t *md_record,
     json_t **record
 );
@@ -515,6 +517,7 @@ PUBLIC int tranger2_iterator_next(
 PUBLIC int tranger2_iterator_prev(
     json_t *tranger,
     json_t *iterator,
+    json_int_t *rowid,
     md2_record_t *md_record,
     json_t **record
 );
@@ -525,6 +528,7 @@ PUBLIC int tranger2_iterator_prev(
 PUBLIC int tranger2_iterator_last(
     json_t *tranger,
     json_t *iterator,
+    json_int_t *rowid,
     md2_record_t *md_record,
     json_t **record
 );
@@ -532,7 +536,7 @@ PUBLIC int tranger2_iterator_last(
 /**rst**
     Get metadata/record of rowid in iterator
 **rst**/
-PUBLIC int tranger2_iterator_get(
+PUBLIC int tranger2_iterator_get_by_rowid(
     json_t *tranger,
     json_t *iterator,
     json_int_t rowid,
