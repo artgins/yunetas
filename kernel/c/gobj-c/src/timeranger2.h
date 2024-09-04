@@ -432,7 +432,7 @@ typedef int (*tranger2_load_record_callback_t)(
 );
 
 /**rst**
-    Open list, load records in memory
+    Open list, load records in memory and update in real time
 **rst**/
 static const json_desc_t list_json_desc[] = {
 // Name                     Type        Default     Fillspace
@@ -448,19 +448,77 @@ PUBLIC json_t *tranger2_open_list(
 );
 
 /**rst**
-    Get list by his id
-**rst**/
-PUBLIC json_t *tranger2_get_list(
-    json_t *tranger,
-    const char *id
-);
-
-/**rst**
     Close list
 **rst**/
 PUBLIC int tranger2_close_list(
     json_t *tranger,
     json_t *list
+);
+
+/**rst**
+    Get list by his id
+**rst**/
+PUBLIC json_t *tranger2_get_list_by_id(
+    json_t *tranger,
+    const char *id
+);
+
+/**rst**
+    Open iterator
+**rst**/
+PUBLIC json_t *tranger2_open_iterator(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *match_cond  // owned
+);
+
+/**rst**
+    Close iterator
+**rst**/
+PUBLIC int tranger2_close_iterator(
+    json_t *tranger,
+    json_t *iterator
+);
+
+/**rst**
+    Get metadata/record of first row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_first(
+    json_t *tranger,
+    json_t *iterator,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of next row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_next(
+    json_t *tranger,
+    json_t *iterator,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of previous row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_prev(
+    json_t *tranger,
+    json_t *iterator,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of last row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_last(
+    json_t *tranger,
+    json_t *iterator,
+    md2_record_t *md_record,
+    json_t **record
 );
 
 /**rst**
