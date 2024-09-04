@@ -316,9 +316,9 @@ print_json2("XXX after open list", tranger); // TODO TEST
             tr_list
         );
 
-        if(leidos != MAX_RECORDS) {
+        if(leidos != MAX_KEYS*MAX_RECORDS) {
             printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-               (int)leidos, MAX_RECORDS
+               (int)leidos, MAX_KEYS*MAX_RECORDS
             );
             result += -1;
         }

@@ -2850,6 +2850,17 @@ PUBLIC json_t *tranger2_open_list(
             key,
             json_incref(match_cond)  // owned
         );
+        if(!iterator) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "tranger_open_list: cannot create iterator",
+                "topic_name",   "%s", topic_name,
+                "key",          "%s", key,
+                NULL
+            );
+            continue;
+        }
 
         int end = 0;
 
@@ -2956,6 +2967,8 @@ PUBLIC json_t *tranger2_open_list(
                 );
             }
         }
+
+        tranger2_close_iterator(tranger, iterator);
     }
 
     json_decref(jn_keys);
@@ -3047,7 +3060,6 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     json_t *iterator = json_object();
-    json_object_set(iterator, "topic", topic);
     json_object_set_new(iterator, "key", json_string(key));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
@@ -3057,6 +3069,7 @@ PUBLIC json_t *tranger2_open_iterator(
 
     print_json2("ITERATOR", iterator); // TODO TEST
 
+    json_object_set(iterator, "topic", topic);
 
     return iterator;
 }
@@ -3078,6 +3091,26 @@ PUBLIC int tranger2_close_iterator(
 }
 
 /***************************************************************************
+ *  Get Iterator size (nº of rows)
+ ***************************************************************************/
+PUBLIC int tranger2_iterator_size(
+    json_t *tranger,
+    json_t *iterator
+)
+{
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
+    if(json_array_size(segments)==0) {
+        return 0;
+    }
+
+    json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
+    json_int_t last_rowid = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
+    return last_rowid;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int tranger2_iterator_first(
@@ -3088,13 +3121,26 @@ PUBLIC int tranger2_iterator_first(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = json_object_get(iterator, "topic");
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Clear variables
+     *  Check variables
      */
-    if(md_record) {
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
         memset(md_record, 0, sizeof(md2_record_t));
     }
+
     if(record) {
         *record = NULL;
     }
@@ -3108,6 +3154,8 @@ PUBLIC int tranger2_iterator_first(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "iterator without segments",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
             NULL
         );
         gobj_trace_json(gobj, iterator, "iterator without segments");
@@ -3128,62 +3176,34 @@ PUBLIC int tranger2_iterator_first(
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
 
     /*
-     *  Get the data
+     *  Get the metadata
      */
-    if(md_record) {
-        json_t *topic = json_object_get(iterator, "topic");
-        const char *key = json_string_value(json_object_get(iterator, "key"));
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
+    }
 
-        int fd = get_topic_rd_fd(
-            gobj,
+    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    //        return tranger_next_record(tranger, topic, md_record);
+    //    }
+
+    if(record) {
+        *record = tranger2_read_record_content(
             tranger,
             topic,
             key,
             segment,
-            FALSE
+            md_record
         );
-
-        off64_t offset = (off64_t) ((cur_rowid-1) * sizeof(md2_record_t));
-        off64_t offset_ = lseek64(fd, offset, SEEK_SET);
-        if(offset != offset_) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read record metadata, lseek FAILED",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            return -1;
-        }
-
-        size_t ln = read(
-            fd,
-            md_record,
-            sizeof(md2_record_t)
-        );
-        if(ln != sizeof(md2_record_t)) {
-            // HACK no "master" (tranger readonly): we try to read new records
-            if(ln != 0) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot read record metadata, read FAILED",
-                    "topic",        "%s", tranger2_topic_name(topic),
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            }
-            return -1;
-        }
-
-
-        // TODO get md
     }
 
-    if(record) {
-        // TODO load the record
-    }
     return 0;
 }
 
@@ -3198,13 +3218,26 @@ PUBLIC int tranger2_iterator_next(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = json_object_get(iterator, "topic");
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Clear variables
+     *  Check variables
      */
-    if(md_record) {
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
         memset(md_record, 0, sizeof(md2_record_t));
     }
+
     if(record) {
         *record = NULL;
     }
@@ -3249,6 +3282,8 @@ PUBLIC int tranger2_iterator_next(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "next rowids not consecutive",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
                 "cur_rowid",    "%ld", (long)cur_rowid,
                 "segment_first","%ld", (long)segment_first_row,
                 NULL
@@ -3265,14 +3300,32 @@ PUBLIC int tranger2_iterator_next(
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
 
     /*
-     *  Get the data
+     *  Get the metadata
      */
-    if(md_record) {
-        // TODO get md
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
     }
 
+    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    //        return tranger_prev_record(tranger, topic, md_record);
+    //    }
+
     if(record) {
-        // TODO load the record
+        *record = tranger2_read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            md_record
+        );
     }
 
     return 0;
@@ -3289,13 +3342,26 @@ PUBLIC int tranger2_iterator_prev(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = json_object_get(iterator, "topic");
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Clear variables
+     *  Check variables
      */
-    if(md_record) {
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
         memset(md_record, 0, sizeof(md2_record_t));
     }
+
     if(record) {
         *record = NULL;
     }
@@ -3345,6 +3411,8 @@ PUBLIC int tranger2_iterator_prev(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "previous rowids not consecutive",
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "key",          "%s", key,
                 "cur_rowid",    "%ld", (long)cur_rowid,
                 "segment_first","%ld", (long)segment_last_row,
                 NULL
@@ -3361,14 +3429,32 @@ PUBLIC int tranger2_iterator_prev(
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
 
     /*
-     *  Get the data
+     *  Get the metadata
      */
-    if(md_record) {
-        // TODO get md
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
     }
 
+    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    //        return tranger_next_record(tranger, topic, md_record);
+    //    }
+
     if(record) {
-        // TODO load the record
+        *record = tranger2_read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            md_record
+        );
     }
 
     return 0;
@@ -3385,13 +3471,26 @@ PUBLIC int tranger2_iterator_last(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = json_object_get(iterator, "topic");
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Clear variables
+     *  Check variables
      */
-    if(md_record) {
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
         memset(md_record, 0, sizeof(md2_record_t));
     }
+
     if(record) {
         *record = NULL;
     }
@@ -3405,6 +3504,8 @@ PUBLIC int tranger2_iterator_last(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "iterator without segments",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
             NULL
         );
         gobj_trace_json(gobj, iterator, "iterator without segments");
@@ -3425,15 +3526,52 @@ PUBLIC int tranger2_iterator_last(
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
 
     /*
-     *  Get the data
+     *  Get the metadata
      */
-    if(md_record) {
-        // TODO get md
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
     }
 
+    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    //        return tranger_prev_record(tranger, topic, md_record);
+    //    }
+
     if(record) {
-        // TODO load the record
+        *record = tranger2_read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            md_record
+        );
     }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Get metadata/record of rowid in iterator
+ ***************************************************************************/
+PUBLIC int tranger2_iterator_get(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t rowid,
+    md2_record_t *md_record,
+    json_t **record
+)
+{
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = json_object_get(iterator, "topic");
+    const char *key = json_string_value(json_object_get(iterator, "key"));
+
     return 0;
 }
 
@@ -4064,91 +4202,80 @@ PRIVATE int get_md_by_rowid(
     md2_record_t *md_record
 )
 {
-    memset(md_record, 0, sizeof(md2_record_t));
-
-    int fd = get_topic_rd_fd(gobj, tranger, topic, key, segment, FALSE);
-
-
     /*
-     *  Find in the cache the range md
+     *  TODO Find in the cache the range md
      */
 
-//    {
-//        /*----------------------------------*
-//         *      topic idx by fd
-//         *----------------------------------*/
-//        int fd = get_idx_fd(tranger, topic);
-//        if(fd < 0) {
-//            // Error already logged
-//            return -1;
-//        }
-//
-//        off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
-//        off64_t offset_ = lseek64(fd, offset, SEEK_SET);
-//        if(offset != offset_) {
-//            if(master) {
-//                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//                    "function",     "%s", __FUNCTION__,
-//                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                    "msg",          "%s", "topic_idx.md corrupted, lseek64 FAILED",
-//                    "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//                    NULL
-//                );
-//            }
-//            return -1;
-//        }
-//
-//        size_t ln = read(
-//            fd,
-//            md_record,
-//            sizeof(md2_record_t)
-//        );
-//        if(ln != sizeof(md2_record_t)) {
-//            // HACK no "master" (tranger readonly): we try to read new records
-//            if(master) {
-//                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//                    "function",     "%s", __FUNCTION__,
-//                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                    "msg",          "%s", "Cannot read record metadata, read FAILED",
-//                    "topic",        "%s", tranger2_topic_name(topic),
-//                    "errno",        "%s", strerror(errno),
-//                    NULL
-//                );
-//            } else {
-//                if(ln != 0) {
-//                    gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//                        "function",     "%s", __FUNCTION__,
-//                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                        "msg",          "%s", "Cannot read record metadata, read FAILED",
-//                        "topic",        "%s", tranger2_topic_name(topic),
-//                        "errno",        "%s", strerror(errno),
-//                        NULL
-//                    );
-//                }
-//            }
-//            return -1;
-//        }
-//    }
+    /*
+     *  Check rowid is in range of segment
+     */
+    json_int_t first_rowid = kw_get_int(gobj, segment, "first_row", 0, KW_REQUIRED);
+    json_int_t last_rowid = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
+    if(!(rowid >= first_rowid && rowid <= last_rowid)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Bad rowid range in segment",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "rowid",        "%ld", (long)rowid,
+            "first",        "%ld", (long)first_rowid,
+            "last",         "%ld", (long)last_rowid,
+            NULL
+        );
+        return -1;
+    }
 
-// TODO   if(md_record->__rowid__ != rowid) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "md_record corrupted, item rowid not match",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "rowid",        "%lu", (unsigned long)rowid,
-////       TODO     "__rowid__",    "%lu", (unsigned long)md_record->__rowid__,
-//            NULL
-//        );
-//        return -1;
-//    }
+    /*
+     *  Get file handler
+     */
+    int fd = get_topic_rd_fd(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        FALSE
+    );
+    if(fd<0) {
+        return -1;
+    }
 
-//    if(!master) {
-//        // HACK no "master" (tranger readonly): found new records
-////  TODO      if(md_record->__rowid__ > __last_rowid__) {
-////            json_object_set_new(topic, "__last_rowid__", json_integer(md_record->__rowid__));
-////        }
-//    }
+    off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
+    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+    if(offset != offset_) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record metadata, lseek FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln = read(
+        fd,
+        md_record,
+        sizeof(md2_record_t)
+    );
+    if(ln != sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record metadata, read FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
     return 0;
 }
 
@@ -4159,1021 +4286,127 @@ PUBLIC json_t *tranger2_read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
+    json_t *segment,
     md2_record_t *md_record
 )
 {
-//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 //// TODO   if(md_record->__system_flag__ & sf_deleted_record) {
 ////        return 0;
 ////    }
-//
-//    /*--------------------------------------------*
-//     *  Recover file corresponds to __t__
-//     *--------------------------------------------*/
-//    FILE *file = get_content_file(tranger, topic, "TODO", md_record->__t__); // TODO
-//    if(!file) {
-//        // Error already logged
-//        return 0;
-//    }
-//
-//    uint64_t __offset__ = md_record->__offset__;
-//    if(fseeko64(file, __offset__, SEEK_SET)<0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot read record data. fseeko64 FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            "errno",        "%s", strerror(errno),
-//            "__t__",        "%lu", (unsigned long)md_record->__t__,
-//            NULL
-//        );
-//        return 0;
-//    }
-//
-//    gbuffer_t *gbuf = gbuffer_create(md_record->__size__, md_record->__size__);
-//    if(!gbuf) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-//            "msg",          "%s", "Cannot read record data. gbuf_create() FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            NULL
-//        );
-//        return 0;
-//    }
-//    char *p = gbuffer_cur_rd_pointer(gbuf);
-//
-//    if(fread(p, md_record->__size__, 1, file)<=0) {
-//        gobj_log_critical(gobj, 0, // Let continue, will be a message lost
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot read record content, read FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            "errno",        "%s", strerror(errno),
-//            "__t__",        "%lu", (unsigned long)md_record->__t__,
-//            "__size__",     "%lu", (unsigned long)md_record->__size__,
-//            "__offset__",   "%lu", (unsigned long)md_record->__offset__,
-//            NULL
-//        );
-//        gbuffer_decref(gbuf);
-//        return 0;
-//    }
-//
-//// TODO   /*
-////     *  Restoring: first decrypt, second decompress
-////     */
-////    if(md_record->__system_flag__ & sf_cipher_record) {
-////        // if(topic->decrypt_callback) { TODO
-////        //     gbuf = topic->decrypt_callback(
-////        //         topic->user_data,
-////        //         topic,
-////        //         gbuf    // must be owned
-////        //     );
-////        // }
-////    }
-////    if(md_record->__system_flag__ & sf_zip_record) {
-////        // if(topic->decompress_callback) { TODO
-////        //     gbuf = topic->decompress_callback(
-////        //         topic->user_data,
-////        //         topic,
-////        //         gbuf    // must be owned
-////        //     );
-////        // }
-////    }
-//
-//    json_t *jn_record;
-//    if(empty_string(p)) {
-//        jn_record = json_object();
-//        gbuffer_decref(gbuf);
-//    } else {
-//        jn_record = anystring2json(p, strlen(p), FALSE);
-//        gbuffer_decref(gbuf);
-//        if(!jn_record) {
-//            gobj_log_critical(gobj, 0, // Let continue, will be a message lost
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                "msg",          "%s", "Bad data, json_loadfd() FAILED.",
-//                "topic",        "%s", tranger2_topic_name(topic),
-//                "__t__",        "%lu", (unsigned long)md_record->__t__,
-//                "__size__",     "%lu", (unsigned long)md_record->__size__,
-//                "__offset__",   "%lu", (unsigned long)md_record->__offset__,
-//                NULL
-//            );
-////         TODO   log_debug_dump(0, p, md_record->__size__, "no jn_record");
-//            return 0;
-//        }
-//    }
-//
-//    return jn_record;
-}
 
-/***************************************************************************
- *  Match md record
- ***************************************************************************/
-PUBLIC BOOL tranger2_match_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond,  // not owned
-    const md2_record_t *md_record,
-    BOOL *end
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    if(end) {
-        *end = FALSE;
+    /*
+     *  Get file handler
+     */
+    int fd = get_topic_rd_fd(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        TRUE
+    );
+    if(fd<0) {
+        return NULL;
     }
 
-    if(!match_cond || (json_object_size(match_cond)==0 && json_array_size(match_cond)==0)) {
-        // No conditions, match all
-        return TRUE;
-    }
-    md2_record_t md_record_last;
-    tranger2_last_record(tranger, topic, key, &md_record_last);
-    uint64_t __last_rowid__ = 0; // TODO md_record_last.__rowid__;
-    uint64_t __last_t__ = md_record_last.__t__;
-    uint64_t __last_tm__ = md_record_last.__tm__;
-
-    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-
-    uint32_t __system_flag__ = get_system_flag(md_record);
-    uint32_t __user_flag__ = get_user_flag(md_record);
-    if(kw_has_key(match_cond, "key")) {
-        int json_type = json_typeof(json_object_get(match_cond, "key"));
-        if(__system_flag__ & (sf2_int_key)) {
-            switch(json_type) {
-            case JSON_OBJECT:
-                {
-                    BOOL some = FALSE;
-                    const char *key_; json_t *jn_value;
-                    json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
-// TODO                      if(md_record->key.i == atoi(key_)) {
-//                            some = TRUE;
-//                            break; // Con un match de key ya es true
-//                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            case JSON_ARRAY:
-                {
-                    BOOL some = FALSE;
-                    int idx; json_t *jn_value;
-                    json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
-// TODO                       if(json_is_integer(jn_value)) {
-//                            if(md_record->key.i == json_integer_value(jn_value)) {
-//                                some = TRUE;
-//                                break; // Con un match de key ya es true
-//                            }
-//                        } else if(json_is_string(jn_value)) {
-//                            if(md_record->key.i == atoi(json_string_value(jn_value))) {
-//                                some = TRUE;
-//                                break; // Con un match de key ya es true
-//                            }
-//                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            default:
-                {
-                    json_int_t key = kw_get_int(gobj, match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
-// TODO                   if(md_record->key.i != key) {
-//                        return FALSE;
-//                    }
-                }
-                break;
-            }
-
-        } else if(__system_flag__ & sf2_string_key) {
-            switch(json_type) {
-            case JSON_OBJECT:
-                {
-                    BOOL some = FALSE;
-                    const char *key_; json_t *jn_value;
-                    json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
-// TODO                       if(strncmp(md_record->key.s, key_, sizeof(md_record->key.s)-1)==0) {
-//                            some = TRUE;
-//                            break; // Con un match de key ya es true
-//                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            case JSON_ARRAY:
-                {
-                    BOOL some = FALSE;
-                    int idx; json_t *jn_value;
-                    json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
-                        if(json_is_string(jn_value)) {
-// TODO                           if(strncmp(
-//                                    md_record->key.s,
-//                                    json_string_value(jn_value),
-//                                    sizeof(md_record->key.s)-1)==0) {
-//                                some = TRUE;
-//                                break; // Con un match de key ya es true
-//                            }
-                        } else {
-                            return FALSE;
-                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            default:
-                {
-                    const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
-                    if(!key) {
-                        return FALSE;
-                    }
-//  TODO                  if(strncmp(md_record->key.s, key, sizeof(md_record->key.s)-1)!=0) {
-//                        return FALSE;
-//                    }
-                }
-                break;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "rkey")) {
-        if(__system_flag__ & sf2_string_key) {
-            const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
-            if(!rkey) {
-                return FALSE;
-            }
-
-            regex_t _re_name;
-            if(regcomp(&_re_name, rkey, REG_EXTENDED | REG_NOSUB)!=0) {
-                return FALSE;
-            }
-            int ret = 0; // TODO regexec(&_re_name, md_record->key.s, 0, 0, 0);
-            regfree(&_re_name);
-            if(ret!=0) {
-                return FALSE;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_rowid")) {
-        json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
-        if(from_rowid >= 0) {
-// TODO           if(md_record->__rowid__ < from_rowid) {
-//                if(backward) {
-//                    if(end) {
-//                        *end = TRUE;
-//                    }
-//                }
-//                return FALSE;
-//            }
-        } else {
-            uint64_t x = __last_rowid__ + from_rowid;
-//  TODO          if(md_record->__rowid__ <= x) {
-//                if(backward) {
-//                    if(end) {
-//                        *end = TRUE;
-//                    }
-//                }
-//                return FALSE;
-//            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_rowid")) {
-        json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-        if(to_rowid >= 0) {
-// TODO           if(md_record->__rowid__ > to_rowid) {
-//                if(!backward) {
-//                    if(end) {
-//                        *end = TRUE;
-//                    }
-//                }
-//                return FALSE;
-//            }
-        } else {
-            uint64_t x = __last_rowid__ + to_rowid;
-//  TODO          if(md_record->__rowid__ > x) {
-//                if(!backward) {
-//                    if(end) {
-//                        *end = TRUE;
-//                    }
-//                }
-//                return FALSE;
-//            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_t")) {
-        json_int_t from_t = 0;
-        json_t *jn_from_t = json_object_get(match_cond, "from_t");
-        if(json_is_string(jn_from_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset);
-            from_t = timestamp;
-        } else {
-            from_t = json_integer_value(jn_from_t);
-        }
-
-        if(from_t >= 0) {
-            if(md_record->__t__ < from_t) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_t__ + from_t;
-            if(md_record->__t__ <= x) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_t")) {
-        json_int_t to_t = 0;
-        json_t *jn_to_t = json_object_get(match_cond, "to_t");
-        if(json_is_string(jn_to_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset);
-            to_t = timestamp;
-        } else {
-            to_t = json_integer_value(jn_to_t);
-        }
-
-        if(to_t >= 0) {
-            if(md_record->__t__ > to_t) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_t__ + to_t;
-            if(md_record->__t__ > x) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_tm")) {
-        json_int_t from_tm = 0;
-        json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-        if(json_is_string(jn_from_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset);
-            if(__system_flag__ & (sf2_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
-            }
-            from_tm = timestamp;
-        } else {
-            from_tm = json_integer_value(jn_from_tm);
-        }
-
-        if(from_tm >= 0) {
-            if(md_record->__tm__ < from_tm) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_tm__ + from_tm;
-            if(md_record->__tm__ <= x) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_tm")) {
-        json_int_t to_tm = 0;
-        json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-        if(json_is_string(jn_to_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset);
-            if(__system_flag__ & (sf2_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
-            }
-            to_tm = timestamp;
-        } else {
-            to_tm = json_integer_value(jn_to_tm);
-        }
-
-        if(to_tm >= 0) {
-            if(md_record->__tm__ > to_tm) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_tm__ + to_tm;
-            if(md_record->__tm__ > x) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "user_flag")) {
-        uint32_t user_flag = kw_get_int(gobj, match_cond, "user_flag", 0, 0);
-        if((__user_flag__ != user_flag)) {
-            return FALSE;
-        }
-    }
-    if(kw_has_key(match_cond, "not_user_flag")) {
-        uint32_t not_user_flag = kw_get_int(gobj, match_cond, "not_user_flag", 0, 0);
-        if((__user_flag__ == not_user_flag)) {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "user_flag_mask_set")) {
-        uint32_t user_flag_mask_set = kw_get_int(gobj, match_cond, "user_flag_mask_set", 0, 0);
-        if((__user_flag__ & user_flag_mask_set) != user_flag_mask_set) {
-            return FALSE;
-        }
-    }
-    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
-        uint32_t user_flag_mask_notset = kw_get_int(gobj, match_cond, "user_flag_mask_notset", 0, 0);
-        if((__user_flag__ | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "notkey")) {
-        if(__system_flag__ & (sf2_int_key)) {
-            json_int_t notkey = kw_get_int(gobj, match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
-//  TODO          if(md_record->key.i == notkey) {
-//                return FALSE;
-//            }
-        } else if(__system_flag__ & sf2_string_key) {
-            const char *notkey = kw_get_str(gobj, match_cond, "key", 0, 0);
-            if(!notkey) {
-                return FALSE;
-            }
-// TODO           if(strncmp(md_record->key.s, notkey, sizeof(md_record->key.s)-1)==0) {
-//                return FALSE;
-//            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-
-/***************************************************************************
-    Get the first matched md record
-    Return 0 if found. Set metadata in md_record
-    Return -1 if not found
- ***************************************************************************/
-PUBLIC int tranger2_find_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond,  // owned
-    md2_record_t *md_record
-)
-{
-//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-//    if(!match_cond) {
-//        match_cond = json_object();
-//    }
-//    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-//
-//    json_t *jn_segments = get_segments(
-//        gobj,
-//        tranger,
-//        topic,
-//        key,
-//        match_cond  // NOT owned
-//    );
-//
-//    print_json2("SEGMENTS", jn_segments); // TODO TEST
-//
-//    if(json_array_size(jn_segments)==0) {
-//        // NO match
-//        JSON_DECREF(jn_segments)
-//        JSON_DECREF(match_cond)
-//        return -1;
-//    }
-//
-//    /*-------------------------------------*
-//     *      Loop
-//     *-------------------------------------*/
-//    json_int_t starting_row;
-//    json_t *segment;
-//    if(!backward) {
-////        segment = get_first_list_segment(gobj, jn_segments);
-////        starting_row = kw_get_int(gobj, segment, "first_row", 0, KW_REQUIRED);
-//    } else {
-////        segment = get_last_list_segment(gobj, jn_segments);
-////        starting_row = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
-//    }
-//    BOOL end = get_md_by_rowid( // Get record metadata by rowid
-//        gobj,
-//        tranger,
-//        topic,
-//        key,
-//        segment,
-//        starting_row,
-//        md_record
-//    );
-//
-//    while(!end) {
-//        if(tranger2_match_record(tranger, topic, key, match_cond, md_record, &end)) {
-//            JSON_DECREF(match_cond)
-//            return 0;
-//        }
-//        if(end) {
-//            break;
-//        }
-//        if(!backward) {
-//            end = tranger2_next_record(tranger, topic, key, md_record);
-//        } else {
-//            end = tranger2_prev_record(tranger, topic, key, md_record);
-//        }
-//    }
-    JSON_DECREF(match_cond)
-    return -1;
-}
-
-/***************************************************************************
- *  Read first md record
- ***************************************************************************/
-PUBLIC int tranger2_first_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md_record
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_int_t rowid = 1;
-
-//    if(get_md_by_rowid(
-//        gobj,
-//        tranger,
-//        topic,
-//        key,
-//        rowid,
-//        md_record,
-//        FALSE
-//    )<0) {
-//        return -1;
-//    }
-
-// TODO   if(md_record->__rowid__ != 1) {
-//        log_error(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "md_records corrupted, first item is not 1",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "rowid",        "%lu", (unsigned long)md_record->__rowid__,
-//            NULL
-//        );
-//        return -1;
-//    }
-
-// TODO   if(md_record->__system_flag__ & sf_deleted_record) {
-//        return tranger_next_record(tranger, topic, md_record);
-//    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  Read last md record
- ***************************************************************************/
-PUBLIC int tranger2_last_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md_record
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-//    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
-
-//    json_int_t rowid = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-//    if(get_md_by_rowid(
-//        gobj,
-//        topic,
-//        key,
-//        rowid,
-//        md_record,
-//        FALSE
-//    )<0) {
-//        return -1;
-//    }
-
-// TODO   if(md_record->__rowid__ != rowid) {
-//        log_error(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "md_records corrupted, last item is not last_rowid",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "rowid",        "%lu", (unsigned long)md_record->__rowid__,
-//            "last_rowid",   "%lu", (unsigned long)rowid,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-//    if(md_record->__system_flag__ & sf_deleted_record) {
-//        return tranger_prev_record(tranger, topic, md_record);
-//    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  Read next md record
- ***************************************************************************/
-PUBLIC int tranger2_next_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md_record
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-//   TODO json_int_t rowid = md_record->__rowid__ + 1;
-//
-//    if(get_md_by_rowid(
-//        tranger,
-//        topic,
-//        rowid,
-//        md_record,
-//        FALSE
-//    )<0) {
-//        return -1;
-//    }
-//
-//    if(md_record->__rowid__ != rowid) {
-//        log_error(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "md_records corrupted, last item is not last_rowid",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "rowid",        "%lu", (unsigned long)rowid,
-//            "next_rowid",   "%lu", (unsigned long)md_record->__rowid__,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-//    if(md_record->__system_flag__ & sf_deleted_record) {
-//        return tranger_next_record(tranger, topic, md_record);
-//    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  Read prev md record
- ***************************************************************************/
-PUBLIC int tranger2_prev_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md_record
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-//   TODO  json_int_t rowid = md_record->__rowid__ - 1;
-//    if(md_record->__rowid__ < 1) {
-//        return 0;
-//    }
-//    if(get_md_by_rowid(
-//        tranger,
-//        topic,
-//        rowid,
-//        md_record,
-//        FALSE
-//    )<0) {
-//        return -1;
-//    }
-//
-//    if(md_record->__rowid__ != rowid) {
-//        log_error(0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "md_records corrupted, last item is not last_rowid",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "rowid",        "%lu", (unsigned long)rowid,
-////           TODO "prev_rowid",   "%lu", (unsigned long)md_record->__rowid__,
-//            NULL
-//        );
-//        return -1;
-//    }
-
-// TODO   if(md_record->__system_flag__ & sf_deleted_record) {
-//        return tranger_prev_record(tranger, topic, md_record);
-//    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void tr2_print_md0_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md_record,
-    char *bf,
-    int bfsize
-)
-{
-    uint64_t __rowid__ = 0; // TODO get from ???
-//    const char *key = "";         // TODO get from ???
-    uint64_t ikey = 0;
-
-    char fecha[90];
-    char stamp[64];
-    uint32_t __system_flag__ = get_system_flag(md_record);
-    time_t t = get_time_t(md_record);
-    if(__system_flag__ & sf2_t_ms) {
-        t /= 1000;
-        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
-    } else {
-        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z",
-            localtime((time_t *)&t)
-        );
-    }
-
-    time_t t_m = get_time_tm(md_record);
-    char fecha_tm[80];
-    if(__system_flag__ & sf2_tm_ms) {
-        t_m /= 1000;
-        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S%z", gmtime(&t_m));
-    } else {
-        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%S%z",
-            gmtime((time_t *)&t_m)
-        );
-    }
-
-    system_flag2_t key_type = __system_flag__ & KEY_TYPE_MASK2;
-
-    if(!key_type) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s",
-            (uint64_t)__rowid__,
-            (uint64_t)md_record->__t__,
-            fecha,
-            (uint64_t)md_record->__tm__,
-            fecha_tm
-        );
-    } else if(key_type & (sf2_int_key)) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key: %"PRIu64,
-            (uint64_t)__rowid__,
-            (uint64_t)md_record->__t__,
-            fecha,
-            (uint64_t)md_record->__tm__,
-            fecha_tm,
-            ikey
-        );
-    } else if(key_type & sf2_string_key) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key:'%s'",
-            (uint64_t)__rowid__,
-            (uint64_t)md_record->__t__,
-            fecha,
-            (uint64_t)md_record->__tm__,
-            fecha_tm,
-            key
-        );
-    } else {
-        gobj_log_error(0, 0,
+    off64_t offset = (off64_t)md_record->__offset__;
+    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+    if(offset != offset_) {
+        gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "BAD metadata, without key type",
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record data, lseek FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "errno",        "%s", strerror(errno),
             NULL
         );
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void tr2_print_md1_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md_record,
-    char *bf,
-    int bfsize
-)
-{
-    uint64_t __rowid__ = 0; // TODO get from ???
-//    const char *key = "";         // TODO get from ???
-    uint64_t ikey = 0;
-
-    struct tm *tm;
-    char fecha[90];
-    char stamp[64];
-
-    uint32_t __system_flag__ = get_system_flag(md_record);
-    uint32_t __user_flag__ = get_user_flag(md_record);
-    time_t t_m = get_time_tm(md_record);
-    time_t t = get_time_t(md_record);
-
-    if(__system_flag__ & sf2_t_ms) {
-        int ms = t % 1000;
-        t /= 1000;
-        tm = gmtime(&t);
-        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
-        snprintf(fecha, sizeof(fecha), "%s.%03uZ", stamp, ms);
-    } else {
-        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&t));
+        return NULL;
     }
 
-    char fecha_tm[80];
-    if(__system_flag__ & sf2_tm_ms) {
-        int ms = t_m % 1000;
-        time_t t_m_ = t_m/1000;
-        tm = gmtime(&t_m_);
-        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
-        snprintf(fecha_tm, sizeof(fecha_tm), "%s.%03uZ", stamp, ms);
-    } else {
-        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&md_record->__tm__));
-    }
-
-    system_flag2_t key_type = __system_flag__ & KEY_TYPE_MASK2;
-
-    if(!key_type) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s",
-            (uint64_t)__rowid__,
-            __user_flag__,
-            __system_flag__,
-            t,
-            fecha,
-            t_m,
-            fecha_tm
-        );
-    } else if(key_type & (sf2_int_key)) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key: %"PRIu64,
-            __rowid__,
-            __user_flag__,
-            __system_flag__,
-            t,
-            fecha,
-            t_m,
-            fecha_tm,
-            ikey
-        );
-    } else if(key_type & sf2_string_key) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key:'%s'",
-            __rowid__,
-            __user_flag__,
-            __system_flag__,
-            t,
-            fecha,
-            t_m,
-            fecha_tm,
-            key
-        );
-    } else {
-        gobj_log_error(0,0,
+    gbuffer_t *gbuf = gbuffer_create(md_record->__size__, md_record->__size__);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "BAD metadata, without key type",
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Cannot read record data. gbuf_create() FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             NULL
         );
+        return NULL;
     }
-}
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    size_t ln = read(
+        fd,
+        p,
+        md_record->__size__
+    );
 
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void tr2_print_md2_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md_record,
-    char *bf,
-    int bfsize
-)
-{
-// TODO   time_t t = md_record->__t__;
-//    uint64_t offset = md_record->__offset__;
-//    uint64_t size = md_record->__size__;
-//
-//    char path[1024];
-//    get_t_filename(
-//        tranger,
-//        topic,
-//        path,
-//        sizeof(path),
-//        (md_record->__system_flag__ & sf_t_ms)? t/1000:t
-//    );
-//
-//
-//    snprintf(bf, bfsize,
-//        "rowid:%"PRIu64", ofs:%"PRIu64", sz:%-5"PRIu64", "
-//        "t:%"PRIu64", "
-//        "f:%s",
-//        (uint64_t)md_record->__rowid__,
-//        offset,
-//        size,
-//        (uint64_t)t,
-//        path
-//    );
-}
+    if(ln != md_record->__size__) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record data, read FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void tr2_print_record_filename(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md_record,
-    char *bf,
-    int bfsize
-)
-{
-// TODO   time_t t = md_record->__t__;
-//    get_t_filename(
-//        tranger,
-//        topic,
-//        bf,
-//        bfsize,
-//        t
-//    );
+    /*
+     *  Restoring: first decrypt, second decompress
+     */
+
+//    if(md_record->__system_flag__ & sf_cipher_record) {
+//        // if(topic->decrypt_callback) { TODO
+//        //     gbuf = topic->decrypt_callback(
+//        //         topic->user_data,
+//        //         topic,
+//        //         gbuf    // must be owned
+//        //     );
+//        // }
+//    }
+//    if(md_record->__system_flag__ & sf_zip_record) {
+//        // if(topic->decompress_callback) { TODO
+//        //     gbuf = topic->decompress_callback(
+//        //         topic->user_data,
+//        //         topic,
+//        //         gbuf    // must be owned
+//        //     );
+//        // }
+//    }
+
+
+    json_t *jn_record;
+    if(empty_string(p)) {
+        jn_record = json_object();
+        gbuffer_decref(gbuf);
+    } else {
+        jn_record = anystring2json(p, strlen(p), FALSE);
+        gbuffer_decref(gbuf);
+        if(!jn_record) {
+            gobj_log_critical(gobj, 0, // Let continue, will be a message lost
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Bad data, anystring2json() FAILED.",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "__t__",        "%lu", (unsigned long)md_record->__t__,
+                "__size__",     "%lu", (unsigned long)md_record->__size__,
+                "__offset__",   "%lu", (unsigned long)md_record->__offset__,
+                NULL
+            );
+            return NULL;
+        }
+    }
+
+    return jn_record;
 }
 
 /***************************************************************************

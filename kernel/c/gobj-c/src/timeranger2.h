@@ -482,6 +482,14 @@ PUBLIC int tranger2_close_iterator(
 );
 
 /**rst**
+    Get Iterator size (nº of rows)
+**rst**/
+PUBLIC int tranger2_iterator_size(
+    json_t *tranger,
+    json_t *iterator
+);
+
+/**rst**
     Get metadata/record of first row in iterator
 **rst**/
 PUBLIC int tranger2_iterator_first(
@@ -522,103 +530,25 @@ PUBLIC int tranger2_iterator_last(
 );
 
 /**rst**
-    Read record content. Return must be decref!
+    Get metadata/record of rowid in iterator
+**rst**/
+PUBLIC int tranger2_iterator_get(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t rowid,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get record of md2 in iterator
 **rst**/
 PUBLIC json_t *tranger2_read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    md2_record_t *md2_record
-);
-
-/**rst**
-    Match record
-**rst**/
-PUBLIC BOOL tranger2_match_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond,  // not owned
-    const md2_record_t *md2_record,
-    BOOL *end
-);
-
-/**rst**
-    Get the first record matching conditions
-**rst**/
-PUBLIC int tranger2_find_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond,  // owned
-    md2_record_t *md2_record
-);
-
-/**rst**
-    Walk over records (disk!)
-**rst**/
-PUBLIC int tranger2_first_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md2_record
-);
-PUBLIC int tranger2_last_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md2_record
-);
-PUBLIC int tranger2_next_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md2_record
-);
-PUBLIC int tranger2_prev_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    md2_record_t *md2_record
-);
-
-/*
- *  print_md1_record: info of record metadata
- *  print_md2_record: info of message record metadata
- *  print_md3_record: info of file record metadata
- */
-PUBLIC void tr2_print_md0_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md2_record,
-    char *bf,
-    int bfsize
-);
-PUBLIC void tr2_print_md1_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md2_record,
-    char *bf,
-    int bfsize
-);
-PUBLIC void tr2_print_md2_record(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md2_record,
-    char *bf,
-    int bfsize
-);
-
-PUBLIC void tr2_print_record_filename(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const md2_record_t *md2_record,
-    char *bf,
-    int bfsize
+    json_t *segment,
+    md2_record_t *md_record
 );
 
 PUBLIC void tranger2_set_trace_level(
