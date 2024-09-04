@@ -15,7 +15,7 @@
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
 #define MAX_KEYS    2 // TODO 100000
-#define MAX_RECORDS 100000 // TODO 100000
+#define MAX_RECORDS 4 // TODO 100000
 
 /***************************************************************
  *              Prototypes

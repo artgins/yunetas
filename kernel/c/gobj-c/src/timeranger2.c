@@ -3047,6 +3047,8 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     json_t *iterator = json_object();
+    json_object_set(iterator, "topic", topic);
+    json_object_set_new(iterator, "key", json_string(key));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
 
@@ -3129,6 +3131,9 @@ PUBLIC int tranger2_iterator_first(
      *  Get the data
      */
     if(md_record) {
+        json_t *topic = json_object_get(iterator, "topic");
+        const char *key = json_string_value(json_object_get(iterator, "key"));
+
         int fd = get_topic_rd_fd(
             gobj,
             tranger,
@@ -3137,6 +3142,41 @@ PUBLIC int tranger2_iterator_first(
             segment,
             FALSE
         );
+
+        off64_t offset = (off64_t) ((cur_rowid-1) * sizeof(md2_record_t));
+        off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+        if(offset != offset_) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read record metadata, lseek FAILED",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+
+        size_t ln = read(
+            fd,
+            md_record,
+            sizeof(md2_record_t)
+        );
+        if(ln != sizeof(md2_record_t)) {
+            // HACK no "master" (tranger readonly): we try to read new records
+            if(ln != 0) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read record metadata, read FAILED",
+                    "topic",        "%s", tranger2_topic_name(topic),
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            }
+            return -1;
+        }
+
 
         // TODO get md
     }
