@@ -418,18 +418,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     if(!jn_var) {
         jn_var = json_object();
     }
-    if(empty_string(pkey)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-            "msg",          "%s", "tranger_create_topic(): What pkey?",
-            NULL
-        );
-        JSON_DECREF(jn_cols)
-        JSON_DECREF(jn_var)
-        JSON_DECREF(jn_topic_ext)
-        return 0;
+    if(!pkey) {
+        pkey = "";
     }
     if(!tkey) {
         tkey = "";
@@ -479,6 +469,21 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             JSON_DECREF(jn_topic_ext)
             return 0;
         }
+
+        if(empty_string(pkey)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+                "msg",          "%s", "tranger_create_topic(): What pkey?",
+                NULL
+            );
+            JSON_DECREF(jn_cols)
+            JSON_DECREF(jn_var)
+            JSON_DECREF(jn_topic_ext)
+            return 0;
+        }
+
         if(mkrdir(directory, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
