@@ -1732,16 +1732,18 @@ PRIVATE int close_fd_opened_files(
 /***************************************************************************
  *  Return json object with record metadata
  ***************************************************************************/
-PUBLIC json_t *tranger2_md2json(md2_record_t *md_record)
+PRIVATE json_t *md2json(
+    md2_record_t *md_record,
+    json_int_t relative_rowid
+)
 {
     json_t *jn_md = json_object();
-    // TODO
-//    json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
-//    json_object_set_new(jn_md, "__t__", json_integer(md_record->__t__));
-//    json_object_set_new(jn_md, "__tm__", json_integer(md_record->__tm__));
-//    json_object_set_new(jn_md, "__offset__", json_integer(md_record->__offset__));
-//    json_object_set_new(jn_md, "__size__", json_integer(md_record->__size__));
-//    json_object_set_new(jn_md, "__user_flag__", json_integer(md_record->__user_flag__));
+    json_object_set_new(jn_md, "__rowid__", json_integer(relative_rowid));
+    json_object_set_new(jn_md, "__t__", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "__tm__", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "__offset__", json_integer((json_int_t)md_record->__offset__));
+    json_object_set_new(jn_md, "__size__", json_integer((json_int_t)md_record->__size__));
+//  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(md_record->__user_flag__));
 //    json_object_set_new(jn_md, "__system_flag__", json_integer(md_record->__system_flag__));
 
     return jn_md;
@@ -2068,6 +2070,17 @@ PUBLIC int tranger2_append_record(
             return -1;
         }
     }
+
+    /*-----------------------------------------------------*
+     *  Add the message metadata to the record
+     *  Could be useful for records with the same __t__
+     *  for example, to distinguish them by the readers.
+     *-----------------------------------------------------*/
+    json_object_set_new(
+        jn_record,
+        "__md_tranger__",
+        md2json(md_record, relative_rowid)
+    );
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
