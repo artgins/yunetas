@@ -357,25 +357,23 @@ int do_test(void)
     if(1) {
         char path_key[PATH_MAX];
 
-        result += test_directory_permission(path_topic, 0x700);
+        result += test_directory_permission(path_topic, 0770);
 
         build_path(path_key, sizeof(path_key),
             path_topic,
             "0000000000000000001",
             NULL
         );
-        result += test_directory_permission(path_key, 0x700);
+        result += test_directory_permission(path_key, 0700);
 
         build_path(path_key, sizeof(path_key),
             path_topic,
             "0000000000000000002",
             NULL
         );
-        result += test_directory_permission(path_key, 0x700);
-
+        result += test_directory_permission(path_key, 0700);
 
         char path_key_file[PATH_MAX];
-
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
@@ -383,6 +381,7 @@ int do_test(void)
             "2000-01-01.json",
             NULL
         );
+        result += test_file_permission_and_size(path_key_file, 0600, 28944000);
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
@@ -390,6 +389,7 @@ int do_test(void)
             "2000-01-01.md2",
             NULL
         );
+        result += test_file_permission_and_size(path_key_file, 0600, 2764800);
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
@@ -397,13 +397,15 @@ int do_test(void)
             "2000-01-02.json",
             NULL
         );
+        result += test_file_permission_and_size(path_key_file, 0600, 1206000);
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
             "0000000000000000001",
-            "2000-01-02.json",
+            "2000-01-02.md2",
             NULL
         );
+        result += test_file_permission_and_size(path_key_file, 0600, 115200);
     }
 
     return result;

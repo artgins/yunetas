@@ -389,7 +389,7 @@ PUBLIC mode_t file_permission(const char *path)
     if(stat(path, &st)<0) {
         return 0;
     }
-    return st.st_mode;
+    return st.st_mode & 0777;
 }
 
 /***************************************************************************
