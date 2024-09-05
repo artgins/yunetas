@@ -300,7 +300,7 @@ int do_test(void)
          *-------------------------------------*/
         leidos = 0;
 
-        json_t *tr_list = tranger2_open_list(
+        json_t *tr_list = tranger2_open_rt_list(
             tranger,
             TOPIC_NAME,
             "",             // key
@@ -311,7 +311,7 @@ int do_test(void)
 
 print_json2("XXX after open list", tranger); // TODO TEST
 
-        tranger2_close_list(
+        tranger2_close_rt_list(
             tranger,
             tr_list
         );

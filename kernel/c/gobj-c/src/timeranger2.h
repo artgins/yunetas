@@ -389,7 +389,7 @@ typedef int (*tranger2_load_record_callback_t)(
 /**rst**
     Open realtime list
 **rst**/
-PUBLIC json_t *tranger2_open_list(
+PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
@@ -400,7 +400,7 @@ PUBLIC json_t *tranger2_open_list(
 /**rst**
     Close realtime list
 **rst**/
-PUBLIC int tranger2_close_list(
+PUBLIC int tranger2_close_rt_list(
     json_t *tranger,
     json_t *list
 );
@@ -408,7 +408,7 @@ PUBLIC int tranger2_close_list(
 /**rst**
     Get list by his id
 **rst**/
-PUBLIC json_t *tranger2_get_list_by_id(
+PUBLIC json_t *tranger2_get_rt_list_by_id(
     json_t *tranger,
     const char *list_id
 );
