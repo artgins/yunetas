@@ -98,7 +98,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*-------------------------------------------------*
@@ -145,7 +145,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------*
@@ -167,7 +167,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------*
@@ -187,7 +187,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------------*

@@ -8,6 +8,7 @@
  ****************************************************************************/
 #pragma once
 
+#include <sys/stat.h>
 #include "gobj.h"
 
 /*
@@ -37,6 +38,8 @@ PUBLIC int unlock_file(int fd);
 
 PUBLIC BOOL is_regular_file(const char *path);
 PUBLIC BOOL is_directory(const char *path);
+PUBLIC off_t file_size(const char *path);
+PUBLIC mode_t file_permission(const char *path);
 PUBLIC BOOL file_exists(const char *directory, const char *filename);
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir);
 PUBLIC int file_remove(const char *directory, const char *filename);

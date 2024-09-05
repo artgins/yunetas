@@ -8,14 +8,12 @@
  ***********************************************************************/
 #include <stdio.h>
 #include <time.h>
-#include <sys/stat.h>
 #include <inttypes.h>
 #include <fcntl.h>
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
-#include <glob.h>
 #include "timeranger2.h"
 
 extern void jsonp_free(void *ptr); // json low level

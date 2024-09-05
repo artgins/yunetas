@@ -76,102 +76,6 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_expected_results(
-    const char *name_,
-    json_t *errors_list,
-    json_t *expected_,
-    const char **ignore_keys_,
-    BOOL verbose_
-)
-{
-    name = name_;
-    verbose = verbose_;
-    if(verbose) {
-        printf("Test '%s'\n", name?name:"");
-    }
-    JSON_DECREF(expected_log_messages)
-    JSON_DECREF(unexpected_log_messages)
-    JSON_DECREF(expected)
-
-    expected_log_messages = errors_list?errors_list:json_array();
-    unexpected_log_messages = json_array();
-    expected = expected_;
-    ignore_keys = ignore_keys_;
-}
-
-/***************************************************************************
- *  Return 0 if ok, -1 if error
- ***************************************************************************/
-PUBLIC int test_file(const char *file)
-{
-    int result = 0;
-    json_t *jn_found = load_json_from_file(0, file, "", 0);
-
-    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
-    if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
-        result = -1;
-        if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
-            gobj_trace_json(0, jn_found, "Record found");
-            gobj_trace_json(0, expected, "Record expected");
-        } else {
-            printf("%sX%s", On_Red BWhite, Color_Off);
-        }
-    } else {
-        if(!check_log_result()) {
-            result = -1;
-        }
-    }
-
-    GBUFFER_DECREF(gbuf_path)
-    JSON_DECREF(jn_found)
-
-    JSON_DECREF(expected_log_messages)
-    JSON_DECREF(unexpected_log_messages)
-    JSON_DECREF(expected)
-
-    return result;
-}
-
-/***************************************************************************
- *  Return 0 if ok, -1 if error
- ***************************************************************************/
-PUBLIC int test_json(json_t *jn_found)
-{
-    int result = 0;
-
-    /*
-     *  If jn_found && expected are NULL we want to check only the logs
-     */
-    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
-    if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
-        result = -1;
-        if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
-            gobj_trace_json(0, jn_found, "Record found");
-            gobj_trace_json(0, expected, "Record expected");
-        } else {
-            printf("%sX%s", On_Red BWhite, Color_Off);
-        }
-    } else {
-        if(!check_log_result()) {
-            result = -1;
-        }
-    }
-
-    GBUFFER_DECREF(gbuf_path)
-    JSON_DECREF(jn_found)
-
-    JSON_DECREF(expected_log_messages)
-    JSON_DECREF(unexpected_log_messages)
-    JSON_DECREF(expected)
-
-    return result;
-}
-
-/***************************************************************************
  *  Return TRUE if all is ok.
  ***************************************************************************/
 PRIVATE BOOL check_log_result(void)
@@ -557,4 +461,132 @@ PRIVATE BOOL match_list(
     JSON_DECREF(list)
     JSON_DECREF(expected__)
     return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_expected_results(
+    const char *name_,
+    json_t *errors_list,
+    json_t *expected_,
+    const char **ignore_keys_,
+    BOOL verbose_
+)
+{
+    name = name_;
+    verbose = verbose_;
+    if(verbose) {
+        printf("Test '%s'\n", name?name:"");
+    }
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
+    expected_log_messages = errors_list?errors_list:json_array();
+    unexpected_log_messages = json_array();
+    expected = expected_;
+    ignore_keys = ignore_keys_;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_json_file(const char *file)
+{
+    int result = 0;
+    json_t *jn_found = load_json_from_file(0, file, "", 0);
+
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
+        result = -1;
+        if(verbose) {
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            gobj_trace_json(0, jn_found, "Record found");
+            gobj_trace_json(0, expected, "Record expected");
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result()) {
+            result = -1;
+        }
+    }
+
+    GBUFFER_DECREF(gbuf_path)
+    JSON_DECREF(jn_found)
+
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
+    return result;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_json(json_t *jn_found)
+{
+    int result = 0;
+
+    /*
+     *  If jn_found && expected are NULL we want to check only the logs
+     */
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
+        result = -1;
+        if(verbose) {
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            gobj_trace_json(0, jn_found, "Record found");
+            gobj_trace_json(0, expected, "Record expected");
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result()) {
+            result = -1;
+        }
+    }
+
+    GBUFFER_DECREF(gbuf_path)
+    JSON_DECREF(jn_found)
+
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+
+    return result;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_directory_permission(const char *path, mode_t permission)
+{
+    mode_t mode = file_permission(path);
+
+    if(mode != permission) {
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Return 0 if ok, -1 if error
+ ***************************************************************************/
+PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size)
+{
+    mode_t mode = file_permission(path);
+
+    if(mode != permission) {
+        return -1;
+    }
+
+    off_t sz = file_size(path);
+    if(sz != size) {
+        return -1;
+    }
+
+    return 0;
 }

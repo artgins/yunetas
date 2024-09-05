@@ -6,7 +6,6 @@
  *              Copyright (c) 2014,2023 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
-#include <sys/stat.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -364,6 +363,33 @@ PUBLIC BOOL is_directory(const char *path)
         return FALSE;
     }
     return S_ISDIR(buf.st_mode)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC off_t file_size(const char *path)
+{
+    struct stat64 st;
+    if(stat64(path, &st)<0) {
+        return 0;
+    }
+    off_t size = st.st_size;
+    if(size < 0)
+        size = 0;
+    return size;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC mode_t file_permission(const char *path)
+{
+    struct stat st;
+    if(stat(path, &st)<0) {
+        return 0;
+    }
+    return st.st_mode;
 }
 
 /***************************************************************************

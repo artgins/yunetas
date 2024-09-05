@@ -85,7 +85,7 @@ int do_test(void)
         "master", 1,
         "on_critical_error", 0,
         "filename_mask", "%Y",
-        "xpermission" , 02700,
+        "xpermission" , 02770,
         "rpermission", 0600,
         "trace_level", 1
     );
@@ -100,7 +100,7 @@ int do_test(void)
         { \
           'filename_mask': '%Y', \
           'rpermission': 384, \
-          'xpermission': 1472 \
+          'xpermission': 1528 \
         } \
         ";
         set_expected_results(
@@ -110,7 +110,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*-------------------------------------------------*
@@ -124,8 +124,8 @@ int do_test(void)
         json_pack("{s:i, s:s, s:i, s:i}", // jn_topic_desc
             "on_critical_error", 4,
             "filename_mask", "%Y-%m-%d",
-            "xpermission" , 02770,
-            "rpermission", 0660
+            "xpermission" , 02700,
+            "rpermission", 0600
         ),
         sf2_int_key,    // system_flag
         json_pack("{s:s, s:I, s:s}", // jn_cols, owned
@@ -153,8 +153,8 @@ int do_test(void)
             'tkey': 'tm', \
             'system_flag': 4, \
             'filename_mask': '%%Y-%%m-%%d', \
-            'xpermission': 1528, \
-            'rpermission': 432 \
+            'xpermission': 1472, \
+            'rpermission': 384 \
         } \
         ", TOPIC_NAME);
 
@@ -165,7 +165,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------*
@@ -188,7 +188,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------*
@@ -208,7 +208,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_file(file);
+        result += test_json_file(file);
     }
 
     /*------------------------------------------*
@@ -221,7 +221,7 @@ int do_test(void)
             'path': '%s', \
             'database': '%s', \
             'filename_mask': '%%Y', \
-            'xpermission': 1472, \
+            'xpermission': 1528, \
             'rpermission': 384, \
             'on_critical_error': 0, \
             'master': true, \
@@ -238,8 +238,8 @@ int do_test(void)
                     'tkey': 'tm', \
                     'system_flag': 4, \
                     'filename_mask': '%%Y-%%m-%%d', \
-                    'xpermission': 1528, \
-                    'rpermission': 432, \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
                     'cols': { \
                         'id': '', \
                         'tm': 0, \
@@ -302,7 +302,7 @@ int do_test(void)
                "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
             );
             md2_record_t md_record;
-            tranger2_append_record(tranger, TOPIC_NAME, tm+j+1, 0, &md_record, jn_record1);
+            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
         }
     }
     printf("last time: %"PRIu64"\n", time_in_seconds()); //  TODO TEST
@@ -328,21 +328,20 @@ int do_test(void)
     /*------------------------*
      *      Close topic
      *------------------------*/
-    set_expected_results(
+    set_expected_results( // Check that no logs happen
         "check_close_topic", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-
     tranger2_close_topic(tranger, TOPIC_NAME);
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
-    set_expected_results(
+    set_expected_results( // Check that no logs happen
         "tranger_shutdown", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
@@ -351,6 +350,61 @@ int do_test(void)
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------*
+     *      Check disk structure
+     *-------------------------------*/
+    if(1) {
+        char path_key[PATH_MAX];
+
+        result += test_directory_permission(path_topic, 0x700);
+
+        build_path(path_key, sizeof(path_key),
+            path_topic,
+            "0000000000000000001",
+            NULL
+        );
+        result += test_directory_permission(path_key, 0x700);
+
+        build_path(path_key, sizeof(path_key),
+            path_topic,
+            "0000000000000000002",
+            NULL
+        );
+        result += test_directory_permission(path_key, 0x700);
+
+
+        char path_key_file[PATH_MAX];
+
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-01.json",
+            NULL
+        );
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-01.md2",
+            NULL
+        );
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-02.json",
+            NULL
+        );
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-02.json",
+            NULL
+        );
+    }
 
     return result;
 }
