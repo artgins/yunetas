@@ -360,7 +360,7 @@ PRIVATE int list_topics(const char *path)
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    json_t *match_cond, // not yours, don't own
     md2_record_t *md2_record,
     json_t *jn_record, // must be owned
     const char *key,
@@ -372,13 +372,12 @@ PRIVATE int load_record_callback(
 
     total_counter++;
     partial_counter++;
-    int verbose = (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
+    int verbose = 0; // TODO (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
 // TODO review   tr2_print_md1_record(tranger, topic, key, md_record, title, sizeof(title));
 
     BOOL table_mode = FALSE;
-    json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
         verbose = 3;
         table_mode = TRUE;
@@ -388,24 +387,28 @@ PRIVATE int load_record_callback(
     }
 
     if(verbose < 0) {
-        JSON_DECREF(jn_record);
+        JSON_DECREF(match_cond)
+        JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 0) {
         // TODO review tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
-        JSON_DECREF(jn_record);
+        JSON_DECREF(match_cond)
+        JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 1) {
         printf("%s\n", title);
-        JSON_DECREF(jn_record);
+        JSON_DECREF(match_cond)
+        JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 2) {
         // TODO review tr2_print_md2_record(tranger, topic, md_record, title, sizeof(title));
         printf("%s\n", title);
-        JSON_DECREF(jn_record);
+        JSON_DECREF(match_cond)
+        JSON_DECREF(jn_record)
         return 0;
     }
 
@@ -423,8 +426,9 @@ PRIVATE int load_record_callback(
         )) {
             total_counter--;
             partial_counter--;
-            JSON_DECREF(record1);
-            JSON_DECREF(jn_record);
+            JSON_DECREF(record1)
+            JSON_DECREF(match_cond)
+            JSON_DECREF(jn_record)
             return 0;
         }
         JSON_DECREF(record1);
@@ -493,7 +497,9 @@ PRIVATE int load_record_callback(
     } else {
         print_json2(title, jn_record);
     }
-    JSON_DECREF(jn_record);
+
+    JSON_DECREF(match_cond)
+    JSON_DECREF(jn_record)
 
     return 0;
 }

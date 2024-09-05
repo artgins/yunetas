@@ -39,14 +39,15 @@ size_t all_leidos = 0;
 int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    json_t *match_cond,     // must be owned
     md2_record_t *md2_record,
-    json_t *jn_record, // must be owned
+    json_t *jn_record,      // must be owned
     const char *key,
     json_int_t relative_rowid
 )
 {
     all_leidos++;
+    JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
     return 0;
 }
@@ -55,14 +56,15 @@ size_t one_leidos = 0;
 int one_load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    json_t *match_cond, // must be owned
     md2_record_t *md2_record,
-    json_t *jn_record, // must be owned
+    json_t *jn_record,  // must be owned
     const char *key,
     json_int_t relative_rowid
 )
 {
     one_leidos++;
+    JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
     return 0;
 }

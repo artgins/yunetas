@@ -379,15 +379,16 @@ PUBLIC uint32_t tranger2_read_user_flag(
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    json_t *match_cond, // not yours, don't own
     md2_record_t *md2_record,
-    json_t *jn_record, // must be owned
+    json_t *jn_record,  // must be owned
     const char *key,
     json_int_t relative_rowid
 );
 
 /**rst**
-    Open realtime list
+    Open realtime list, valid when the yuno is the master writing,
+    realtime messages from append_message()
 **rst**/
 PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
@@ -401,6 +402,26 @@ PUBLIC json_t *tranger2_open_rt_list(
     Close realtime list
 **rst**/
 PUBLIC int tranger2_close_rt_list(
+    json_t *tranger,
+    json_t *list
+);
+
+/**rst**
+    Open realtime disk, valid when the yuno is the master writing or not-master reading,
+    realtime messages from events of disk
+**rst**/
+PUBLIC json_t *tranger2_open_rt_disk(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record
+    const char *list_id     // list id, optional
+);
+
+/**rst**
+    Close realtime dis,
+**rst**/
+PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
     json_t *list
 );
@@ -424,7 +445,12 @@ PUBLIC json_t *tranger2_get_rt_list_by_id(
     match_cond:
 
         backward
-        only_md     (don't load jn_record on loading disk)
+        only_md     (don't load jn_record on calling callbacks)
+
+        key     // TODO fuera de match_cond???
+        notkey
+        rkey    regular expression of key
+        filter  dict with fields to match
 
         from_rowid
         to_rowid
@@ -438,17 +464,14 @@ PUBLIC json_t *tranger2_get_rt_list_by_id(
         user_flag_mask_set
         user_flag_mask_notset
 
-        key
-        notkey
-        rkey    regular expression of key
-        filter  dict with fields to match
 
 **rst**/
 PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond  // owned
+    json_t *match_cond,  // owned
+    tranger2_load_record_callback_t load_record_callback // called on loading and appending new record
 );
 
 /**rst**
@@ -497,7 +520,7 @@ PUBLIC int tranger2_iterator_prev(
     json_t *iterator,
     json_int_t *rowid,
     md2_record_t *md_record,
-    json_t **record
+    json_t **record   // not yours, don't own
 );
 
 /**rst**
@@ -508,7 +531,7 @@ PUBLIC int tranger2_iterator_last(
     json_t *iterator,
     json_int_t *rowid,
     md2_record_t *md_record,
-    json_t **record
+    json_t **record   // not yours, don't own
 );
 
 /**rst**
@@ -519,7 +542,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_t *iterator,
     json_int_t rowid,
     md2_record_t *md_record,
-    json_t **record
+    json_t **record  // not yours, don't own
 );
 
 PUBLIC void tranger2_set_trace_level(

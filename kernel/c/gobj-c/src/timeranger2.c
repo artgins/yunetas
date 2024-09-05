@@ -2683,13 +2683,42 @@ PUBLIC json_t *tranger2_get_rt_list_by_id(
 }
 
 /***************************************************************************
+ *  Open realtime disk, valid when the yuno is the master writing or not-master reading,
+ *  realtime messages from events of disk
+ ***************************************************************************/
+PUBLIC json_t *tranger2_open_rt_disk(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record
+    const char *list_id     // list id, optional
+)
+{
+    json_t *rt_disk = json_object();
+
+    return rt_disk;
+}
+
+/***************************************************************************
+ *  Close realtime dis,
+ ***************************************************************************/
+PUBLIC int tranger2_close_rt_disk(
+    json_t *tranger,
+    json_t *list
+)
+{
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
     json_t *topic,
-    const char *key,
-    json_t *match_cond  // owned
+    const char *key,    // ONLY one key by iterator
+    json_t *match_cond, // owned
+    tranger2_load_record_callback_t load_record_callback // called on loading and appending new record
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2699,12 +2728,16 @@ PUBLIC json_t *tranger2_open_iterator(
      *-----------------------------------------*/
     // TODO this cache must be update in tranger2_append_record() ???!!!
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+
+    // TODO esto es la carga de todas las key, debería estar en open_topic()
+    // TODO must be idempotent?
     json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!topic_cache) {
         json_decref(jn_keys);
         return NULL;
     }
+    // TODO must be idempotent?
     load_topic_metadata(
         gobj,
         directory,
@@ -2740,9 +2773,103 @@ PUBLIC json_t *tranger2_open_iterator(
     json_object_set_new(iterator, "cur_segment", json_integer(0));
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
 
+    json_object_set_new(
+        iterator, ""
+        "load_record_callback",
+        json_integer((json_int_t)(size_t)load_record_callback)
+    );
+
     print_json2("ITERATOR", iterator); // TODO TEST
 
     json_object_set(iterator, "topic", topic);
+
+    /*---------------------------------------------*
+     *  If there is load_record_callback then
+     *      - callback all records in disk
+     *  If there is NO to_rowid then get records
+     *  in realtime, listening to changes in disk
+     *---------------------------------------------*/
+    if(load_record_callback) {
+        BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
+        BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+
+        json_int_t rowid;
+        md2_record_t md_record;
+        json_t *record, **precord;
+        if(only_md) {
+            precord = NULL;
+        } else {
+            precord = &record;
+        }
+
+        BOOL end;
+        if(!backward) {
+            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+        } else {
+            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+        }
+        while(!end) {
+            // TODO if match_record
+            if(1) {
+                // Inform to the user list: record in real time
+                JSON_INCREF(record)
+                int ret = load_record_callback(
+                    tranger,
+                    topic,
+                    json_incref(match_cond),
+                    &md_record,
+                    json_incref(record), // must be owned
+                    key,    // key
+                    rowid   // relative_rowid
+                );
+                /*
+                 *  Return:
+                 *      0 do nothing (callback will create their own list, or not),
+                 *      -1 break the load
+                 */
+                if(ret < 0) {
+                    JSON_DECREF(record)
+                    break;
+                }
+            }
+            JSON_DECREF(record)
+
+            if(end) {
+                break;
+            }
+            if(!backward) {
+                end = tranger2_iterator_next(tranger, iterator, &rowid, &md_record, precord);
+            } else {
+                end = tranger2_iterator_prev(tranger, iterator, &rowid, &md_record, precord);
+            }
+        }
+
+        BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+        json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", -1, 0);
+        if(to_rowid <= 0) {
+            if(master) {
+                json_t *rt_list = tranger2_open_rt_list(
+                    tranger,
+                    tranger2_topic_name(topic),
+                    key,                    // if empty receives all keys, else only this key
+                    load_record_callback,   // called on append new record
+                    ""                      // list id, optional
+                );
+                json_object_set_new(iterator, "rt_list", rt_list);
+            } else {
+                json_t *rt_disk = tranger2_open_rt_disk(
+                    tranger,
+                    tranger2_topic_name(topic),
+                    key,                    // if empty receives all keys, else only this key
+                    load_record_callback,   // called on append new record
+                    ""                      // list id, optional
+                );
+                json_object_set_new(iterator, "rt_list", rt_disk);
+
+            }
+        }
+
+    }
 
     return iterator;
 }
