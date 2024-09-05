@@ -139,6 +139,11 @@ PRIVATE json_t *read_record_content(
     json_t *segment,
     md2_record_t *md_record
 );
+PRIVATE json_int_t get_segment_of_rowid(
+    hgobj gobj,
+    json_t *segments,
+    json_int_t rowid
+);
 
 
 /***************************************************************
@@ -375,6 +380,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
     int list_size;
     const char **names = split2(system_flag, "|, ", &list_size);
 
+    // TODO check, no hay una funcion ya para esto?
     for(int i=0; i<list_size; i++) {
         int idx = idx_in_list(sf_names, *(names +i), TRUE);
         if(idx > 0) {
@@ -494,41 +500,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             "topic",        "%s", topic_name,
             NULL
         );
-
-//        /*----------------------------------------*
-//         *      Create topic_idx.md
-//         *----------------------------------------*/
-// TODO ya no existen el index by topic, ahora es idx by key
-//        char full_path[PATH_MAX];
-//        snprintf(full_path, sizeof(full_path), "%s/%s",
-//            directory,
-//            "topic_idx.md"
-//        );
-//        int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
-//        if(fp < 0) {
-//            gobj_log_error(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                "msg",          "%s", "Cannot create topic_idx.md file.",
-//                "filename",     "%s", full_path,
-//                "errno",        "%s", strerror(errno),
-//                NULL
-//            );
-//            JSON_DECREF(jn_cols)
-//            JSON_DECREF(jn_var)
-//        JSON_DECREF(jn_topic_ext)
-//            return 0;
-//        }
-//        close(fp);
-//
-//        gobj_log_info(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INFO,
-//            "msg",          "%s", "Creating topic_idx.md",
-//            "path",         "%s", directory,
-//            "topic",        "%s", topic_name,
-//            NULL
-//        );
 
         /*----------------------------------------*
          *      Create topic_desc.json
@@ -812,36 +783,6 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
-    /*-----------------------------------------*
-     *      Load keys and metadata from disk
-     *-----------------------------------------*/
-    // TODO this cache must be update in tranger2_append_record() or open_list() ???!!!
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
-    if(!topic_cache) {
-        json_decref(jn_keys);
-        return NULL;
-    }
-    load_topic_metadata(
-        gobj,
-        directory,
-        topic_cache,    // not owned
-        jn_keys         // not owned
-    );
-    json_decref(jn_keys);
-
-    /*
-     *  Open topic index
-     */
-// TODO no idx in topic, moved to keys
-//    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
-//    if(!(system_flag & sf2_no_md_disk)) {
-//        if(open_topic_idx_fd(tranger, topic)<0) {
-//            json_decref(topic);
-//            return 0;
-//        }
-//    }
-
     return topic;
 }
 
@@ -884,10 +825,8 @@ PUBLIC uint64_t tranger2_topic_size(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        // Must be open?
         return 0;
     }
     return get_topic_key_rows(gobj, topic, key);
@@ -1361,135 +1300,10 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
         fields
     );
 
-    // TODO json_t *cols = kwid_new_list("verbose", topic, "cols");
-//    json_object_set_new(desc, "cols", cols);
+    json_t *cols = kw_get_dict_value(gobj, topic, "cols", json_null(), KW_REQUIRED);
+    json_object_set(desc, "cols", cols);
 
     return desc;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *tranger2_list_topic_desc( // Return MUST be decref
-    json_t *tranger,
-    const char *topic_name
-)
-{
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    if(!topic) {
-        // Error already logged
-        return 0;
-    }
-//TODO    return kwid_new_list("verbose", topic, "cols");
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *tranger2_dict_topic_desc( // Return MUST be decref
-    json_t *tranger,
-    const char *topic_name
-)
-{
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    if(!topic) {
-        // Error already logged
-        return 0;
-    }
-// TODO   return kwid_new_dict("verbose", topic, "cols");
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *tranger2_filter_topic_fields(
-    json_t *tranger,
-    const char *topic_name,
-    json_t *kw  // owned
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-    json_t *cols = tranger2_dict_topic_desc(tranger, topic_name);
-    if(!cols) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "Topic without cols",
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        JSON_DECREF(kw)
-        return 0;
-    }
-    json_t *new_record = json_object();
-
-    const char *field; json_t *col;
-    json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
-        json_object_set(new_record, field, value);
-    }
-
-    JSON_DECREF(cols)
-    JSON_DECREF(kw)
-    return new_record;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
-
-    char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/%s",
-        kw_get_str(gobj, topic, "directory", "", KW_REQUIRED),
-        "topic_idx.md"
-    );
-    int fd;
-    if(master) {
-        fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
-    } else {
-        fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
-    }
-    if(fd<0) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot open TimeRanger topic_idx fd",
-            "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-    json_object_set_new(topic, "topic_idx_fd", json_integer(fd));
-
-    /*
-     *  Get last rowid
-     */
-    off64_t offset = lseek64(fd, 0, SEEK_END);
-    if(offset < 0) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "topic_idx.md corrupted",
-            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-            "offset",       "%lu", (unsigned long)offset,
-            NULL
-        );
-        return -1;
-    }
-    uint64_t last_rowid = offset/sizeof(md2_record_t);
-    json_object_set_new(
-        topic,
-        "__last_rowid__",
-        json_integer((json_int_t)last_rowid)
-    );
-
-    return 0;
 }
 
 /***************************************************************************
@@ -2756,7 +2570,6 @@ PUBLIC json_t *tranger2_open_list(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    char title[256];
 
     /*
      *  Here the topic is opened if it's not opened
@@ -2865,6 +2678,26 @@ PUBLIC json_t *tranger2_open_iterator(
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
+    /*-----------------------------------------*
+     *      Load keys and metadata from disk
+     *-----------------------------------------*/
+    // TODO this cache must be update in tranger2_append_record() or open_list() ???!!!
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
+    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
+    if(!topic_cache) {
+        json_decref(jn_keys);
+        return NULL;
+    }
+    load_topic_metadata(
+        gobj,
+        directory,
+        topic_cache,    // not owned
+        jn_keys         // not owned
+    );
+    json_decref(jn_keys);
+
+
     if(!match_cond) {
         match_cond = json_object();
     }
@@ -2906,7 +2739,7 @@ PUBLIC int tranger2_close_iterator(
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
     // TODO
 
@@ -2917,7 +2750,7 @@ PUBLIC int tranger2_close_iterator(
 /***************************************************************************
  *  Get Iterator size (nº of rows)
  ***************************************************************************/
-PUBLIC int tranger2_iterator_size(
+PUBLIC size_t tranger2_iterator_size(
     json_t *tranger,
     json_t *iterator
 )
@@ -2930,7 +2763,7 @@ PUBLIC int tranger2_iterator_size(
     }
 
     json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    json_int_t last_rowid = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
+    size_t last_rowid = (size_t)kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
     return last_rowid;
 }
 
@@ -3019,7 +2852,9 @@ PUBLIC int tranger2_iterator_first(
     //        return tranger_next_record(tranger, topic, md_record);
     //    }
 
-    *rowid = cur_rowid;
+    if(rowid) {
+        *rowid = cur_rowid;
+    }
 
     if(record) {
         *record = read_record_content(
@@ -3146,7 +2981,9 @@ PUBLIC int tranger2_iterator_next(
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
-    *rowid = cur_rowid;
+    if(rowid) {
+        *rowid = cur_rowid;
+    }
 
     if(record) {
         *record = read_record_content(
@@ -3278,7 +3115,9 @@ PUBLIC int tranger2_iterator_prev(
     //        return tranger_next_record(tranger, topic, md_record);
     //    }
 
-    *rowid = cur_rowid;
+    if(rowid) {
+        *rowid = cur_rowid;
+    }
 
     if(record) {
         *record = read_record_content(
@@ -3378,7 +3217,9 @@ PUBLIC int tranger2_iterator_last(
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
-    *rowid = cur_rowid;
+    if(rowid) {
+        *rowid = cur_rowid;
+    }
 
     if(record) {
         *record = read_record_content(
@@ -3408,14 +3249,103 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_t *topic = json_object_get(iterator, "topic");
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
-    // TODO
-    int x;
+    /*
+     *  Check variables
+     */
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
+        memset(md_record, 0, sizeof(md2_record_t));
+    }
+
+    if(record) {
+        *record = NULL;
+    }
+
+    /*
+     *  Get segments
+     */
+    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
+    if(json_array_size(segments)==0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "iterator without segments",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        gobj_trace_json(gobj, iterator, "iterator without segments");
+        return -1;
+    }
+
+    /*
+     *  Get the pointer (cur_segment, cur_rowid)
+     */
+    json_int_t cur_segment = get_segment_of_rowid(gobj, segments, rowid);
+    if(cur_segment < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "rowid out of range",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            "rowid",        "%ld", (long)rowid,
+            NULL
+        );
+        return -1;
+    }
+    json_t *segment = json_array_get(segments, cur_segment);
+    json_int_t cur_rowid = rowid;
+
+    /*
+     *  Save the pointer
+     */
+    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+    json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
+
+    /*
+     *  Get the metadata
+     */
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
+    }
+
+    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    //        return tranger_prev_record(tranger, topic, md_record);
+    //    }
+
+    if(record) {
+        *record = read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            md_record
+        );
+    }
 
     return 0;
 }
 
 /***************************************************************************
- *  Get a list segments that match
+ *  Return a list of segments that match conditions
  ***************************************************************************/
 PRIVATE json_t *get_segments(
     hgobj gobj,
@@ -3644,11 +3574,10 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = 1;
         json_int_t rows2;
         json_array_foreach(cache_files, idx, cache_file) {
-            const char *filename = kw_get_str(gobj, cache_file, "filename", "", KW_REQUIRED);
-            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
             BOOL matched = TRUE;
@@ -3656,7 +3585,7 @@ PRIVATE json_t *get_segments(
             json_int_t last_row = partial_rows2 + rows2 - 1;    // last row of this segment
             matched &= (first_row >= from_rowid);
             matched &= (last_row <= to_rowid);
-            // TODO check t tm
+            // TODO check t tm system_flag user_flag
 
             if(matched) {
                 json_t *jn_segment = json_deep_copy(cache_file);
@@ -3672,11 +3601,10 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = total_rows;
         json_int_t rows2;
         json_array_backward(cache_files, idx, cache_file) {
-            const char *filename = kw_get_str(gobj, cache_file, "filename", "", KW_REQUIRED);
-            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
             BOOL matched = TRUE;
@@ -3684,7 +3612,7 @@ PRIVATE json_t *get_segments(
             json_int_t last_row = partial_rows2;            // last row of this segment
             matched &= (first_row >= from_rowid);
             matched &= (last_row <= to_rowid);
-            // TODO check t tm
+            // TODO check t tm system_flag user_flag
 
             if(matched) {
                 json_t *jn_segment = json_deep_copy(cache_file);
@@ -3698,6 +3626,21 @@ PRIVATE json_t *get_segments(
     }
 
     return jn_segments;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_int_t get_segment_of_rowid(
+    hgobj gobj,
+    json_t *segments,
+    json_int_t rowid
+)
+{
+    json_int_t cur_segment = -1;
+//TODO
+int x;
+    return cur_segment;
 }
 
 /***************************************************************************
@@ -3766,7 +3709,7 @@ PRIVATE json_t *find_keys_in_disk(
  *  Load metadata of topic in cache:
  *      list of keys with its range of time available
  ***************************************************************************/
-PRIVATE int load_topic_metadata(
+PRIVATE int load_topic_metadata( // TODO must be idempotent, only update last segment?
     hgobj gobj,
     const char *directory,
     json_t *topic_cache,    // not owned

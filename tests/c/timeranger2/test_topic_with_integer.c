@@ -300,11 +300,6 @@ int do_test(void)
          *-------------------------------------*/
         leidos = 0;
 
-        json_t *jn_list = json_pack("{s:s, s:o, s:I}",
-            "topic_name", TOPIC_NAME,
-            "match_cond", json_object(),
-            "load_record_callback", (json_int_t)(size_t)all_load_record_callback
-        );
         json_t *tr_list = tranger2_open_list(
             tranger,
             TOPIC_NAME,

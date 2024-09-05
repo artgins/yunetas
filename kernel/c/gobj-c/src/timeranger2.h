@@ -292,19 +292,6 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     json_t *tranger,
     const char *topic_name
 );
-PUBLIC json_t *tranger2_list_topic_desc( // Return a list!,  MUST be decref
-    json_t *tranger,
-    const char *topic_name
-);
-PUBLIC json_t *tranger2_dict_topic_desc( // Return a dict!,  MUST be decref
-    json_t *tranger,
-    const char *topic_name
-);
-PUBLIC json_t *tranger2_filter_topic_fields(
-    json_t *tranger,
-    const char *topic_name,
-    json_t *kw  // owned
-);
 
 /**rst**
     Return json object with record metadata
@@ -475,7 +462,7 @@ PUBLIC int tranger2_close_iterator(
 /**rst**
     Get Iterator size (nº of rows)
 **rst**/
-PUBLIC int tranger2_iterator_size(
+PUBLIC size_t tranger2_iterator_size(
     json_t *tranger,
     json_t *iterator
 );
