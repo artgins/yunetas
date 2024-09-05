@@ -69,7 +69,7 @@ int one_load_record_callback(
 
 /***************************************************************************
  *              Test
- *  HACK: Use gobj_set_exit_code(-1) to set error
+ *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
 {
@@ -475,6 +475,384 @@ int do_test(void)
 }
 
 /***************************************************************************
+ *              Test
+ *  HACK: return -1 to fail, 0 to ok
+ ***************************************************************************/
+int do_test2(void)
+{
+    int result = 0;
+    char file[PATH_MAX];
+
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
+
+    build_path(path_database, sizeof(path_database), path_root, TEST_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", TEST_NAME,
+        "master", 1,
+        "on_critical_error", 0
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger);
+
+    /*-------------------------------------------------*
+     *      Create a topic
+     *-------------------------------------------------*/
+    json_t *topic = tranger2_create_topic(
+        tranger,
+        TOPIC_NAME,     // topic name
+        NULL,           // pkey
+        NULL,           // tkey
+        NULL,           // jn_topic_ext
+        0,              // system_flag
+        json_pack("{s:s, s:I, s:s, s:s}", // jn_cols, owned
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+            "content2", ""
+        ),
+        json_pack("{s:i}",            // var
+            "topic_version", 1
+        )
+    );
+    if(!topic) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    /*------------------------------------*
+     *  Check "topic_desc.json" file
+     *------------------------------------*/
+    build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'topic_name': '%s', \
+            'pkey': 'id', \
+            'tkey': 'tm', \
+            'system_flag': 4, \
+            'filename_mask': '%%Y-%%m-%%d', \
+            'xpermission': 1472, \
+            'rpermission': 384 \
+        } \
+        ", TOPIC_NAME);
+
+        set_expected_results(
+            "check_topic_desc.json 2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
+            TRUE
+        );
+        result += test_json_file(file);
+    }
+
+    /*------------------------------------*
+     *  Check "topic_cols.json" file
+     *------------------------------------*/
+    build_path(file, sizeof(file), path_topic, "topic_cols.json", NULL);
+    if(1) {
+        char expected[]= "\
+        { \
+          'id': '', \
+          'tm': 0, \
+          'content': '', \
+          'content2': '' \
+        } \
+        ";
+
+        set_expected_results(
+            "check_topic_cols.json 2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
+            TRUE
+        );
+        result += test_json_file(file);
+    }
+
+    /*------------------------------------*
+     *  Check "topic_var.json" file
+     *------------------------------------*/
+    build_path(file, sizeof(file), path_topic, "topic_var.json", NULL);
+    if(1) {
+        char expected[]= "\
+        { \
+            'topic_version': 1, \
+        } \
+        ";
+
+        set_expected_results(
+            "check_topic_var.json 2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
+            TRUE
+        );
+        result += test_json_file(file);
+    }
+
+    /*------------------------------------------*
+     *  Check tranger memory with topic opened
+     *------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 1, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': {}, \
+                    'lists': [], \
+                    'cache': { \
+                    } \
+                } \
+            } \
+        } \
+        ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            NULL
+        };
+        set_expected_results(
+            "check_tranger_mem2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
+    /*-------------------------------------*
+     *      Open rt list
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "open rt list 2", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    all_leidos = 0;
+    one_leidos = 0;
+
+    json_t *tr_list = tranger2_open_rt_list(
+        tranger,
+        TOPIC_NAME,
+        "",             // key
+        all_load_record_callback,
+        ""              // list id
+    );
+
+    tranger2_open_rt_list(
+        tranger,
+        TOPIC_NAME,
+        "0000000000000000001",       // key
+        one_load_record_callback,
+        "list2"              // list id
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------------*
+     *      Add records
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "append records 2", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
+    for(json_int_t i=0; i<MAX_KEYS; i++) {
+        uint64_t tm = t1;
+        for(json_int_t j=0; j<MAX_RECORDS; j++) {
+            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
+               "id", i + 1,
+               "tm", tm+j,
+               "content",
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
+            );
+            md2_record_t md_record;
+            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
+        }
+    }
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------------*
+     *      Close rt lists
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close rt lists 2", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    tranger2_close_rt_list(
+        tranger,
+        tr_list
+    );
+
+    json_t *list2 =tranger2_get_rt_list_by_id(
+        tranger,
+        "list2"
+    );
+    tranger2_close_rt_list(
+        tranger,
+        list2
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(all_leidos != MAX_KEYS*MAX_RECORDS) {
+        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
+           (int)all_leidos, MAX_KEYS*MAX_RECORDS
+        );
+        result += -1;
+    }
+
+    if(one_leidos != MAX_RECORDS) {
+        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
+            (int)one_leidos, MAX_RECORDS
+        );
+        result += -1;
+    }
+
+    /*------------------------*
+     *      Close topic
+     *------------------------*/
+    set_expected_results( // Check that no logs happen
+        "check_close_topic 2", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_close_topic(tranger, TOPIC_NAME);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown 2", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------*
+     *      Check disk structure
+     *-------------------------------*/
+    if(1) {
+        char path_key[PATH_MAX];
+
+        result += test_directory_permission(path_topic, 0770);
+
+        build_path(path_key, sizeof(path_key),
+            path_topic,
+            "0000000000000000001",
+            NULL
+        );
+        result += test_directory_permission(path_key, 0700);
+
+        build_path(path_key, sizeof(path_key),
+            path_topic,
+            "0000000000000000002",
+            NULL
+        );
+        result += test_directory_permission(path_key, 0700);
+
+        char path_key_file[PATH_MAX];
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-01.json",
+            NULL
+        );
+        result += test_file_permission_and_size(path_key_file, 0600, 28944000);
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-01.md2",
+            NULL
+        );
+        result += test_file_permission_and_size(path_key_file, 0600, 2764800);
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-02.json",
+            NULL
+        );
+        result += test_file_permission_and_size(path_key_file, 0600, 1206000);
+
+        build_path(path_key_file, sizeof(path_key_file),
+            path_topic,
+            "0000000000000000001",
+            "2000-01-02.md2",
+            NULL
+        );
+        result += test_file_permission_and_size(path_key_file, 0600, 115200);
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -563,6 +941,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
+    result += do_test2()
 
     /*--------------------------------*
      *  Stop the event loop
