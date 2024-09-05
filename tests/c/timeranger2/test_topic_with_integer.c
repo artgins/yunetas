@@ -35,7 +35,7 @@ int times_periodic = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-size_t leidos = 0;
+size_t all_leidos = 0;
 int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -46,7 +46,23 @@ int all_load_record_callback(
     json_int_t relative_rowid
 )
 {
-    leidos++;
+    all_leidos++;
+    JSON_DECREF(jn_record)
+    return 0;
+}
+
+size_t one_leidos = 0;
+int one_load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    json_t *list,
+    md2_record_t *md2_record,
+    json_t *jn_record, // must be owned
+    const char *key,
+    json_int_t relative_rowid
+)
+{
+    one_leidos++;
     JSON_DECREF(jn_record)
     return 0;
 }
@@ -273,7 +289,16 @@ int do_test(void)
     /*-------------------------------------*
      *      Open rt list
      *-------------------------------------*/
-    leidos = 0;
+    set_expected_results( // Check that no logs happen
+        "open rt list", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    all_leidos = 0;
+    one_leidos = 0;
 
     json_t *tr_list = tranger2_open_rt_list(
         tranger,
@@ -283,12 +308,27 @@ int do_test(void)
         ""              // list id
     );
 
-    print_json2("XXX after open list", tranger); // TODO TEST
+    tranger2_open_rt_list(
+        tranger,
+        TOPIC_NAME,
+        "0000000000000000001",       // key
+        one_load_record_callback,
+        "list2"              // list id
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
-    print_json2("XXX before loading records", tranger); // TODO TEST
+    set_expected_results( // Check that no logs happen
+        "append records", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
     uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
         uint64_t tm = t1;
@@ -305,25 +345,48 @@ int do_test(void)
             tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
         }
     }
-    printf("last time: %"PRIu64"\n", time_in_seconds()); //  TODO TEST
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
-    print_json2("XXX after loading records", tranger); // TODO TEST
-
+    /*-------------------------------------*
+     *      Close rt lists
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close rt lists", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
 
     tranger2_close_rt_list(
         tranger,
         tr_list
     );
 
-    if(leidos != MAX_KEYS*MAX_RECORDS) {
+    json_t *list2 =tranger2_get_rt_list_by_id(
+        tranger,
+        "list2"
+    );
+    tranger2_close_rt_list(
+        tranger,
+        list2
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(all_leidos != MAX_KEYS*MAX_RECORDS) {
         printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-           (int)leidos, MAX_KEYS*MAX_RECORDS
+           (int)all_leidos, MAX_KEYS*MAX_RECORDS
         );
         result += -1;
     }
 
-    print_json2("XXX after close list", tranger); // TODO TEST
-
+    if(one_leidos != MAX_RECORDS) {
+        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
+            (int)one_leidos, MAX_RECORDS
+        );
+        result += -1;
+    }
 
     /*------------------------*
      *      Close topic
