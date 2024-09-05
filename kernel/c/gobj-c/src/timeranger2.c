@@ -2581,8 +2581,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record
-    const char *list_id     // list id, optional
+    tranger2_load_record_callback_t load_record_callback,  // called on append new record
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2611,8 +2610,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         return NULL;
     }
 
-    json_t *list = json_pack("{s:s, s:s, s:s, s:I}",
-        "id", list_id?list_id:"",
+    json_t *list = json_pack("{s:s, s:s, s:I}",
         "topic_name", topic_name,
         "key", key?key:"",
         "load_record_callback", (json_int_t)(size_t)load_record_callback
@@ -2654,35 +2652,6 @@ PUBLIC int tranger2_close_rt_list(
 }
 
 /***************************************************************************
- *  Get realtime list by his id
- ***************************************************************************/
-PUBLIC json_t *tranger2_get_rt_list_by_id(
-    json_t *tranger,
-    const char *id
-)
-{
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-    if(empty_string(id)) {
-        return 0;
-    }
-    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
-
-    const char *topic_name; json_t *topic;
-    json_object_foreach(topics, topic_name, topic) {
-        json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
-        int idx; json_t *list;
-        json_array_foreach(lists, idx, list) {
-            const char *list_id = kw_get_str(gobj, list, "id", "", 0);
-            if(strcmp(id, list_id)==0) {
-                return list;
-            }
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
  *  Open realtime disk, valid when the yuno is the master writing or not-master reading,
  *  realtime messages from events of disk
  ***************************************************************************/
@@ -2690,8 +2659,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record
-    const char *list_id     // list id, optional
+    tranger2_load_record_callback_t load_record_callback  // called on append new record
 )
 {
     json_t *rt_disk = json_object();

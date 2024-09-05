@@ -394,8 +394,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record
-    const char *list_id     // list id, optional
+    tranger2_load_record_callback_t load_record_callback   // called on append new record
 );
 
 /**rst**
@@ -414,8 +413,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record
-    const char *list_id     // list id, optional
+    tranger2_load_record_callback_t load_record_callback   // called on append new record
 );
 
 /**rst**
@@ -424,14 +422,6 @@ PUBLIC json_t *tranger2_open_rt_disk(
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
     json_t *list
-);
-
-/**rst**
-    Get list by his id
-**rst**/
-PUBLIC json_t *tranger2_get_rt_list_by_id(
-    json_t *tranger,
-    const char *list_id
 );
 
 /**rst**
