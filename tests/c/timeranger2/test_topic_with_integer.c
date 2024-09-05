@@ -495,6 +495,7 @@ int do_test2(void)
     mkrdir(path_root, 02770);
 
     build_path(path_database, sizeof(path_database), path_root, TEST_NAME, NULL);
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
@@ -520,7 +521,10 @@ int do_test2(void)
      *-------------------------------------------------*/
     set_expected_results( // Check that no logs happen
         "tranger2_create_topic 2", // test name
-        NULL,   // error's list, It must not be any log error
+        json_pack("[{s:s},{s:s}]", // error's list
+            "msg", "Re-Creating topic_var.json",
+            "msg", "Re-Creating topic_cols.json"
+        ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
@@ -549,34 +553,6 @@ int do_test2(void)
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
-    }
-
-    /*------------------------------------*
-     *  Check "topic_desc.json" file
-     *------------------------------------*/
-    build_path(file, sizeof(file), path_topic, "topic_desc.json", NULL);
-    if(1) {
-        char expected[16*1024];
-        snprintf(expected, sizeof(expected), "\
-        { \
-            'topic_name': '%s', \
-            'pkey': 'id', \
-            'tkey': 'tm', \
-            'system_flag': 4, \
-            'filename_mask': '%%Y-%%m-%%d', \
-            'xpermission': 1472, \
-            'rpermission': 384 \
-        } \
-        ", TOPIC_NAME);
-
-        set_expected_results(
-            "check_topic_desc.json 2",      // test name
-            NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
-            NULL,
-            TRUE
-        );
-        result += test_json_file(file);
     }
 
     /*------------------------------------*
@@ -610,7 +586,7 @@ int do_test2(void)
     if(1) {
         char expected[]= "\
         { \
-            'topic_version': 1, \
+            'topic_version': 1 \
         } \
         ";
 
@@ -639,7 +615,7 @@ int do_test2(void)
             'on_critical_error': 0, \
             'master': true, \
             'gobj': 0, \
-            'trace_level': 1, \
+            'trace_level': 0, \
             'directory': '%s', \
             'fd_opened_files': { \
                 '__timeranger2__.json': 9999 \
@@ -653,10 +629,12 @@ int do_test2(void)
                     'filename_mask': '%%Y-%%m-%%d', \
                     'xpermission': 1472, \
                     'rpermission': 384, \
+                    'topic_version': 1, \
                     'cols': { \
                         'id': '', \
                         'tm': 0, \
-                        'content': '' \
+                        'content': '', \
+                        'content2': '' \
                     }, \
                     'directory': '%s', \
                     'wr_fd_files': {}, \
