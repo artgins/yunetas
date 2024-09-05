@@ -383,7 +383,52 @@ PUBLIC uint32_t tranger2_read_user_flag(
 
 
 
+/*
+ *  HACK Return of callback:
+ *      0 do nothing (callback will create their own list, or not),
+ *      1 add record to returned list.data,
+ *      -1 break the load
+ */
+typedef int (*tranger2_load_record_callback_t)(
+    json_t *tranger,
+    json_t *topic,
+    json_t *list,
+    md2_record_t *md2_record,
+    json_t *jn_record, // must be owned
+    const char *key,
+    json_int_t relative_rowid
+);
+
 /**rst**
+    Open realtime list
+**rst**/
+PUBLIC json_t *tranger2_open_list(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record
+    const char *list_id     // list id, optional
+);
+
+/**rst**
+    Close realtime list
+**rst**/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+);
+
+/**rst**
+    Get list by his id
+**rst**/
+PUBLIC json_t *tranger2_get_list_by_id(
+    json_t *tranger,
+    const char *list_id
+);
+
+/**rst**
+    Open iterator
+
     Walk in topic through records, and callback with the matched record found.
     The return is a list handler that must be close with tranger_close_list()
     When the list is open, before return, all records will be sent to callback.
@@ -411,60 +456,6 @@ PUBLIC uint32_t tranger2_read_user_flag(
         rkey    regular expression of key
         filter  dict with fields to match
 
-**rst**/
-
-/*
- *  HACK Return of callback:
- *      0 do nothing (callback will create their own list, or not),
- *      1 add record to returned list.data,
- *      -1 break the load
- */
-typedef int (*tranger2_load_record_callback_t)(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *list,
-    md2_record_t *md2_record,
-    /*
-     *  can be null if sf_loading_from_disk (use tranger_read_record_content() to load content)
-     */
-    json_t *jn_record // must be owned
-);
-
-/**rst**
-    Open list, load records in memory and update in real time
-**rst**/
-static const json_desc_t list_json_desc[] = {
-// Name                     Type        Default     Fillspace
-{"topic_name",              "str",      "",         ""},
-{"id",                      "str",      "",         ""},    // id of the list, optional
-{"match_cond",              "dict",     "{}",       ""},
-{"load_record_callback",    "int",      "",         ""},
-{0}
-};
-PUBLIC json_t *tranger2_open_list(
-    json_t *tranger,
-    json_t *jn_list // owned
-);
-
-/**rst**
-    Close list
-**rst**/
-PUBLIC int tranger2_close_list(
-    json_t *tranger,
-    json_t *list
-);
-
-/**rst**
-    Get list by his id
-**rst**/
-PUBLIC json_t *tranger2_get_list_by_id(
-    json_t *tranger,
-    const char *id
-);
-
-/**rst**
-    Open iterator
 **rst**/
 PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
@@ -542,17 +533,6 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_int_t rowid,
     md2_record_t *md_record,
     json_t **record
-);
-
-/**rst**
-    Get record of md2 in iterator
-**rst**/
-PUBLIC json_t *tranger2_read_record_content(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *segment,
-    md2_record_t *md_record
 );
 
 PUBLIC void tranger2_set_trace_level(

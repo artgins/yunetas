@@ -39,10 +39,11 @@ size_t leidos = 0;
 int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
-    const char *key,
     json_t *list,
-    md2_record_t *md_record,
-    json_t *jn_record
+    md2_record_t *md2_record,
+    json_t *jn_record, // must be owned
+    const char *key,
+    json_int_t relative_rowid
 )
 {
     leidos++;
@@ -306,8 +307,12 @@ int do_test(void)
         );
         json_t *tr_list = tranger2_open_list(
             tranger,
-            jn_list
+            TOPIC_NAME,
+            "",             // key
+            all_load_record_callback,
+            ""              // list id
         );
+
 
 print_json2("XXX after open list", tranger); // TODO TEST
 

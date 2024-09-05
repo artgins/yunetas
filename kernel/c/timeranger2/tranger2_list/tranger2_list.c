@@ -360,10 +360,11 @@ PRIVATE int list_topics(const char *path)
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    const char *key,
     json_t *list,
-    md2_record_t *md_record,
-    json_t *jn_record // owned
+    md2_record_t *md2_record,
+    json_t *jn_record, // must be owned
+    const char *key,
+    json_int_t relative_rowid
 )
 {
     static BOOL first_time = TRUE;
@@ -408,9 +409,9 @@ PRIVATE int load_record_callback(
         return 0;
     }
 
-    if(!jn_record) {
-        jn_record = tranger2_read_record_content(tranger, topic, key, md_record);
-    }
+//    if(!jn_record) {
+//        jn_record = tranger2_read_record_content(tranger, topic, key, md_record);
+//    }
 
     if(kw_has_key(match_cond, "filter")) {
         verbose = 3;
@@ -431,7 +432,7 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-            tr2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
+//            tr2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
@@ -534,21 +535,21 @@ PRIVATE int list_messages(void)
         exit(-1);
     }
 
-    JSON_INCREF(match_cond)
-    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:i}",
-        "topic_name", topic_name,
-        "match_cond", match_cond?match_cond:json_object(),
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-        "verbose", verbose
-    );
-
-    json_t *tr_list = tranger2_open_list(
-        tranger,
-        jn_list
-    );
-    if(tr_list) {
-        tranger2_close_list(tranger, tr_list);
-    }
+// TODO change by iterator   JSON_INCREF(match_cond)
+//    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:i}",
+//        "topic_name", topic_name,
+//        "match_cond", match_cond?match_cond:json_object(),
+//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
+//        "verbose", verbose
+//    );
+//
+//    json_t *tr_list = tranger2_open_list(
+//        tranger,
+//        jn_list
+//    );
+//    if(tr_list) {
+//        tranger2_close_list(tranger, tr_list);
+//    }
 
     /*-------------------------------*
      *  Free resources

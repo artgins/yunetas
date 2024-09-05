@@ -132,15 +132,12 @@ PRIVATE json_t *get_segments(
     const char *key,
     json_t *match_cond  // NOT owned
 );
-PRIVATE BOOL match_record(
-    hgobj gobj,
+PRIVATE json_t *read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond,  // not owned
-    json_int_t rowid,
-    const md2_record_t *md_record,
-    json_t *record  // no owned
+    json_t *segment,
+    md2_record_t *md_record
 );
 
 
@@ -2210,7 +2207,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Write record metadata
      *--------------------------------------------*/
-    json_int_t rowid = 0;
+    json_int_t relative_rowid = 0;
     int md2_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
         off64_t offset = lseek64(md2_fp, 0, SEEK_END);
@@ -2228,7 +2225,7 @@ PUBLIC int tranger2_append_record(
             return -1;
         }
 
-        rowid = (json_int_t)(offset/sizeof(md2_record_t));
+        relative_rowid = (json_int_t)(offset/sizeof(md2_record_t));
 
         md2_record_t big_endian;
         big_endian.__t__ = htonll(md_record->__t__);
@@ -2256,56 +2253,33 @@ PUBLIC int tranger2_append_record(
     }
 
     /*--------------------------------------------*
-     *  Call callbacks
+     *      Call callbacks of realtime lists
      *--------------------------------------------*/
     json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
     int idx;
     json_t *list;
     json_array_foreach(lists, idx, list) {
-        if(match_record( // match in appending record - feeding lists with real time
-                gobj,
-                tranger,
-                topic,
-                key_value,
-                kw_get_dict(gobj, list, "match_cond", 0, 0),
-                rowid,
-                md_record,
-                jn_record
-            )) {
+        const char *key_ = kw_get_str(gobj, list, "key", "", KW_REQUIRED);
+        if(empty_string(key_) || strcmp(key_, key_value)==0) {
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)kw_get_int(
                 gobj,
                 list,
                 "load_record_callback",
                 0,
-                0
+                KW_REQUIRED
             );
             if(load_record_callback) {
                 // Inform to the user list: record in real time
                 JSON_INCREF(jn_record)
-                int ret = load_record_callback(
+                load_record_callback(
                     tranger,
                     topic,
-                    key_value,
                     list,
                     md_record,
-                    jn_record
-                );
-                if(ret < 0) {
-                    JSON_DECREF(jn_record)
-                    return -1;
-                } else if(ret>0) {
-                    json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
-                    json_array_append(
-                        kw_get_list(gobj, list, "data", 0, KW_REQUIRED),
-                        jn_record
-                    );
-                }
-            } else {
-                json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
-                json_array_append(
-                    kw_get_list(gobj, list, "data", 0, KW_REQUIRED),
-                    jn_record
+                    jn_record,
+                    key_value,
+                    relative_rowid
                 );
             }
         }
@@ -2313,393 +2287,6 @@ PUBLIC int tranger2_append_record(
 
     JSON_DECREF(jn_record)
     return 0;
-}
-
-/***************************************************************************
- *  match in appending record - feeding lists with real time
- *  match in iterator of an opening list, history previous to real time
- ***************************************************************************/
-PRIVATE BOOL match_record(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond, // not owned
-    json_int_t rowid,
-    const md2_record_t *md_record,
-    json_t *record      // not owned
-)
-{
-    if(!match_cond || (json_object_size(match_cond)==0 && json_array_size(match_cond)==0)) {
-        // No conditions, match all
-        return TRUE;
-    }
-#ifdef PEPE
-    if(kw_has_key(match_cond, "key")) {
-        int json_type = json_typeof(json_object_get(match_cond, "key"));
-        if(md_record->__system_flag__ & (sf_int_key|sf_rowid_key)) {
-            switch(json_type) {
-            case JSON_OBJECT:
-                {
-                    BOOL some = FALSE;
-                    const char *key_; json_t *jn_value;
-                    json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
-                        if(md_record->key.i == atoi(key_)) {
-                            some = TRUE;
-                            break; // Con un match de key ya es true
-                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            case JSON_ARRAY:
-                {
-                    BOOL some = FALSE;
-                    int idx; json_t *jn_value;
-                    json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
-                        if(json_is_integer(jn_value)) {
-                            if(md_record->key.i == json_integer_value(jn_value)) {
-                                some = TRUE;
-                                break; // Con un match de key ya es true
-                            }
-                        } else if(json_is_string(jn_value)) {
-                            if(md_record->key.i == atoi(json_string_value(jn_value))) {
-                                some = TRUE;
-                                break; // Con un match de key ya es true
-                            }
-                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            default:
-                {
-                    json_int_t key = kw_get_int(match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
-                    if(md_record->key.i != key) {
-                        return FALSE;
-                    }
-                }
-                break;
-            }
-
-        } else if(md_record->__system_flag__ & sf_string_key) {
-            switch(json_type) {
-            case JSON_OBJECT:
-                {
-                    BOOL some = FALSE;
-                    const char *key_; json_t *jn_value;
-                    json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
-                        if(strncmp(md_record->key.s, key_, sizeof(md_record->key.s)-1)==0) {
-                            some = TRUE;
-                            break; // Con un match de key ya es true
-                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            case JSON_ARRAY:
-                {
-                    BOOL some = FALSE;
-                    int idx; json_t *jn_value;
-                    json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
-                        if(json_is_string(jn_value)) {
-                            if(strncmp(
-                                    md_record->key.s,
-                                    json_string_value(jn_value),
-                                    sizeof(md_record->key.s)-1)==0) {
-                                some = TRUE;
-                                break; // Con un match de key ya es true
-                            }
-                        } else {
-                            return FALSE;
-                        }
-                    }
-                    if(!some) {
-                        return FALSE;
-                    }
-                }
-                break;
-            default:
-                {
-                    const char *key = kw_get_str(match_cond, "key", 0, 0);
-                    if(!key) {
-                        return FALSE;
-                    }
-                    if(strncmp(md_record->key.s, key, sizeof(md_record->key.s)-1)!=0) {
-                        return FALSE;
-                    }
-                }
-                break;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "rkey")) {
-        if(md_record->__system_flag__ & sf_string_key) {
-            const char *rkey = kw_get_str(match_cond, "rkey", 0, 0);
-            if(!rkey) {
-                return FALSE;
-            }
-
-            regex_t _re_name;
-            if(regcomp(&_re_name, rkey, REG_EXTENDED | REG_NOSUB)!=0) {
-                return FALSE;
-            }
-            int ret = regexec(&_re_name, md_record->key.s, 0, 0, 0);
-            regfree(&_re_name);
-            if(ret!=0) {
-                return FALSE;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_rowid")) {
-        json_int_t from_rowid = kw_get_int(match_cond, "from_rowid", 0, KW_WILD_NUMBER);
-        if(from_rowid >= 0) {
-            if(md_record->__rowid__ < from_rowid) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_rowid__ + from_rowid;
-            if(md_record->__rowid__ <= x) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_rowid")) {
-        json_int_t to_rowid = kw_get_int(match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-        if(to_rowid >= 0) {
-            if(md_record->__rowid__ > to_rowid) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_rowid__ + to_rowid;
-            if(md_record->__rowid__ > x) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_t")) {
-        json_int_t from_t = 0;
-        json_t *jn_from_t = json_object_get(match_cond, "from_t");
-        if(json_is_string(jn_from_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset);
-            from_t = timestamp;
-        } else {
-            from_t = json_integer_value(jn_from_t);
-        }
-
-        if(from_t >= 0) {
-            if(md_record->__t__ < from_t) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_t__ + from_t;
-            if(md_record->__t__ <= x) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_t")) {
-        json_int_t to_t = 0;
-        json_t *jn_to_t = json_object_get(match_cond, "to_t");
-        if(json_is_string(jn_to_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset);
-            to_t = timestamp;
-        } else {
-            to_t = json_integer_value(jn_to_t);
-        }
-
-        if(to_t >= 0) {
-            if(md_record->__t__ > to_t) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_t__ + to_t;
-            if(md_record->__t__ > x) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "from_tm")) {
-        json_int_t from_tm = 0;
-        json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-        if(json_is_string(jn_from_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
-            }
-            from_tm = timestamp;
-        } else {
-            from_tm = json_integer_value(jn_from_tm);
-        }
-
-        if(from_tm >= 0) {
-            if(md_record->__tm__ < from_tm) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_tm__ + from_tm;
-            if(md_record->__tm__ <= x) {
-                if(backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "to_tm")) {
-        json_int_t to_tm = 0;
-        json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-        if(json_is_string(jn_to_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
-            }
-            to_tm = timestamp;
-        } else {
-            to_tm = json_integer_value(jn_to_tm);
-        }
-
-        if(to_tm >= 0) {
-            if(md_record->__tm__ > to_tm) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        } else {
-            uint64_t x = __last_tm__ + to_tm;
-            if(md_record->__tm__ > x) {
-                if(!backward) {
-                    if(end) {
-                        *end = TRUE;
-                    }
-                }
-                return FALSE;
-            }
-        }
-    }
-
-    if(kw_has_key(match_cond, "user_flag")) {
-        uint32_t user_flag = kw_get_int(match_cond, "user_flag", 0, 0);
-        if((md_record->__user_flag__ != user_flag)) {
-            return FALSE;
-        }
-    }
-    if(kw_has_key(match_cond, "not_user_flag")) {
-        uint32_t not_user_flag = kw_get_int(match_cond, "not_user_flag", 0, 0);
-        if((md_record->__user_flag__ == not_user_flag)) {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "user_flag_mask_set")) {
-        uint32_t user_flag_mask_set = kw_get_int(match_cond, "user_flag_mask_set", 0, 0);
-        if((md_record->__user_flag__ & user_flag_mask_set) != user_flag_mask_set) {
-            return FALSE;
-        }
-    }
-    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
-        uint32_t user_flag_mask_notset = kw_get_int(match_cond, "user_flag_mask_notset", 0, 0);
-        if((md_record->__user_flag__ | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
-            return FALSE;
-        }
-    }
-
-    if(kw_has_key(match_cond, "notkey")) {
-        if(md_record->__system_flag__ & (sf_int_key|sf_rowid_key)) {
-            json_int_t notkey = kw_get_int(match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
-            if(md_record->key.i == notkey) {
-                return FALSE;
-            }
-        } else if(md_record->__system_flag__ & sf_string_key) {
-            const char *notkey = kw_get_str(match_cond, "key", 0, 0);
-            if(!notkey) {
-                return FALSE;
-            }
-            if(strncmp(md_record->key.s, notkey, sizeof(md_record->key.s)-1)==0) {
-                return FALSE;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-#endif
-
-    return TRUE;
 }
 
 /***************************************************************************
@@ -3162,43 +2749,44 @@ PUBLIC uint32_t tranger2_read_user_flag(
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_list(
     json_t *tranger,
-    json_t *jn_list // owned
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record
+    const char *list_id     // list id, optional
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     char title[256];
 
-    json_t *list = create_json_record(gobj, list_json_desc);
-    json_object_update(list, jn_list);
-    JSON_DECREF(jn_list)
-
     /*
      *  Here the topic is opened if it's not opened
      */
-    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger_open_list: what topic?",
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_list: what topic?",
             NULL
         );
-        JSON_DECREF(list)
-        return 0;
+        return NULL;
     }
 
-    json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
+    if(!load_record_callback) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_list: what load_record_callback?",
+            NULL
+        );
+        return NULL;
+    }
 
-    int trace_level = (int)kw_get_int(gobj, tranger, "trace_level", 0, 0);
-
-    tranger2_load_record_callback_t load_record_callback =
-        (tranger2_load_record_callback_t)(size_t)kw_get_int(
-        gobj,
-        list,
-        "load_record_callback",
-        0,
-        0
+    json_t *list = json_pack("{s:s, s:s, s:s, s:I}",
+        "id", list_id?list_id:"",
+        "topic_name", topic_name,
+        "key", key?key:"",
+        "load_record_callback", (json_int_t)(size_t)load_record_callback
     );
 
     /*
@@ -3208,189 +2796,6 @@ PUBLIC json_t *tranger2_open_list(
         kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
         list
     );
-
-    /*
-     *  Load volatil, defining in run-time
-     */
-    json_t *data = kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
-
-    /*
-     *  Load from disk
-     */
-    // TODO esto no debe estar aquí, en topic_open(), y actualizado con append_record()
-    // TODO porque recargamos el cache
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, match_cond);
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
-    if(!topic_cache) {
-        json_decref(jn_keys);
-        return NULL;
-    }
-    load_topic_metadata(
-        gobj,
-        directory,
-        topic_cache,    // not owned
-        jn_keys         // not owned
-    );
-
-    /*
-     *  Search
-     */
-    BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
-    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-
-    /*
-     *  Loop over keys
-     */
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-
-        /*
-         *  Open iterator
-         */
-        json_t *iterator = tranger2_open_iterator(
-            tranger,
-            topic,
-            key,
-            json_incref(match_cond)  // owned
-        );
-        if(!iterator) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger_open_list: cannot create iterator",
-                "topic_name",   "%s", topic_name,
-                "key",          "%s", key,
-                NULL
-            );
-            continue;
-        }
-
-        int end = 0;
-        json_int_t rowid;
-
-        json_t *jn_record;
-        md2_record_t md_record;
-
-        if(!backward) {
-            end = tranger2_iterator_first(
-                tranger,
-                iterator,
-                &rowid,
-                &md_record,
-                only_md?NULL:&jn_record
-            );
-        } else {
-            end = tranger2_iterator_last(
-                tranger,
-                iterator,
-                &rowid,
-                &md_record,
-                only_md?NULL:&jn_record
-            );
-        }
-
-        while(!end) {
-            if(trace_level) {
-                //tr2_print_md1_record(tranger, topic, key, &md_record, title, sizeof(title));
-            }
-            if(match_record( // match in iterator of an opening list, history previous to real time
-                gobj,
-                tranger,
-                topic,
-                key,
-                json_incref(match_cond),
-                rowid,
-                &md_record,
-                jn_record
-            )) {
-                if(trace_level) {
-                    // TODO trace_msg0("ok - %s", title);
-                }
-
-                // TODO           md_record.__system_flag__ |= sf_loading_from_disk;
-                if(!only_md) {
-                    // TODO jn_record = tranger2_read_record_content(tranger, topic, key, &md_record);
-                }
-
-                if(load_record_callback) {
-                    /*--------------------------------------------*
-                     *  Put record metadata in json record
-                     *--------------------------------------------*/
-                    // Inform user list: record from disk
-                    JSON_INCREF(jn_record)
-                    int ret = load_record_callback(
-                        tranger,
-                        topic,
-                        key,
-                        list,
-                        &md_record,
-                        jn_record
-                    );
-                    /*
-                     *  Return:
-                     *      0 do nothing (callback will create their own list, or not),
-                     *      1 add record to returned list.data,
-                     *      -1 break the load
-                     */
-                    if(ret < 0) {
-                        JSON_DECREF(jn_record)
-                        break;
-                    } else if(ret > 0) {
-                        if(!jn_record) {
-                            jn_record = json_object();
-                        }
-                        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(&md_record));
-                        json_array_append_new(
-                            data,
-                            jn_record // owned
-                        );
-                    } else { // == 0
-                        // user's callback manages the record
-                        JSON_DECREF(jn_record)
-                    }
-                } else {
-                    if(!jn_record) {
-                        jn_record = json_object();
-                    }
-                    json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(&md_record));
-                    json_array_append_new(
-                        data,
-                        jn_record // owned
-                    );
-                }
-            } else {
-                if(trace_level) {
-                    // TODO trace_msg0("XX - %s", title);
-                }
-            }
-            if(end) {
-                break;
-            }
-            if(!backward) {
-                end = tranger2_iterator_next(
-                    tranger,
-                    iterator,
-                    &rowid,
-                    &md_record,
-                    only_md?NULL:&jn_record
-                );
-            } else {
-                end = tranger2_iterator_prev(
-                    tranger,
-                    iterator,
-                    &rowid,
-                    &md_record,
-                    only_md?NULL:&jn_record
-                );
-            }
-        }
-
-        tranger2_close_iterator(tranger, iterator);
-    }
-
-    json_decref(jn_keys);
 
     return list;
 }
@@ -3617,7 +3022,7 @@ PUBLIC int tranger2_iterator_first(
     *rowid = cur_rowid;
 
     if(record) {
-        *record = tranger2_read_record_content(
+        *record = read_record_content(
             tranger,
             topic,
             key,
@@ -3744,7 +3149,7 @@ PUBLIC int tranger2_iterator_next(
     *rowid = cur_rowid;
 
     if(record) {
-        *record = tranger2_read_record_content(
+        *record = read_record_content(
             tranger,
             topic,
             key,
@@ -3876,7 +3281,7 @@ PUBLIC int tranger2_iterator_prev(
     *rowid = cur_rowid;
 
     if(record) {
-        *record = tranger2_read_record_content(
+        *record = read_record_content(
             tranger,
             topic,
             key,
@@ -3976,7 +3381,7 @@ PUBLIC int tranger2_iterator_last(
     *rowid = cur_rowid;
 
     if(record) {
-        *record = tranger2_read_record_content(
+        *record = read_record_content(
             tranger,
             topic,
             key,
@@ -4316,7 +3721,7 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
 PRIVATE json_t *find_keys_in_disk(
     hgobj gobj,
     const char *directory,
-    json_t *match_cond  // not owned
+    json_t *match_cond  // not owned, uses "key" and "rkey"
 )
 {
     json_t *jn_keys = json_array();
@@ -4720,7 +4125,7 @@ PRIVATE int get_md_by_rowid(
 /***************************************************************************
  *   Read record data
  ***************************************************************************/
-PUBLIC json_t *tranger2_read_record_content(
+PRIVATE json_t *read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
