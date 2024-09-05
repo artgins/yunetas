@@ -140,7 +140,8 @@ int do_test(void)
         tranger,
         topic,
         "",     // key,
-        NULL    // match_cond, owned
+        NULL,   // match_cond, owned
+        NULL    // callback
     );
 
     /*-------------------------------------*
