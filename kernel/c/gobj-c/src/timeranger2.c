@@ -2099,15 +2099,16 @@ PUBLIC int tranger2_append_record(
                 0,
                 KW_REQUIRED
             );
+            json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
             if(load_record_callback) {
                 // Inform to the user list: record in real time
                 JSON_INCREF(jn_record)
                 load_record_callback(
                     tranger,
                     topic,
-                    list,
+                    json_incref(match_cond),
                     md_record,
-                    jn_record,
+                    json_incref(jn_record),
                     key_value,
                     relative_rowid
                 );
@@ -2581,6 +2582,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback  // called on append new record
 )
 {
@@ -2610,9 +2612,10 @@ PUBLIC json_t *tranger2_open_rt_list(
         return NULL;
     }
 
-    json_t *list = json_pack("{s:s, s:s, s:I}",
+    json_t *list = json_pack("{s:s, s:s, s:o, s:I}",
         "topic_name", topic_name,
         "key", key?key:"",
+        "match_cond", match_cond,
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     );
 
@@ -2659,12 +2662,40 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback  // called on append new record
 )
 {
-    json_t *rt_disk = json_object();
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
 
-    return rt_disk;
+    json_t *list = json_pack("{s:s, s:s, s:o, s:I}",
+        "topic_name", topic_name,
+        "key", key?key:"",
+        "match_cond", match_cond,
+        "load_record_callback", (json_int_t)(size_t)load_record_callback
+    );
+
+    BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
+    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+
+    json_int_t rowid;
+    md2_record_t md_record;
+    json_t *record, **precord;
+
+    // TODO
+    JSON_INCREF(record)
+    int ret = load_record_callback(
+        tranger,
+        topic,
+        json_incref(match_cond),
+        &md_record,
+        json_incref(record), // must be owned
+        key,    // key
+        rowid   // relative_rowid
+    );
+
+    return list;
 }
 
 /***************************************************************************
@@ -2672,7 +2703,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
  ***************************************************************************/
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
-    json_t *list
+    json_t *disk
 )
 {
     return 0;
@@ -2820,6 +2851,7 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
+                    match_cond,
                     load_record_callback    // called on append new record
                 );
                 json_object_set_new(iterator, "rt_list", rt_list);
@@ -2828,6 +2860,7 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
+                    match_cond,
                     load_record_callback    // called on append new record
                 );
                 json_object_set_new(iterator, "rt_list", rt_disk);

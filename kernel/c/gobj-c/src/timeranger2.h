@@ -379,7 +379,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond, // not yours, don't own
+    json_t *match_cond, // must be owned
     md2_record_t *md2_record,
     json_t *jn_record,  // must be owned
     const char *key,
@@ -394,6 +394,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback   // called on append new record
 );
 
@@ -413,6 +414,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback   // called on append new record
 );
 
