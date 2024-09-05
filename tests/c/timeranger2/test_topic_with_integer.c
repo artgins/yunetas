@@ -662,6 +662,16 @@ int do_test2(void)
     }
 
     /*-------------------------------------*
+     *  Create an iterator
+     *-------------------------------------*/
+    json_t *iterator = tranger2_open_iterator(
+        tranger,
+        topic,
+        "",     // key,
+        NULL    // match_cond, owned
+    );
+
+    /*-------------------------------------*
      *  Search Absolute range, forward
      *-------------------------------------*/
     if(1) {
@@ -669,12 +679,6 @@ int do_test2(void)
     }
 //    json_int_t from_rowid = appends/2 + 1;
 //    json_int_t to_rowid = appends/2 + MAX_RECS;
-    json_t *iterator = tranger2_open_iterator(
-        tranger,
-        topic,
-        "",     // key,
-        NULL    // match_cond  // owned
-    );
 
     /*-------------------------------------*
      *  Search Absolute range, backward
