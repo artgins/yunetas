@@ -3636,8 +3636,16 @@ PRIVATE json_int_t get_segment_of_rowid(
 )
 {
     json_int_t cur_segment = -1;
-//TODO
-int x;
+
+    int idx; json_t *segment;
+    json_array_foreach(segments, idx, segment) {
+        json_int_t first_row = kw_get_int(gobj, segment, "first_row", -1, KW_REQUIRED);
+        json_int_t last_row = kw_get_int(gobj, segment, "last_row", -1, KW_REQUIRED);
+        if(rowid >= first_row && rowid <= last_row) {
+            return idx;
+        }
+    }
+
     return cur_segment;
 }
 
