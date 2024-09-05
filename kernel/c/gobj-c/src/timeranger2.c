@@ -2684,7 +2684,7 @@ PUBLIC json_t *tranger2_open_iterator(
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
-    // TODO this cache must be update in tranger2_append_record() or open_list() ???!!!
+    // TODO this cache must be update in tranger2_append_record() ???!!!
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
     json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);

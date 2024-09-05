@@ -662,6 +662,60 @@ int do_test2(void)
     }
 
     /*-------------------------------------*
+     *  Search Absolute range, forward
+     *-------------------------------------*/
+    if(1) {
+
+    }
+//    json_int_t from_rowid = appends/2 + 1;
+//    json_int_t to_rowid = appends/2 + MAX_RECS;
+    json_t *iterator = tranger2_open_iterator(
+        tranger,
+        topic,
+        "",     // key,
+        NULL    // match_cond  // owned
+    );
+
+    /*-------------------------------------*
+     *  Search Absolute range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = appends/2 + 1;
+//    json_int_t to_rowid = appends/2 + MAX_RECS;
+
+    /*-------------------------------------*
+     *  Search Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -20;
+//    json_int_t to_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -20;
+//    json_int_t to_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search BAD Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+//    json_int_t to_rowid = -20;
+
+    /*-------------------------------------*
+     *      Search by rowid
+     *-------------------------------------*/
+//    json_int_t key = appends/2 + 1;
+
+    /*-------------------------------------*
      *      Open rt list
      *-------------------------------------*/
 //    set_expected_results( // Check that no logs happen
@@ -762,52 +816,6 @@ int do_test2(void)
 //        );
 //        result += -1;
 //    }
-
-
-    /*-------------------------------------*
-     *  Search Absolute range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = appends/2 + 1;
-//    json_int_t to_rowid = appends/2 + MAX_RECS;
-
-    /*-------------------------------------*
-     *  Search Absolute range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = appends/2 + 1;
-//    json_int_t to_rowid = appends/2 + MAX_RECS;
-
-    /*-------------------------------------*
-     *  Search Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -20;
-//    json_int_t to_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -20;
-//    json_int_t to_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search BAD Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-//    json_int_t to_rowid = -20;
-
-    /*-------------------------------------*
-     *      Search by rowid
-     *-------------------------------------*/
-//    json_int_t key = appends/2 + 1;
 
     /*-------------------------------*
      *  tranger_backup_topic
