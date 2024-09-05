@@ -763,18 +763,56 @@ int do_test2(void)
 //        result += -1;
 //    }
 
-    /*------------------------*
-     *      Close topic
-     *------------------------*/
-    set_expected_results( // Check that no logs happen
-        "check_close_topic 2", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    tranger2_close_topic(tranger, TOPIC_NAME);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------------*
+     *  Search Absolute range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = appends/2 + 1;
+//    json_int_t to_rowid = appends/2 + MAX_RECS;
+
+    /*-------------------------------------*
+     *  Search Absolute range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = appends/2 + 1;
+//    json_int_t to_rowid = appends/2 + MAX_RECS;
+
+    /*-------------------------------------*
+     *  Search Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -20;
+//    json_int_t to_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search Relative range, backward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -20;
+//    json_int_t to_rowid = -10;
+
+    /*-------------------------------------*
+     *  Search BAD Relative range, forward
+     *-------------------------------------*/
+//    json_int_t from_rowid = -10;
+//    json_int_t to_rowid = -20;
+
+    /*-------------------------------------*
+     *      Search by rowid
+     *-------------------------------------*/
+//    json_int_t key = appends/2 + 1;
+
+    /*-------------------------------*
+     *  tranger_backup_topic
+     *-------------------------------*/
+    // TODO old test in test_timeranger2.c
 
     /*-------------------------------*
      *      Shutdown timeranger
