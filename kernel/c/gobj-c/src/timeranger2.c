@@ -2868,7 +2868,6 @@ PUBLIC json_t *tranger2_open_iterator(
 
             }
         }
-
     }
 
     return iterator;
