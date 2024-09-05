@@ -2581,7 +2581,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
-    tranger2_load_record_callback_t load_record_callback,  // called on append new record
+    tranger2_load_record_callback_t load_record_callback  // called on append new record
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2820,8 +2820,7 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
-                    load_record_callback,   // called on append new record
-                    ""                      // list id, optional
+                    load_record_callback    // called on append new record
                 );
                 json_object_set_new(iterator, "rt_list", rt_list);
             } else {
@@ -2829,8 +2828,7 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
-                    load_record_callback,   // called on append new record
-                    ""                      // list id, optional
+                    load_record_callback    // called on append new record
                 );
                 json_object_set_new(iterator, "rt_list", rt_disk);
 

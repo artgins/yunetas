@@ -306,16 +306,14 @@ int do_test(void)
         tranger,
         TOPIC_NAME,
         "",             // key
-        all_load_record_callback,
-        ""              // list id
+        all_load_record_callback
     );
 
-    tranger2_open_rt_list(
+    json_t *list2 = tranger2_open_rt_list(
         tranger,
         TOPIC_NAME,
         "0000000000000000001",       // key
-        one_load_record_callback,
-        "list2"              // list id
+        one_load_record_callback
     );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -365,10 +363,6 @@ int do_test(void)
         tr_list
     );
 
-    json_t *list2 =tranger2_get_rt_list_by_id(
-        tranger,
-        "list2"
-    );
     tranger2_close_rt_list(
         tranger,
         list2
