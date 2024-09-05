@@ -12,7 +12,7 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define TEST_NAME   "tr_tranger_startup"
+#define DATABASE    "tr_tranger_startup"
 #define TOPIC_NAME  "topic_sample"
 
 /***************************************************************
@@ -50,7 +50,7 @@ int do_test(void)
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
     mkrdir(path_root, 02770);
 
-    build_path(path_database, sizeof(path_database), path_root, TEST_NAME, NULL);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     rmrdir(path_database);
 
     build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
@@ -73,7 +73,7 @@ int do_test(void)
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
-        "database", TEST_NAME,
+        "database", DATABASE,
         "master", 1,
         "on_critical_error", 0
     );
@@ -229,7 +229,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", path_root, TEST_NAME, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
@@ -342,7 +342,7 @@ int do_test(void)
 
         json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
             "path", path_root,
-            "database", TEST_NAME,
+            "database", DATABASE,
             "master", 1,
             "on_critical_error", 0
         );
