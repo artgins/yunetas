@@ -14,8 +14,8 @@
 
 #define TEST_NAME   "tr_topic_with_integer"
 #define TOPIC_NAME  "topic_with_integer"
-#define MAX_KEYS    2 // TODO 100000
-#define MAX_RECORDS 4 // TODO 100000
+#define MAX_KEYS    2
+#define MAX_RECORDS 90000 // 1 day and 1 hour
 
 /***************************************************************
  *              Prototypes
@@ -271,6 +271,21 @@ int do_test(void)
     }
 
     /*-------------------------------------*
+     *      Open rt list
+     *-------------------------------------*/
+    leidos = 0;
+
+    json_t *tr_list = tranger2_open_rt_list(
+        tranger,
+        TOPIC_NAME,
+        "",             // key
+        all_load_record_callback,
+        ""              // list id
+    );
+
+    print_json2("XXX after open list", tranger); // TODO TEST
+
+    /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
     print_json2("XXX before loading records", tranger); // TODO TEST
@@ -294,35 +309,21 @@ int do_test(void)
 
     print_json2("XXX after loading records", tranger); // TODO TEST
 
-    if(1) {
-        /*-------------------------------------*
-         *      List all records
-         *-------------------------------------*/
-        leidos = 0;
 
-        json_t *tr_list = tranger2_open_rt_list(
-            tranger,
-            TOPIC_NAME,
-            "",             // key
-            all_load_record_callback,
-            ""              // list id
+    tranger2_close_rt_list(
+        tranger,
+        tr_list
+    );
+
+    if(leidos != MAX_KEYS*MAX_RECORDS) {
+        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
+           (int)leidos, MAX_KEYS*MAX_RECORDS
         );
-
-
-print_json2("XXX after open list", tranger); // TODO TEST
-
-        tranger2_close_rt_list(
-            tranger,
-            tr_list
-        );
-
-        if(leidos != MAX_KEYS*MAX_RECORDS) {
-            printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-               (int)leidos, MAX_KEYS*MAX_RECORDS
-            );
-            result += -1;
-        }
+        result += -1;
     }
+
+    print_json2("XXX after close list", tranger); // TODO TEST
+
 
     /*------------------------*
      *      Close topic
