@@ -2587,6 +2587,12 @@ PUBLIC json_t *tranger2_open_rt_list(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    if(!match_cond) {
+        match_cond = json_object();
+    }
+    if(!key) {
+        key="";
+    }
 
     /*
      *  Here the topic is opened if it's not opened
@@ -2596,7 +2602,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_list: what topic?",
+            "msg",          "%s", "tranger2_open_rt_list: what topic?",
             NULL
         );
         return NULL;
@@ -2606,7 +2612,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_list: what load_record_callback?",
+            "msg",          "%s", "tranger2_open_rt_list: what load_record_callback?",
             NULL
         );
         return NULL;
@@ -2670,7 +2676,26 @@ PUBLIC json_t *tranger2_open_rt_disk(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    if(!match_cond) {
+        match_cond = json_object();
+    }
+    if(!key) {
+        key="";
+    }
+
+    /*
+     *  Here the topic is opened if it's not opened
+     */
     json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_rt_disk: what topic?",
+            NULL
+        );
+        return NULL;
+    }
 
     json_t *list = json_pack("{s:s, s:s, s:o, s:I}",
         "topic_name", topic_name,
@@ -2679,24 +2704,37 @@ PUBLIC json_t *tranger2_open_rt_disk(
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     );
 
-    BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
-    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+    if(!load_record_callback) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_rt_disk: what load_record_callback?",
+            NULL
+        );
+        return NULL;
+    }
 
-    json_int_t rowid;
-    md2_record_t md_record;
-    json_t *record, **precord;
+    if(1) {
+        // TODO get updated data from disk
+        //BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
+        //BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
-    // TODO
-    JSON_INCREF(record)
-    int ret = load_record_callback(
-        tranger,
-        topic,
-        json_incref(match_cond),
-        &md_record,
-        json_incref(record), // must be owned
-        key,    // key
-        rowid   // relative_rowid
-    );
+        json_int_t rowid = 0;
+        md2_record_t md_record = {0};
+        json_t *record = NULL;
+
+        // TODO
+        JSON_INCREF(record)
+        load_record_callback(
+            tranger,
+            topic,
+            json_incref(match_cond),
+            &md_record,
+            json_incref(record), // must be owned
+            key,    // key
+            rowid   // relative_rowid
+        );
+    }
 
     return list;
 }
@@ -2739,15 +2777,13 @@ PUBLIC json_t *tranger2_open_iterator(
         json_decref(jn_keys);
         return NULL;
     }
-    // TODO must be idempotent?
-    load_topic_metadata(
+    load_topic_metadata( // TODO must be idempotent?
         gobj,
         directory,
         topic_cache,    // not owned
         jn_keys         // not owned
     );
     json_decref(jn_keys);
-
 
     if(!match_cond) {
         match_cond = json_object();

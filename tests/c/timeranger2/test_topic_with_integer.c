@@ -320,6 +320,67 @@ int do_test(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
+print_json2("XXXXXXXXXXXX", tranger);
+
+    /*------------------------------------------*
+     *  Check tranger memory with lists opened
+     *------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 1, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': {}, \
+                    'lists': [], \
+                    'cache': { \
+                    } \
+                } \
+            } \
+        } \
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            NULL
+        };
+        set_expected_results(
+            "check_tranger_mem2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
     /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
