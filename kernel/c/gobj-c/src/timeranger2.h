@@ -444,6 +444,8 @@ PUBLIC int tranger2_close_rt_disk(
         rkey    regular expression of key
         filter  dict with fields to match
 
+        rt_by_mem   realtime by memory (list, master) or by disk (true if not master)
+
         from_rowid
         to_rowid
         from_t

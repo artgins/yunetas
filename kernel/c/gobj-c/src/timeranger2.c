@@ -2655,8 +2655,11 @@ PUBLIC int tranger2_close_rt_list(
 }
 
 /***************************************************************************
- *  Open realtime disk, valid when the yuno is the master writing or not-master reading,
+ *  Open realtime disk,
+ *  valid when the yuno is the master writing or not-master reading,
  *  realtime messages from events of disk
+ *  WARNING can arrive the last message
+ *      or an middle message (by example, a deleted message or md changed)
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
@@ -2780,18 +2783,23 @@ PUBLIC json_t *tranger2_open_iterator(
 
     print_json2("ITERATOR", iterator); // TODO TEST
 
-    json_object_set(iterator, "topic", topic);
+    // TODO danger! close loop! json_object_set(iterator, "topic", topic);
 
-    /*---------------------------------------------*
-     *  If there is load_record_callback then
-     *      - callback all records in disk
-     *  If there is NO to_rowid then get records
-     *  in realtime, listening to changes in disk
-     *---------------------------------------------*/
+    /*-------------------------------------------------------------------------*
+     *  WITH HISTORY:
+     *      If there is "load_record_callback" then
+     *          - callback all records in disk
+     *  WITH REALTIME
+     *      If there is "load_record_callback" and NO "to_rowid" defined then
+     *          - get records in realtime, listening to changes in disk
+     *-------------------------------------------------------------------------*/
     if(load_record_callback) {
         BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
         BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
+        /*---------------------------*
+         *      History
+         *---------------------------*/
         json_int_t rowid;
         md2_record_t md_record;
         json_t *record, **precord;
@@ -2843,10 +2851,17 @@ PUBLIC json_t *tranger2_open_iterator(
             }
         }
 
+        /*---------------------------*
+         *      Realtime
+         *---------------------------*/
         BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+        BOOL rt_by_mem = kw_get_bool(gobj, match_cond, "rt_by_mem", 0, 0);
+        if(!master) {
+            rt_by_mem = FALSE;
+        }
         json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", -1, 0);
         if(to_rowid <= 0) {
-            if(master) {
+            if(rt_by_mem) {
                 json_t *rt_list = tranger2_open_rt_list(
                     tranger,
                     tranger2_topic_name(topic),
