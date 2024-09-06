@@ -76,7 +76,7 @@ int one_load_record_callback(
 int do_test(void)
 {
     int result = 0;
-    char file[PATH_MAX];
+//    char file[PATH_MAX];
 
     /*
      *  Write the tests in ~/tests_yuneta/
@@ -191,6 +191,8 @@ int do_test(void)
      *      Search by rowid
      *-------------------------------------*/
 //    json_int_t key = appends/2 + 1;
+
+    tranger2_close_iterator(tranger, iterator);
 
     /*-------------------------------------*
      *      Open rt list

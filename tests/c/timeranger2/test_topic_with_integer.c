@@ -306,6 +306,7 @@ int do_test(void)
         tranger,
         TOPIC_NAME,
         "",             // key
+        NULL,           // match_cond,
         all_load_record_callback
     );
 
@@ -313,6 +314,7 @@ int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000001",       // key
+        NULL,   // match_cond
         one_load_record_callback
     );
 
