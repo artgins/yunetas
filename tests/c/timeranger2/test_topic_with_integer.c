@@ -323,8 +323,6 @@ int do_test(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-print_json2("XXXXXXXXXXXX", tranger);
-
     /*------------------------------------------*
      *  Check tranger memory with lists opened
      *------------------------------------------*/
