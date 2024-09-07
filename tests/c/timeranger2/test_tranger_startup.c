@@ -224,6 +224,7 @@ int do_test(void)
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
                     'lists': [], \
+                    'disks': [], \
                     'cache': { \
                     } \
                 } \

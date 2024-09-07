@@ -267,6 +267,7 @@ int do_test(void)
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
                     'lists': [], \
+                    'disks': [], \
                     'cache': { \
                     } \
                 } \
@@ -307,15 +308,17 @@ int do_test(void)
         TOPIC_NAME,
         "",             // key
         NULL,           // match_cond,
-        all_load_record_callback
+        all_load_record_callback,
+        "list1"
     );
 
-    json_t *list2 = tranger2_open_rt_list(
+    tranger2_open_rt_list(
         tranger,
         TOPIC_NAME,
         "0000000000000000001",       // key
         NULL,   // match_cond
-        one_load_record_callback
+        one_load_record_callback,
+        "list2"
     );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -359,7 +362,23 @@ print_json2("XXXXXXXXXXXX", tranger);
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
-                    'lists': [], \
+                    'lists': [ \
+                        { \
+                            'id': 'list1', \
+                            'topic_name': 'topic_with_integer', \
+                            'key': '', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
+                        }, \
+                        { \
+                            'id': 'list2', \
+                            'topic_name': 'topic_with_integer', \
+                            'key': '0000000000000000001', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
+                        } \
+                    ], \
+                    'disks': [], \
                     'cache': { \
                     } \
                 } \
@@ -369,6 +388,7 @@ print_json2("XXXXXXXXXXXX", tranger);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "load_record_callback",
             NULL
         };
         set_expected_results(
@@ -426,6 +446,10 @@ print_json2("XXXXXXXXXXXX", tranger);
         tr_list
     );
 
+    json_t *list2 =tranger2_get_rt_list_by_id(
+        tranger,
+        "list2"
+    );
     tranger2_close_rt_list(
         tranger,
         list2
@@ -700,6 +724,7 @@ int do_test2(void)
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
                     'lists': [], \
+                    'disks': [], \
                     'cache': { \
                     } \
                 } \
@@ -712,7 +737,7 @@ int do_test2(void)
             NULL
         };
         set_expected_results(
-            "check_tranger_mem2",      // test name
+            "check_tranger_mem3",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,

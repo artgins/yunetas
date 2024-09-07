@@ -401,8 +401,6 @@ PRIVATE BOOL match_list(
                             if(verbose_) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
                                 gobj_trace_msg(0, "match_list('%s'): item not found in expected__ list", p);
-                                //gobj_trace_json(0, item, "item");
-                                //gobj_trace_json(0, expected__, "expected__");
                             }
                             ret = FALSE;
                             break;
@@ -502,8 +500,8 @@ PUBLIC int test_json_file(const char *file)
         result = -1;
         if(verbose) {
             printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
-            gobj_trace_json(0, jn_found, "Record found");
             gobj_trace_json(0, expected, "Record expected");
+            gobj_trace_json(0, jn_found, "Record found");
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
@@ -538,8 +536,8 @@ PUBLIC int test_json(json_t *jn_found)
         result = -1;
         if(verbose) {
             printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
-            gobj_trace_json(0, jn_found, "Record found");
             gobj_trace_json(0, expected, "Record expected");
+            gobj_trace_json(0, jn_found, "Record found");
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }

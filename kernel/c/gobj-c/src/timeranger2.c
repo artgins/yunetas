@@ -784,6 +784,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "wr_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
+    kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
     return topic;
@@ -2102,7 +2103,6 @@ PUBLIC int tranger2_append_record(
             json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
             if(load_record_callback) {
                 // Inform to the user list: record in real time
-                JSON_INCREF(jn_record)
                 load_record_callback(
                     tranger,
                     topic,
@@ -2583,7 +2583,8 @@ PUBLIC json_t *tranger2_open_rt_list(
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
-    tranger2_load_record_callback_t load_record_callback  // called on append new record
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
+    const char *list_id     // list id, optional
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2618,9 +2619,10 @@ PUBLIC json_t *tranger2_open_rt_list(
         return NULL;
     }
 
-    json_t *list = json_pack("{s:s, s:s, s:o, s:I}",
+    json_t *list = json_pack("{s:s, s:s, s:s, s:o, s:I}",
+        "id", list_id,
         "topic_name", topic_name,
-        "key", key?key:"",
+        "key", key,
         "match_cond", match_cond,
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     );
@@ -2661,6 +2663,35 @@ PUBLIC int tranger2_close_rt_list(
 }
 
 /***************************************************************************
+ *  Get realtime list by his id
+ ***************************************************************************/
+PUBLIC json_t *tranger2_get_rt_list_by_id(
+    json_t *tranger,
+    const char *id
+)
+{
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    if(empty_string(id)) {
+        return 0;
+    }
+    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
+
+    const char *topic_name; json_t *topic;
+    json_object_foreach(topics, topic_name, topic) {
+        json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
+        int idx; json_t *list;
+        json_array_foreach(lists, idx, list) {
+            const char *list_id = kw_get_str(gobj, list, "id", "", 0);
+            if(strcmp(id, list_id)==0) {
+                return list;
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Open realtime disk,
  *  valid when the yuno is the master writing or not-master reading,
  *  realtime messages from events of disk
@@ -2672,7 +2703,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
-    tranger2_load_record_callback_t load_record_callback  // called on append new record
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
+    const char *list_id     // list id, optional
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2697,13 +2729,6 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
-    json_t *list = json_pack("{s:s, s:s, s:o, s:I}",
-        "topic_name", topic_name,
-        "key", key?key:"",
-        "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback
-    );
-
     if(!load_record_callback) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2714,7 +2739,25 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
-    if(1) {
+    json_t *disk = json_pack("{s:s, s:s, s:s, s:o, s:I}",
+        "id", list_id,
+        "topic_name", topic_name,
+        "key", key,
+        "match_cond", match_cond,
+        "load_record_callback", (json_int_t)(size_t)load_record_callback
+    );
+
+    /*
+     *  Add the list to the topic
+     */
+    json_array_append_new(
+        kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
+        disk
+    );
+
+
+
+    if(0) {
         // TODO get updated data from disk
         //BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
         //BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
@@ -2736,7 +2779,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         );
     }
 
-    return list;
+    return disk;
 }
 
 /***************************************************************************
@@ -2747,6 +2790,48 @@ PUBLIC int tranger2_close_rt_disk(
     json_t *disk
 )
 {
+    if(!disk) {
+        // silence
+        return -1;
+    }
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    if(topic) {
+        json_array_remove(
+            kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED),
+            json_array_find_idx(kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED), disk)
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Get realtime disk by his id
+ ***************************************************************************/
+PUBLIC json_t *tranger2_get_rt_disk_by_id(
+    json_t *tranger,
+    const char *id
+)
+{
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    if(empty_string(id)) {
+        return 0;
+    }
+    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
+
+    const char *topic_name; json_t *topic;
+    json_object_foreach(topics, topic_name, topic) {
+        json_t *lists = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
+        int idx; json_t *list;
+        json_array_foreach(lists, idx, list) {
+            const char *list_id = kw_get_str(gobj, list, "id", "", 0);
+            if(strcmp(id, list_id)==0) {
+                return list;
+            }
+        }
+    }
     return 0;
 }
 
@@ -2895,6 +2980,9 @@ PUBLIC json_t *tranger2_open_iterator(
         if(!master) {
             rt_by_mem = FALSE;
         }
+        char rt_id[64];
+        snprintf(rt_id, sizeof(rt_id), "%"PRIu64, (uint64_t )(size_t)iterator);
+
         json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", -1, 0);
         if(to_rowid <= 0) {
             if(rt_by_mem) {
@@ -2903,7 +2991,8 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
                     match_cond,
-                    load_record_callback    // called on append new record
+                    load_record_callback,   // called on append new record
+                    rt_id
                 );
                 json_object_set_new(iterator, "rt_list", rt_list);
             } else {
@@ -2912,7 +3001,8 @@ PUBLIC json_t *tranger2_open_iterator(
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
                     match_cond,
-                    load_record_callback    // called on append new record
+                    load_record_callback,   // called on append new record
+                    rt_id
                 );
                 json_object_set_new(iterator, "rt_list", rt_disk);
 
