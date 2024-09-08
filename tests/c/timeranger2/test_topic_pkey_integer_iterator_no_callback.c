@@ -1,6 +1,9 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator_no_callback.c
  *
+ *  - do_test: Open as master, open iterator rt_by_mem (realtime by memory) without callback
+ *  - do_test2: Open as master, open iterator rt_by_mem (realtime by memory) with callback
+ *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -35,8 +38,7 @@ int times_periodic = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-size_t all_leidos = 0;
-int all_load_record_callback(
+int iterator_callback1(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,     // not yours, don't own
@@ -46,24 +48,8 @@ int all_load_record_callback(
     json_int_t relative_rowid
 )
 {
-    all_leidos++;
-    JSON_DECREF(match_cond)
-    JSON_DECREF(jn_record)
-    return 0;
-}
+    printf("iterator callback1\n");
 
-size_t one_leidos = 0;
-int one_load_record_callback(
-    json_t *tranger,
-    json_t *topic,
-    json_t *match_cond, // must be owned
-    md2_record_t *md2_record,
-    json_t *jn_record,  // must be owned
-    const char *key,
-    json_int_t relative_rowid
-)
-{
-    one_leidos++;
     JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
     return 0;
@@ -71,6 +57,7 @@ int one_load_record_callback(
 
 /***************************************************************************
  *              Test
+ *  Open as master, open iterator rt_by_mem (realtime by memory) without callback
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
@@ -87,8 +74,6 @@ int do_test(void)
     char path_topic[PATH_MAX];
 
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
-    mkrdir(path_root, 02770);
-
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
@@ -96,7 +81,7 @@ int do_test(void)
      *      Startup the timeranger db
      *-------------------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "tranger2_startup 2", // test name
+        "tranger2_startup", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -324,6 +309,138 @@ int do_test(void)
         result += test_json(json_incref(iterator));
     }
 
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    return result;
+}
+
+/***************************************************************************
+ *              Test
+ *  Open as master, open iterator rt_by_mem (realtime by memory) with callback
+ *  HACK: return -1 to fail, 0 to ok
+ ***************************************************************************/
+int do_test2(void)
+{
+    int result = 0;
+//    char file[PATH_MAX];
+
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger2_startup", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*--------------------------------------------------------------------*
+     *  Create an iterator, no callback, match_cond NULL (use defaults)
+     *--------------------------------------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "create iterator", // test name
+        NULL,   // error's list
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *iterator = tranger2_open_iterator(
+        tranger,
+        tranger2_topic(tranger, TOPIC_NAME),
+        "0000000000000000001",     // key,
+        NULL,   // match_cond, owned
+        iterator_callback1    // callback
+    );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    if(!iterator) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    /*---------------------------------------------*
+     *  Check iterator mem
+     *---------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'key': '0000000000000000001', \
+            'match_cond': {}, \
+            'segments': [ \
+                { \
+                    'id': '2000-01-01', \
+                    'fr_t': 946684800, \
+                    'to_t': 946771199, \
+                    'fr_tm': 946684800, \
+                    'to_tm': 946771199, \
+                    'rows': 86400, \
+                    'first_row': 1, \
+                    'last_row': 86400, \
+                    'key': '0000000000000000001' \
+                }, \
+                { \
+                    'id': '2000-01-02', \
+                    'fr_t': 946771200, \
+                    'to_t': 946774799, \
+                    'fr_tm': 946771200, \
+                    'to_tm': 946774799, \
+                    'rows': 3600, \
+                    'first_row': 86401, \
+                    'last_row': 90000, \
+                    'key': '0000000000000000001' \
+                } \
+            ], \
+            'cur_segment': 0, \
+            'cur_rowid': 0, \
+            'load_record_callback': 0 \
+        } \
+        ");
+
+        const char *ignore_keys[]= {
+            NULL
+        };
+        set_expected_results(
+            "check iterator mem",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(iterator));
+    }
+
     /*-------------------------------------*
      *  Search Absolute range, forward
      *-------------------------------------*/
@@ -485,7 +602,7 @@ int do_test(void)
      *      Shutdown timeranger
      *-------------------------------*/
     set_expected_results( // Check that no logs happen
-        "tranger_shutdown 2", // test name
+        "tranger_shutdown", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -586,6 +703,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
+    result += do_test2();
 
     /*--------------------------------*
      *  Stop the event loop
