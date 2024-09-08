@@ -1,6 +1,9 @@
 /****************************************************************************
  *          test_topic_pkey_integer.c
  *
+ *  Open as master, check main files, open rt lists, add records
+ *  Open as master and change topic version and cols
+ *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
