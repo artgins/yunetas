@@ -1,2 +1,2 @@
-./tests/c/timeranger2/test_topic_with_integer_iterator.c.bin
+./tests/c/timeranger2/test_topic_pkey_integer_iterator.c.bin
 

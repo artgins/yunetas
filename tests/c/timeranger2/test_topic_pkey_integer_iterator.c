@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_topic_pkey_integer_iterator_no_callback.c
+ *          test_topic_pkey_integer_iterator.c
  *
  *  - do_test: Open as master, open iterator rt_by_mem (realtime by memory) without callback
  *  - do_test2: Open as master, open iterator rt_by_mem (realtime by memory) with callback
