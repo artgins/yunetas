@@ -1585,7 +1585,7 @@ PRIVATE int get_topic_rd_fd(
      *      Check file
      *-----------------------------*/
     const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);
-    const char *name = kw_get_str(gobj, segment, "filename", "", KW_REQUIRED);
+    const char *name = kw_get_str(gobj, segment, "id", "", KW_REQUIRED);
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.%s", name, for_data?"json":"md2");
 
@@ -4229,7 +4229,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             *p = 0;
         }
         json_t *partial_range = json_object();
-        json_object_set_new(partial_range, "filename", json_string(files_md[i]));
+        json_object_set_new(partial_range, "id", json_string(files_md[i]));
         if(p) {
             *p = '.';
         }

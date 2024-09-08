@@ -136,6 +136,13 @@ int do_test(void)
     /*-------------------------------------*
      *  Create an iterator
      *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "create iterator", // test name
+        NULL,   // error's list
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
     json_t *iterator = tranger2_open_iterator(
         tranger,
         topic,
@@ -143,6 +150,128 @@ int do_test(void)
         NULL,   // match_cond, owned
         NULL    // callback
     );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    if(!iterator) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    /*------------------------------------------*
+     *  Check tranger memory with lists opened
+     *------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 0, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'topic_version': 1, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '', \
+                        'content2': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': {}, \
+                    'lists': [], \
+                    'disks': [], \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    } \
+                } \
+            } \
+        } \
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            "load_record_callback",
+            NULL
+        };
+        set_expected_results(
+            "check_tranger_mem1",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
 
     /*-------------------------------------*
      *  Search Absolute range, forward
