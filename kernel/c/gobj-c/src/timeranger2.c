@@ -2848,6 +2848,23 @@ PUBLIC json_t *tranger2_open_iterator(
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
+    /*----------------------*
+     *  Check parameters
+     *----------------------*/
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_iterator(): What key?",
+            NULL
+        );
+        JSON_DECREF(match_cond)
+        return NULL;
+    }
+    if(!match_cond) {
+        match_cond = json_object();
+    }
+
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
@@ -2860,6 +2877,7 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!topic_cache) {
         json_decref(jn_keys);
+        JSON_DECREF(match_cond)
         return NULL;
     }
     load_topic_metadata( // TODO must be idempotent?
@@ -2868,7 +2886,7 @@ PUBLIC json_t *tranger2_open_iterator(
         topic_cache,    // not owned
         jn_keys         // not owned
     );
-    json_decref(jn_keys);
+    JSON_DECREF(jn_keys)
 
     if(!match_cond) {
         match_cond = json_object();
@@ -2885,7 +2903,7 @@ PUBLIC json_t *tranger2_open_iterator(
         // NO match
         JSON_DECREF(segments)
         JSON_DECREF(match_cond)
-        return 0;
+        return NULL;
     }
 
     json_t *iterator = json_object();
@@ -2902,9 +2920,7 @@ PUBLIC json_t *tranger2_open_iterator(
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    print_json2("ITERATOR", iterator); // TODO TEST
-
-    // TODO danger! close loop! json_object_set(iterator, "topic", topic);
+    // TODO danger! closed loop! json_object_set(iterator, "topic", topic);
 
     /*-------------------------------------------------------------------------*
      *  WITH HISTORY:

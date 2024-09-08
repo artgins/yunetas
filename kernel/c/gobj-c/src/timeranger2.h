@@ -447,11 +447,6 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 /**rst**
     Open iterator
 
-    Walk in topic through records, and callback with the matched record found.
-    The return is a list handler that must be close with tranger_close_list()
-    When the list is open, before return, all records will be sent to callback.
-    While the list is not closed, TimeRanger will be send new matched records to callback.
-
     match_cond:
 
         backward
@@ -462,7 +457,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         rkey    regular expression of key
         filter  dict with fields to match
 
-        rt_by_mem   realtime by memory (list, master) or by disk (true if not master)
+        rt_by_mem TRUE: realtime by memory (list, master); FALSE rt by disk (force false if not master)
 
         from_rowid
         to_rowid
@@ -475,7 +470,6 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         not_user_flag
         user_flag_mask_set
         user_flag_mask_notset
-
 
 **rst**/
 PUBLIC json_t *tranger2_open_iterator(
