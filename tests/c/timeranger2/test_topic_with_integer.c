@@ -71,6 +71,7 @@ int one_load_record_callback(
 
 /***************************************************************************
  *              Test
+ *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
@@ -428,6 +429,94 @@ int do_test(void)
     }
     result += test_json(NULL);  // NULL: we want to check only the logs
 
+    /*------------------------------------------*
+     *  Check tranger memory with lists opened
+     *  and records added
+     *------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 1, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {\
+                        '0000000000000000001': { \
+                            '2000-01-02.json': 99999, \
+                            '2000-01-02.md2': 99999 \
+                        }, \
+                        '0000000000000000002': { \
+                            '2000-01-02.json': 99999, \
+                            '2000-01-02.md2': 99999 \
+                        } \
+                    }, \
+                    'rd_fd_files': {}, \
+                    'lists': [ \
+                        { \
+                            'id': 'list1', \
+                            'topic_name': 'topic_with_integer', \
+                            'key': '', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
+                        }, \
+                        { \
+                            'id': 'list2', \
+                            'topic_name': 'topic_with_integer', \
+                            'key': '0000000000000000001', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
+                        } \
+                    ], \
+                    'disks': [], \
+                    'cache': { \
+                    } \
+                } \
+            } \
+        } \
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            "load_record_callback",
+            "2000-01-02.json",
+            "2000-01-02.md2",
+            NULL
+        };
+        set_expected_results(
+            "check_tranger_mem3",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
     /*-------------------------------------*
      *      Close rt lists
      *-------------------------------------*/
@@ -556,7 +645,8 @@ int do_test(void)
 }
 
 /***************************************************************************
- *              Test
+ *              Test2
+ *  Open as master and change version and cols
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test2(void)
@@ -735,7 +825,7 @@ int do_test2(void)
             NULL
         };
         set_expected_results(
-            "check_tranger_mem3",      // test name
+            "check_tranger_mem4",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
