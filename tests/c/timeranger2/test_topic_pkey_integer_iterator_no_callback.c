@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_topic_with_integer_iterator.c
+ *          test_topic_pkey_integer_iterator_no_callback.c
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -12,8 +12,8 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define DATABASE    "tr_topic_with_integer"
-#define TOPIC_NAME  "topic_with_integer"
+#define DATABASE    "tr_topic_pkey_integer"
+#define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 

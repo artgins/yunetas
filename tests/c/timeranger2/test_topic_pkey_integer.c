@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_topic_with_integer.c
+ *          test_topic_pkey_integer.c
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -12,8 +12,8 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
-#define DATABASE    "tr_topic_with_integer"
-#define TOPIC_NAME  "topic_with_integer"
+#define DATABASE    "tr_topic_pkey_integer"
+#define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
@@ -364,14 +364,14 @@ int do_test(void)
                     'lists': [ \
                         { \
                             'id': 'list1', \
-                            'topic_name': 'topic_with_integer', \
+                            'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
                             'load_record_callback': 99999 \
                         }, \
                         { \
                             'id': 'list2', \
-                            'topic_name': 'topic_with_integer', \
+                            'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
                             'load_record_callback': 99999 \
@@ -383,7 +383,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic,TOPIC_NAME,TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
@@ -479,14 +479,14 @@ int do_test(void)
                     'lists': [ \
                         { \
                             'id': 'list1', \
-                            'topic_name': 'topic_with_integer', \
+                            'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
                             'load_record_callback': 99999 \
                         }, \
                         { \
                             'id': 'list2', \
-                            'topic_name': 'topic_with_integer', \
+                            'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
                             'load_record_callback': 99999 \
@@ -498,7 +498,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME, TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
