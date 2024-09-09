@@ -947,7 +947,7 @@ PUBLIC void trace_vjson(
         json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
         json_object_set_new(jn_log, "type", json_integer(jn_data->type));
     }
-    char *s = json_dumps(jn_log, JSON_INDENT(2)|JSON_ENCODE_ANY);
+    char *s = json_dumps(jn_log, JSON_INDENT(4)|JSON_ENCODE_ANY);
     if(s) {
         _log_bf(priority, opt, s, strlen(s));
         jsonp_free(s);

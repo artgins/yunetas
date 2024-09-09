@@ -3235,6 +3235,7 @@ PUBLIC json_t *tranger2_open_iterator(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_iterator(): What key?",
+            "topic_name",   "%s", tranger2_topic_name(topic),
             NULL
         );
         JSON_DECREF(match_cond)
@@ -3262,6 +3263,7 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     json_t *iterator = json_object();
+    json_object_set_new(iterator, "topic_name", json_string(tranger2_topic_name(topic)));
     json_object_set_new(iterator, "key", json_string(key));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
