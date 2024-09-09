@@ -1739,11 +1739,11 @@ PRIVATE json_t *md2json(
 )
 {
     json_t *jn_md = json_object();
-    json_object_set_new(jn_md, "__rowid__", json_integer(relative_rowid));
-    json_object_set_new(jn_md, "__t__", json_integer((json_int_t)md_record->__t__));
-    json_object_set_new(jn_md, "__tm__", json_integer((json_int_t)md_record->__tm__));
-    json_object_set_new(jn_md, "__offset__", json_integer((json_int_t)md_record->__offset__));
-    json_object_set_new(jn_md, "__size__", json_integer((json_int_t)md_record->__size__));
+    json_object_set_new(jn_md, "rowid", json_integer(relative_rowid));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record->__offset__));
+    json_object_set_new(jn_md, "size", json_integer((json_int_t)md_record->__size__));
 //  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(md_record->__user_flag__));
 //    json_object_set_new(jn_md, "__system_flag__", json_integer(md_record->__system_flag__));
 
@@ -2027,6 +2027,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Write record metadata
      *--------------------------------------------*/
+    json_t *__md_tranger__ = NULL;
     json_int_t relative_rowid = 0;
     int md2_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
     if(md2_fp >= 0) {
@@ -2047,13 +2048,58 @@ PUBLIC int tranger2_append_record(
 
         relative_rowid = (json_int_t)(offset/sizeof(md2_record_t));
 
+        __md_tranger__ = md2json(md_record, relative_rowid);
+
+        /*--------------------------------------------*
+         *  NEW: write __md_tranger__ to json file
+         *--------------------------------------------*/
+        if(content_fp >= 0) {
+            /*-------------------------------------------------------*
+             *  Continue if this part fails, it's extra information
+             *-------------------------------------------------------*/
+            char *srecord = json_dumps(__md_tranger__, JSON_COMPACT|JSON_ENCODE_ANY);
+            if(!srecord) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msg",          "%s", "Cannot append __md_tranger__, json_dumps() FAILED",
+                    "topic",        "%s", topic_name,
+                    NULL
+                );
+                gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, json_dumps() FAILED");
+            } else {
+                size_t size = strlen(srecord) + 1; // include the null
+                char *p = srecord;
+                size_t ln = write(
+                    content_fp,
+                    p,
+                    size
+                );
+                if(ln != size) {
+                    gobj_log_critical(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "Cannot append __md_tranger__, write FAILED",
+                        "topic",        "%s", topic_name,
+                        "errno",        "%s", strerror(errno),
+                        NULL
+                    );
+                    gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, write FAILED");
+                }
+                jsonp_free(srecord);
+            }
+        }
+
+        /*--------------------------------------------*
+         *  write md2
+         *--------------------------------------------*/
         md2_record_t big_endian;
         big_endian.__t__ = htonll(md_record->__t__);
         big_endian.__tm__ = htonll(md_record->__tm__);
         big_endian.__offset__ = htonll(md_record->__offset__);
         big_endian.__size__ = htonll(md_record->__size__);
 
-        size_t ln = write( // write new (record content)
+        size_t ln = write(
             md2_fp,
             &big_endian,
             sizeof(md2_record_t)
@@ -2077,54 +2123,12 @@ PUBLIC int tranger2_append_record(
      *  Could be useful for records with the same __t__
      *  for example, to distinguish them by the readers.
      *-----------------------------------------------------*/
-    json_t *__md_tranger__ = md2json(md_record, relative_rowid);
     json_object_set(
         jn_record,
         "__md_tranger__",
         __md_tranger__
     );
 
-    /*--------------------------------------------*
-     *  NEW! write __md_tranger__ to data file
-     *--------------------------------------------*/
-    if(content_fp >= 0) {
-        /*--------------------------------------------*
-         *  Get the record's content, always json
-         *--------------------------------------------*/
-        char *srecord = json_dumps(__md_tranger__, JSON_COMPACT|JSON_ENCODE_ANY);
-        if(!srecord) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
-                "msg",          "%s", "Cannot append __md_tranger__, json_dumps() FAILED",
-                "topic",        "%s", topic_name,
-                NULL
-            );
-            gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, json_dumps() FAILED");
-        } else {
-            size_t size = strlen(srecord) + 1; // include the null
-            char *p = srecord;
-            size_t ln = write(
-                content_fp,
-                p,
-                size
-            );
-
-            if(ln != size) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot append __md_tranger__, write FAILED",
-                    "topic",        "%s", topic_name,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-                gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, write FAILED");
-            }
-
-            jsonp_free(srecord);
-        }
-    }
     JSON_DECREF(__md_tranger__)
 
     /*--------------------------------------------*
@@ -2932,9 +2936,6 @@ PUBLIC json_t *tranger2_open_iterator(
     );
     JSON_DECREF(jn_keys)
 
-    if(!match_cond) {
-        match_cond = json_object();
-    }
     json_t *segments = get_segments(
         gobj,
         tranger,

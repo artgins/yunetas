@@ -587,92 +587,6 @@ int do_test(void)
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    /*-------------------------------*
-     *      Check disk structure
-     *-------------------------------*/
-    if(1) {
-        int ret;
-        char path_key[PATH_MAX];
-
-        ret = test_directory_permission(path_topic, 0770);
-        result += ret;
-        if(ret < 0) {
-            printf("%s BAD directory_permission: %s %s\n", On_Red BWhite, path_topic, Color_Off);
-        }
-
-        build_path(path_key, sizeof(path_key),
-            path_topic,
-            "0000000000000000001",
-            NULL
-        );
-        ret = test_directory_permission(path_key, 0700);
-        if(ret < 0) {
-            printf("%s BAD directory_permission: %s %s\n", On_Red BWhite, path_key, Color_Off);
-        }
-        result += ret;
-
-        build_path(path_key, sizeof(path_key),
-            path_topic,
-            "0000000000000000002",
-            NULL
-        );
-        ret = test_directory_permission(path_key, 0700);
-        if(ret < 0) {
-            printf("%s BAD directory_permission: %s %s\n", On_Red BWhite, path_key, Color_Off);
-        }
-        result += ret;
-
-        char path_key_file[PATH_MAX];
-
-        build_path(path_key_file, sizeof(path_key_file),
-            path_topic,
-            "0000000000000000001",
-            "2000-01-01.json",
-            NULL
-        );
-        ret = test_file_permission_and_size(path_key_file, 0600, 37028476);
-        if(ret < 0) {
-            printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
-        }
-        result += ret;
-
-        build_path(path_key_file, sizeof(path_key_file),
-            path_topic,
-            "0000000000000000001",
-            "2000-01-01.md2",
-            NULL
-        );
-        ret = test_file_permission_and_size(path_key_file, 0600, 2764800);
-        if(ret < 0) {
-            printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
-        }
-        result += ret;
-
-        build_path(path_key_file, sizeof(path_key_file),
-            path_topic,
-            "0000000000000000001",
-            "2000-01-02.json",
-            NULL
-        );
-        ret = test_file_permission_and_size(path_key_file, 0600, 1533473);
-        if(ret < 0) {
-            printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
-        }
-        result += ret;
-
-        build_path(path_key_file, sizeof(path_key_file),
-            path_topic,
-            "0000000000000000001",
-            "2000-01-02.md2",
-            NULL
-        );
-        ret = test_file_permission_and_size(path_key_file, 0600, 115200);
-        if(ret < 0) {
-            printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
-        }
-        result += ret;
-    }
-
     return result;
 }
 
@@ -922,7 +836,7 @@ int do_test2(void)
             "2000-01-01.json",
             NULL
         );
-        ret = test_file_permission_and_size(path_key_file, 0600, 37028476);
+        ret = test_file_permission_and_size(path_key_file, 0600, 35299201);
         if(ret < 0) {
             printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
         }
@@ -946,7 +860,7 @@ int do_test2(void)
             "2000-01-02.json",
             NULL
         );
-        ret = test_file_permission_and_size(path_key_file, 0600, 1533473);
+        ret = test_file_permission_and_size(path_key_file, 0600, 1461345);
         if(ret < 0) {
             printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
         }
