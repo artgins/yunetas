@@ -3441,12 +3441,32 @@ PUBLIC int tranger2_iterator_first(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *topic = json_object_get(iterator, "topic");
+    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Check variables
+     *  Check parameters
      */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
     if(!md_record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3543,12 +3563,32 @@ PUBLIC int tranger2_iterator_next(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *topic = json_object_get(iterator, "topic");
+    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Check variables
+     *  Check parameters
      */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
     if(!md_record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3672,12 +3712,32 @@ PUBLIC int tranger2_iterator_prev(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *topic = json_object_get(iterator, "topic");
+    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Check variables
+     *  Check parameters
      */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
     if(!md_record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3806,12 +3866,32 @@ PUBLIC int tranger2_iterator_last(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *topic = json_object_get(iterator, "topic");
+    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Check variables
+     *  Check parameters
      */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
     if(!md_record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3908,12 +3988,32 @@ PUBLIC int tranger2_iterator_get_by_rowid(
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *topic = json_object_get(iterator, "topic");
+    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
-     *  Check variables
+     *  Check parameters
      */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
     if(!md_record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

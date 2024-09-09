@@ -298,62 +298,6 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-    /*---------------------------------------------*
-     *  Check iterator mem
-     *---------------------------------------------*/
-    if(1) {
-        char expected[16*1024];
-        snprintf(expected, sizeof(expected), "\
-        { \
-            'id': '0000000000000000001', \
-            'topic_name': '%s', \
-            'match_cond': {}, \
-            'segments': [ \
-                { \
-                    'id': '2000-01-01', \
-                    'fr_t': 946684800, \
-                    'to_t': 946771199, \
-                    'fr_tm': 946684800, \
-                    'to_tm': 946771199, \
-                    'rows': 86400, \
-                    'wr_time': 9999, \
-                    'first_row': 1, \
-                    'last_row': 86400, \
-                    'key': '0000000000000000001' \
-                }, \
-                { \
-                    'id': '2000-01-02', \
-                    'fr_t': 946771200, \
-                    'to_t': 946774799, \
-                    'fr_tm': 946771200, \
-                    'to_tm': 946774799, \
-                    'rows': 3600, \
-                    'wr_time': 9999, \
-                    'first_row': 86401, \
-                    'last_row': 90000, \
-                    'key': '0000000000000000001' \
-                } \
-            ], \
-            'cur_segment': 0, \
-            'cur_rowid': 0, \
-            'load_record_callback': 0 \
-        } \
-        ", TOPIC_NAME);
-
-        const char *ignore_keys[]= {
-            "wr_time",
-            NULL
-        };
-        set_expected_results(
-            "check iterator mem",      // test name
-            NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
-            ignore_keys,
-            TRUE
-        );
-        result += test_json(json_incref(iterator));
-    }
-
     /*-------------------------------*
      *      Close iterator
      *-------------------------------*/
@@ -454,7 +398,8 @@ int do_test2(void)
         char expected[16*1024];
         snprintf(expected, sizeof(expected), "\
         { \
-            'key': '0000000000000000001', \
+            'id': '0000000000000000001', \
+            'topic_name': '%s', \
             'match_cond': {}, \
             'segments': [ \
                 { \
@@ -483,17 +428,17 @@ int do_test2(void)
                 } \
             ], \
             'cur_segment': 0, \
-            'cur_rowid': 0, \
+            'cur_rowid': 1, \
             'load_record_callback': 0 \
         } \
-        ");
+        ", TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "wr_time",
             NULL
         };
         set_expected_results(
-            "check iterator mem 2",      // test name
+            "check iterator mem",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -777,7 +722,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
-//    result += do_test2();
+    result += do_test2();
 
     /*--------------------------------*
      *  Stop the event loop
