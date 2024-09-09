@@ -101,17 +101,6 @@ PRIVATE int close_fd_wr_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *find_keys_in_disk(
-    hgobj gobj,
-    const char *directory,
-    json_t *match_cond  // not owned
-);
-PRIVATE int load_topic_metadata(
-    hgobj gobj,
-    const char *directory,
-    json_t *topic_cache,    // not owned
-    json_t *jn_keys         // not owned
-);
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
@@ -2884,6 +2873,313 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 }
 
 /***************************************************************************
+ *  Returns list of searched keys that exist on disk
+ ***************************************************************************/
+PRIVATE json_t *find_keys_in_disk(
+    hgobj gobj,
+    const char *directory,
+    json_t *match_cond  // not owned, uses "key" and "rkey"
+)
+{
+    json_t *jn_keys = json_array();
+
+    /*
+     *  Only wants a key ?
+     */
+    const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
+    if(!empty_string(key)) {
+        if(file_exists(directory, key)) {
+            json_array_append_new(jn_keys, json_string(key));
+            return jn_keys;
+        }
+    }
+
+    const char *pattern;
+    const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
+    if(!empty_string(rkey)) {
+        pattern = rkey;
+    } else {
+        pattern = ".*";
+    }
+
+    int dirs_size;
+    char **dirs = get_ordered_filename_array(
+        gobj,
+        directory,
+        pattern,
+        WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
+        &dirs_size
+    );
+
+    for(int i=0; i<dirs_size; i++) {
+        json_array_append_new(jn_keys, json_string(dirs[i]));
+    }
+    free_ordered_filename_array(dirs, dirs_size);
+
+    return jn_keys;
+}
+
+/***************************************************************************
+ *  Load metadata of topic in cache:
+ *      list of keys with its range of time available
+ *  IDEMPOTENT, only update last segment?
+ ***************************************************************************/
+PRIVATE int load_topic_metadata(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic
+) {
+    // TODO this cache must be update in tranger2_append_record() ???!!!
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
+    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
+    if(!topic_cache) {
+        json_decref(jn_keys);
+        return -1;
+    }
+
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        json_t *t_range = get_time_range(gobj, directory, key);
+        json_object_set_new(topic_cache, key, t_range);
+    }
+
+    JSON_DECREF(jn_keys)
+    return 0;
+}
+
+/***************************************************************************
+ *  Get range time of a key
+ ***************************************************************************/
+PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
+{
+    uint64_t total_rows = 0;
+    uint64_t global_from_t = (uint64_t)(-1);
+    uint64_t global_to_t = 0;
+    uint64_t global_from_tm = (uint64_t)(-1);
+    uint64_t global_to_tm = 0;
+    char path[PATH_MAX];
+
+    json_t *t_range = json_object();
+    json_t *t_range_files = kw_get_dict(gobj, t_range, "files", json_array(), KW_CREATE);
+
+    build_path(path, sizeof(path), directory, key, NULL);
+
+    int files_md_size;
+    char **files_md = get_ordered_filename_array(
+        gobj,
+        path,
+        ".*\\.md2",
+        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
+        &files_md_size
+    );
+    for(int i=0; i<files_md_size; i++) {
+        md2_record_t md_first_record;
+        md2_record_t md_last_record;
+        build_path(path, sizeof(path), directory, key, files_md[i], NULL);
+        int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
+        if(fd<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot open md2 file",
+                "path",         "%s", path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            continue;
+        }
+
+        /*
+         *  Read first record
+         */
+        ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
+        if(ln == sizeof(md_first_record)) {
+            md_first_record.__t__ = htonll(md_first_record.__t__);
+            md_first_record.__tm__ = htonll(md_first_record.__tm__);
+            md_first_record.__offset__ = htonll(md_first_record.__offset__);
+            md_first_record.__size__ = htonll(md_first_record.__size__);
+        } else {
+            if(ln<0) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read md2 file",
+                    "path",         "%s", path,
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            } else if(ln==0) {
+                // No data
+            }
+            close(fd);
+            continue;
+        }
+
+        /*
+         *  Seek the last record
+         */
+        off64_t offset = lseek64(fd, 0, SEEK_END);
+        if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Cannot read last record, md2 file corrupted",
+                "path",         "%s", path,
+                "offset",       "%ld", (long)offset,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+        if(offset == 0) {
+            // No records
+            close(fd);
+            continue;
+        }
+
+        uint64_t partial_rows = offset/sizeof(md2_record_t);
+
+        /*
+         *  Read last record
+         */
+        offset -= sizeof(md2_record_t);
+        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
+        if(offset2 < 0 || offset2 != offset) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+            close(fd);
+            continue;
+        }
+
+        ln = read(fd, &md_last_record, sizeof(md_last_record));
+        if(ln == sizeof(md_last_record)) {
+            md_last_record.__t__ = htonll(md_last_record.__t__);
+            md_last_record.__tm__ = htonll(md_last_record.__tm__);
+            md_last_record.__offset__ = htonll(md_last_record.__offset__);
+            md_last_record.__size__ = htonll(md_last_record.__size__);
+        } else {
+            if(ln<0) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot read md2 file",
+                    "path",         "%s", path,
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            } else if(ln==0) {
+                // No data
+            }
+            close(fd);
+            continue;
+        }
+
+        if(md_first_record.__t__ < global_from_t) {
+            global_from_t = md_first_record.__t__;
+        }
+        if(md_first_record.__t__ > global_to_t) {
+            global_to_t = md_first_record.__t__;
+        }
+
+        if(md_first_record.__tm__ < global_from_tm) {
+            global_from_tm = md_first_record.__tm__;
+        }
+        if(md_first_record.__tm__ > global_to_tm) {
+            global_to_tm = md_first_record.__tm__;
+        }
+
+        if(md_last_record.__t__ < global_from_t) {
+            global_from_t = md_last_record.__t__;
+        }
+        if(md_last_record.__t__ > global_to_t) {
+            global_to_t = md_last_record.__t__;
+        }
+
+        if(md_last_record.__tm__ < global_from_tm) {
+            global_from_tm = md_last_record.__tm__;
+        }
+        if(md_last_record.__tm__ > global_to_tm) {
+            global_to_tm = md_last_record.__tm__;
+        }
+
+        uint64_t partial_from_t = (uint64_t)(-1);
+        uint64_t partial_to_t = 0;
+        uint64_t partial_from_tm = (uint64_t)(-1);
+        uint64_t partial_to_tm = 0;
+
+        if(md_first_record.__t__ < partial_from_t) {
+            partial_from_t = md_first_record.__t__;
+        }
+        if(md_first_record.__t__ > partial_to_t) {
+            partial_to_t = md_first_record.__t__;
+        }
+
+        if(md_first_record.__tm__ < partial_from_tm) {
+            partial_from_tm = md_first_record.__tm__;
+        }
+        if(md_first_record.__tm__ > partial_to_tm) {
+            partial_to_tm = md_first_record.__tm__;
+        }
+
+        if(md_last_record.__t__ < partial_from_t) {
+            partial_from_t = md_last_record.__t__;
+        }
+        if(md_last_record.__t__ > partial_to_t) {
+            partial_to_t = md_last_record.__t__;
+        }
+
+        if(md_last_record.__tm__ < partial_from_tm) {
+            partial_from_tm = md_last_record.__tm__;
+        }
+        if(md_last_record.__tm__ > partial_to_tm) {
+            partial_to_tm = md_last_record.__tm__;
+        }
+
+        char *p = strrchr(files_md[i], '.');    // save file name without extension
+        if(p) {
+            *p = 0;
+        }
+        json_t *partial_range = json_object();
+        json_object_set_new(partial_range, "id", json_string(files_md[i]));
+        if(p) {
+            *p = '.';
+        }
+
+        json_object_set_new(partial_range, "fr_t", json_integer((json_int_t)partial_from_t));
+        json_object_set_new(partial_range, "to_t", json_integer((json_int_t)partial_to_t));
+        json_object_set_new(partial_range, "fr_tm", json_integer((json_int_t)partial_from_tm));
+        json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
+        json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
+
+        json_array_append_new(t_range_files, partial_range);
+
+        total_rows += partial_rows;
+
+        close(fd);
+    }
+
+    free_ordered_filename_array(files_md, files_md_size);
+
+    json_t *total_range = kw_get_dict(gobj, t_range, "total", json_object(), KW_CREATE);
+    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
+    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
+    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
+    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
+    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
+
+    return t_range;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_iterator(
@@ -2916,25 +3212,7 @@ PUBLIC json_t *tranger2_open_iterator(
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
-    // TODO this cache must be update in tranger2_append_record() ???!!!
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-
-    // TODO esto es la carga de todas las key, debería estar en open_topic()
-    // TODO must be idempotent?
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
-    if(!topic_cache) {
-        json_decref(jn_keys);
-        JSON_DECREF(match_cond)
-        return NULL;
-    }
-    load_topic_metadata( // TODO must be idempotent?
-        gobj,
-        directory,
-        topic_cache,    // not owned
-        jn_keys         // not owned
-    );
-    JSON_DECREF(jn_keys)
+    load_topic_metadata(gobj, tranger, topic);  // idempotent
 
     json_t *segments = get_segments(
         gobj,
@@ -3995,87 +4273,6 @@ PRIVATE json_int_t get_segment_of_rowid(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
-{
-    int idx=-1;
-    json_t *jn_value;
-    json_array_foreach(jn_list, idx, jn_value) {
-        if(jn_value == item) {
-            return idx;
-        }
-    }
-    return idx;
-}
-
-/***************************************************************************
- *  Returns list of searched keys that exist on disk
- ***************************************************************************/
-PRIVATE json_t *find_keys_in_disk(
-    hgobj gobj,
-    const char *directory,
-    json_t *match_cond  // not owned, uses "key" and "rkey"
-)
-{
-    json_t *jn_keys = json_array();
-
-    /*
-     *  Only wants a key ?
-     */
-    const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
-    if(!empty_string(key)) {
-        if(file_exists(directory, key)) {
-            json_array_append_new(jn_keys, json_string(key));
-            return jn_keys;
-        }
-    }
-
-    const char *pattern;
-    const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
-    if(!empty_string(rkey)) {
-        pattern = rkey;
-    } else {
-        pattern = ".*";
-    }
-
-    int dirs_size;
-    char **dirs = get_ordered_filename_array(
-        gobj,
-        directory,
-        pattern,
-        WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
-        &dirs_size
-    );
-
-    for(int i=0; i<dirs_size; i++) {
-        json_array_append_new(jn_keys, json_string(dirs[i]));
-    }
-    free_ordered_filename_array(dirs, dirs_size);
-
-    return jn_keys;
-}
-
-/***************************************************************************
- *  Load metadata of topic in cache:
- *      list of keys with its range of time available
- ***************************************************************************/
-PRIVATE int load_topic_metadata( // TODO must be idempotent, only update last segment?
-    hgobj gobj,
-    const char *directory,
-    json_t *topic_cache,    // not owned
-    json_t *jn_keys         // not owned
-) {
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        json_t *t_range = get_time_range(gobj, directory, key);
-        json_object_set_new(topic_cache, key, t_range);
-    }
-    return 0;
-}
-
-/***************************************************************************
  *  Get key rows (topic key size)
  ***************************************************************************/
 PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
@@ -4092,232 +4289,18 @@ PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
 }
 
 /***************************************************************************
- *  Get range time of a key
+ *
  ***************************************************************************/
-PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
+PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
 {
-    uint64_t total_rows = 0;
-    uint64_t global_from_t = (uint64_t)(-1);
-    uint64_t global_to_t = 0;
-    uint64_t global_from_tm = (uint64_t)(-1);
-    uint64_t global_to_tm = 0;
-    char path[PATH_MAX];
-
-    json_t *t_range = json_object();
-    json_t *t_range_files = kw_get_dict(gobj, t_range, "files", json_array(), KW_CREATE);
-
-    build_path(path, sizeof(path), directory, key, NULL);
-
-    int files_md_size;
-    char **files_md = get_ordered_filename_array(
-        gobj,
-        path,
-        ".*\\.md2",
-        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
-        &files_md_size
-    );
-    for(int i=0; i<files_md_size; i++) {
-        md2_record_t md_first_record;
-        md2_record_t md_last_record;
-        build_path(path, sizeof(path), directory, key, files_md[i], NULL);
-        int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
-        if(fd<0) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open md2 file",
-                "path",         "%s", path,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            continue;
+    int idx;
+    json_t *jn_value;
+    json_array_foreach(jn_list, idx, jn_value) {
+        if(jn_value == item) {
+            return idx;
         }
-
-        /*
-         *  Read first record
-         */
-        ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
-        if(ln == sizeof(md_first_record)) {
-            md_first_record.__t__ = htonll(md_first_record.__t__);
-            md_first_record.__tm__ = htonll(md_first_record.__tm__);
-            md_first_record.__offset__ = htonll(md_first_record.__offset__);
-            md_first_record.__size__ = htonll(md_first_record.__size__);
-        } else {
-            if(ln<0) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", path,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            } else if(ln==0) {
-                // No data
-            }
-            close(fd);
-            continue;
-        }
-
-        /*
-         *  Seek the last record
-         */
-        off64_t offset = lseek64(fd, 0, SEEK_END);
-        if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot read last record, md2 file corrupted",
-                "path",         "%s", path,
-                "offset",       "%ld", (long)offset,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            close(fd);
-            continue;
-        }
-        if(offset == 0) {
-            // No records
-            close(fd);
-            continue;
-        }
-
-        uint64_t partial_rows = offset/sizeof(md2_record_t);
-
-        /*
-         *  Read last record
-         */
-        offset -= sizeof(md2_record_t);
-        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
-        if(offset2 < 0 || offset2 != offset) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            close(fd);
-            continue;
-        }
-
-        ln = read(fd, &md_last_record, sizeof(md_last_record));
-        if(ln == sizeof(md_last_record)) {
-            md_last_record.__t__ = htonll(md_last_record.__t__);
-            md_last_record.__tm__ = htonll(md_last_record.__tm__);
-            md_last_record.__offset__ = htonll(md_last_record.__offset__);
-            md_last_record.__size__ = htonll(md_last_record.__size__);
-        } else {
-            if(ln<0) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", path,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            } else if(ln==0) {
-                // No data
-            }
-            close(fd);
-            continue;
-        }
-
-        if(md_first_record.__t__ < global_from_t) {
-            global_from_t = md_first_record.__t__;
-        }
-        if(md_first_record.__t__ > global_to_t) {
-            global_to_t = md_first_record.__t__;
-        }
-
-        if(md_first_record.__tm__ < global_from_tm) {
-            global_from_tm = md_first_record.__tm__;
-        }
-        if(md_first_record.__tm__ > global_to_tm) {
-            global_to_tm = md_first_record.__tm__;
-        }
-
-        if(md_last_record.__t__ < global_from_t) {
-            global_from_t = md_last_record.__t__;
-        }
-        if(md_last_record.__t__ > global_to_t) {
-            global_to_t = md_last_record.__t__;
-        }
-
-        if(md_last_record.__tm__ < global_from_tm) {
-            global_from_tm = md_last_record.__tm__;
-        }
-        if(md_last_record.__tm__ > global_to_tm) {
-            global_to_tm = md_last_record.__tm__;
-        }
-
-        uint64_t partial_from_t = (uint64_t)(-1);
-        uint64_t partial_to_t = 0;
-        uint64_t partial_from_tm = (uint64_t)(-1);
-        uint64_t partial_to_tm = 0;
-
-        if(md_first_record.__t__ < partial_from_t) {
-            partial_from_t = md_first_record.__t__;
-        }
-        if(md_first_record.__t__ > partial_to_t) {
-            partial_to_t = md_first_record.__t__;
-        }
-
-        if(md_first_record.__tm__ < partial_from_tm) {
-            partial_from_tm = md_first_record.__tm__;
-        }
-        if(md_first_record.__tm__ > partial_to_tm) {
-            partial_to_tm = md_first_record.__tm__;
-        }
-
-        if(md_last_record.__t__ < partial_from_t) {
-            partial_from_t = md_last_record.__t__;
-        }
-        if(md_last_record.__t__ > partial_to_t) {
-            partial_to_t = md_last_record.__t__;
-        }
-
-        if(md_last_record.__tm__ < partial_from_tm) {
-            partial_from_tm = md_last_record.__tm__;
-        }
-        if(md_last_record.__tm__ > partial_to_tm) {
-            partial_to_tm = md_last_record.__tm__;
-        }
-
-        char *p = strrchr(files_md[i], '.');    // save file name without extension
-        if(p) {
-            *p = 0;
-        }
-        json_t *partial_range = json_object();
-        json_object_set_new(partial_range, "id", json_string(files_md[i]));
-        if(p) {
-            *p = '.';
-        }
-
-        json_object_set_new(partial_range, "fr_t", json_integer((json_int_t)partial_from_t));
-        json_object_set_new(partial_range, "to_t", json_integer((json_int_t)partial_to_t));
-        json_object_set_new(partial_range, "fr_tm", json_integer((json_int_t)partial_from_tm));
-        json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
-        json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
-
-        json_array_append_new(t_range_files, partial_range);
-
-        total_rows += partial_rows;
-
-        close(fd);
     }
-
-    free_ordered_filename_array(files_md, files_md_size);
-
-    json_t *total_range = kw_get_dict(gobj, t_range, "total", json_object(), KW_CREATE);
-    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
-    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
-    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
-    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
-    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
-
-    return t_range;
+    return -1;
 }
 
 /***************************************************************************
