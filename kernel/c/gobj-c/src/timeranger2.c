@@ -3290,7 +3290,7 @@ PUBLIC json_t *tranger2_open_iterator(
      *      If there is "load_record_callback" and NO "to_rowid" defined then
      *          - get records in realtime, listening to changes in disk
      *-------------------------------------------------------------------------*/
-    if(1) { //load_record_callback) {
+    if(load_record_callback) {
         BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
         BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
