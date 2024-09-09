@@ -225,6 +225,7 @@ int do_test(void)
                     'rd_fd_files': {}, \
                     'lists': [], \
                     'disks': [], \
+                    'iterators': [], \
                     'cache': { \
                     } \
                 } \

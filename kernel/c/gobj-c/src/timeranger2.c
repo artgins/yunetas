@@ -774,6 +774,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
+    kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
     return topic;
@@ -3226,6 +3227,9 @@ PUBLIC json_t *tranger2_open_iterator(
     /*----------------------*
      *  Check parameters
      *----------------------*/
+    if(!match_cond) {
+        match_cond = json_object();
+    }
     if(empty_string(key)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3235,9 +3239,6 @@ PUBLIC json_t *tranger2_open_iterator(
         );
         JSON_DECREF(match_cond)
         return NULL;
-    }
-    if(!match_cond) {
-        match_cond = json_object();
     }
 
     /*-----------------------------------------*
@@ -3274,7 +3275,10 @@ PUBLIC json_t *tranger2_open_iterator(
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    // TODO danger! closed loop! json_object_set(iterator, "topic", topic);
+    json_array_append(
+        kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
+        iterator
+    );
 
     /*-------------------------------------------------------------------------*
      *  WITH HISTORY:
@@ -3284,7 +3288,7 @@ PUBLIC json_t *tranger2_open_iterator(
      *      If there is "load_record_callback" and NO "to_rowid" defined then
      *          - get records in realtime, listening to changes in disk
      *-------------------------------------------------------------------------*/
-    if(load_record_callback) {
+    if(0) { //load_record_callback) {
         BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
         BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
 
@@ -3391,11 +3395,21 @@ PUBLIC int tranger2_close_iterator(
     json_t *iterator
 )
 {
-//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
-    // TODO
+    json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED));
+    json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
 
-    JSON_DECREF(iterator)
+    int idx = json_array_find_idx(iterators, iterator);
+    if(idx >= 0) {
+        json_array_remove(
+            iterators,
+            idx
+        );
+    } else {
+        JSON_DECREF(iterator)
+    }
+
     return 0;
 }
 

@@ -10,7 +10,6 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <errno.h>
 
 #ifdef __linux__
     #include <pwd.h>
@@ -30,6 +29,7 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
 
 /***************************************************************
  *              GClass/GObj Structures
@@ -8644,8 +8644,6 @@ PUBLIC sys_malloc_fn_t gobj_malloc_func(void) { return sys_malloc_fn; }
 PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
-
-//#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
 
 #ifdef CONFIG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;

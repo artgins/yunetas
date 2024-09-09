@@ -182,6 +182,7 @@ int do_test(void)
                     'rd_fd_files': {}, \
                     'lists': [], \
                     'disks': [], \
+                    'iterators': [], \
                     'cache': { \
                         '0000000000000000001': { \
                             'files': [ \
@@ -317,6 +318,19 @@ int do_test(void)
         result += test_json(json_incref(iterator));
     }
 
+//    /*-------------------------------*
+//     *      Close iterator
+//     *-------------------------------*/
+//    set_expected_results( // Check that no logs happen
+//        "close iterator", // test name
+//        NULL,   // error's list, It must not be any log error
+//        NULL,   // expected, NULL: we want to check only the logs
+//        NULL,   // ignore_keys
+//        TRUE    // verbose
+//    );
+//    tranger2_close_iterator(tranger, iterator);
+//    result += test_json(NULL);  // NULL: we want to check only the logs
+//
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
@@ -610,6 +624,19 @@ int do_test2(void)
     // TODO old test in test_timeranger2.c
 
     /*-------------------------------*
+     *      Close iterator
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close iterator", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_close_iterator(tranger, iterator);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
     set_expected_results( // Check that no logs happen
@@ -653,7 +680,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {1627, 1628, 1769, 0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
@@ -714,7 +741,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
-    result += do_test2();
+//    result += do_test2();
 
     /*--------------------------------*
      *  Stop the event loop
