@@ -2921,8 +2921,8 @@ PRIVATE json_t *find_keys_in_disk(
 
 /***************************************************************************
  *  Load metadata of topic in cache:
- *      list of keys with its range of time available
- *  IDEMPOTENT, only update last segment?
+ *      keys with its range of time available
+ *  IDEMPOTENT
  ***************************************************************************/
 PRIVATE int load_topic_metadata(
     hgobj gobj,
@@ -3003,9 +3003,10 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         &files_md_size
     );
     for(int i=0; i<files_md_size; i++) {
+        char *filename = files_md[i];
         md2_record_t md_first_record;
         md2_record_t md_last_record;
-        build_path(path, sizeof(path), directory, key, files_md[i], NULL);
+        build_path(path, sizeof(path), directory, key, filename, NULL);
         int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
         if(fd<0) {
             gobj_log_critical(gobj, 0,
@@ -3171,12 +3172,12 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             partial_to_tm = md_last_record.__tm__;
         }
 
-        char *p = strrchr(files_md[i], '.');    // save file name without extension
+        char *p = strrchr(filename, '.');    // save file name without extension
         if(p) {
             *p = 0;
         }
         json_t *partial_range = json_object();
-        json_object_set_new(partial_range, "id", json_string(files_md[i]));
+        json_object_set_new(partial_range, "id", json_string(filename));
         if(p) {
             *p = '.';
         }
