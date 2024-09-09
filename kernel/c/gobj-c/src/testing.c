@@ -7,13 +7,11 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <inttypes.h>
 #include <locale.h>
 
 #include "ansi_escape_codes.h"
 #include "helpers.h"
 #include "kwid.h"
-#include "timeranger2.h"
 #include "testing.h"
 
 /***************************************************************************

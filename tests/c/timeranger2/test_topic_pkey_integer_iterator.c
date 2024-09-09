@@ -714,7 +714,7 @@ int main(int argc, char *argv[])
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
-        printf("system memory not free\n");
+        printf("%s%s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         result += -1;
     }
 

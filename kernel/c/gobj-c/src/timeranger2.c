@@ -2077,11 +2077,55 @@ PUBLIC int tranger2_append_record(
      *  Could be useful for records with the same __t__
      *  for example, to distinguish them by the readers.
      *-----------------------------------------------------*/
-    json_object_set_new(
+    json_t *__md_tranger__ = md2json(md_record, relative_rowid);
+    json_object_set(
         jn_record,
         "__md_tranger__",
-        md2json(md_record, relative_rowid)
+        __md_tranger__
     );
+
+    /*--------------------------------------------*
+     *  NEW! write __md_tranger__ to data file
+     *--------------------------------------------*/
+    if(content_fp >= 0) {
+        /*--------------------------------------------*
+         *  Get the record's content, always json
+         *--------------------------------------------*/
+        char *srecord = json_dumps(__md_tranger__, JSON_COMPACT|JSON_ENCODE_ANY);
+        if(!srecord) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msg",          "%s", "Cannot append __md_tranger__, json_dumps() FAILED",
+                "topic",        "%s", topic_name,
+                NULL
+            );
+            gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, json_dumps() FAILED");
+        } else {
+            size_t size = strlen(srecord) + 1; // include the null
+            char *p = srecord;
+            size_t ln = write(
+                content_fp,
+                p,
+                size
+            );
+
+            if(ln != size) {
+                gobj_log_critical(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot append __md_tranger__, write FAILED",
+                    "topic",        "%s", topic_name,
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+                gobj_trace_json(gobj, jn_record, "Cannot append __md_tranger__, write FAILED");
+            }
+
+            jsonp_free(srecord);
+        }
+    }
+    JSON_DECREF(__md_tranger__)
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
