@@ -191,7 +191,8 @@ int do_test(void)
                                     'to_t': 946771199, \
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
-                                    'rows': 86400 \
+                                    'rows': 86400, \
+                                    'wr_time': 9999 \
                                 }, \
                                 { \
                                     'id': '2000-01-02', \
@@ -199,7 +200,8 @@ int do_test(void)
                                     'to_t': 946774799, \
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
-                                    'rows': 3600 \
+                                    'rows': 3600, \
+                                    'wr_time': 9999 \
                                 } \
                             ], \
                             'total': { \
@@ -218,7 +220,8 @@ int do_test(void)
                                     'to_t': 946771199, \
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
-                                    'rows': 86400 \
+                                    'rows': 86400, \
+                                    'wr_time': 9999 \
                                 }, \
                                 { \
                                     'id': '2000-01-02', \
@@ -226,7 +229,8 @@ int do_test(void)
                                     'to_t': 946774799, \
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
-                                    'rows': 3600 \
+                                    'rows': 3600, \
+                                    'wr_time': 9999 \
                                 } \
                             ], \
                             'total': { \
@@ -245,6 +249,7 @@ int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
+            "wr_time",
             NULL
         };
         set_expected_results(
@@ -274,6 +279,7 @@ int do_test(void)
                     'fr_tm': 946684800, \
                     'to_tm': 946771199, \
                     'rows': 86400, \
+                    'wr_time': 9999, \
                     'first_row': 1, \
                     'last_row': 86400, \
                     'key': '0000000000000000001' \
@@ -285,6 +291,7 @@ int do_test(void)
                     'fr_tm': 946771200, \
                     'to_tm': 946774799, \
                     'rows': 3600, \
+                    'wr_time': 9999, \
                     'first_row': 86401, \
                     'last_row': 90000, \
                     'key': '0000000000000000001' \
@@ -297,6 +304,7 @@ int do_test(void)
         ");
 
         const char *ignore_keys[]= {
+            "wr_time",
             NULL
         };
         set_expected_results(
@@ -406,6 +414,7 @@ int do_test2(void)
                     'fr_tm': 946684800, \
                     'to_tm': 946771199, \
                     'rows': 86400, \
+                    'wr_time': 9999, \
                     'first_row': 1, \
                     'last_row': 86400, \
                     'key': '0000000000000000001' \
@@ -417,6 +426,7 @@ int do_test2(void)
                     'fr_tm': 946771200, \
                     'to_tm': 946774799, \
                     'rows': 3600, \
+                    'wr_time': 9999, \
                     'first_row': 86401, \
                     'last_row': 90000, \
                     'key': '0000000000000000001' \
@@ -429,10 +439,11 @@ int do_test2(void)
         ");
 
         const char *ignore_keys[]= {
+            "wr_time",
             NULL
         };
         set_expected_results(
-            "check iterator mem",      // test name
+            "check iterator mem 2",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,

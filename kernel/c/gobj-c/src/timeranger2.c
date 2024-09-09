@@ -2951,6 +2951,33 @@ PRIVATE int load_topic_metadata(
 }
 
 /***************************************************************************
+ *  Get modify time of a file in nanoseconds
+ ***************************************************************************/
+PRIVATE uint64_t get_modify_time_ns(hgobj gobj, int fd)
+{
+    struct stat file_stat;
+
+    // Retrieve the file status
+    if (fstat(fd, &file_stat) == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "fstat() FAILED",
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return 0;  // Return 0 in case of an error
+    }
+
+    // Combine seconds and nanoseconds into a single uint64_t value representing nanoseconds
+    // since the epoch
+    uint64_t mtime_ns = (uint64_t)file_stat.st_mtim.tv_sec * 1000000000ULL +
+        (uint64_t)file_stat.st_mtim.tv_nsec;
+
+    return mtime_ns;
+}
+
+/***************************************************************************
  *  Get range time of a key
  ***************************************************************************/
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
@@ -3159,6 +3186,9 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         json_object_set_new(partial_range, "fr_tm", json_integer((json_int_t)partial_from_tm));
         json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
         json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
+
+        uint64_t modify_time = get_modify_time_ns(gobj, fd);
+        json_object_set_new(partial_range, "wr_time", json_integer((json_int_t)modify_time));
 
         json_array_append_new(t_range_files, partial_range);
 
