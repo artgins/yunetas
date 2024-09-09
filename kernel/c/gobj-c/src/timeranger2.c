@@ -3263,8 +3263,8 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     json_t *iterator = json_object();
+    json_object_set_new(iterator, "id", json_string(key));
     json_object_set_new(iterator, "topic_name", json_string(tranger2_topic_name(topic)));
-    json_object_set_new(iterator, "key", json_string(key));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
 
@@ -3277,7 +3277,7 @@ PUBLIC json_t *tranger2_open_iterator(
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    json_array_append(
+    json_array_append_new(
         kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
         iterator
     );
@@ -3400,17 +3400,11 @@ PUBLIC int tranger2_close_iterator(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
     json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED));
-    json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
 
-    int idx = json_array_find_idx(iterators, iterator);
-    if(idx >= 0) {
-        json_array_remove(
-            iterators,
-            idx
-        );
-    } else {
-        JSON_DECREF(iterator)
-    }
+    json_array_remove(
+        kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
+        json_array_find_idx(kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED), iterator)
+    );
 
     return 0;
 }

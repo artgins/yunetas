@@ -145,7 +145,7 @@ int do_test(void)
      *  Check tranger memory with iterator opened
      *---------------------------------------------*/
     if(1) {
-        char expected[16*1024];
+        char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
             'path': '%s', \
@@ -182,7 +182,42 @@ int do_test(void)
                     'rd_fd_files': {}, \
                     'lists': [], \
                     'disks': [], \
-                    'iterators': [], \
+                    'iterators': [\
+                        { \
+                            'id': '0000000000000000001', \
+                            'topic_name': '%s', \
+                            'match_cond': {}, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 99999, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000001' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 99999, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000001' \
+                                } \
+                            ], \
+                            'cur_segment': 0, \
+                            'cur_rowid': 0, \
+                            'load_record_callback': 0 \
+                        } \
+                     ], \
                     'cache': { \
                         '0000000000000000001': { \
                             'files': [ \
@@ -246,7 +281,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
@@ -270,7 +305,8 @@ int do_test(void)
         char expected[16*1024];
         snprintf(expected, sizeof(expected), "\
         { \
-            'key': '0000000000000000001', \
+            'id': '0000000000000000001', \
+            'topic_name': '%s', \
             'match_cond': {}, \
             'segments': [ \
                 { \
@@ -302,7 +338,7 @@ int do_test(void)
             'cur_rowid': 0, \
             'load_record_callback': 0 \
         } \
-        ");
+        ", TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "wr_time",
@@ -318,19 +354,19 @@ int do_test(void)
         result += test_json(json_incref(iterator));
     }
 
-//    /*-------------------------------*
-//     *      Close iterator
-//     *-------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "close iterator", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//    tranger2_close_iterator(tranger, iterator);
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-//
+    /*-------------------------------*
+     *      Close iterator
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close iterator", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_close_iterator(tranger, iterator);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
@@ -700,8 +736,8 @@ int main(int argc, char *argv[])
         NULL, // global_stats_parser
         NULL, // global_authz_checker
         NULL, // global_authenticate_parser
-        64*1024L,    // max_block, largest memory block
-        256*1024L   // max_system_memory, maximum system memory
+        256*1024L,    // max_block, largest memory block
+        1*1024*1024L   // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();
