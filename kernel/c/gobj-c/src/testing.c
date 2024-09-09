@@ -123,7 +123,7 @@ PRIVATE BOOL match_record(
     json_t *record_, // NOT owned
     json_t *expected_, // NOT owned
     int verbose_,
-    gbuffer_t *gbuf_path
+    gbuffer_t *gbuf_path // vale para pintar el path del json por donde va cuando hay error
 )
 {
     BOOL ret = TRUE;
@@ -495,7 +495,7 @@ PUBLIC int test_json_file(const char *file)
     int result = 0;
     json_t *jn_found = load_json_from_file(0, file, "", 0);
 
-    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024); // vale para pintar el path del json por donde va cuando hay error
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
@@ -531,7 +531,7 @@ PUBLIC int test_json(json_t *jn_found)
     /*
      *  If jn_found && expected are NULL we want to check only the logs
      */
-    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024);
+    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024); // vale para pintar el path del json por donde va cuando hay error
     if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
