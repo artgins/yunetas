@@ -214,7 +214,7 @@ int do_test(void)
                                 } \
                             ], \
                             'cur_segment': 0, \
-                            'cur_rowid': 0, \
+                            'cur_rowid': 1, \
                             'load_record_callback': 0 \
                         } \
                      ], \
@@ -335,7 +335,7 @@ int do_test(void)
                 } \
             ], \
             'cur_segment': 0, \
-            'cur_rowid': 0, \
+            'cur_rowid': 1, \
             'load_record_callback': 0 \
         } \
         ", TOPIC_NAME);

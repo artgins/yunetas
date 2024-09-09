@@ -457,7 +457,9 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         rkey    regular expression of key
         filter  dict with fields to match
 
-        rt_by_mem TRUE: realtime by memory (list, master); FALSE rt by disk (force false if not master)
+        rt_by_mem   if TRUE  => realtime by memory (list, master);
+                    if FALSE => rt by disk (force false if not master)
+                    default: FALSE
 
         from_rowid
         to_rowid
