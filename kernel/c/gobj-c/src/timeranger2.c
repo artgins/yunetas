@@ -3303,7 +3303,7 @@ PUBLIC json_t *tranger2_open_iterator(
          *---------------------------*/
         json_int_t rowid;
         md2_record_t md_record;
-        json_t *record, **precord;
+        json_t *record = NULL, **precord;
         if(only_md) {
             precord = NULL;
         } else {
@@ -3320,7 +3320,6 @@ PUBLIC json_t *tranger2_open_iterator(
             // TODO if match_record
             if(1) {
                 // Inform to the user list: record in real time
-                JSON_INCREF(record)
                 int ret = load_record_callback(
                     tranger,
                     topic,
@@ -4533,7 +4532,26 @@ PRIVATE int get_md_by_rowid(
         return -1;
     }
 
-    off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
+    json_int_t relative_rowid = (json_int_t)rowid - first_rowid;
+    if(relative_rowid < 0) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record metadata, relative_rowid negative",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "key",          "%s", key,
+            "rowid",        "%ld", (long)rowid,
+            "relative_rowid","%ld", (long)relative_rowid,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        gobj_trace_json(gobj, segment,  "Cannot read record metadata, relative_rowid negative");
+        gobj_trace_json(gobj, topic,  "topic"); // TODO remove
+        return -1;
+
+    }
+    off64_t offset = (off64_t) (relative_rowid * sizeof(md2_record_t));
     off64_t offset_ = lseek64(fd, offset, SEEK_SET);
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
@@ -4562,9 +4580,12 @@ PRIVATE int get_md_by_rowid(
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "key",          "%s", key,
+            "rowid",        "%ld", (long)rowid,
             "errno",        "%s", strerror(errno),
             NULL
         );
+        gobj_trace_json(gobj, segment,  "Cannot read record metadata, read FAILED");
+        gobj_trace_json(gobj, topic,  "topic"); // TODO remove
         return -1;
     }
 

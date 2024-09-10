@@ -38,21 +38,29 @@ int times_periodic = 0;
 /***************************************************************************
  *
  ***************************************************************************/
+json_int_t tm = 0;
 int iterator_callback1(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,     // not yours, don't own
     md2_record_t *md2_record,
-    json_t *jn_record,      // must be owned
+    json_t *record,      // must be owned
     const char *key,
     json_int_t relative_rowid
 )
 {
-    printf("iterator callback1\n");
+    printf("iterator callback1, relative_rowid %lld\n", relative_rowid);
     print_json2("match_cond", match_cond);
-    print_json2("jn_record", jn_record);
+    print_json2("record", record);
 
-    JSON_DECREF(jn_record)
+    json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
+    if(tm_ != tm) {
+        JSON_DECREF(record)
+        return -1;
+    }
+    tm++;
+
+    JSON_DECREF(record)
     return 0;
 }
 
@@ -134,7 +142,7 @@ int do_test(void)
         topic,
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
-        NULL,   // callback
+        NULL,   // load_record_callback
         NULL    // iterator id
     );
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -381,17 +389,21 @@ int do_test2(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
+    tm = 946684800;
     tranger2_open_iterator(
         tranger,
         tranger2_topic(tranger, TOPIC_NAME),
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
-        iterator_callback1,    // callback
+        iterator_callback1,    // load_record_callback
         "it1"
     );
     json_t *iterator = tranger2_get_iterator_by_id(tranger, "it1");
-
     result += test_json(NULL);  // NULL: we want to check only the logs
+    if(tm != 946774799) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
+        result += -1;
+    }
 
     /*---------------------------------------------*
      *  Check iterator mem
