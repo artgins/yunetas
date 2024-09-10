@@ -534,10 +534,18 @@ int do_test2(void)
                         } \
                     }, \
                     'lists': [], \
-                    'disks': [], \
+                    'disks': [ \
+                        { \
+                            'id': 'it1', \
+                            'topic_name': 'topic_pkey_integer', \
+                            'key': '0000000000000000001', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
+                        } \
+                    ], \
                     'iterators': [\
                         { \
-                            'id': '0000000000000000001', \
+                            'id': 'it1', \
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': {}, \
