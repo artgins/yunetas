@@ -2742,7 +2742,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *list_id     // list id, optional
+    const char *id     // disk id, optional
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -2778,7 +2778,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     }
 
     json_t *disk = json_pack("{s:s, s:s, s:s, s:o, s:I}",
-        "id", list_id,
+        "id", id,
         "topic_name", topic_name,
         "key", key,
         "match_cond", match_cond,
@@ -2789,7 +2789,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
      *  Add the list to the topic
      */
     json_array_append_new(
-        kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
+        kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED),
         disk
     );
 
@@ -3381,7 +3381,7 @@ PUBLIC json_t *tranger2_open_iterator(
                     load_record_callback,   // called on append new record
                     rt_id
                 );
-                json_object_set_new(iterator, "rt_list", rt_disk);
+                json_object_set_new(iterator, "rt_disk", rt_disk);
 
             }
         }
