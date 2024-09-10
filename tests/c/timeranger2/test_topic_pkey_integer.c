@@ -17,7 +17,7 @@
 
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
-#define MAX_KEYS    2
+#define MAX_KEYS    100 // 2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 /***************************************************************
@@ -71,27 +71,13 @@ int one_load_record_callback(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-static inline double ts_diff (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    return ((double)(e-s))/1000000;
-}
-
-/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
 {
-    struct timespec st, et;
     uint64_t t1;
-    uint64_t cnt;
-    double dt;
     int result = 0;
     json_t *topic;
     char file[PATH_MAX];
@@ -333,7 +319,8 @@ int do_test(void)
         TRUE    // verbose
     );
 
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
@@ -351,18 +338,20 @@ int do_test(void)
             tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
         }
     }
-    clock_gettime (CLOCK_MONOTONIC, &et);
+
+    MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+    MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
     // Print time
-    cnt = MAX_KEYS*MAX_RECORDS;
-    dt = ts_diff (st, et);
-    printf("%s# tranger2_append_record time (records: %"PRIu64"): %f, %'ld op/sec%s\n",
-        On_Black RGreen,
-        cnt,
-        dt,
-        (long)(((double)cnt)/dt),
-       Color_Off
-    );
+//    cnt = MAX_KEYS*MAX_RECORDS;
+//    dt = ts_diff (st, et);
+//    printf("%s# tranger2_append_record time (records: %"PRIu64"): %f, %'ld op/sec%s\n",
+//        On_Black RGreen,
+//        cnt,
+//        dt,
+//        (long)(((double)cnt)/dt),
+//       Color_Off
+//    );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
@@ -592,7 +581,7 @@ return result; // TODO
         TRUE    // verbose
     );
 
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    MT_START_TIME(time_measure)
 
     t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
@@ -610,18 +599,19 @@ return result; // TODO
             tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
         }
     }
-    clock_gettime (CLOCK_MONOTONIC, &et);
+
+    MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
     // Print time
-    cnt = MAX_KEYS*MAX_RECORDS;
-    dt = ts_diff (st, et);
-    printf("%s# tranger2_append_record time with open_rt_list (records: %"PRIu64"): %f, %'ld op/sec%s\n",
-        On_Black RGreen,
-        cnt,
-        dt,
-        (long)(((double)cnt)/dt),
-       Color_Off
-    );
+//    cnt = MAX_KEYS*MAX_RECORDS;
+//    dt = ts_diff (st, et);
+//    printf("%s# tranger2_append_record time with open_rt_list (records: %"PRIu64"): %f, %'ld op/sec%s\n",
+//        On_Black RGreen,
+//        cnt,
+//        dt,
+//        (long)(((double)cnt)/dt),
+//       Color_Off
+//    );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 

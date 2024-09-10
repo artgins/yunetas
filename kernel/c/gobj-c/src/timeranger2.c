@@ -336,7 +336,7 @@ PUBLIC json_t *tranger2_startup(
  ***************************************************************************/
 PUBLIC int tranger2_shutdown(json_t *tranger)
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     const char *key;
     json_t *jn_value;
@@ -395,7 +395,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *jn_var      // owned
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*-------------------------------*
@@ -671,7 +671,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     BOOL verbose
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*-------------------------------*
      *      Some checks
@@ -785,15 +785,14 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
    Topic is opened if it's not opened.
    HACK topic can exists in disk, but it's not opened until tranger_open_topic()
  ***************************************************************************/
-PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
+PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
     json_t *tranger,
     const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    json_t *topic = json_object_get(json_object_get(tranger, "topics"), topic_name);
     if(!topic) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
         topic = tranger2_open_topic(tranger, topic_name, FALSE);
         if(!topic) {
             gobj_log_error(gobj, 0,
@@ -818,7 +817,7 @@ PUBLIC uint64_t tranger2_topic_size(
     const char *key
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         return 0;
@@ -844,7 +843,7 @@ PUBLIC int tranger2_close_topic(
     const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(!topic) {
@@ -877,7 +876,7 @@ PUBLIC int tranger2_delete_topic(
     const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
@@ -931,7 +930,7 @@ PUBLIC json_t *tranger2_backup_topic(
     tranger_backup_deleting_callback_t tranger_backup_deleting_callback
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*
      *  Close topic
@@ -1115,7 +1114,7 @@ PUBLIC int tranger2_write_topic_var(
     json_t *jn_topic_var  // owned
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(!jn_topic_var) {
         gobj_log_error(gobj, 0,
@@ -1198,7 +1197,7 @@ PUBLIC int tranger2_write_topic_cols(
     json_t *jn_topic_cols  // owned
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(!jn_topic_cols) {
         gobj_log_error(gobj, 0,
@@ -1272,7 +1271,7 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
@@ -1765,7 +1764,9 @@ PUBLIC int tranger2_append_record(
     json_t *jn_record       // owned
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     if(!jn_record || jn_record->refcount <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1777,7 +1778,13 @@ PUBLIC int tranger2_append_record(
         return -1;
     }
 
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+// TODO TEST 800.000 con json_integer() 811126 783577 806594 778511 798539
+// TODO TEST 680.000 con kw_get_int 744331 796036 779716
+//JSON_DECREF(jn_record)
+//return -1;
+
+//    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     if(!master) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1808,7 +1815,7 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  If time not specified, use the now time
      *--------------------------------------------*/
-    uint32_t __system_flag__ = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    uint32_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
     if(!__t__) {
         if(__system_flag__ & (sf2_t_ms)) {
             __t__ = time_in_miliseconds();
@@ -1823,9 +1830,12 @@ PUBLIC int tranger2_append_record(
     memset(md_record, 0, sizeof(md2_record_t));
     md_record->__t__ = __t__;
 
-// TODO TEST 420.000
-//JSON_DECREF(jn_record)
-//return -1;
+// TODO TEST 420.000 677696 635701 685466
+// TODO TEST 677090 675499 664968
+//  712675 684916 713954 680988
+// 698643 713318 713454
+JSON_DECREF(jn_record)
+return -1;
 
     /*-----------------------------------*
      *  Get the primary-key
@@ -2365,7 +2375,7 @@ PUBLIC int tranger2_delete_record(
     uint64_t rowid
 )
 {
-//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+//    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 //    json_t *topic = tranger2_topic(tranger, topic_name);
 //    if(!topic) {
 //        gobj_log_error(gobj, 0,
@@ -2469,7 +2479,7 @@ PUBLIC int tranger2_write_mark1(
     BOOL set
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -2523,7 +2533,7 @@ PUBLIC int tranger2_write_user_flag(
     uint32_t user_flag
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -2568,7 +2578,7 @@ PUBLIC int tranger2_set_user_flag(
     BOOL set
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -2622,7 +2632,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
     uint64_t rowid
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
@@ -2670,7 +2680,7 @@ PUBLIC json_t *tranger2_open_rt_list(
     const char *id     // list id, optional
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!match_cond) {
         match_cond = json_object();
     }
@@ -2757,7 +2767,7 @@ PUBLIC int tranger2_close_rt_list(
         // silence
         return -1;
     }
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
@@ -2777,7 +2787,7 @@ PUBLIC json_t *tranger2_get_rt_list_by_id(
     const char *id
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(empty_string(id)) {
         return 0;
@@ -2814,7 +2824,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *id     // disk id, optional
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!match_cond) {
         match_cond = json_object();
     }
@@ -2925,7 +2935,7 @@ PUBLIC int tranger2_close_rt_disk(
         // silence
         return -1;
     }
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
@@ -2945,7 +2955,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     const char *id
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(empty_string(id)) {
         return 0;
@@ -3316,7 +3326,7 @@ PUBLIC json_t *tranger2_open_iterator(
     const char *iterator_id     // iterator id, optional
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*----------------------*
      *  Check parameters
@@ -3515,7 +3525,7 @@ PUBLIC int tranger2_close_iterator(
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED));
 
@@ -3535,7 +3545,7 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
     const char *id
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(empty_string(id)) {
         return 0;
@@ -3564,7 +3574,7 @@ PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
@@ -3587,7 +3597,7 @@ PUBLIC int tranger2_iterator_first(
     json_t **record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
@@ -3709,7 +3719,7 @@ PUBLIC int tranger2_iterator_next(
     json_t **record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
@@ -3858,7 +3868,7 @@ PUBLIC int tranger2_iterator_prev(
     json_t **record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
@@ -4012,7 +4022,7 @@ PUBLIC int tranger2_iterator_last(
     json_t **record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
@@ -4134,7 +4144,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_t **record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
@@ -4725,7 +4735,7 @@ PRIVATE json_t *read_record_content(
     md2_record_t *md_record
 )
 {
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 //// TODO   if(md_record->__system_flag__ & sf_deleted_record) {
 ////        return 0;
 ////    }

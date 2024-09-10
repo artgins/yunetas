@@ -323,7 +323,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
  *  Return the json value find by path
  *  Walk over dicts and lists
  ***************************************************************************/
-PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
 {
     if(!(json_is_object(kw) || json_is_array(kw))) {
         if(verbose) {
@@ -442,6 +442,147 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
 
     split_free2(segments);
     return v;
+}
+
+/***************************************************************************
+ *  Search delimiter
+ ***************************************************************************/
+PRIVATE char *search_delimiter(const char *s, char delimiter_)
+{
+    if(!delimiter_) {
+        return 0;
+    }
+    return strchr(s, delimiter_);
+}
+
+/***************************************************************************
+ *  Return the json's value find by path
+ *  Walk over dicts and lists
+ ***************************************************************************/
+PRIVATE json_t *_kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+{
+    if(!(json_is_object(kw) || json_is_array(kw))) {
+        if(verbose) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "kw must be list or dict",
+                NULL
+            );
+        }
+        return 0;
+    }
+    if(!path) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "path NULL",
+            NULL
+        );
+        return 0;
+    }
+    if(kw->refcount <=0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json refcount 0",
+            "path",         "%s", path,
+            NULL
+        );
+        return 0;
+    }
+
+    char *p = search_delimiter(path, delimiter[0]);
+    if(!p) {
+        if(json_is_object(kw)) {
+            // Dict
+            json_t *value = json_object_get(kw, path);
+            if(!value && verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "path not found",
+                    "path",         "%s", path,
+                    NULL
+                );
+            }
+            return value;
+
+        } else {
+            // Array
+            int idx = atoi(path);
+            json_t *value = json_array_get(kw, idx);
+            if(!value && verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "path not found",
+                    "path",         "%s", path,
+                    "idx",          "%d", idx,
+                    NULL
+                );
+            }
+            return value;
+        }
+    }
+
+    char segment[256];
+    if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=sizeof(segment)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "buffer too small",
+            "path",         "%s", path,
+            NULL
+        );
+    }
+
+    json_t *next_json = 0;
+    if(json_is_object(kw)) {
+        // Dict
+        next_json = json_object_get(kw, segment);
+        if(!next_json) {
+            if(verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "Dict segment not found",
+                    "path",         "%s", path,
+                    "segment",      "%s", segment,
+                    NULL
+                );
+            }
+            return 0;
+        }
+    } else {
+        // Array
+        int idx = atoi(segment);
+        next_json = json_array_get(kw, idx);
+        if(!next_json) {
+            if(verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "List segment not found",
+                    "path",         "%s", path,
+                    "segment",      "%s", segment,
+                    "idx",          "%d", idx,
+                    NULL
+                );
+            }
+            return 0;
+        }
+    }
+
+    return _kw_find_path(gobj, next_json, p+1, verbose);
+}
+
+/***************************************************************************
+    Return the json's value find by path, walking over lists and dicts
+ ***************************************************************************/
+PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+{
+    return _kw_find_path(gobj, kw, path, verbose);
 }
 
 /***************************************************************************
