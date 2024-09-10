@@ -479,7 +479,8 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *topic,
     const char *key,
     json_t *match_cond,  // owned
-    tranger2_load_record_callback_t load_record_callback // called on loading and appending new record
+    tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
+    const char *iterator_id     // iterator id, optional
 );
 
 /**rst**
@@ -488,6 +489,14 @@ PUBLIC json_t *tranger2_open_iterator(
 PUBLIC int tranger2_close_iterator(
     json_t *tranger,
     json_t *iterator
+);
+
+/**rst**
+    Get iterator by his id
+**rst**/
+PUBLIC json_t *tranger2_get_iterator_by_id(
+    json_t *tranger,
+    const char *iterator_id
 );
 
 /**rst**

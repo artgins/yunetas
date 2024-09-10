@@ -2081,7 +2081,7 @@ PUBLIC int tranger2_append_record(
         }
 
         /*--------------------------------------------*
-         *  write md2
+         *  write md2 in big endian
          *--------------------------------------------*/
         md2_record_t big_endian;
         big_endian.__t__ = htonll(md_record->__t__);
@@ -3026,10 +3026,10 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
          */
         ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
         if(ln == sizeof(md_first_record)) {
-            md_first_record.__t__ = htonll(md_first_record.__t__);
-            md_first_record.__tm__ = htonll(md_first_record.__tm__);
-            md_first_record.__offset__ = htonll(md_first_record.__offset__);
-            md_first_record.__size__ = htonll(md_first_record.__size__);
+            md_first_record.__t__ = ntohll(md_first_record.__t__);
+            md_first_record.__tm__ = ntohll(md_first_record.__tm__);
+            md_first_record.__offset__ = ntohll(md_first_record.__offset__);
+            md_first_record.__size__ = ntohll(md_first_record.__size__);
         } else {
             if(ln<0) {
                 gobj_log_critical(gobj, 0,
@@ -3091,10 +3091,10 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
 
         ln = read(fd, &md_last_record, sizeof(md_last_record));
         if(ln == sizeof(md_last_record)) {
-            md_last_record.__t__ = htonll(md_last_record.__t__);
-            md_last_record.__tm__ = htonll(md_last_record.__tm__);
-            md_last_record.__offset__ = htonll(md_last_record.__offset__);
-            md_last_record.__size__ = htonll(md_last_record.__size__);
+            md_last_record.__t__ = ntohll(md_last_record.__t__);
+            md_last_record.__tm__ = ntohll(md_last_record.__tm__);
+            md_last_record.__offset__ = ntohll(md_last_record.__offset__);
+            md_last_record.__size__ = ntohll(md_last_record.__size__);
         } else {
             if(ln<0) {
                 gobj_log_critical(gobj, 0,
@@ -3219,7 +3219,8 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *topic,
     const char *key,    // ONLY one key by iterator
     json_t *match_cond, // owned
-    tranger2_load_record_callback_t load_record_callback // called on loading and appending new record
+    tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
+    const char *iterator_id     // iterator id, optional
 )
 {
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
@@ -3240,6 +3241,9 @@ PUBLIC json_t *tranger2_open_iterator(
         );
         JSON_DECREF(match_cond)
         return NULL;
+    }
+    if(!iterator_id) {
+        iterator_id = key;
     }
 
     /*-----------------------------------------*
@@ -3263,7 +3267,8 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     json_t *iterator = json_object();
-    json_object_set_new(iterator, "id", json_string(key));
+    json_object_set_new(iterator, "id", json_string(iterator_id));
+    json_object_set_new(iterator, "key", json_string(key));
     json_object_set_new(iterator, "topic_name", json_string(tranger2_topic_name(topic)));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
@@ -3316,13 +3321,14 @@ PUBLIC json_t *tranger2_open_iterator(
             // TODO if match_record
             if(1) {
                 // Inform to the user list: record in real time
+                JSON_INCREF(match_cond)
                 JSON_INCREF(record)
                 int ret = load_record_callback(
                     tranger,
                     topic,
-                    json_incref(match_cond),
+                    match_cond,
                     &md_record,
-                    json_incref(record), // must be owned
+                    record, // must be owned
                     key,    // key
                     rowid   // relative_rowid
                 );
@@ -3332,10 +3338,12 @@ PUBLIC json_t *tranger2_open_iterator(
                  *      -1 break the load
                  */
                 if(ret < 0) {
+                    JSON_DECREF(match_cond)
                     JSON_DECREF(record)
                     break;
                 }
             }
+            JSON_DECREF(match_cond)
             JSON_DECREF(record)
 
             if(end) {
@@ -3410,6 +3418,35 @@ PUBLIC int tranger2_close_iterator(
 }
 
 /***************************************************************************
+ *  Get realtime list by his id
+ ***************************************************************************/
+PUBLIC json_t *tranger2_get_iterator_by_id(
+    json_t *tranger,
+    const char *id
+)
+{
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
+    if(empty_string(id)) {
+        return 0;
+    }
+    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
+
+    const char *topic_name; json_t *topic;
+    json_object_foreach(topics, topic_name, topic) {
+        json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
+        int idx; json_t *iterator;
+        json_array_foreach(iterators, idx, iterator) {
+            const char *iterator_id = kw_get_str(gobj, iterator, "id", "", 0);
+            if(strcmp(id, iterator_id)==0) {
+                return iterator;
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Get Iterator size (nº of rows)
  ***************************************************************************/
 PUBLIC size_t tranger2_iterator_size(
@@ -3443,7 +3480,7 @@ PUBLIC int tranger2_iterator_first(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "id"));
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
      *  Check parameters
@@ -3565,7 +3602,7 @@ PUBLIC int tranger2_iterator_next(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "id"));
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
      *  Check parameters
@@ -3714,7 +3751,7 @@ PUBLIC int tranger2_iterator_prev(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "id"));
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
      *  Check parameters
@@ -3868,7 +3905,7 @@ PUBLIC int tranger2_iterator_last(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "id"));
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
      *  Check parameters
@@ -3990,7 +4027,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "id"));
+    const char *key = json_string_value(json_object_get(iterator, "key"));
 
     /*
      *  Check parameters
@@ -4536,6 +4573,11 @@ PRIVATE int get_md_by_rowid(
         );
         return -1;
     }
+
+    md_record->__t__ = ntohll(md_record->__t__);
+    md_record->__tm__ = ntohll(md_record->__tm__);
+    md_record->__offset__ = ntohll(md_record->__offset__);
+    md_record->__size__ = ntohll(md_record->__size__);
 
     return 0;
 }

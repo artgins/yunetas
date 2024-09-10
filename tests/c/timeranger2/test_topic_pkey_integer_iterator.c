@@ -49,6 +49,8 @@ int iterator_callback1(
 )
 {
     printf("iterator callback1\n");
+    print_json2("match_cond", match_cond);
+    print_json2("jn_record", jn_record);
 
     JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
@@ -133,7 +135,8 @@ int do_test(void)
         topic,
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
-        NULL    // callback
+        NULL,   // callback
+        NULL    // iterator id
     );
     result += test_json(NULL);  // NULL: we want to check only the logs
     if(!iterator) {
@@ -185,6 +188,7 @@ int do_test(void)
                     'iterators': [\
                         { \
                             'id': '0000000000000000001', \
+                            'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': {}, \
                             'segments': [ \
@@ -372,24 +376,23 @@ int do_test2(void)
      *  Create an iterator, no callback, match_cond NULL (use defaults)
      *--------------------------------------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "create iterator", // test name
+        "open iterator", // test name
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    json_t *iterator = tranger2_open_iterator(
+    tranger2_open_iterator(
         tranger,
         tranger2_topic(tranger, TOPIC_NAME),
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
-        iterator_callback1    // callback
+        iterator_callback1,    // callback
+        "it1"
     );
+    json_t *iterator = tranger2_get_iterator_by_id(tranger, "it1");
+
     result += test_json(NULL);  // NULL: we want to check only the logs
-    if(!iterator) {
-        tranger2_shutdown(tranger);
-        return -1;
-    }
 
     /*---------------------------------------------*
      *  Check iterator mem
