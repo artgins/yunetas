@@ -38,7 +38,9 @@ int times_periodic = 0;
 /***************************************************************************
  *
  ***************************************************************************/
+int global_result = 0;
 json_int_t tm = 0;
+uint64_t t = 0;
 int iterator_callback1(
     json_t *tranger,
     json_t *topic,
@@ -49,16 +51,34 @@ int iterator_callback1(
     json_int_t relative_rowid
 )
 {
-    printf("iterator callback1, relative_rowid %lld\n", relative_rowid);
-    print_json2("match_cond", match_cond);
-    print_json2("record", record);
+//    printf("iterator callback1, relative_rowid %lld\n", relative_rowid);
+//    print_json2("match_cond", match_cond);
+//    print_json2("record", record);
+
+    t++;
+    tm++;
 
     json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
     if(tm_ != tm) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 1 of message", Color_Off);
         JSON_DECREF(record)
         return -1;
     }
-    tm++;
+    if(md2_record->__tm__ != tm) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 2 of message", Color_Off);
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    uint64_t t_ = md2_record->__t__;
+    if(t_ != t) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        JSON_DECREF(record)
+        return -1;
+    }
 
     JSON_DECREF(record)
     return 0;
@@ -190,45 +210,6 @@ int do_test(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
-                    'lists': [], \
-                    'disks': [], \
-                    'iterators': [\
-                        { \
-                            'id': '0000000000000000001', \
-                            'key': '0000000000000000001', \
-                            'topic_name': '%s', \
-                            'match_cond': {}, \
-                            'segments': [ \
-                                { \
-                                    'id': '2000-01-01', \
-                                    'fr_t': 946684800, \
-                                    'to_t': 946771199, \
-                                    'fr_tm': 946684800, \
-                                    'to_tm': 946771199, \
-                                    'rows': 86400, \
-                                    'wr_time': 99999, \
-                                    'first_row': 1, \
-                                    'last_row': 86400, \
-                                    'key': '0000000000000000001' \
-                                }, \
-                                { \
-                                    'id': '2000-01-02', \
-                                    'fr_t': 946771200, \
-                                    'to_t': 946774799, \
-                                    'fr_tm': 946771200, \
-                                    'to_tm': 946774799, \
-                                    'rows': 3600, \
-                                    'wr_time': 99999, \
-                                    'first_row': 86401, \
-                                    'last_row': 90000, \
-                                    'key': '0000000000000000001' \
-                                } \
-                            ], \
-                            'cur_segment': 0, \
-                            'cur_rowid': 0, \
-                            'load_record_callback': 0 \
-                        } \
-                     ], \
                     'cache': { \
                         '0000000000000000001': { \
                             'files': [ \
@@ -288,7 +269,46 @@ int do_test(void)
                                 'rows': 90000 \
                             } \
                         } \
-                    } \
+                    }, \
+                    'lists': [], \
+                    'disks': [], \
+                    'iterators': [\
+                        { \
+                            'id': '0000000000000000001', \
+                            'key': '0000000000000000001', \
+                            'topic_name': '%s', \
+                            'match_cond': {}, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 99999, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000001' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 99999, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000001' \
+                                } \
+                            ], \
+                            'cur_segment': 0, \
+                            'cur_rowid': 0, \
+                            'load_record_callback': 0 \
+                        } \
+                    ] \
                 } \
             } \
         } \
@@ -334,6 +354,8 @@ int do_test(void)
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    result += global_result;
 
     return result;
 }
@@ -389,7 +411,7 @@ int do_test2(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    tm = 946684800;
+    t = tm = 946684800-1;
     tranger2_open_iterator(
         tranger,
         tranger2_topic(tranger, TOPIC_NAME),
@@ -409,46 +431,160 @@ int do_test2(void)
      *  Check iterator mem
      *---------------------------------------------*/
     if(1) {
-        char expected[16*1024];
+        char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
-            'id': '0000000000000000001', \
-            'topic_name': '%s', \
-            'match_cond': {}, \
-            'segments': [ \
-                { \
-                    'id': '2000-01-01', \
-                    'fr_t': 946684800, \
-                    'to_t': 946771199, \
-                    'fr_tm': 946684800, \
-                    'to_tm': 946771199, \
-                    'rows': 86400, \
-                    'wr_time': 9999, \
-                    'first_row': 1, \
-                    'last_row': 86400, \
-                    'key': '0000000000000000001' \
-                }, \
-                { \
-                    'id': '2000-01-02', \
-                    'fr_t': 946771200, \
-                    'to_t': 946774799, \
-                    'fr_tm': 946771200, \
-                    'to_tm': 946774799, \
-                    'rows': 3600, \
-                    'wr_time': 9999, \
-                    'first_row': 86401, \
-                    'last_row': 90000, \
-                    'key': '0000000000000000001' \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 0, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'topic_version': 1, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '', \
+                        'content2': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': { \
+                        '0000000000000000001': { \
+                            '2000-01-01.md2': 9999, \
+                            '2000-01-01.json': 9999, \
+                            '2000-01-02.md2': 9999, \
+                            '2000-01-02.json': 9999 \
+                        } \
+                    }, \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 9999 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 9999 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 9999 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 9999 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    }, \
+                    'lists': [], \
+                    'disks': [], \
+                    'iterators': [\
+                        { \
+                            'id': '0000000000000000001', \
+                            'key': '0000000000000000001', \
+                            'topic_name': '%s', \
+                            'match_cond': {}, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 99999, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000001' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 99999, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000001' \
+                                } \
+                            ], \
+                            'cur_segment': 1, \
+                            'cur_rowid': 90000, \
+                            'load_record_callback': 0 \
+                        } \
+                    ] \
                 } \
-            ], \
-            'cur_segment': 0, \
-            'cur_rowid': 1, \
-            'load_record_callback': 0 \
+            } \
         } \
-        ", TOPIC_NAME);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME);
 
         const char *ignore_keys[]= {
+            "__timeranger2__.json",
             "wr_time",
+            "load_record_callback",
+            "2000-01-01.md2",
+            "2000-01-01.json",
+            "2000-01-02.md2",
+            "2000-01-02.json",
             NULL
         };
         set_expected_results(
@@ -458,7 +594,8 @@ int do_test2(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(iterator));
+//        result += test_json(json_incref(iterator));
+        result += test_json(json_incref(tranger));
     }
 
     /*-------------------------------------*
@@ -508,8 +645,6 @@ int do_test2(void)
      *      Search by rowid
      *-------------------------------------*/
 //    json_int_t key = appends/2 + 1;
-
-    tranger2_close_iterator(tranger, iterator);
 
     /*-------------------------------------*
      *      Open rt list

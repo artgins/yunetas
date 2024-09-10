@@ -223,11 +223,11 @@ int do_test(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
+                    'cache': { \
+                    }, \
                     'lists': [], \
                     'disks': [], \
-                    'iterators': [], \
-                    'cache': { \
-                    } \
+                    'iterators': [] \
                 } \
             } \
         } \

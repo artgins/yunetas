@@ -772,10 +772,10 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
     kw_get_dict(gobj, topic, "wr_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
-    kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
 
     return topic;
 }
