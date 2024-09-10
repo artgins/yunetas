@@ -1420,6 +1420,12 @@ PRIVATE int get_topic_wr_fd(
         }
     }
 
+
+// TODO TEST 320.000
+    // TODO TEST 220.000
+// TODO TEST 155.000
+//return -1;
+
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
@@ -1500,6 +1506,11 @@ PRIVATE int get_topic_wr_fd(
         close(fp);
     }
 
+// TODO TEST 320.000
+    // TODO TEST 170.000
+// TODO TEST 155.000
+//return -1;
+
     /*-----------------------------*
      *      Open content file
      *-----------------------------*/
@@ -1510,7 +1521,7 @@ PRIVATE int get_topic_wr_fd(
         kw_get_dict(
             gobj,
             topic,
-            "wr_fd_files", // for_write?"wr_fd_files":"rd_fd_files",
+            "wr_fd_files",
             0,
             KW_REQUIRED
         ),
@@ -1551,6 +1562,7 @@ PRIVATE int get_topic_wr_fd(
             json_integer(fd)
         );
     }
+
     return fd;
 }
 
@@ -1811,6 +1823,10 @@ PUBLIC int tranger2_append_record(
     memset(md_record, 0, sizeof(md2_record_t));
     md_record->__t__ = __t__;
 
+// TODO TEST 420.000
+//JSON_DECREF(jn_record)
+//return -1;
+
     /*-----------------------------------*
      *  Get the primary-key
      *-----------------------------------*/
@@ -1897,6 +1913,10 @@ PUBLIC int tranger2_append_record(
             return -1;
     }
 
+// TODO TEST 360.000
+//JSON_DECREF(jn_record)
+//return -1;
+
     /*--------------------------------------------*
      *  Get and save the t-key if exists
      *--------------------------------------------*/
@@ -1921,10 +1941,18 @@ PUBLIC int tranger2_append_record(
         md_record->__tm__ = 0;  // No tkey value, mark with 0
     }
 
+// TODO TEST 320.000
+//JSON_DECREF(jn_record)
+//return -1;
+
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
     int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
+
+// TODO TEST 155.000
+JSON_DECREF(jn_record)
+return -1;
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -2014,6 +2042,10 @@ PUBLIC int tranger2_append_record(
         jsonp_free(srecord);
     }
 
+// TODO TEST 100.000
+JSON_DECREF(jn_record)
+return -1;
+
     /*--------------------------------------------*
      *  Write record metadata
      *--------------------------------------------*/
@@ -2038,11 +2070,10 @@ PUBLIC int tranger2_append_record(
 
         relative_rowid = (json_int_t)(offset/sizeof(md2_record_t));
 
-        __md_tranger__ = md2json(md_record, relative_rowid);
-
         /*--------------------------------------------*
          *  NEW: write __md_tranger__ to json file
          *--------------------------------------------*/
+        __md_tranger__ = md2json(md_record, relative_rowid);
         if(content_fp >= 0) {
             /*-------------------------------------------------------*
              *  Continue if this part fails, it's extra information
@@ -2108,6 +2139,12 @@ PUBLIC int tranger2_append_record(
         }
     }
 
+// TODO TEST 71.000
+// TODO TEST 59.000 con __md_tranger__
+JSON_DECREF(jn_record)
+JSON_DECREF(__md_tranger__)
+return -1;
+
     /*-----------------------------------------------------*
      *  Add the message metadata to the record
      *  Could be useful for records with the same __t__
@@ -2120,6 +2157,10 @@ PUBLIC int tranger2_append_record(
     );
 
     JSON_DECREF(__md_tranger__)
+
+// TODO TEST 71.000
+//JSON_DECREF(jn_record)
+//return -1;
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
@@ -2153,6 +2194,10 @@ PUBLIC int tranger2_append_record(
             }
         }
     }
+
+//// TODO TEST 71.000
+//JSON_DECREF(jn_record)
+//return -1;
 
     JSON_DECREF(jn_record)
     return 0;
