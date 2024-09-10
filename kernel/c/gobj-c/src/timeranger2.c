@@ -3443,7 +3443,7 @@ PUBLIC int tranger2_iterator_first(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
+    const char *key = json_string_value(json_object_get(iterator, "id"));
 
     /*
      *  Check parameters
@@ -3565,7 +3565,7 @@ PUBLIC int tranger2_iterator_next(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
+    const char *key = json_string_value(json_object_get(iterator, "id"));
 
     /*
      *  Check parameters
@@ -3714,7 +3714,7 @@ PUBLIC int tranger2_iterator_prev(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
+    const char *key = json_string_value(json_object_get(iterator, "id"));
 
     /*
      *  Check parameters
@@ -3868,7 +3868,7 @@ PUBLIC int tranger2_iterator_last(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
+    const char *key = json_string_value(json_object_get(iterator, "id"));
 
     /*
      *  Check parameters
@@ -3990,7 +3990,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
+    const char *key = json_string_value(json_object_get(iterator, "id"));
 
     /*
      *  Check parameters
