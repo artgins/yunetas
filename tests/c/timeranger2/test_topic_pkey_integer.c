@@ -71,13 +71,29 @@ int one_load_record_callback(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+static inline double ts_diff (struct timespec start, struct timespec end)
+{
+    uint64_t s, e;
+    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
+    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
+    return ((double)(e-s))/1000000;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
 {
+    struct timespec st, et;
+    uint64_t t1;
+    uint64_t cnt;
+    double dt;
     int result = 0;
+    json_t *topic;
     char file[PATH_MAX];
 
     /*
@@ -136,7 +152,20 @@ int do_test(void)
     /*-------------------------------------------------*
      *      Create a topic
      *-------------------------------------------------*/
-    json_t *topic = tranger2_create_topic(
+    set_expected_results(
+        "create topic", // test name
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]", // error's list
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    topic = tranger2_create_topic(
         tranger,
         TOPIC_NAME,     // topic name
         "id",           // pkey
@@ -155,6 +184,7 @@ int do_test(void)
         ),
         0
     );
+    result += test_json(NULL);  // NULL: we want to check only the logs
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
@@ -293,6 +323,152 @@ int do_test(void)
     }
 
     /*-------------------------------------*
+     *      Add records
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "append records without open_rt_list", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    clock_gettime (CLOCK_MONOTONIC, &st);
+
+    t1 = 946684800; // 2000-01-01T00:00:00+0000
+    for(json_int_t i=0; i<MAX_KEYS; i++) {
+        uint64_t tm = t1;
+        for(json_int_t j=0; j<MAX_RECORDS; j++) {
+            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
+               "id", i + 1,
+               "tm", tm+j,
+               "content",
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
+            );
+            md2_record_t md_record;
+            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
+        }
+    }
+    clock_gettime (CLOCK_MONOTONIC, &et);
+
+    // Print time
+    cnt = MAX_KEYS*MAX_RECORDS;
+    dt = ts_diff (st, et);
+    printf("%s# tranger2_append_record time (records: %"PRIu64"): %f, %'ld op/sec%s\n",
+        On_Black RGreen,
+        cnt,
+        dt,
+        (long)(((double)cnt)/dt),
+       Color_Off
+    );
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------------*
+     *      Delete topic
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "delete topic", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    result += tranger2_delete_topic(
+        tranger,
+        TOPIC_NAME
+    );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(is_directory(path_topic)) {
+        printf("%sTopic continue existing %s\n", On_Red BWhite,Color_Off);
+        result += -1;
+    }
+
+    /*------------------------------------------*
+     *  Check tranger memory with topic deleted
+     *------------------------------------------*/
+    if(1) {
+        char expected[16*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 1, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'topics': { \
+            } \
+        } \
+        ", path_root, DATABASE, path_database);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            NULL
+        };
+        set_expected_results(
+            "check_tranger_mem2",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
+    /*-------------------------------------------------*
+     *      Re-Create a topic
+     *-------------------------------------------------*/
+    set_expected_results(
+        "re-create topic", // test name
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]", // error's list
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    topic = tranger2_create_topic(
+        tranger,
+        TOPIC_NAME,     // topic name
+        "id",           // pkey
+        "tm",           // tkey
+        json_pack("{s:i, s:s, s:i, s:i}", // jn_topic_desc
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        sf2_int_key,    // system_flag
+        json_pack("{s:s, s:I, s:s}", // jn_cols, owned
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+    if(!topic) {
+        tranger2_shutdown(tranger);
+        return -1;
+    }
+
+    /*-------------------------------------*
      *      Open rt list
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
@@ -394,7 +570,7 @@ int do_test(void)
             NULL
         };
         set_expected_results(
-            "check_tranger_mem2",      // test name
+            "check_tranger_mem3",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -407,14 +583,16 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "append records", // test name
+        "append records with open_rt_list", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
     );
 
-    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
+    clock_gettime (CLOCK_MONOTONIC, &st);
+
+    t1 = 946684800; // 2000-01-01T00:00:00+0000
     for(json_int_t i=0; i<MAX_KEYS; i++) {
         uint64_t tm = t1;
         for(json_int_t j=0; j<MAX_RECORDS; j++) {
@@ -430,6 +608,19 @@ int do_test(void)
             tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
         }
     }
+    clock_gettime (CLOCK_MONOTONIC, &et);
+
+    // Print time
+    cnt = MAX_KEYS*MAX_RECORDS;
+    dt = ts_diff (st, et);
+    printf("%s# tranger2_append_record time with open_rt_list (records: %"PRIu64"): %f, %'ld op/sec%s\n",
+        On_Black RGreen,
+        cnt,
+        dt,
+        (long)(((double)cnt)/dt),
+       Color_Off
+    );
+
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*------------------------------------------*
@@ -512,7 +703,7 @@ int do_test(void)
             NULL
         };
         set_expected_results(
-            "check_tranger_mem3",      // test name
+            "check_tranger_mem4",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
@@ -773,7 +964,7 @@ int do_test2(void)
             NULL
         };
         set_expected_results(
-            "check_tranger_mem4",      // test name
+            "check_tranger_mem5",      // test name
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             ignore_keys,
