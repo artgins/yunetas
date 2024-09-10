@@ -2681,7 +2681,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         return NULL;
     }
 
-    json_object_update_new(list, json_pack("{s:s, s:s, s:s, s:o, s:I}"
+    json_object_update_new(list, json_pack("{s:s, s:s, s:s, s:o, s:I}",
         "id", id,
         "topic_name", topic_name,
         "key", key,
@@ -2826,7 +2826,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
-    json_object_update_new(disk, json_pack("{s:s, s:s, s:s, s:o, s:I}"
+    json_object_update_new(disk, json_pack("{s:s, s:s, s:s, s:o, s:I}",
         "id", id,
         "topic_name", topic_name,
         "key", key,
