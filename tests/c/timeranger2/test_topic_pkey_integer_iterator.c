@@ -368,7 +368,6 @@ int do_test(void)
 int do_test2(void)
 {
     int result = 0;
-//    char file[PATH_MAX];
 
     /*
      *  Write the tests in ~/tests_yuneta/
@@ -424,6 +423,12 @@ int do_test2(void)
     result += test_json(NULL);  // NULL: we want to check only the logs
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
+        print_json2("BAD count tm of message", tranger);
+        result += -1;
+    }
+    if(t != 946774799) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        print_json2("BAD count t of message", tranger);
         result += -1;
     }
 
@@ -602,7 +607,6 @@ int do_test2(void)
             ignore_keys,
             TRUE
         );
-//        result += test_json(json_incref(iterator));
         result += test_json(json_incref(tranger));
     }
 
