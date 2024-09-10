@@ -379,7 +379,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond, // must be owned
+    json_t *match_cond, // not yours, don't own
     md2_record_t *md2_record,
     json_t *jn_record,  // must be owned
     const char *key,

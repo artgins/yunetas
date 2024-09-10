@@ -2144,7 +2144,7 @@ PUBLIC int tranger2_append_record(
                 load_record_callback(
                     tranger,
                     topic,
-                    json_incref(match_cond),
+                    match_cond,
                     md_record,
                     json_incref(jn_record),
                     key_value,
@@ -2805,13 +2805,12 @@ PUBLIC json_t *tranger2_open_rt_disk(
         json_t *record = NULL;
 
         // TODO
-        JSON_INCREF(record)
         load_record_callback(
             tranger,
             topic,
-            json_incref(match_cond),
+            match_cond,
             &md_record,
-            json_incref(record), // must be owned
+            json_incref(record), // must be owned TODO decref
             key,    // key
             rowid   // relative_rowid
         );
@@ -3321,7 +3320,6 @@ PUBLIC json_t *tranger2_open_iterator(
             // TODO if match_record
             if(1) {
                 // Inform to the user list: record in real time
-                JSON_INCREF(match_cond)
                 JSON_INCREF(record)
                 int ret = load_record_callback(
                     tranger,
@@ -3338,13 +3336,9 @@ PUBLIC json_t *tranger2_open_iterator(
                  *      -1 break the load
                  */
                 if(ret < 0) {
-                    JSON_DECREF(match_cond)
-                    JSON_DECREF(record)
                     break;
                 }
             }
-            JSON_DECREF(match_cond)
-            JSON_DECREF(record)
 
             if(end) {
                 break;

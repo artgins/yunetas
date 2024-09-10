@@ -52,7 +52,6 @@ int iterator_callback1(
     print_json2("match_cond", match_cond);
     print_json2("jn_record", jn_record);
 
-    JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
     return 0;
 }
