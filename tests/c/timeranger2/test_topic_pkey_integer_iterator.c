@@ -19,6 +19,7 @@
 #define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
+#define MAX_RECS    10 // Records to find
 
 /***************************************************************
  *              Prototypes
@@ -42,6 +43,7 @@ int global_result = 0;
 json_int_t tm = 0;
 uint64_t t = 0;
 uint64_t total_rows = 0;
+int leidos = 0;
 
 int iterator_callback1(
     json_t *tranger,
@@ -121,6 +123,24 @@ int iterator_callback2(
 
     JSON_DECREF(record)
     return 0;
+}
+
+int load_rango_callback(
+    json_t *tranger,
+    json_t *topic,
+    json_t *match_cond,     // not yours, don't own
+    md2_record_t *md2_record,
+    json_t *record,      // must be owned
+    const char *key,
+    json_int_t relative_rowid
+)
+{
+    leidos++;
+    if(1) { //pinta_rows) {
+        printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
+    }
+    JSON_DECREF(record);
+    return 1; // add to returned list
 }
 
 /***************************************************************************
@@ -378,7 +398,7 @@ int do_test(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    tranger2_close_iterator(tranger, iterator);
+    result += tranger2_close_iterator(tranger, iterator);
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
@@ -771,14 +791,69 @@ int do_test2(void)
         result += test_json(json_incref(tranger));
     }
 
+    /*-------------------------------*
+     *      Close iterators
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close iterators", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    result += tranger2_close_iterator(tranger, iterator1);
+    result += tranger2_close_iterator(tranger, iterator2);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
     /*-------------------------------------*
-     *  Search Absolute range, forward
+     *  Search absolute range, forward
      *-------------------------------------*/
     if(1) {
+        const char *test_name = "Search absolute range, forward";
+        set_expected_results( // Check that no logs happen
+            test_name, // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
 
+        json_int_t from_rowid = MAX_RECORDS/2 + 1;
+        json_int_t to_rowid = MAX_RECORDS/2 + MAX_RECS;
+
+        MT_START_TIME(time_measure)
+
+        leidos = 0;
+        json_t *match_cond = json_pack("{s:I, s:I}",
+            "from_rowid", (json_int_t)from_rowid,
+            "to_rowid", (json_int_t)to_rowid
+        );
+        json_t *iterator = tranger2_open_iterator(
+            tranger,
+            tranger2_topic(tranger, TOPIC_NAME),
+            "0000000000000000001",     // key,
+            match_cond,             // match_cond, owned
+            load_rango_callback,    // load_record_callback
+            NULL
+        );
+
+        MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, test_name)
+
+        result += tranger2_close_iterator(tranger, iterator);
+
+//        uint64_t result[MAX_RECS];
+//        int max = sizeof(result)/sizeof(result[0]);
+//        for(int ii=0; ii<max; ii++) result[ii]=ii+from_rowid;
+//
+//        test_result(kw_get_list(tr_list, "data", 0, KW_REQUIRED), result, max);
+//
+//        printf("from %lu to %lu:\n", (unsigned long)from_rowid, (unsigned long)to_rowid);
+//        for(int ii=0; ii<max; ii++) printf("    %lu\n", (unsigned long)result[ii]);
+//        printf("\n");
+
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
-//    json_int_t from_rowid = appends/2 + 1;
-//    json_int_t to_rowid = appends/2 + MAX_RECS;
 
     /*-------------------------------------*
      *  Search Absolute range, backward
@@ -925,20 +1000,6 @@ int do_test2(void)
      *  tranger_backup_topic
      *-------------------------------*/
     // TODO old test in test_timeranger2.c
-
-    /*-------------------------------*
-     *      Close iterator
-     *-------------------------------*/
-    set_expected_results( // Check that no logs happen
-        "close iterator", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    tranger2_close_iterator(tranger, iterator1);
-    tranger2_close_iterator(tranger, iterator2);
-    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
