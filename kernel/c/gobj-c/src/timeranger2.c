@@ -4222,9 +4222,6 @@ PRIVATE json_t *get_segments(
     json_t *jn_segments = json_array();
 
     BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
-    if(!match_cond) {
-        match_cond = json_object();
-    }
 
     /*-------------------------------------*
      *      Recover cache data

@@ -824,13 +824,14 @@ int do_test2(void)
         MT_START_TIME(time_measure)
 
         leidos = 0;
+        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:I, s:I}",
             "from_rowid", (json_int_t)from_rowid,
             "to_rowid", (json_int_t)to_rowid
         );
         json_t *iterator = tranger2_open_iterator(
             tranger,
-            tranger2_topic(tranger, TOPIC_NAME),
+            topic,
             "0000000000000000001",     // key,
             match_cond,             // match_cond, owned
             load_rango_callback,    // load_record_callback
