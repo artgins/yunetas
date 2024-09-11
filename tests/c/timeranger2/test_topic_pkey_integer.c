@@ -342,17 +342,6 @@ int do_test(void)
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
-    // Print time
-//    cnt = MAX_KEYS*MAX_RECORDS;
-//    dt = ts_diff (st, et);
-//    printf("%s# tranger2_append_record time (records: %"PRIu64"): %f, %'ld op/sec%s\n",
-//        On_Black RGreen,
-//        cnt,
-//        dt,
-//        (long)(((double)cnt)/dt),
-//       Color_Off
-//    );
-
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------------*
@@ -600,17 +589,6 @@ int do_test(void)
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_append_record")
-
-    // Print time
-//    cnt = MAX_KEYS*MAX_RECORDS;
-//    dt = ts_diff (st, et);
-//    printf("%s# tranger2_append_record time with open_rt_list (records: %"PRIu64"): %f, %'ld op/sec%s\n",
-//        On_Black RGreen,
-//        cnt,
-//        dt,
-//        (long)(((double)cnt)/dt),
-//       Color_Off
-//    );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
@@ -1020,7 +998,7 @@ int do_test2(void)
             "2000-01-01.json",
             NULL
         );
-        ret = test_file_permission_and_size(path_key_file, 0600, 35299201);
+        ret = test_file_permission_and_size(path_key_file, 0600, 28944000);
         if(ret < 0) {
             printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
         }
@@ -1044,7 +1022,7 @@ int do_test2(void)
             "2000-01-02.json",
             NULL
         );
-        ret = test_file_permission_and_size(path_key_file, 0600, 1461345);
+        ret = test_file_permission_and_size(path_key_file, 0600, 1206000);
         if(ret < 0) {
             printf("%s BAD file permission or size: %s %s\n", On_Red BWhite, path_key_file, Color_Off);
         }
@@ -1155,7 +1133,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     int result = do_test();
-//    result += do_test2();
+    result += do_test2();
 
     /*--------------------------------*
      *  Stop the event loop
