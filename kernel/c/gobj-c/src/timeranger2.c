@@ -1473,8 +1473,6 @@ PRIVATE int get_topic_wr_fd( // optimized
         return -1;
     }
 
-    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
@@ -1505,6 +1503,7 @@ PRIVATE int get_topic_wr_fd( // optimized
 
     if(fd<=0) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
         snprintf(full_path, sizeof(full_path), "%s/%s/%s", topic_dir, key, filename);
 
         if(master) {
@@ -1520,7 +1519,7 @@ PRIVATE int get_topic_wr_fd( // optimized
                 master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open file",
+                "msg",          "%s", "Cannot open file to write",
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
@@ -1558,7 +1557,10 @@ PRIVATE int get_topic_rd_fd(
     BOOL for_data
 )
 {
-    //system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    char full_path[PATH_MAX];
+    char relative_path[NAME_MAX*2];
+    char filename[NAME_MAX];
+
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     if((system_flag & sf2_no_record_disk)) {
         return -1;
@@ -1567,53 +1569,35 @@ PRIVATE int get_topic_rd_fd(
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
-    const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);
-    const char *name = kw_get_str(gobj, segment, "id", "", KW_REQUIRED);
-    char filename[NAME_MAX];
+    const char *name = json_string_value(json_object_get(segment, "id"));
     snprintf(filename, sizeof(filename), "%s.%s", name, for_data?"json":"md2");
 
-    char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_dir, key, filename, NULL);
-    if(access(full_path, 0)!=0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "path",         "%s", full_path,
-            "msg",          "%s", "file not found",
-            NULL
-        );
-        return -1;
-    }
-
-    /*-----------------------------*
-     *      Open content file
-     *-----------------------------*/
-    char relative_path[PATH_MAX];
-    snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
-    //int fd = (int)kw_get_int(
-    //    gobj,
-    //    kw_get_dict(
-    //        gobj,
-    //        topic,
-    //        "rd_fd_files",
-    //        0,
-    //        KW_REQUIRED
-    //    ),
-    //    relative_path,
-    //    -1,
-    //    0
-    //);
     int fd = (int)json_integer_value(
-        json_object_get(json_object_get(topic, "rd_fd_files"), relative_path)
+        json_object_get(
+            json_object_get(
+                json_object_get(
+                    topic,
+                    "rd_fd_files"
+                ),
+                key
+            ),
+            filename
+        )
     );
 
     if(fd<=0) {
+        const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+        build_path(full_path, sizeof(full_path), topic_dir, key, filename, NULL);
+
+        /*-----------------------------*
+         *      Open content file
+         *-----------------------------*/
         fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
         if(fd<0) {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open file",
+                "msg",          "%s", "Cannot open file to read",
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
@@ -1621,6 +1605,7 @@ PRIVATE int get_topic_rd_fd(
             return -1;
         }
 
+        snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
         kw_set_dict_value(
             gobj,
             kw_get_dict(
@@ -1634,6 +1619,7 @@ PRIVATE int get_topic_rd_fd(
             json_integer(fd)
         );
     }
+
     return fd;
 }
 

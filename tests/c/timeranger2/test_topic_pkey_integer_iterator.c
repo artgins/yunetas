@@ -1,8 +1,8 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator.c
  *
- *  - do_test: Open as master, open iterator rt_by_mem (realtime by memory) without callback
- *  - do_test2: Open as master, open iterator rt_by_mem (realtime by memory) with callback
+ *  - do_test: Open as master, open iterator (realtime by disk) without callback
+ *  - do_test2: Open as master, open iterator (realtime by disk) with callback
  *
  *          Copyright (c) 2023 Niyamaka.
  *          All Rights Reserved.
@@ -86,7 +86,7 @@ int iterator_callback1(
 
 /***************************************************************************
  *              Test
- *  Open as master, open iterator rt_by_mem (realtime by memory) without callback
+ *  Open as master, open iterator (realtime by disk) without callback
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test(void)
@@ -362,7 +362,7 @@ int do_test(void)
 
 /***************************************************************************
  *              Test
- *  Open as master, open iterator rt_by_mem (realtime by memory) with callback
+ *  Open as master, open iterator (realtime by disk) with callback
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 int do_test2(void)
@@ -582,7 +582,7 @@ int do_test2(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
-                            'load_record_callback': 0 \
+                            'load_record_callback': 9999 \
                         } \
                     ] \
                 } \
