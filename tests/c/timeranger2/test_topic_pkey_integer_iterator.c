@@ -41,6 +41,8 @@ int times_periodic = 0;
 int global_result = 0;
 json_int_t tm = 0;
 uint64_t t = 0;
+uint64_t total_rows = 0;
+
 int iterator_callback1(
     json_t *tranger,
     json_t *topic,
@@ -51,12 +53,49 @@ int iterator_callback1(
     json_int_t relative_rowid
 )
 {
-//    printf("iterator callback1, relative_rowid %lld\n", relative_rowid);
-//    print_json2("match_cond", match_cond);
-//    print_json2("record", record);
-
     t++;
     tm++;
+    total_rows++;
+
+    json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
+    if(tm_ != tm) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 1 of message", Color_Off);
+        JSON_DECREF(record)
+        return -1;
+    }
+    if(md2_record->__tm__ != tm) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 2 of message", Color_Off);
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    uint64_t t_ = md2_record->__t__;
+    if(t_ != t) {
+        global_result += -1;
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        JSON_DECREF(record)
+        return -1;
+    }
+
+    JSON_DECREF(record)
+    return 0;
+}
+
+int iterator_callback2(
+    json_t *tranger,
+    json_t *topic,
+    json_t *match_cond,     // not yours, don't own
+    md2_record_t *md2_record,
+    json_t *record,      // must be owned
+    const char *key,
+    json_int_t relative_rowid
+)
+{
+    t++;
+    tm++;
+    total_rows++;
 
     json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
     if(tm_ != tm) {
@@ -92,7 +131,7 @@ int iterator_callback1(
 int do_test(void)
 {
     int result = 0;
-//    char file[PATH_MAX];
+    global_result = 0;
 
     /*
      *  Write the tests in ~/tests_yuneta/
@@ -368,6 +407,7 @@ int do_test(void)
 int do_test2(void)
 {
     int result = 0;
+    global_result = 0;
 
     /*
      *  Write the tests in ~/tests_yuneta/
@@ -410,6 +450,14 @@ int do_test2(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
+
+    total_rows = 0;
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
+    /*
+     *  Open iterator to key1
+     */
     t = tm = 946684800-1;
     tranger2_open_iterator(
         tranger,
@@ -419,8 +467,10 @@ int do_test2(void)
         iterator_callback1,    // load_record_callback
         "it1"
     );
-    json_t *iterator = tranger2_get_iterator_by_id(tranger, "it1");
+
+    json_t *iterator1 = tranger2_get_iterator_by_id(tranger, "it1");
     result += test_json(NULL);  // NULL: we want to check only the logs
+
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
         print_json2("BAD count tm of message", tranger);
@@ -431,6 +481,43 @@ int do_test2(void)
         print_json2("BAD count t of message", tranger);
         result += -1;
     }
+
+    /*
+     *  Open iterator to key2
+     */
+    t = tm = 946684800-1;
+    json_t *iterator2 = tranger2_open_iterator(
+        tranger,
+        tranger2_topic(tranger, TOPIC_NAME),
+        "0000000000000000002",     // key,
+        NULL,   // match_cond, owned
+        iterator_callback2,    // load_record_callback
+        NULL
+    );
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(tm != 946774799) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
+        print_json2("BAD count tm of message", tranger);
+        result += -1;
+    }
+    if(t != 946774799) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        print_json2("BAD count t of message", tranger);
+        result += -1;
+    }
+
+    /*
+     *  Check totals
+     */
+    if(total_rows != MAX_KEYS*MAX_RECORDS) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count total_rows of message", Color_Off);
+        print_json2("BAD count total_rows of message", tranger);
+        result += -1;
+    }
+
+    MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+    MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
 
     /*---------------------------------------------*
      *  Check iterator mem
@@ -546,6 +633,13 @@ int do_test2(void)
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
                             'load_record_callback': 99999 \
+                        }, \
+                        { \
+                            'id': 'it2', \
+                            'topic_name': 'topic_pkey_integer', \
+                            'key': '0000000000000000002', \
+                            'match_cond': {}, \
+                            'load_record_callback': 99999 \
                         } \
                     ], \
                     'iterators': [\
@@ -583,12 +677,47 @@ int do_test2(void)
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
                             'load_record_callback': 9999 \
+                        }, \
+                        { \
+                            'id': 'it2', \
+                            'key': '0000000000000000002', \
+                            'topic_name': '%s', \
+                            'match_cond': {}, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'wr_time': 99999, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000001' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'wr_time': 99999, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000001' \
+                                } \
+                            ], \
+                            'cur_segment': 1, \
+                            'cur_rowid': 90000, \
+                            'load_record_callback': 9999 \
                         } \
                     ] \
                 } \
             } \
         } \
-        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME);
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME, TOPIC_NAME);
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
@@ -775,7 +904,8 @@ int do_test2(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    tranger2_close_iterator(tranger, iterator);
+    tranger2_close_iterator(tranger, iterator1);
+    tranger2_close_iterator(tranger, iterator2);
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
@@ -790,6 +920,8 @@ int do_test2(void)
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    result += global_result;
 
     return result;
 }
