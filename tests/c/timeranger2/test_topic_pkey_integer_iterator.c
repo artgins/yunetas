@@ -469,7 +469,6 @@ int do_test2(void)
     );
 
     json_t *iterator1 = tranger2_get_iterator_by_id(tranger, "it1");
-    result += test_json(NULL);  // NULL: we want to check only the logs
 
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
@@ -494,7 +493,6 @@ int do_test2(void)
         iterator_callback2,    // load_record_callback
         NULL
     );
-    result += test_json(NULL);  // NULL: we want to check only the logs
 
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
@@ -518,6 +516,34 @@ int do_test2(void)
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*---------------------------------------------*
+     *  Repeat Open iterator to key2
+     *---------------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "repeat open iterator", // test name
+        json_pack("[{s:s}]", // error's list
+                  "msg", "tranger2_open_iterator(): Iterator already exists"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *iterator22 = tranger2_open_iterator(
+        tranger,
+        tranger2_topic(tranger, TOPIC_NAME),
+        "0000000000000000002",     // key,
+        NULL,   // match_cond, owned
+        NULL,    // load_record_callback
+        NULL
+    );
+    if(iterator22) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "Repeat iterator must be null", Color_Off);
+        result += -1;
+    }
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*---------------------------------------------*
      *  Check iterator mem

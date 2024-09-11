@@ -3286,7 +3286,7 @@ PUBLIC json_t *tranger2_open_iterator(
     }
 
     if(tranger2_get_iterator_by_id(tranger, iterator_id)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_iterator(): Iterator already exists",
