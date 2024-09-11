@@ -1360,7 +1360,8 @@ PRIVATE int get_topic_wr_fd(
     uint64_t __t__
 )
 {
-    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    //system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     if((system_flag & sf2_no_record_disk)) {
         return -1;
     }
@@ -1577,7 +1578,8 @@ PRIVATE int get_topic_rd_fd(
     BOOL for_data
 )
 {
-    system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    //system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     if((system_flag & sf2_no_record_disk)) {
         return -1;
     }
@@ -1815,7 +1817,8 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  If time not specified, use the now time
      *--------------------------------------------*/
-    uint32_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
+    //uint32_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
+    system_flag2_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
     if(!__t__) {
         if(__system_flag__ & (sf2_t_ms)) {
             __t__ = time_in_miliseconds();
@@ -1834,13 +1837,14 @@ PUBLIC int tranger2_append_record(
 // TODO TEST 677090 675499 664968
 //  712675 684916 713954 680988
 // 698643 713318 713454
-JSON_DECREF(jn_record)
-return -1;
+//JSON_DECREF(jn_record)
+//return -1;
 
     /*-----------------------------------*
      *  Get the primary-key
      *-----------------------------------*/
-    const char *pkey = kw_get_str(gobj, topic, "pkey", "", KW_REQUIRED);
+    //const char *pkey = kw_get_str(gobj, topic, "pkey", "", KW_REQUIRED);
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
     system_flag2_t system_flag_key_type = __system_flag__ & KEY_TYPE_MASK2;
 
     const char *key_value = NULL;
@@ -1849,7 +1853,8 @@ return -1;
     switch(system_flag_key_type) {
         case sf2_string_key:
             {
-                key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
+                //key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
+                key_value = json_string_value(json_object_get(jn_record, pkey));
                 if(empty_string(key_value)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1883,13 +1888,14 @@ return -1;
 
         case sf2_int_key:
             {
-                uint64_t i = (uint64_t)kw_get_int(
-                    gobj,
-                    jn_record,
-                    pkey,
-                    0,
-                    KW_REQUIRED|KW_WILD_NUMBER
-                );
+                //uint64_t i = (uint64_t)kw_get_int(
+                //    gobj,
+                //    jn_record,
+                //    pkey,
+                //    0,
+                //    KW_REQUIRED|KW_WILD_NUMBER
+                //);
+                uint64_t i = json_integer_value(json_object_get(jn_record, pkey));
                 if(!i) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1924,15 +1930,18 @@ return -1;
     }
 
 // TODO TEST 360.000
+// 644398 621632
 //JSON_DECREF(jn_record)
 //return -1;
 
     /*--------------------------------------------*
      *  Get and save the t-key if exists
      *--------------------------------------------*/
-    const char *tkey = kw_get_str(gobj, topic, "tkey", "", KW_REQUIRED);
+    //const char *tkey = kw_get_str(gobj, topic, "tkey", "", KW_REQUIRED);
+    const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     if(!empty_string(tkey)) {
-        json_t *jn_tval = kw_get_dict_value(gobj, jn_record, tkey, 0, 0);
+        //json_t *jn_tval = kw_get_dict_value(gobj, jn_record, tkey, 0, 0);
+        json_t *jn_tval = json_object_get(jn_record, tkey);
         if(!jn_tval) {
             md_record->__tm__ = 0; // No tkey value, mark with 0
         } else {
@@ -1952,6 +1961,7 @@ return -1;
     }
 
 // TODO TEST 320.000
+// TODO 600288 605055
 //JSON_DECREF(jn_record)
 //return -1;
 
@@ -1961,6 +1971,7 @@ return -1;
     int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
 
 // TODO TEST 155.000
+// TODO 259081 245981
 JSON_DECREF(jn_record)
 return -1;
 
