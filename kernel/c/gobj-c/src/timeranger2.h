@@ -77,16 +77,17 @@ extern "C"{
 #define KEY_TYPE_MASK2        0x00000F
 #define NOT_INHERITED_MASK2   0xFF0000 /* Remains will set to all records of topic */
 
-typedef enum { // WARNING table with name's strings in 30_timeranger.c
+typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf2_string_key          = 0x000001,
     sf2_int_key             = 0x000004,
     sf2_zip_record          = 0x000010,
     sf2_cipher_record       = 0x000020,
-    sf2_t_ms                = 0x000100,   // record time in miliseconds TODO need diff between t and tm?
-    sf2_tm_ms               = 0x000200,   // message time in miliseconds
+    sf2_save_md_in_record   = 0x000040,     // save md in record file too
+    sf2_t_ms                = 0x000100,     // record time in miliseconds
+    sf2_tm_ms               = 0x000200,     // message time in miliseconds
     sf2_no_record_disk      = 0x001000,
     sf2_loading_from_disk   = 0x010000,
-    sf2_soft_deleted_record = 0x020000,  // old sf_mark1
+    sf2_soft_deleted_record = 0x020000,     // old sf_mark1
     sf2_hard_deleted_record = 0x800000,
 } system_flag2_t;
 

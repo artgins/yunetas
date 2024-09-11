@@ -322,7 +322,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 /***************************************************************************
  *  Return the json value find by path
  *  Walk over dicts and lists
- *  TODO WARNING this function is too slow!!!
+ *  TODO WARNING function too slow, don't use in quick code
  ***************************************************************************/
 PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
 {

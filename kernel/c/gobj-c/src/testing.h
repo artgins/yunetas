@@ -48,6 +48,16 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
 
 /***************************************************************************
  *  Measurement of times
+ *  Example:
+
+    ...
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+    ...
+    MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+    MT_PRINT_TIME(time_measure, "tranger2_append_record")
+    ...
+
  ***************************************************************************/
 typedef struct {
     struct timespec start, end;

@@ -40,19 +40,19 @@ PRIVATE const char *topic_fields[] = {
 
 PRIVATE const char *sf_names[24+1] = {
     "sf2_string_key",           // 0x000001
-    "sf2_rowid_key",            // 0x000002
+    "",                         // 0x000002
     "sf2_int_key",              // 0x000004
     "",                         // 0x000008
     "sf2_zip_record",           // 0x000010
     "sf2_cipher_record",        // 0x000020
-    "",                         // 0x000040
+    "sf2_save_md_in_record",    // 0x000040
     "",                         // 0x000080
     "sf2_t_ms",                 // 0x000100
     "sf2_tm_ms",                // 0x000200
     "",                         // 0x000400
     "",                         // 0x000800
     "sf2_no_record_disk",       // 0x001000
-    "sf2_no_md_disk",           // 0x002000
+    "",                         // 0x002000
     "",                         // 0x004000
     "",                         // 0x008000
     "sf2_loading_from_disk",    // 0x010000
@@ -1340,129 +1340,90 @@ static inline char *get_t_filename(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_topic_wr_fd(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    BOOL for_data,
-    uint64_t __t__
+PRIVATE int create_file(
+    hgobj gobj, json_t *tranger, json_t *topic, const char *key, const char *full_path
 )
 {
-    //system_flag2_t system_flag = kw_get_int(gobj, topic, "system_flag", 0, KW_REQUIRED);
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_record_disk)) {
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+
+    /*----------------------------------------*
+     *  Create (only)the new file if master
+     *----------------------------------------*/
+    if(!master) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "path",         "%s", full_path,
+            "msg",          "%s", "file not found",
+            NULL
+        );
         return -1;
     }
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-    //const char *topic_dir = kw_get_str(gobj, topic, "directory", "", KW_REQUIRED);
-    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-
-    /*-----------------------------*
-     *      Check file
-     *-----------------------------*/
-    char filename[NAME_MAX];
-    get_t_filename(
-        filename,
-        sizeof(filename),
-        tranger,
-        topic,
-        for_data,
-        (system_flag & sf2_t_ms)? __t__/1000:__t__
+    /*------------------------------*
+     *      Check key directory
+     *      create it not exist
+     *------------------------------*/
+    char path_key[PATH_MAX];
+    snprintf(path_key, sizeof(path_key), "%s/%s",
+        topic_dir,
+        key
     );
-    char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_dir, key, filename, NULL);
-    if(access(full_path, 0)!=0) {
-        /*----------------------------------------*
-         *  Create (only)the new file if master
-         *----------------------------------------*/
-        if(!master) {
+    if(access(path_key, 0)!=0) {
+        if(master) {
+            int xpermission = (int)kw_get_int(
+                gobj,
+                topic,
+                "xpermission",
+                (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED),
+                0
+            );
+            if(mkrdir(path_key, xpermission)<0) {
+                gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                    "function",     "%s", __FUNCTION__,
+                    "path",         "%s", path_key,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
+                    "errno",        "%s", strerror(errno),
+                    NULL
+                );
+            }
+        } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "path",         "%s", full_path,
-                "msg",          "%s", "file not found",
+                "path",         "%s", path_key,
+                "msg",          "%s", "key directory not found",
                 NULL
             );
             return -1;
         }
+    }
 
-        /*------------------------------*
-         *      Check key directory
-         *      create it not exist
-         *------------------------------*/
-        char path_key[PATH_MAX];
-        snprintf(path_key, sizeof(path_key), "%s/%s",
-            topic_dir,
-            key
-        );
-        if(access(path_key, 0)!=0) {
-            if(master) {
-                int xpermission = (int)kw_get_int(
-                    gobj,
-                    topic,
-                    "xpermission",
-                    (int)kw_get_int(gobj, tranger, "xpermission", 02770, KW_REQUIRED),
-                    0
-                );
-                if(mkrdir(path_key, xpermission)<0) {
-                    gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                        "function",     "%s", __FUNCTION__,
-                        "path",         "%s", path_key,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
-                        "errno",        "%s", strerror(errno),
-                        NULL
-                    );
-                }
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "path",         "%s", path_key,
-                    "msg",          "%s", "key directory not found",
-                    NULL
-                );
-                return -1;
-            }
-        }
+    /*-----------------------------------------*
+     *  Check if there are many files opened
+     *-----------------------------------------*/
+    json_t *wr_fd = kw_get_subdict_value(gobj, topic, "wr_fd_files", key, 0, 0); // no required
+    // it could be the first time
+    if(json_object_size(wr_fd)>=2) {
+        close_fd_wr_files(gobj, topic, key);
+    }
 
-        /*-----------------------------------------*
-         *  Check if there are many files opened
-         *-----------------------------------------*/
-        json_t *wr_fd = kw_get_subdict_value(gobj, topic, "wr_fd_files", key, 0, 0); // no required
-        // it could be the first time
-        if(json_object_size(wr_fd)>=2) {
+    int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+    if(fp < 0) {
+        if(errno == EMFILE) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "path",         "%s", full_path,
+                "msg",          "%s", "TOO MANY OPEN FILES",
+                NULL
+            );
             close_fd_wr_files(gobj, topic, key);
-        }
 
-        int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
-        if(fp < 0) {
-            if(errno == EMFILE) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "path",         "%s", full_path,
-                    "msg",          "%s", "TOO MANY OPEN FILES",
-                    NULL
-                );
-                close_fd_wr_files(gobj, topic, key);
-
-                fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
-                if(fp < 0) {
-                    gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "Cannot create json file",
-                        "path",         "%s", full_path,
-                        "errno",        "%d", errno,
-                        "serrno",       "%s", strerror(errno),
-                        NULL
-                    );
-                    return -1;
-                }
-            } else {
+            fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+            if(fp < 0) {
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -1474,28 +1435,61 @@ PRIVATE int get_topic_wr_fd(
                 );
                 return -1;
             }
+        } else {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create json file",
+                "path",         "%s", full_path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            return -1;
         }
-        close(fp);
     }
+
+    return fp;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int get_topic_wr_fd( // optimized
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    BOOL for_data,
+    uint64_t __t__
+)
+{
+    char full_path[PATH_MAX];
+    char relative_path[NAME_MAX*2];
+    char filename[NAME_MAX];
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if((system_flag & sf2_no_record_disk)) {
+        return -1;
+    }
+
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+
+    /*-----------------------------*
+     *      Check file
+     *-----------------------------*/
+    get_t_filename(
+        filename,
+        sizeof(filename),
+        tranger,
+        topic,
+        for_data,
+        (system_flag & sf2_t_ms)? __t__/1000:__t__
+    );
 
     /*-----------------------------*
      *      Open content file
      *-----------------------------*/
-    char relative_path[PATH_MAX];
-    snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
-    //int fd = (int)kw_get_int(
-    //    gobj,
-    //    kw_get_dict(
-    //        gobj,
-    //        topic,
-    //        "wr_fd_files",
-    //        0,
-    //        KW_REQUIRED
-    //    ),
-    //    relative_path,
-    //    -1,
-    //    0
-    //);
     int fd = (int)json_integer_value(
         json_object_get(
             json_object_get(
@@ -1510,8 +1504,14 @@ PRIVATE int get_topic_wr_fd(
     );
 
     if(fd<=0) {
+        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        snprintf(full_path, sizeof(full_path), "%s/%s/%s", topic_dir, key, filename);
+
         if(master) {
             fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
+            if(fd < 0) {
+                fd = create_file(gobj, tranger, topic, key, full_path);
+            }
         } else {
             fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
         }
@@ -1528,6 +1528,7 @@ PRIVATE int get_topic_wr_fd(
             return -1;
         }
 
+        snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
         kw_set_dict_value(
             gobj,
             kw_get_dict(
@@ -1749,7 +1750,6 @@ PUBLIC int tranger2_append_record(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-//    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
     if(!jn_record || jn_record->refcount <= 0) {
         gobj_log_error(gobj, 0,
@@ -1762,12 +1762,8 @@ PUBLIC int tranger2_append_record(
         return -1;
     }
 
-// TODO TEST 800.000 con json_integer() 811126 783577 806594 778511 798539
-// TODO TEST 680.000 con kw_get_int 744331 796036 779716
-//JSON_DECREF(jn_record)
-//return -1;
+    // TEST performance 800.000
 
-//    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     if(!master) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1815,12 +1811,7 @@ PUBLIC int tranger2_append_record(
     memset(md_record, 0, sizeof(md2_record_t));
     md_record->__t__ = __t__;
 
-// TODO TEST 420.000 677696 635701 685466
-// TODO TEST 677090 675499 664968
-//  712675 684916 713954 680988
-// 698643 713318 713454
-//JSON_DECREF(jn_record)
-//return -1;
+    // TEST performance 700000
 
     /*-----------------------------------*
      *  Get the primary-key
@@ -1899,10 +1890,7 @@ PUBLIC int tranger2_append_record(
             return -1;
     }
 
-// TODO TEST 360.000
-// 644398 621632
-//JSON_DECREF(jn_record)
-//return -1;
+    // TEST performance 630000
 
     /*--------------------------------------------*
      *  Get and save the t-key if exists
@@ -1930,21 +1918,14 @@ PUBLIC int tranger2_append_record(
         md_record->__tm__ = 0;  // No tkey value, mark with 0
     }
 
-// TODO TEST 320.000
-// TODO 600288 605055
-//JSON_DECREF(jn_record)
-//return -1;
+    // TEST performance 600000
 
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
     int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
 
-// TODO TEST 155.000
-// TODO 259081 245981
-// TODO 313420
-JSON_DECREF(jn_record)
-return -1;
+    // TEST performance 475000
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -2034,9 +2015,7 @@ return -1;
         jsonp_free(srecord);
     }
 
-// TODO TEST 100.000
-JSON_DECREF(jn_record)
-return -1;
+    // TEST performance 170000
 
     /*--------------------------------------------*
      *  Write record metadata
@@ -2066,7 +2045,7 @@ return -1;
          *  NEW: write __md_tranger__ to json file
          *--------------------------------------------*/
         __md_tranger__ = md2json(md_record, relative_rowid);
-        if(content_fp >= 0) {
+        if(__system_flag__ & (sf2_save_md_in_record) && content_fp >= 0) {
             /*-------------------------------------------------------*
              *  Continue if this part fails, it's extra information
              *-------------------------------------------------------*/
@@ -2131,37 +2110,28 @@ return -1;
         }
     }
 
-// TODO TEST 71.000
-// TODO TEST 59.000 con __md_tranger__
-JSON_DECREF(jn_record)
-JSON_DECREF(__md_tranger__)
-return -1;
+    // TEST performance with sf2_save_md_in_record 98000
+    // TEST performance sin sf2_save_md_in_record 124000
 
     /*-----------------------------------------------------*
      *  Add the message metadata to the record
      *  Could be useful for records with the same __t__
      *  for example, to distinguish them by the readers.
      *-----------------------------------------------------*/
-    json_object_set(
+    json_object_set_new(
         jn_record,
         "__md_tranger__",
-        __md_tranger__
+        __md_tranger__  // owned
     );
-
-    JSON_DECREF(__md_tranger__)
-
-// TODO TEST 71.000
-//JSON_DECREF(jn_record)
-//return -1;
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
      *--------------------------------------------*/
-    json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
+    json_t *lists = json_object_get(topic, "lists");
     int idx;
     json_t *list;
     json_array_foreach(lists, idx, list) {
-        const char *key_ = kw_get_str(gobj, list, "key", "", KW_REQUIRED);
+        const char *key_ = json_string_value(json_object_get(list, "key"));
         if(empty_string(key_) || strcmp(key_, key_value)==0) {
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)kw_get_int(
@@ -2171,7 +2141,7 @@ return -1;
                 0,
                 KW_REQUIRED
             );
-            json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
+            json_t *match_cond = json_object_get(list, "match_cond");
             if(load_record_callback) {
                 // Inform to the user list: record in real time
                 load_record_callback(
@@ -2187,9 +2157,7 @@ return -1;
         }
     }
 
-//// TODO TEST 71.000
-//JSON_DECREF(jn_record)
-//return -1;
+    // TEST performance 114000 (sin md)
 
     JSON_DECREF(jn_record)
     return 0;

@@ -17,7 +17,7 @@
 
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
-#define MAX_KEYS    100 // 2
+#define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 /***************************************************************
@@ -162,7 +162,7 @@ int do_test(void)
             "xpermission" , 02700,
             "rpermission", 0600
         ),
-        sf2_int_key,    // system_flag
+        sf2_int_key,  // system_flag
         json_pack("{s:s, s:I, s:s}", // jn_cols, owned
             "id", "",
             "tm", (json_int_t)0,
@@ -354,8 +354,6 @@ int do_test(void)
 //    );
 
     result += test_json(NULL);  // NULL: we want to check only the logs
-
-return result; // TODO
 
     /*-------------------------------------*
      *      Delete topic
@@ -600,6 +598,7 @@ return result; // TODO
         }
     }
 
+    MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
     // Print time

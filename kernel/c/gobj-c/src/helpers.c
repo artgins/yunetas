@@ -700,7 +700,7 @@ PUBLIC char *delete_left_char(char *s, char x)
 }
 
 /***************************************************************************
- *
+ *  WARNING function a bit slower that snprintf
  ***************************************************************************/
 PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 {
