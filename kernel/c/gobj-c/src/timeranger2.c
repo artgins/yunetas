@@ -3362,11 +3362,36 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         BOOL end;
+//        if(!backward) {
+//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+//        } else {
+//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+//        }
+
+        json_int_t total_rows = (json_int_t)tranger2_iterator_size(tranger, iterator);
+
         if(!backward) {
-            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+            json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
+            if(from_rowid>0) {
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, from_rowid, &md_record, precord);
+            } else if(from_rowid<0 && (total_rows + from_rowid)>0) {
+                from_rowid = total_rows + from_rowid;
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, from_rowid, &md_record, precord);
+            } else {
+                end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+            }
         } else {
-            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+            json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
+            if(to_rowid>0) {
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, to_rowid, &md_record, precord);
+            } else if(to_rowid<0 && (total_rows + to_rowid)>0) {
+                to_rowid = total_rows + to_rowid;
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, to_rowid, &md_record, precord);
+            } else {
+                end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+            }
         }
+
         while(!end) {
             // TODO if match_record
             if(1) {
@@ -4099,7 +4124,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
+    const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     const char *key = json_string_value(json_object_get(iterator, "key"));
 
@@ -4148,15 +4173,6 @@ PUBLIC int tranger2_iterator_get_by_rowid(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "iterator without segments",
-//            "topic_name",   "%s", tranger2_topic_name(topic),
-//            "key",          "%s", key,
-//            NULL
-//        );
-//        gobj_trace_json(gobj, iterator, "iterator without segments");
         return -1;
     }
 
@@ -4582,8 +4598,8 @@ PRIVATE int get_md_by_rowid(
     /*
      *  Check rowid is in range of segment
      */
-    json_int_t first_rowid = kw_get_int(gobj, segment, "first_row", 0, KW_REQUIRED);
-    json_int_t last_rowid = kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
+    json_int_t first_rowid = json_integer_value(json_object_get(segment, "first_row"));
+    json_int_t last_rowid = json_integer_value(json_object_get(segment, "last_row"));
     if(!(rowid >= first_rowid && rowid <= last_rowid)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
