@@ -50,7 +50,7 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
  *  sizes of both must match
  *  keys in 'matches' must match with keys in 'list'
  */
-PUBLIC int test_list(json_t *list, json_t *matches);
+PUBLIC int test_list(const char *name, json_t *list, json_t *matches);
 
 
 /***************************************************************************

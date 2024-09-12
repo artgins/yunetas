@@ -20,6 +20,8 @@
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 #define MAX_RECS    10 // Records to find
 
+PRIVATE int pinta_rows = 0;
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -35,7 +37,8 @@ PRIVATE yev_loop_t *yev_loop;
  ***************************************************************************/
 PRIVATE int global_result = 0;
 PRIVATE uint64_t leidos = 0;
-PRIVATE json_int_t rowid = 0;
+PRIVATE json_int_t counter_rowid = 0;
+PRIVATE json_t *callback_data = 0;
 
 PRIVATE int load_rango_callback(
     json_t *tranger,
@@ -44,20 +47,20 @@ PRIVATE int load_rango_callback(
     md2_record_t *md_record,
     json_t *record,      // must be owned
     const char *key,
-    json_int_t relative_rowid
+    json_int_t rowid
 )
 {
     leidos++;
-    rowid++;
+    counter_rowid++;
 
-    if(1) { //pinta_rows) {
+    if(pinta_rows) {
         char temp[1024];
         print_md1_record(
             tranger,
             topic,
             md_record,
             key,
-            relative_rowid,
+            rowid,
             temp,
             sizeof(temp)
         );
@@ -65,6 +68,12 @@ PRIVATE int load_rango_callback(
         printf("%s\n", temp);
         //print_json2("xxx", record);
     }
+
+    json_t *md = json_object();
+    json_object_set_new(md, "rowid", json_integer(rowid));
+    json_object_set_new(md, "t", json_integer((json_int_t)md_record->__t__));
+    json_array_append_new(callback_data, md);
+
     JSON_DECREF(record)
     return 0;
 }
@@ -114,7 +123,7 @@ PRIVATE int do_test(void)
      *  Search absolute range, forward
      *-------------------------------------*/
     if(1) {
-        const char *test_name = "Search absolute range, forward";
+        const char *test_name = "Search absolute range, forward (old 60.000 op/sec)";
         set_expected_results( // Check that no logs happen
             test_name, // test name
             NULL,   // error's list, It must not be any log error
@@ -129,14 +138,17 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
+        JSON_DECREF(callback_data)
+        callback_data = json_array();
+
         leidos = 0;
-        rowid = from_rowid;
+        counter_rowid = from_rowid;
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:I, s:I}",
             "from_rowid", (json_int_t)from_rowid,
             "to_rowid", (json_int_t)to_rowid
         );
-        json_t *data = NULL; //json_array();
+        json_t *data = json_array();
         json_t *iterator = tranger2_open_iterator(
             tranger,
             topic,
@@ -147,37 +159,43 @@ PRIVATE int do_test(void)
             data                    // data
         );
 
-print_json2("DATA", data); // TODO TEST
-
-        MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+        MT_INCREMENT_COUNT(time_measure, MAX_RECS)
         MT_PRINT_TIME(time_measure, test_name)
 
         result += tranger2_close_iterator(tranger, iterator);
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
+        /*
+         *  Test data
+         */
         json_t *matches = json_array();
         json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
-printf("XXXXXXXXXXXXXXXX %lld", t1);
         for(int i=0; i<MAX_RECS; i++){
             json_t *match = json_pack("{s:I}",
-                "", t1 + i
+                "tm", t1 + i
             );
             json_array_append_new(matches, match);
         }
-
-        result += test_list(data, matches);
+        result += test_list("data", data, matches);
         JSON_DECREF(matches)
         JSON_DECREF(data)
-//        uint64_t result[MAX_RECS];
-//        int max = sizeof(result)/sizeof(result[0]);
-//        for(int ii=0; ii<max; ii++) result[ii]=ii+from_rowid;
-//
-//        test_result(kw_get_list(tr_list, "data", 0, KW_REQUIRED), result, max);
-//
-//        printf("from %lu to %lu:\n", (unsigned long)from_rowid, (unsigned long)to_rowid);
-//        for(int ii=0; ii<max; ii++) printf("    %lu\n", (unsigned long)result[ii]);
-//        printf("\n");
 
-        result += test_json(NULL);  // NULL: we want to check only the logs
+        /*
+         *  Test callback data
+         */
+        matches = json_array();
+        t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++){
+            json_t *match = json_pack("{s:I, s:I}",
+                "rowid", from_rowid + i,
+                "t", t1 + i
+            );
+            json_array_append_new(matches, match);
+        }
+        result += test_list("callback_data", callback_data, matches);
+
+        JSON_DECREF(matches)
+        JSON_DECREF(callback_data)
     }
 
     /*-------------------------------------*

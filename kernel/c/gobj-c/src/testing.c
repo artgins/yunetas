@@ -43,7 +43,7 @@ PRIVATE BOOL match_list(
 /***************************************************************************
  *      Data
  ***************************************************************************/
-PRIVATE const char *name = "";
+PRIVATE const char *test_name = "";
 PRIVATE json_t *expected_log_messages = 0;
 PRIVATE json_t *unexpected_log_messages = 0;
 PRIVATE json_t *expected = 0;
@@ -470,10 +470,10 @@ PUBLIC void set_expected_results(
     BOOL verbose_
 )
 {
-    name = name_;
+    test_name = name_;
     verbose = verbose_;
     if(verbose) {
-        printf("Test '%s'\n", name?name:"");
+        printf("Test '%s'\n", test_name?test_name:"");
     }
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
@@ -497,7 +497,7 @@ PUBLIC int test_json_file(const char *file)
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test_name, Color_Off);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
         } else {
@@ -533,7 +533,7 @@ PUBLIC int test_json(json_t *jn_found)
     if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, name, Color_Off);
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test_name, Color_Off);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
         } else {
@@ -592,7 +592,7 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
  *  sizes of both must match
  *  keys in 'matches' must match with keys in 'list'
  ***************************************************************************/
-PUBLIC int test_list(json_t *list, json_t *matches)
+PUBLIC int test_list(const char *name, json_t *list, json_t *matches)
 {
     int ret = 0;
 
