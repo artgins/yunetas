@@ -139,7 +139,7 @@ int load_rango_callback(
     if(1) { //pinta_rows) {
         printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
     }
-    JSON_DECREF(record);
+    JSON_DECREF(record)
     return 1; // add to returned list
 }
 
