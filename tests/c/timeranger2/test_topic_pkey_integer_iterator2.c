@@ -53,12 +53,6 @@ PRIVATE int iterator_callback1(
     tm++;
     leidos++;
 
-    // TODO check leidos, que sea igual que el test de timeranger1
-//    if(leidos != md_record->__rowid__) {
-//        printf("ERROR en rowid, leidos %'d, rowid %'d\n", leidos, (int)md_record->__rowid__);
-//        //exit(-1);
-//    }
-
     JSON_DECREF(record)
     return 0;
 }
@@ -76,12 +70,6 @@ PRIVATE int iterator_callback2(
     t++;
     tm++;
     leidos++;
-
-    // TODO check leidos
-//    if(leidos != md_record->__rowid__) {
-//        printf("ERROR en rowid, leidos %'d, rowid %'d\n", leidos, (int)md_record->__rowid__);
-//        //exit(-1);
-//    }
 
     JSON_DECREF(record)
     return 0;

@@ -41,7 +41,7 @@ PRIVATE int load_rango_callback(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond,     // not yours, don't own
-    md2_record_t *md2_record,
+    md2_record_t *md_record,
     json_t *record,      // must be owned
     const char *key,
     json_int_t relative_rowid
@@ -51,11 +51,22 @@ PRIVATE int load_rango_callback(
     rowid++;
 
     if(1) { //pinta_rows) {
-        printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
-        print_json2("xxx", record);
+        char temp[1024];
+        print_md1_record(
+            tranger,
+            topic,
+            md_record,
+            key,
+            relative_rowid,
+            temp,
+            sizeof(temp)
+        );
+
+        printf("%s\n", temp);
+        //print_json2("xxx", record);
     }
     JSON_DECREF(record)
-    return 1; // add to returned list
+    return 0;
 }
 
 /***************************************************************************

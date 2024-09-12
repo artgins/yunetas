@@ -581,6 +581,48 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_t **record  // not yours, don't own
 );
 
+/*
+ *  print_md0_record: Print rowid, t, tm, key
+ *  print_md1_record: Print rowid, uflag, sflag, t, tm, key
+ *  print_md2_record: print rowid, offset, size, t, path
+ *  print_record_filename: Print path
+ */
+PUBLIC void print_md0_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+);
+PUBLIC void print_md1_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+);
+PUBLIC void print_md2_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+);
+
+PUBLIC void print_record_filename(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    char *bf,
+    int bfsize
+);
+
 PUBLIC void tranger2_set_trace_level(
     json_t *tranger,
     int trace_level

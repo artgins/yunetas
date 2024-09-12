@@ -1351,7 +1351,11 @@ static inline char *get_t_filename(
  *
  ***************************************************************************/
 PRIVATE int create_file(
-    hgobj gobj, json_t *tranger, json_t *topic, const char *key, const char *full_path
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *full_path
 )
 {
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -1726,8 +1730,8 @@ PRIVATE json_t *md2json(
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record->__offset__));
     json_object_set_new(jn_md, "size", json_integer((json_int_t)md_record->__size__));
-//  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(md_record->__user_flag__));
-//    json_object_set_new(jn_md, "__system_flag__", json_integer(md_record->__system_flag__));
+//  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(user_flag));
+//    json_object_set_new(jn_md, "__system_flag__", json_integer(system_flag));
 
     return jn_md;
 }
@@ -1966,7 +1970,7 @@ PUBLIC int tranger2_append_record(
         /*
          *  Saving: first compress, second encrypt (TODO sure this order?)
          */
-//        if(md_record->__system_flag__ & sf_zip_record) {
+//        if(system_flag & sf_zip_record) {
 //            // if(topic->compress_callback) { TODO
 //            //     gbuf = topic->compress_callback(
 //            //         topic,
@@ -1974,7 +1978,7 @@ PUBLIC int tranger2_append_record(
 //            //     );
 //            // }
 //        }
-//        if(md_record->__system_flag__ & sf_cipher_record) {
+//        if(system_flag & sf_cipher_record) {
 //            // if(topic->encrypt_callback) { TODO
 //            //     gbuf = topic->encrypt_callback(
 //            //         topic,
@@ -3748,7 +3752,7 @@ PUBLIC int tranger2_iterator_first(
         return -1;
     }
 
-    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_next_record(tranger, topic, md_record);
     //    }
 
@@ -3897,7 +3901,7 @@ PUBLIC int tranger2_iterator_next(
         return -1;
     }
 
-    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
@@ -4051,7 +4055,7 @@ PUBLIC int tranger2_iterator_prev(
         return -1;
     }
 
-    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_next_record(tranger, topic, md_record);
     //    }
 
@@ -4173,7 +4177,7 @@ PUBLIC int tranger2_iterator_last(
         return -1;
     }
 
-    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
@@ -4298,7 +4302,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
         return -1;
     }
 
-    // TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+    // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
@@ -4454,25 +4458,25 @@ PRIVATE BOOL match_record(
 // TODO
 //    if(kw_has_key(match_cond, "user_flag")) {
 //        uint32_t user_flag = kw_get_int(match_cond, "user_flag", 0, 0);
-//        if((md_record->__user_flag__ != user_flag)) {
+//        if((user_flag != user_flag)) {
 //            return FALSE;
 //        }
 //    }
 //    if(kw_has_key(match_cond, "not_user_flag")) {
 //        uint32_t not_user_flag = kw_get_int(match_cond, "not_user_flag", 0, 0);
-//        if((md_record->__user_flag__ == not_user_flag)) {
+//        if((user_flag == not_user_flag)) {
 //            return FALSE;
 //        }
 //    }
 //    if(kw_has_key(match_cond, "user_flag_mask_set")) {
 //        uint32_t user_flag_mask_set = kw_get_int(match_cond, "user_flag_mask_set", 0, 0);
-//        if((md_record->__user_flag__ & user_flag_mask_set) != user_flag_mask_set) {
+//        if((user_flag & user_flag_mask_set) != user_flag_mask_set) {
 //            return FALSE;
 //        }
 //    }
 //    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
 //        uint32_t user_flag_mask_notset = kw_get_int(match_cond, "user_flag_mask_notset", 0, 0);
-//        if((md_record->__user_flag__ | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
+//        if((user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
 //            return FALSE;
 //        }
 //    }
@@ -4987,7 +4991,7 @@ PRIVATE json_t *read_record_content(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-//// TODO   if(md_record->__system_flag__ & sf_deleted_record) {
+//// TODO   if(system_flag & sf_deleted_record) {
 ////        return 0;
 ////    }
 
@@ -5060,7 +5064,7 @@ PRIVATE json_t *read_record_content(
      *  Restoring: first decrypt, second decompress
      */
 
-//    if(md_record->__system_flag__ & sf_cipher_record) {
+//    if(system_flag & sf_cipher_record) {
 //        // if(topic->decrypt_callback) { TODO
 //        //     gbuf = topic->decrypt_callback(
 //        //         topic->user_data,
@@ -5069,7 +5073,7 @@ PRIVATE json_t *read_record_content(
 //        //     );
 //        // }
 //    }
-//    if(md_record->__system_flag__ & sf_zip_record) {
+//    if(system_flag & sf_zip_record) {
 //        // if(topic->decompress_callback) { TODO
 //        //     gbuf = topic->decompress_callback(
 //        //         topic->user_data,
@@ -5103,6 +5107,239 @@ PRIVATE json_t *read_record_content(
     }
 
     return jn_record;
+}
+
+/***************************************************************************
+ *  Print rowid, t, tm, key
+ ***************************************************************************/
+PUBLIC void print_md0_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+)
+{
+    char fecha[90];
+    char stamp[64];
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+
+    if(system_flag & sf2_t_ms) {
+        time_t t = (time_t)md_record->__t__;
+        t /= 1000;
+        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
+    } else {
+        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z",
+            localtime((time_t *)&md_record->__t__)
+        );
+    }
+
+    char fecha_tm[80];
+    if(system_flag & sf2_tm_ms) {
+        time_t t_m = (time_t)md_record->__tm__;
+        t_m /= 1000;
+        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S%z", gmtime(&t_m));
+    } else {
+        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%S%z",
+            gmtime((time_t *)&md_record->__tm__)
+        );
+    }
+
+    system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
+
+    if(key_type & (sf2_int_key)) {
+        snprintf(bf, bfsize,
+            "rowid:%"PRIu64", "
+            "t:%"PRIu64" %s, "
+            "tm:%"PRIu64" %s, "
+            "key: %"PRIu64,
+            (uint64_t)rowid,
+            (uint64_t)md_record->__t__,
+            fecha,
+            (uint64_t)md_record->__tm__,
+            fecha_tm,
+            (uint64_t)key
+        );
+    } else if(key_type & sf2_string_key) {
+        snprintf(bf, bfsize,
+            "rowid:%"PRIu64", "
+            "t:%"PRIu64" %s, "
+            "tm:%"PRIu64" %s, "
+            "key:'%s'",
+            (uint64_t)rowid,
+            (uint64_t)md_record->__t__,
+            fecha,
+            (uint64_t)md_record->__tm__,
+            fecha_tm,
+            key
+        );
+    } else {
+        gobj_log_error(0, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "BAD metadata, without key type",
+            "topic",        "%s", tranger2_topic_name(topic),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  Print rowid, uflag, sflag, t, tm, key
+ ***************************************************************************/
+PUBLIC void print_md1_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+)
+{
+    struct tm *tm;
+    char fecha[90];
+    char stamp[64];
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    unsigned user_flag = 0; // TODO
+
+    if(system_flag & sf2_t_ms) {
+        time_t t = (time_t)md_record->__t__;
+        unsigned ms = t % 1000;
+        t /= 1000;
+        tm = gmtime(&t);
+        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
+        snprintf(fecha, sizeof(fecha), "%s.%03uZ", stamp, ms);
+    } else {
+        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&md_record->__t__));
+    }
+
+    char fecha_tm[80];
+    if(system_flag & sf2_tm_ms) {
+        time_t t_m = (time_t)md_record->__tm__;
+        unsigned ms = t_m % 1000;
+        time_t t_m_ = t_m/1000;
+        tm = gmtime(&t_m_);
+        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
+        snprintf(fecha_tm, sizeof(fecha_tm), "%s.%03uZ", stamp, ms);
+    } else {
+        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&md_record->__tm__));
+    }
+
+    system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
+
+    if(key_type & (sf2_int_key)) {
+        snprintf(bf, bfsize,
+            "rowid:%"PRIu64", "
+            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
+            "t:%"PRIu64" %s, "
+            "tm:%"PRIu64" %s, "
+            "key: %"PRIu64,
+            (uint64_t)rowid,
+            user_flag,
+            system_flag,
+            (uint64_t)md_record->__t__,
+            fecha,
+            (uint64_t)md_record->__tm__,
+            fecha_tm,
+            (uint64_t)key
+        );
+    } else if(key_type & sf2_string_key) {
+        snprintf(bf, bfsize,
+            "rowid:%"PRIu64", "
+            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
+            "t:%"PRIu64" %s, "
+            "tm:%"PRIu64" %s, "
+            "key:'%s'",
+            (uint64_t)rowid,
+            user_flag,
+            system_flag,
+            (uint64_t)md_record->__t__,
+            fecha,
+            (uint64_t)md_record->__tm__,
+            fecha_tm,
+            key
+        );
+    } else {
+        gobj_log_error(0, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "BAD metadata, without key type",
+            "topic",        "%s", tranger2_topic_name(topic),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  print rowid, offset, size, t, path
+ ***************************************************************************/
+PUBLIC void print_md2_record(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    const char *key,
+    json_int_t rowid,
+    char *bf,
+    int bfsize
+)
+{
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+
+    time_t t = (time_t)md_record->__t__;
+    uint64_t offset = md_record->__offset__;
+    uint64_t size = md_record->__size__;
+
+    char path[PATH_MAX];
+    get_t_filename(
+        bf,
+        bfsize,
+        tranger,
+        topic,
+        TRUE,   // TRUE for data, FALSE for md2
+        (system_flag & sf2_t_ms)? t/1000:t  // WARNING must be in seconds!
+    );
+
+    snprintf(bf, bfsize,
+        "rowid:%"PRIu64", ofs:%"PRIu64", sz:%-5"PRIu64", "
+        "t:%"PRIu64", "
+        "f:%s",
+        (uint64_t)rowid,
+        offset,
+        size,
+        (uint64_t)t,
+        path
+    );
+}
+
+/***************************************************************************
+ *  Print path
+ ***************************************************************************/
+PUBLIC void print_record_filename(
+    json_t *tranger,
+    json_t *topic,
+    const md2_record_t *md_record,
+    char *bf,
+    int bfsize
+)
+{
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+
+    time_t t = (time_t)md_record->__t__;
+    get_t_filename(
+        bf,
+        bfsize,
+        tranger,
+        topic,
+        TRUE,   // TRUE for data, FALSE for md2
+        (system_flag & sf2_t_ms)? t/1000:t  // WARNING must be in seconds!
+    );
 }
 
 /***************************************************************************
