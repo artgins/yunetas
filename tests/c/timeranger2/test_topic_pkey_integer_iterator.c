@@ -99,7 +99,7 @@ PRIVATE int do_test(void)
     }
 
     /*--------------------------------------------------------------------*
-     *  Create an iterator, no callback, match_cond NULL (use defaults)
+     *  Open an iterator, no callback, match_cond NULL (use defaults)
      *--------------------------------------------------------------------*/
     time_measure_t time_measure;
     MT_START_TIME(time_measure)

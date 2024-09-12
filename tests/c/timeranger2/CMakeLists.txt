@@ -24,6 +24,7 @@ set(SRCS
     test_topic_pkey_integer.c
     test_topic_pkey_integer_iterator.c
     test_topic_pkey_integer_iterator2.c
+    test_topic_pkey_integer_iterator3.c
 )
 
 ##############################################

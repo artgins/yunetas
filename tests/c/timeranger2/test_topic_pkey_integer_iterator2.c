@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator2.c
  *
- *  - do_test: Open as master, open iterator (realtime by disk) with callback
+ *  - do_test: Open as master, open iterator without match_cond (all records)  with callback
+ *    and realtime by disk
  *
  *          Copyright (c) 2024 Niyamaka.
  *          All Rights Reserved.
@@ -37,7 +38,6 @@ PRIVATE int global_result = 0;
 PRIVATE json_int_t tm = 0;
 PRIVATE uint64_t t = 0;
 PRIVATE uint64_t leidos = 0;
-PRIVATE json_int_t rowid = 0;
 
 PRIVATE int iterator_callback1(
     json_t *tranger,
@@ -87,27 +87,6 @@ PRIVATE int iterator_callback2(
     return 0;
 }
 
-PRIVATE int load_rango_callback(
-    json_t *tranger,
-    json_t *topic,
-    json_t *match_cond,     // not yours, don't own
-    md2_record_t *md2_record,
-    json_t *record,      // must be owned
-    const char *key,
-    json_int_t relative_rowid
-)
-{
-    leidos++;
-    rowid++;
-
-    if(1) { //pinta_rows) {
-        printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
-        print_json2("xxx", record);
-    }
-    JSON_DECREF(record)
-    return 1; // add to returned list
-}
-
 /***************************************************************************
  *              Test
  *  Open as master, open iterator (realtime by disk) with callback
@@ -150,7 +129,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*--------------------------------------------------------------------*
-     *  Create an iterator, no callback, match_cond NULL (use defaults)
+     *  Open an iterator, no callback, match_cond NULL (use defaults)
      *--------------------------------------------------------------------*/
     set_expected_results( // Check that no logs happen
         "open iterator", // test name
@@ -496,221 +475,6 @@ PRIVATE int do_test(void)
     result += tranger2_close_iterator(tranger, iterator1);
     result += tranger2_close_iterator(tranger, iterator2);
     result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
-     *  Search absolute range, forward
-     *-------------------------------------*/
-    if(1) {
-        const char *test_name = "Search absolute range, forward";
-        set_expected_results( // Check that no logs happen
-            test_name, // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-
-        json_int_t from_rowid = MAX_RECORDS/2 + 1;
-        json_int_t to_rowid = MAX_RECORDS/2 + MAX_RECS;
-
-        MT_START_TIME(time_measure)
-
-        leidos = 0;
-        rowid = from_rowid;
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-        json_t *match_cond = json_pack("{s:I, s:I}",
-            "from_rowid", (json_int_t)from_rowid,
-            "to_rowid", (json_int_t)to_rowid
-        );
-        json_t *data = NULL; //json_array();
-        json_t *iterator = tranger2_open_iterator(
-            tranger,
-            topic,
-            "0000000000000000001",  // key
-            match_cond,             // match_cond, owned
-            load_rango_callback,    // load_record_callback
-            NULL,                   // id
-            data                    // data
-        );
-
-print_json2("DATA", data); // TODO TEST
-
-        MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
-        MT_PRINT_TIME(time_measure, test_name)
-
-        result += tranger2_close_iterator(tranger, iterator);
-
-        json_t *matches = json_array();
-        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
-printf("XXXXXXXXXXXXXXXX %lld", t1);
-        for(int i=0; i<MAX_RECS; i++){
-            json_t *match = json_pack("{s:I}",
-                "", t1 + i
-            );
-            json_array_append_new(matches, match);
-        }
-
-        result += test_list(data, matches);
-        JSON_DECREF(matches)
-        JSON_DECREF(data)
-//        uint64_t result[MAX_RECS];
-//        int max = sizeof(result)/sizeof(result[0]);
-//        for(int ii=0; ii<max; ii++) result[ii]=ii+from_rowid;
-//
-//        test_result(kw_get_list(tr_list, "data", 0, KW_REQUIRED), result, max);
-//
-//        printf("from %lu to %lu:\n", (unsigned long)from_rowid, (unsigned long)to_rowid);
-//        for(int ii=0; ii<max; ii++) printf("    %lu\n", (unsigned long)result[ii]);
-//        printf("\n");
-
-        result += test_json(NULL);  // NULL: we want to check only the logs
-    }
-
-    /*-------------------------------------*
-     *  Search Absolute range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = appends/2 + 1;
-//    json_int_t to_rowid = appends/2 + MAX_RECS;
-
-    /*-------------------------------------*
-     *  Search Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -20;
-//    json_int_t to_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search Relative range, backward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -20;
-//    json_int_t to_rowid = -10;
-
-    /*-------------------------------------*
-     *  Search BAD Relative range, forward
-     *-------------------------------------*/
-//    json_int_t from_rowid = -10;
-//    json_int_t to_rowid = -20;
-
-    /*-------------------------------------*
-     *      Search by rowid
-     *-------------------------------------*/
-//    json_int_t key = appends/2 + 1;
-
-    /*-------------------------------------*
-     *      Open rt list
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "open rt list 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    all_leidos = 0;
-//    one_leidos = 0;
-//
-//    json_t *tr_list = tranger2_open_rt_list(
-//        tranger,
-//        TOPIC_NAME,
-//        "",             // key
-//        all_load_record_callback,
-//        ""              // list id
-//    );
-//
-//    tranger2_open_rt_list(
-//        tranger,
-//        TOPIC_NAME,
-//        "0000000000000000001",       // key
-//        one_load_record_callback,
-//        "list2"              // list id
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
-     *      Add records
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "append records 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
-//    for(json_int_t i=0; i<MAX_KEYS; i++) {
-//        uint64_t tm = t1;
-//        for(json_int_t j=0; j<MAX_RECORDS; j++) {
-//            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-//               "id", i + 1,
-//               "tm", tm+j,
-//               "content",
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
-//            );
-//            md2_record_t md_record;
-//            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
-//        }
-//    }
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
-     *      Close rt lists
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "close rt lists 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    tranger2_close_rt_list(
-//        tranger,
-//        tr_list
-//    );
-//
-//    json_t *list2 =tranger2_get_rt_list_by_id(
-//        tranger,
-//        "list2"
-//    );
-//    tranger2_close_rt_list(
-//        tranger,
-//        list2
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-//
-//    if(all_leidos != MAX_KEYS*MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//           (int)all_leidos, MAX_KEYS*MAX_RECORDS
-//        );
-//        result += -1;
-//    }
-//
-//    if(one_leidos != MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//            (int)one_leidos, MAX_RECORDS
-//        );
-//        result += -1;
-//    }
-
-    /*-------------------------------*
-     *  tranger_backup_topic
-     *-------------------------------*/
-    // TODO old test in test_timeranger2.c
 
     /*-------------------------------*
      *      Shutdown timeranger
