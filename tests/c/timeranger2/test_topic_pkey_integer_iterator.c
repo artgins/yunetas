@@ -222,7 +222,8 @@ int do_test(void)
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
-        NULL    // iterator id
+        NULL,   // iterator id
+        NULL    // data
     );
     result += test_json(NULL);  // NULL: we want to check only the logs
     if(!iterator) {
@@ -485,7 +486,8 @@ int do_test2(void)
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
-        "it1"
+        "it1",
+        NULL
     );
 
     json_t *iterator1 = tranger2_get_iterator_by_id(tranger, "it1");
@@ -511,7 +513,8 @@ int do_test2(void)
         "0000000000000000002",     // key,
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
-        NULL
+        NULL,   // id
+        NULL    // data
     );
 
     if(tm != 946774799) {
@@ -556,8 +559,9 @@ int do_test2(void)
         tranger2_topic(tranger, TOPIC_NAME),
         "0000000000000000002",     // key,
         NULL,   // match_cond, owned
-        NULL,    // load_record_callback
-        NULL
+        NULL,   // load_record_callback
+        NULL,   // id
+        NULL    // data
     );
     if(iterator22) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "Repeat iterator must be null", Color_Off);
@@ -832,10 +836,11 @@ int do_test2(void)
         json_t *iterator = tranger2_open_iterator(
             tranger,
             topic,
-            "0000000000000000001",     // key,
+            "0000000000000000001",  // key
             match_cond,             // match_cond, owned
             load_rango_callback,    // load_record_callback
-            NULL
+            NULL,                   // id
+            NULL                    // data
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)

@@ -475,13 +475,14 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         user_flag_mask_notset
 
 **rst**/
-PUBLIC json_t *tranger2_open_iterator(
+PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDING: add real time data
     json_t *tranger,
     json_t *topic,
     const char *key,
     json_t *match_cond,  // owned
-    tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
-    const char *iterator_id     // iterator id, optional
+    tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING new record
+    const char *iterator_id,     // iterator id, optional, if empty will be the key
+    json_t *data    // JSON array, if not empty, fills it with the LOADING data, not owned
 );
 
 /**rst**
