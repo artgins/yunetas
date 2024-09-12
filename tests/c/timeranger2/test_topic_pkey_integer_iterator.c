@@ -29,11 +29,6 @@ PUBLIC void yuno_catch_signals(void);
  *              Data
  ***************************************************************/
 PRIVATE yev_loop_t *yev_loop;
-PRIVATE yev_event_t *yev_event_once;
-PRIVATE yev_event_t *yev_event_periodic;
-PRIVATE int wait_time = 1;
-PRIVATE int times_once = 0;
-PRIVATE int times_periodic = 0;
 
 /***************************************************************************
  *
