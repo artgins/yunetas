@@ -138,6 +138,7 @@ int load_rango_callback(
     leidos++;
     if(1) { //pinta_rows) {
         printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
+        print_json2("xxx", record);
     }
     JSON_DECREF(record)
     return 1; // add to returned list

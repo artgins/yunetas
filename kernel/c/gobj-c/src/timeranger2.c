@@ -4196,7 +4196,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     json_int_t cur_rowid = rowid;
 
     /*
-     *  Save the pointer
+     *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
