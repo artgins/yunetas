@@ -509,6 +509,23 @@ PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 );
 
+PUBLIC size_t tranger2_iterator_first_t(
+    json_t *tranger,
+    json_t *iterator
+);
+PUBLIC size_t tranger2_iterator_last_t(
+    json_t *tranger,
+    json_t *iterator
+);
+PUBLIC size_t tranger2_iterator_first_tm(
+    json_t *tranger,
+    json_t *iterator
+);
+PUBLIC size_t tranger2_iterator_last_tm(
+    json_t *tranger,
+    json_t *iterator
+);
+
 /**rst**
     Get metadata/record of first row in iterator
 **rst**/
