@@ -3369,22 +3369,22 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
 
         if(!backward) {
-            json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
-            if(from_rowid>0) {
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, from_rowid, &md_record, precord);
-            } else if(from_rowid<0 && (total_rows + from_rowid)>0) {
-                from_rowid = total_rows + from_rowid;
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, from_rowid, &md_record, precord);
+            rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
+            if(rowid>0) {
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
+            } else if(rowid<0 && (total_rows + rowid)>0) {
+                rowid = total_rows + rowid;
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
             } else {
                 end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
             }
         } else {
-            json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
-            if(to_rowid>0) {
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, to_rowid, &md_record, precord);
-            } else if(to_rowid<0 && (total_rows + to_rowid)>0) {
-                to_rowid = total_rows + to_rowid;
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, to_rowid, &md_record, precord);
+            rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
+            if(rowid>0) {
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
+            } else if(rowid<0 && (total_rows + rowid)>0) {
+                rowid = total_rows + rowid;
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
             } else {
                 end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
             }
@@ -4338,14 +4338,14 @@ PRIVATE BOOL match_record(
 
     json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
 
-    if(from_rowid >= 0) {
+    if(from_rowid > 0) {
         if(rowid < from_rowid) {
             if(backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(from_rowid < 0){
         uint64_t x = total_rows + from_rowid;
         if(rowid <= x) {
             if(backward) {
@@ -4356,14 +4356,14 @@ PRIVATE BOOL match_record(
     }
 
     json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-    if(to_rowid >= 0) {
+    if(to_rowid > 0) {
         if(rowid > to_rowid) {
             if(!backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(to_rowid < 0) {
         uint64_t x = total_rows + to_rowid;
         if(rowid > x) {
             if(!backward) {
@@ -4375,14 +4375,14 @@ PRIVATE BOOL match_record(
 
     json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
 
-    if(from_t >= 0) {
+    if(from_t > 0) {
         if(md_record->__t__ < from_t) {
             if(backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(from_t < 0) {
         uint64_t x = last_t + from_t;
         if(md_record->__t__ <= x) {
             if(backward) {
@@ -4396,14 +4396,14 @@ PRIVATE BOOL match_record(
 
     json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
 
-    if(to_t >= 0) {
+    if(to_t > 0) {
         if(md_record->__t__ > to_t) {
             if(!backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(to_t < 0) {
         uint64_t x = last_t + to_t;
         if(md_record->__t__ > x) {
             if(!backward) {
@@ -4415,14 +4415,14 @@ PRIVATE BOOL match_record(
 
     json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
 
-    if(from_tm >= 0) {
+    if(from_tm > 0) {
         if(md_record->__tm__ < from_tm) {
             if(backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(from_tm < 0) {
         uint64_t x = last_tm + from_tm;
         if(md_record->__tm__ <= x) {
             if(backward) {
@@ -4434,14 +4434,14 @@ PRIVATE BOOL match_record(
 
     json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
 
-    if(to_tm >= 0) {
+    if(to_tm > 0) {
         if(md_record->__tm__ > to_tm) {
             if(!backward) {
                 *end = TRUE;
             }
             return FALSE;
         }
-    } else {
+    } else if(to_tm < 0) {
         uint64_t x = last_tm + to_tm;
         if(md_record->__tm__ > x) {
             if(!backward) {
