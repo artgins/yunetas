@@ -597,7 +597,7 @@ PUBLIC int test_list(json_t *list, json_t *matches)
     int ret = 0;
 
     if(json_array_size(list) != json_array_size(matches)) {
-        printf("%s  --> ERROR in test: '%s'%s, sizes don't match\n", On_Red BWhite, name, Color_Off);
+        printf("%s  --> ERROR%s in test: '%s', sizes don't match\n", On_Red BWhite, Color_Off, name);
         ret += -1;
     }
 
@@ -619,8 +619,8 @@ PUBLIC int test_list(json_t *list, json_t *matches)
                 char *expected_ = json2uglystr(value);
                 char *found = json2uglystr(value_);
                 // Error already logged with sizes don't match
-                printf("%s  --> ERROR in test: '%s'%s, %s don't match, idx %d, expected %s, found %s\n",
-                    On_Red BWhite, name, Color_Off, key, idx, expected_, found
+                printf("%s  --> ERROR%s in test: '%s', %s don't match, idx %d, expected %s, found %s\n",
+                    On_Red BWhite, Color_Off, name, key, idx, expected_, found
                 );
                 ret += -1;
                 GBMEM_FREE(expected_)

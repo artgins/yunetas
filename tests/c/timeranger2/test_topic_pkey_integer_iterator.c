@@ -844,6 +844,8 @@ int do_test2(void)
             data                    // data
         );
 
+print_json2("DATA", data); // TODO TEST
+
         MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
         MT_PRINT_TIME(time_measure, test_name)
 
