@@ -3371,22 +3371,27 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             // TODO if match_record
             if(1) {
                 // Inform to the user list: record in real time
-                int ret = load_record_callback(
-                    tranger,
-                    topic,
-                    match_cond,
-                    &md_record,
-                    record, // must be owned
-                    key,    // key
-                    rowid   // relative_rowid
-                );
-                /*
-                 *  Return:
-                 *      0 do nothing (callback will create their own list, or not),
-                 *      -1 break the load
-                 */
-                if(ret < 0) {
-                    break;
+                if(load_record_callback) {
+                    int ret = load_record_callback(
+                        tranger,
+                        topic,
+                        match_cond,
+                        &md_record,
+                        record, // must be owned
+                        key,    // key
+                        rowid   // relative_rowid
+                    );
+                    /*
+                     *  Return:
+                     *      0 do nothing (callback will create their own list, or not),
+                     *      -1 break the load
+                     */
+                    if(ret < 0) {
+                        break;
+                    }
+                }
+                if(data) {
+                    json_array_append(data, record);
                 }
             }
 
