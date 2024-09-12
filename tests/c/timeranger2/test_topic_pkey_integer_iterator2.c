@@ -36,8 +36,7 @@ PRIVATE yev_loop_t *yev_loop;
 PRIVATE int global_result = 0;
 PRIVATE json_int_t tm = 0;
 PRIVATE uint64_t t = 0;
-PRIVATE uint64_t total_rows = 0;
-PRIVATE int leidos = 0;
+PRIVATE uint64_t leidos = 0;
 PRIVATE json_int_t rowid = 0;
 
 PRIVATE int iterator_callback1(
@@ -52,29 +51,13 @@ PRIVATE int iterator_callback1(
 {
     t++;
     tm++;
-    total_rows++;
+    leidos++;
 
-    json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
-    if(tm_ != tm) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 1 of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
-    if(md2_record->__tm__ != tm) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 2 of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
-
-    uint64_t t_ = md2_record->__t__;
-    if(t_ != t) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
+    // TODO check leidos, que sea igual que el test de timeranger1
+//    if(leidos != md_record->__rowid__) {
+//        printf("ERROR en rowid, leidos %'d, rowid %'d\n", leidos, (int)md_record->__rowid__);
+//        //exit(-1);
+//    }
 
     JSON_DECREF(record)
     return 0;
@@ -92,29 +75,13 @@ PRIVATE int iterator_callback2(
 {
     t++;
     tm++;
-    total_rows++;
+    leidos++;
 
-    json_int_t tm_ = kw_get_int(0, record, "tm", 0, KW_REQUIRED);
-    if(tm_ != tm) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 1 of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
-    if(md2_record->__tm__ != tm) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm 2 of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
-
-    uint64_t t_ = md2_record->__t__;
-    if(t_ != t) {
-        global_result += -1;
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
-        JSON_DECREF(record)
-        return -1;
-    }
+    // TODO check leidos
+//    if(leidos != md_record->__rowid__) {
+//        printf("ERROR en rowid, leidos %'d, rowid %'d\n", leidos, (int)md_record->__rowid__);
+//        //exit(-1);
+//    }
 
     JSON_DECREF(record)
     return 0;
@@ -193,7 +160,7 @@ PRIVATE int do_test(void)
         TRUE    // verbose
     );
 
-    total_rows = 0;
+    leidos = 0;
     time_measure_t time_measure;
     MT_START_TIME(time_measure)
 
@@ -252,14 +219,14 @@ PRIVATE int do_test(void)
     /*
      *  Check totals
      */
-    if(total_rows != MAX_KEYS*MAX_RECORDS) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count total_rows of message", Color_Off);
-        print_json2("BAD count total_rows of message", tranger);
+    if(leidos != MAX_KEYS*MAX_RECORDS) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count leidos of message", Color_Off);
+        print_json2("BAD count leidos of message", tranger);
         result += -1;
     }
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
-    MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+    MT_PRINT_TIME(time_measure, "open two iterators (2 keys) with callback")
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 

@@ -101,8 +101,11 @@ PRIVATE int do_test(void)
     /*--------------------------------------------------------------------*
      *  Create an iterator, no callback, match_cond NULL (use defaults)
      *--------------------------------------------------------------------*/
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
     set_expected_results( // Check that no logs happen
-        "create iterator without callback neither data", // test name
+        "open iterator without callback neither data", // test name
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -117,6 +120,10 @@ PRIVATE int do_test(void)
         NULL,   // iterator id
         NULL    // data
     );
+
+    MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
+    MT_PRINT_TIME(time_measure, "open iterator without callback neither data")
+
     result += test_json(NULL);  // NULL: we want to check only the logs
     if(!iterator) {
         tranger2_shutdown(tranger);

@@ -3365,8 +3365,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         BOOL end;
         json_int_t total_rows = (json_int_t)tranger2_iterator_size(tranger, iterator);
-        json_int_t last_t = (json_int_t)tranger2_iterator_size(tranger, iterator);
-        json_int_t last_tm = (json_int_t)tranger2_iterator_size(tranger, iterator);
+        json_int_t last_t = (json_int_t)tranger2_iterator_last_t(tranger, iterator);
+        json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
 
         if(!backward) {
             json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
@@ -3574,7 +3574,7 @@ PUBLIC size_t tranger2_iterator_size(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC size_t tranger2_iterator_first_t(
+PUBLIC json_int_t tranger2_iterator_first_t(
     json_t *tranger,
     json_t *iterator
 )
@@ -3587,14 +3587,13 @@ PUBLIC size_t tranger2_iterator_first_t(
     }
 
     json_t *segment = json_array_get(segments, 0);
-    size_t first_rowid = (size_t)kw_get_int(gobj, segment, "fr_t", 0, KW_REQUIRED);
-    return first_rowid;
+    return kw_get_int(gobj, segment, "fr_t", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC size_t tranger2_iterator_last_t(
+PUBLIC json_int_t tranger2_iterator_last_t(
     json_t *tranger,
     json_t *iterator
 )
@@ -3607,14 +3606,13 @@ PUBLIC size_t tranger2_iterator_last_t(
     }
 
     json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    size_t last_rowid = (size_t)kw_get_int(gobj, segment, "to_t", 0, KW_REQUIRED);
-    return last_rowid;
+    return kw_get_int(gobj, segment, "to_t", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
  *  Get first_t
  ***************************************************************************/
-PUBLIC size_t tranger2_iterator_first_tm(
+PUBLIC json_int_t tranger2_iterator_first_tm(
     json_t *tranger,
     json_t *iterator
 )
@@ -3627,14 +3625,13 @@ PUBLIC size_t tranger2_iterator_first_tm(
     }
 
     json_t *segment = json_array_get(segments, 0);
-    size_t first_rowid = (size_t)kw_get_int(gobj, segment, "fr_tm", 0, KW_REQUIRED);
-    return first_rowid;
+    return kw_get_int(gobj, segment, "fr_tm", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
- *  Get last_t
+ *
  ***************************************************************************/
-PUBLIC size_t tranger2_iterator_last_tm(
+PUBLIC json_int_t tranger2_iterator_last_tm(
     json_t *tranger,
     json_t *iterator
 )
@@ -3647,8 +3644,7 @@ PUBLIC size_t tranger2_iterator_last_tm(
     }
 
     json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    size_t last_rowid = (size_t)kw_get_int(gobj, segment, "to_tm", 0, KW_REQUIRED);
-    return last_rowid;
+    return kw_get_int(gobj, segment, "to_tm", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -4546,11 +4542,11 @@ PRIVATE json_t *get_segments(
      *-------------------------------------*/
     json_int_t from_rowid = 0;
     json_t *jn_from_rowid = json_object_get(match_cond, "from_rowid");
-    if(json_is_integer(jn_from_rowid)) {
-        from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    } else {
+    if(json_is_string(jn_from_rowid)) {
         from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
         json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    } else {
+        from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
     }
     if(from_rowid == 0) {
         from_rowid = 1;
@@ -4572,11 +4568,11 @@ PRIVATE json_t *get_segments(
 
     json_int_t to_rowid = 0;
     json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
-    if(json_is_integer(jn_to_rowid)) {
-        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-    } else {
+    if(json_is_string(jn_to_rowid)) {
         to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
         json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    } else {
+        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
     }
     if(to_rowid == 0) {
         to_rowid = total_rows;
