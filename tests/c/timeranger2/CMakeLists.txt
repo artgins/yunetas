@@ -23,6 +23,7 @@ set(SRCS
     test_tranger_startup.c
     test_topic_pkey_integer.c
     test_topic_pkey_integer_iterator.c
+    test_topic_pkey_integer_iterator2.c
 )
 
 ##############################################
