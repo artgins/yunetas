@@ -5150,25 +5150,12 @@ PUBLIC void print_md0_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf2_int_key)) {
+    if(key_type & (sf2_int_key|sf2_string_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
-            "key: %"PRIu64,
-            (uint64_t)rowid,
-            (uint64_t)md_record->__t__,
-            fecha,
-            (uint64_t)md_record->__tm__,
-            fecha_tm,
-            (uint64_t)key
-        );
-    } else if(key_type & sf2_string_key) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key:'%s'",
+            "key: %s",
             (uint64_t)rowid,
             (uint64_t)md_record->__t__,
             fecha,
@@ -5233,29 +5220,13 @@ PUBLIC void print_md1_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf2_int_key)) {
+    if(key_type & (sf2_int_key|sf2_string_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
-            "key: %"PRIu64,
-            (uint64_t)rowid,
-            user_flag,
-            system_flag,
-            (uint64_t)md_record->__t__,
-            fecha,
-            (uint64_t)md_record->__tm__,
-            fecha_tm,
-            (uint64_t)key
-        );
-    } else if(key_type & sf2_string_key) {
-        snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
-            "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
-            "t:%"PRIu64" %s, "
-            "tm:%"PRIu64" %s, "
-            "key:'%s'",
+            "key: %s",
             (uint64_t)rowid,
             user_flag,
             system_flag,
