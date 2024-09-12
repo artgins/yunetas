@@ -102,7 +102,7 @@ PRIVATE int do_test(void)
      *  Create an iterator, no callback, match_cond NULL (use defaults)
      *--------------------------------------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "create iterator", // test name
+        "create iterator without callback neither data", // test name
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys

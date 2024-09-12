@@ -570,9 +570,10 @@ print_json2("DATA", data); // TODO TEST
         result += tranger2_close_iterator(tranger, iterator);
 
         json_t *matches = json_array();
+        json_int_t t1 = 946684800; // 2000-01-01T00:00:00+0000
         for(int i=0; i<MAX_RECS; i++){
             json_t *match = json_pack("{s:I}",
-                "", (json_int_t)0
+                "", t1 + i
             );
             json_array_append_new(matches, match);
         }
