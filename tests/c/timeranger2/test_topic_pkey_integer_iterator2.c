@@ -226,7 +226,7 @@ PRIVATE int do_test(void)
     }
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
-    MT_PRINT_TIME(time_measure, "open two iterators (2 keys) with callback")
+    MT_PRINT_TIME(time_measure, "open two iterators (2 keys) with callback (old=98.000 op/sec)")
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
