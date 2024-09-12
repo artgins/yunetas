@@ -833,7 +833,7 @@ int do_test2(void)
             "from_rowid", (json_int_t)from_rowid,
             "to_rowid", (json_int_t)to_rowid
         );
-        json_t *data = json_array();
+        json_t *data = NULL; //json_array();
         json_t *iterator = tranger2_open_iterator(
             tranger,
             topic,
