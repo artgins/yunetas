@@ -4366,7 +4366,7 @@ PRIVATE json_t *get_segments(
     }
 
     if(to_t == 0) {
-        from_t = total_to_t;
+        to_t = total_to_t;
     } else {
         if(to_t > total_to_t) {
             // out of range, begin at the end
@@ -4452,17 +4452,17 @@ PRIVATE json_t *get_segments(
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
-            BOOL matched = TRUE;
-            json_int_t first_row = partial_rows2;               // first row of this segment
-            json_int_t last_row = partial_rows2 + rows2 - 1;    // last row of this segment
-            matched &= (first_row >= from_rowid);
-            matched &= (last_row <= to_rowid);
+            BOOL matched = FALSE;
+            json_int_t first_row_segment = partial_rows2;               // first row of this segment
+            json_int_t last_row_segment = partial_rows2 + rows2 - 1;    // last row of this segment
+            matched |= (from_rowid >= first_row_segment);
+            matched |= (to_rowid <= last_row_segment);
             // TODO check t tm system_flag user_flag
 
             if(matched) {
                 json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(first_row));
-                json_object_set_new(jn_segment, "last_row", json_integer(last_row));
+                json_object_set_new(jn_segment, "first_row", json_integer(first_row_segment));
+                json_object_set_new(jn_segment, "last_row", json_integer(last_row_segment));
                 json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }
@@ -4479,17 +4479,17 @@ PRIVATE json_t *get_segments(
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
-            BOOL matched = TRUE;
-            json_int_t first_row = partial_rows2 - rows2;   // first row of this segment
-            json_int_t last_row = partial_rows2;            // last row of this segment
-            matched &= (first_row >= from_rowid);
-            matched &= (last_row <= to_rowid);
+            BOOL matched = FALSE;
+            json_int_t first_row_segment = partial_rows2 - rows2;   // first row of this segment
+            json_int_t last_row_segment = partial_rows2;            // last row of this segment
+            matched |= (from_rowid >= first_row_segment);
+            matched |= (to_rowid <= last_row_segment);
             // TODO check t tm system_flag user_flag
 
             if(matched) {
                 json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(first_row));
-                json_object_set_new(jn_segment, "last_row", json_integer(last_row));
+                json_object_set_new(jn_segment, "first_row", json_integer(first_row_segment));
+                json_object_set_new(jn_segment, "last_row", json_integer(last_row_segment));
                 json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }

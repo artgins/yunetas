@@ -357,7 +357,7 @@ PRIVATE int list_topics(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int load_record_callback(
+PUBLIC int TODO_load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond, // not yours, don't own
@@ -512,7 +512,7 @@ PRIVATE int list_messages(void)
     char *path = arguments.path;
     char *database = arguments.database;
     char *topic_name = arguments.topic;
-    int verbose = arguments.verbose;
+//    int verbose = arguments.verbose;
 
     /*-------------------------------*
      *      Startup TimeRanger
