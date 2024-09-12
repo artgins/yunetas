@@ -131,6 +131,12 @@ PRIVATE json_int_t get_segment_of_rowid(
     json_t *segments,
     json_int_t rowid
 );
+PRIVATE BOOL match_record(
+    BOOL backward,
+    const md2_record_t *md_record,
+    json_t *match_cond,  // not owned
+    BOOL *end
+);
 
 
 /***************************************************************
@@ -2837,8 +2843,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
 
     if(0) {
         // TODO get updated data from disk
-        //BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
-        //BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+        //BOOL only_md = json_boolean_value(json_object_get(match_cond, "only_md"));
+        //BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
         json_int_t rowid = 0;
         md2_record_t md_record = {0};
@@ -3310,16 +3316,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         tranger,
         topic,
         key,
-        match_cond  // NOT owned
+        match_cond  // NOT owned but can be modified (times in string)
     );
-
-    if(json_array_size(segments)==0) {
-        // NO match
-        // TODO revisa los retornos cuando no hay records
-//        JSON_DECREF(segments)
-//        JSON_DECREF(match_cond)
-//        return NULL;
-    }
 
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
@@ -3346,8 +3344,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
      *          - get records in realtime, listening to changes in disk
      *-------------------------------------------------------------------------*/
     if(load_record_callback || data) {
-        BOOL only_md = kw_get_bool(gobj, match_cond, "only_md", 0, 0);
-        BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+        BOOL only_md = json_boolean_value(json_object_get(match_cond, "only_md"));
+        BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
         /*---------------------------*
          *      History
@@ -3362,12 +3360,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         BOOL end;
-//        if(!backward) {
-//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
-//        } else {
-//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
-//        }
-
         json_int_t total_rows = (json_int_t)tranger2_iterator_size(tranger, iterator);
 
         if(!backward) {
@@ -3393,8 +3385,12 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         while(!end) {
-            // TODO if match_record
-            if(1) {
+            if(match_record(
+                backward,
+                &md_record,
+                match_cond,
+                &end
+            )) {
                 // Inform to the user list: record in real time
                 if(load_record_callback) {
                     int ret = load_record_callback(
@@ -4234,6 +4230,242 @@ PUBLIC int tranger2_iterator_get_by_rowid(
 }
 
 /***************************************************************************
+ *  Match md record
+ ***************************************************************************/
+PRIVATE BOOL match_record(
+    BOOL backward,
+    const md2_record_t *md_record,
+    json_t *match_cond,  // not owned
+    BOOL *end
+)
+{
+    *end = FALSE;
+
+    if(json_object_size(match_cond)==0) {
+        // No conditions, match all
+        return TRUE;
+    }
+
+    if(kw_has_key(match_cond, "from_rowid")) {
+        json_int_t from_rowid = kw_get_int(match_cond, "from_rowid", 0, KW_WILD_NUMBER);
+        if(from_rowid >= 0) {
+            if(md_record->__rowid__ < from_rowid) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_rowid__ + from_rowid;
+            if(md_record->__rowid__ <= x) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "to_rowid")) {
+        json_int_t to_rowid = kw_get_int(match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+        if(to_rowid >= 0) {
+            if(md_record->__rowid__ > to_rowid) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_rowid__ + to_rowid;
+            if(md_record->__rowid__ > x) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "from_t")) {
+        json_int_t from_t = 0;
+        json_t *jn_from_t = json_object_get(match_cond, "from_t");
+        if(json_is_string(jn_from_t)) {
+            int offset;
+            timestamp_t timestamp;
+            parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset);
+            from_t = timestamp;
+        } else {
+            from_t = json_integer_value(jn_from_t);
+        }
+
+        if(from_t >= 0) {
+            if(md_record->__t__ < from_t) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_t__ + from_t;
+            if(md_record->__t__ <= x) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "to_t")) {
+        json_int_t to_t = 0;
+        json_t *jn_to_t = json_object_get(match_cond, "to_t");
+        if(json_is_string(jn_to_t)) {
+            int offset;
+            timestamp_t timestamp;
+            parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset);
+            to_t = timestamp;
+        } else {
+            to_t = json_integer_value(jn_to_t);
+        }
+
+        if(to_t >= 0) {
+            if(md_record->__t__ > to_t) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_t__ + to_t;
+            if(md_record->__t__ > x) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "from_tm")) {
+        json_int_t from_tm = 0;
+        json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
+        if(json_is_string(jn_from_tm)) {
+            int offset;
+            timestamp_t timestamp;
+            parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset);
+            if(md_record->__system_flag__ & (sf_tm_ms)) {
+                timestamp *= 1000; // TODO lost milisecond precision?
+            }
+            from_tm = timestamp;
+        } else {
+            from_tm = json_integer_value(jn_from_tm);
+        }
+
+        if(from_tm >= 0) {
+            if(md_record->__tm__ < from_tm) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_tm__ + from_tm;
+            if(md_record->__tm__ <= x) {
+                if(backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "to_tm")) {
+        json_int_t to_tm = 0;
+        json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
+        if(json_is_string(jn_to_tm)) {
+            int offset;
+            timestamp_t timestamp;
+            parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset);
+            if(md_record->__system_flag__ & (sf_tm_ms)) {
+                timestamp *= 1000; // TODO lost milisecond precision?
+            }
+            to_tm = timestamp;
+        } else {
+            to_tm = json_integer_value(jn_to_tm);
+        }
+
+        if(to_tm >= 0) {
+            if(md_record->__tm__ > to_tm) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        } else {
+            uint64_t x = __last_tm__ + to_tm;
+            if(md_record->__tm__ > x) {
+                if(!backward) {
+                    if(end) {
+                        *end = TRUE;
+                    }
+                }
+                return FALSE;
+            }
+        }
+    }
+
+    if(kw_has_key(match_cond, "user_flag")) {
+        uint32_t user_flag = kw_get_int(match_cond, "user_flag", 0, 0);
+        if((md_record->__user_flag__ != user_flag)) {
+            return FALSE;
+        }
+    }
+    if(kw_has_key(match_cond, "not_user_flag")) {
+        uint32_t not_user_flag = kw_get_int(match_cond, "not_user_flag", 0, 0);
+        if((md_record->__user_flag__ == not_user_flag)) {
+            return FALSE;
+        }
+    }
+
+    if(kw_has_key(match_cond, "user_flag_mask_set")) {
+        uint32_t user_flag_mask_set = kw_get_int(match_cond, "user_flag_mask_set", 0, 0);
+        if((md_record->__user_flag__ & user_flag_mask_set) != user_flag_mask_set) {
+            return FALSE;
+        }
+    }
+    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
+        uint32_t user_flag_mask_notset = kw_get_int(match_cond, "user_flag_mask_notset", 0, 0);
+        if((md_record->__user_flag__ | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************
  *  Return a list of segments that match conditions
  ***************************************************************************/
 PRIVATE json_t *get_segments(
@@ -4241,12 +4473,12 @@ PRIVATE json_t *get_segments(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond  // NOT owned
+    json_t *match_cond  // NOT owned but can be modified (times in string)
 )
 {
     json_t *jn_segments = json_array();
 
-    BOOL backward = kw_get_bool(gobj, match_cond, "backward", 0, 0);
+    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
     /*-------------------------------------*
      *      Recover cache data
@@ -4293,7 +4525,14 @@ PRIVATE json_t *get_segments(
     /*-------------------------------------*
      *      Check range rows in totals
      *-------------------------------------*/
-    json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
+    json_int_t from_rowid = 0;
+    json_t *jn_from_rowid = json_object_get(match_cond, "from_rowid");
+    if(json_is_integer(jn_from_rowid)) {
+        from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    } else {
+        from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
+        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    }
     if(from_rowid == 0) {
         from_rowid = 1;
     } else if(from_rowid > 0) {
@@ -4312,7 +4551,14 @@ PRIVATE json_t *get_segments(
         }
     }
 
-    json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+    json_int_t to_rowid = 0;
+    json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
+    if(json_is_integer(jn_to_rowid)) {
+        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    } else {
+        to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    }
     if(to_rowid == 0) {
         to_rowid = total_rows;
     } else if(to_rowid > 0) {
@@ -4341,18 +4587,23 @@ PRIVATE json_t *get_segments(
      *-------------------------------------*/
     json_int_t from_t = 0;
     json_t *jn_from_t = json_object_get(match_cond, "from_t");
-    if(json_is_string(jn_from_t) && strchr(json_string_value(jn_from_t), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
-            return jn_segments;
+    if(json_is_string(jn_from_t)) {
+        if(strchr(json_string_value(jn_from_t), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            from_t = (json_int_t)timestamp;
+        } else {
+            from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
         }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        from_t = (json_int_t)timestamp;
+        json_object_set_new(match_cond, "from_t", json_integer(from_t));
     } else {
-        from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
+        from_t = json_integer_value(json_object_get(match_cond, "from_t"));
     }
 
     if(from_t == 0) {
@@ -4369,18 +4620,23 @@ PRIVATE json_t *get_segments(
 
     json_int_t to_t = 0;
     json_t *jn_to_t = json_object_get(match_cond, "to_t");
-    if(json_is_string(jn_to_t) && strchr(json_string_value(jn_to_t), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
-            return jn_segments;
+    if(json_is_string(jn_to_t)) {
+        if(strchr(json_string_value(jn_to_t), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            to_t = (json_int_t)timestamp;
+        } else {
+            to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
         }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        to_t = (json_int_t)timestamp;
+        json_object_set_new(match_cond, "to_t", json_integer(to_t));
     } else {
-        to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
+        to_t = json_integer_value(json_object_get(match_cond, "to_t"));
     }
 
     if(to_t == 0) {
@@ -4400,18 +4656,23 @@ PRIVATE json_t *get_segments(
      *-------------------------------------*/
     json_int_t from_tm = 0;
     json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-    if(json_is_string(jn_from_tm) && strchr(json_string_value(jn_from_tm), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
-            return jn_segments;
+    if(json_is_string(jn_from_tm)) {
+        if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            from_tm = (json_int_t)timestamp;
+        } else {
+            from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
         }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-        from_tm = (json_int_t)timestamp;
+        json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
     } else {
-        from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
+        from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
     }
 
     if(from_tm == 0) {
@@ -4428,19 +4689,23 @@ PRIVATE json_t *get_segments(
 
     json_int_t to_tm = 0;
     json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-    if(json_is_string(jn_to_tm) && strchr(json_string_value(jn_to_tm), 'T')!=0) {
-        int offset;
-        timestamp_t timestamp;
-        if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
-            return jn_segments;
+    if(json_is_string(jn_to_tm)) {
+        if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            to_tm = (json_int_t)timestamp;
+        } else {
+            to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
         }
-        // TODO if(__system_flag__ & (sf2_tm_ms)) {
-        //    timestamp *= 1000; // TODO lost milisecond precision?
-        //}
-
-        to_tm = (json_int_t)timestamp;
+        json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
     } else {
-        to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
+        to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
     }
 
     if(to_tm == 0) {

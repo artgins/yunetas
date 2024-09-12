@@ -38,6 +38,7 @@ PRIVATE json_int_t tm = 0;
 PRIVATE uint64_t t = 0;
 PRIVATE uint64_t total_rows = 0;
 PRIVATE int leidos = 0;
+PRIVATE json_int_t rowid = 0;
 
 PRIVATE int iterator_callback1(
     json_t *tranger,
@@ -130,6 +131,8 @@ PRIVATE int load_rango_callback(
 )
 {
     leidos++;
+    rowid++;
+
     if(1) { //pinta_rows) {
         printf("rowid = %"PRIu64"\n", (uint64_t)relative_rowid);
         print_json2("xxx", record);
@@ -546,6 +549,7 @@ PRIVATE int do_test(void)
         MT_START_TIME(time_measure)
 
         leidos = 0;
+        rowid = from_rowid;
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:I, s:I}",
             "from_rowid", (json_int_t)from_rowid,
@@ -570,7 +574,8 @@ print_json2("DATA", data); // TODO TEST
         result += tranger2_close_iterator(tranger, iterator);
 
         json_t *matches = json_array();
-        json_int_t t1 = 946684800; // 2000-01-01T00:00:00+0000
+        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+printf("XXXXXXXXXXXXXXXX %lld", t1);
         for(int i=0; i<MAX_RECS; i++){
             json_t *match = json_pack("{s:I}",
                 "", t1 + i
