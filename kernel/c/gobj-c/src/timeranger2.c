@@ -3314,9 +3314,10 @@ PUBLIC json_t *tranger2_open_iterator(
 
     if(json_array_size(segments)==0) {
         // NO match
-        JSON_DECREF(segments)
-        JSON_DECREF(match_cond)
-        return NULL;
+        // TODO revisa los retornos cuando no hay records
+//        JSON_DECREF(segments)
+//        JSON_DECREF(match_cond)
+//        return NULL;
     }
 
     json_t *iterator = json_object();
@@ -3592,15 +3593,15 @@ PUBLIC int tranger2_iterator_first(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "iterator without segments",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        gobj_trace_json(gobj, iterator, "iterator without segments");
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "iterator without segments",
+//            "topic_name",   "%s", tranger2_topic_name(topic),
+//            "key",          "%s", key,
+//            NULL
+//        );
+//        gobj_trace_json(gobj, iterator, "iterator without segments");
         return -1;
     }
 
@@ -4017,15 +4018,15 @@ PUBLIC int tranger2_iterator_last(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "iterator without segments",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        gobj_trace_json(gobj, iterator, "iterator without segments");
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "iterator without segments",
+//            "topic_name",   "%s", tranger2_topic_name(topic),
+//            "key",          "%s", key,
+//            NULL
+//        );
+//        gobj_trace_json(gobj, iterator, "iterator without segments");
         return -1;
     }
 
@@ -4139,15 +4140,15 @@ PUBLIC int tranger2_iterator_get_by_rowid(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "iterator without segments",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        gobj_trace_json(gobj, iterator, "iterator without segments");
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "iterator without segments",
+//            "topic_name",   "%s", tranger2_topic_name(topic),
+//            "key",          "%s", key,
+//            NULL
+//        );
+//        gobj_trace_json(gobj, iterator, "iterator without segments");
         return -1;
     }
 
