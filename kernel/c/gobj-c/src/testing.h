@@ -45,6 +45,13 @@ PUBLIC int test_json( // Compare JSON in jn_found with JSON in expected
 PUBLIC int test_directory_permission(const char *path, mode_t permission);
 PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, off_t size);
 
+/*
+ *  list and match must be two json arrays of objects
+ *  sizes of both must match
+ *  keys in 'matches' must match with keys in 'list'
+ */
+PUBLIC int test_list(json_t *list, json_t *matches);
+
 
 /***************************************************************************
  *  Measurement of times

@@ -833,6 +833,7 @@ int do_test2(void)
             "from_rowid", (json_int_t)from_rowid,
             "to_rowid", (json_int_t)to_rowid
         );
+        json_t *data = json_array();
         json_t *iterator = tranger2_open_iterator(
             tranger,
             topic,
@@ -840,7 +841,7 @@ int do_test2(void)
             match_cond,             // match_cond, owned
             load_rango_callback,    // load_record_callback
             NULL,                   // id
-            NULL                    // data
+            data                    // data
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
@@ -848,6 +849,17 @@ int do_test2(void)
 
         result += tranger2_close_iterator(tranger, iterator);
 
+        json_t *matches = json_array();
+        for(int i=0; i<MAX_RECS; i++){
+            json_t *match = json_pack("{s:I}",
+                "", (json_int_t)0
+            );
+            json_array_append_new(matches, match);
+        }
+
+        result += test_list(data, matches);
+        JSON_DECREF(matches)
+        JSON_DECREF(data)
 //        uint64_t result[MAX_RECS];
 //        int max = sizeof(result)/sizeof(result[0]);
 //        for(int ii=0; ii<max; ii++) result[ii]=ii+from_rowid;

@@ -586,3 +586,49 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
 
     return 0;
 }
+
+/***************************************************************************
+ *  list and match must be two json arrays of objects
+ *  sizes of both must match
+ *  keys in 'matches' must match with keys in 'list'
+ ***************************************************************************/
+PUBLIC int test_list(json_t *list, json_t *matches)
+{
+    int ret = 0;
+
+    if(json_array_size(list) != json_array_size(matches)) {
+        printf("%s  --> ERROR in test: '%s'%s, sizes don't match\n", On_Red BWhite, name, Color_Off);
+        ret += -1;
+    }
+
+    int idx;
+    json_t *record;
+    json_array_foreach(list, idx, record) {
+        json_t *match = json_array_get(matches, idx);
+        if(!match) {
+            // Error already logged with sizes don't match
+            ret += -1;
+            break;
+        }
+
+        const char *key;
+        json_t *value;
+        json_object_foreach(match, key, value) {
+            json_t *value_ = json_object_get(record, key);
+            if(!json_is_identical(value, value_)) {
+                char *expected_ = json2uglystr(value);
+                char *found = json2uglystr(value_);
+                // Error already logged with sizes don't match
+                printf("%s  --> ERROR in test: '%s'%s, %s don't match, idx %d, expected %s, found %s\n",
+                    On_Red BWhite, name, Color_Off, key, idx, expected_, found
+                );
+                ret += -1;
+                GBMEM_FREE(expected_)
+                GBMEM_FREE(found)
+                break;
+            }
+        }
+    }
+
+    return ret;
+}
