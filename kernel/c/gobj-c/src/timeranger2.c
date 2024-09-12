@@ -4278,10 +4278,12 @@ PRIVATE json_t *get_segments(
     json_int_t from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
         from_rowid = 1;
-    } else if(from_rowid > total_rows) {
+    } else if(from_rowid > 0) {
         // positive offset
-        // not exist
-        return jn_segments;
+        if(from_rowid > total_rows) {
+            // not exist
+            return jn_segments;
+        }
     } else {
         // negative offset
         if(from_rowid < -total_rows) {
@@ -4295,10 +4297,12 @@ PRIVATE json_t *get_segments(
     json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
     if(to_rowid == 0) {
         to_rowid = total_rows;
-    } else if(to_rowid > total_rows) {
+    } else if(to_rowid > 0) {
         // positive offset
-        // out of range, begin at 0
-        to_rowid = total_rows;
+        if(to_rowid > total_rows) {
+            // out of range, begin at 0
+            to_rowid = total_rows;
+        }
     } else {
         // negative offset
         if(to_rowid < -total_rows) {
