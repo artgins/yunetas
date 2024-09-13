@@ -1,7 +1,7 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator.c
  *
- *  - do_test: Open as master, open iterator (realtime by disk) without callback
+ *  Open as master, open iterator without callback
  *
  *          Copyright (c) 2024 Niyamaka.
  *          All Rights Reserved.

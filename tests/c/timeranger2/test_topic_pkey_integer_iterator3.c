@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator3.c
  *
- *  - do_test: Open as master, open iterator to search (realtime by disk) with callback and data
+ *  - Open as master, open iterator to search with callback and data
+ *  - Do all types of searches
  *
  *          Copyright (c) 2024 Niyamaka.
  *          All Rights Reserved.
