@@ -3367,30 +3367,59 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             precord = &record;
         }
 
-        BOOL end;
+        BOOL end = FALSE;
         json_int_t total_rows = (json_int_t)tranger2_iterator_size(tranger, iterator);
         json_int_t last_t = (json_int_t)tranger2_iterator_last_t(tranger, iterator);
         json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
 
         if(!backward) {
-            rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, 0);
-            if(rowid>0) {
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            } else if(rowid<0 && (total_rows + rowid)>0) {
-                rowid = total_rows + rowid;
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            } else {
+            rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+
+            // WARNING repeated in get_segments
+            if(rowid == 0) {
+                //rowid = 1;
                 end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+            } else if(rowid>0) {
+                // positive offset
+                if(rowid > total_rows) {
+                    // not exist
+                    end = FALSE;
+                } else {
+                    end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
+                }
+
+            } else if(rowid<0) {
+                // negative offset
+                if(rowid < -total_rows) {
+                    // out of range, begin at 0
+                    rowid = 1;
+                } else {
+                    rowid = total_rows + rowid;
+                }
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
             }
         } else {
-            rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, 0);
-            if(rowid>0) {
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            } else if(rowid<0 && (total_rows + rowid)>0) {
-                rowid = total_rows + rowid;
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            } else {
+            rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+
+            // WARNING repeated in get_segments
+            if(rowid == 0) {
+                //rowid = total_rows;
                 end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+            } else if(rowid>0) {
+                // positive offset
+                if(rowid > total_rows) {
+                    // out of range, begin at 0
+                    rowid = total_rows;
+                }
+                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
+            } else if(rowid<0) {
+                // negative offset
+                if(rowid + total_rows > 0) {
+                    rowid = total_rows + rowid;
+                    end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
+                } else {
+                    end = FALSE;
+                }
             }
         }
 
@@ -4550,6 +4579,8 @@ PRIVATE json_t *get_segments(
     } else {
         from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
     }
+
+    // WARNING repeated in tranger2_open_iterator
     if(from_rowid == 0) {
         from_rowid = 1;
     } else if(from_rowid > 0) {
@@ -4576,6 +4607,8 @@ PRIVATE json_t *get_segments(
     } else {
         to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
     }
+
+    // WARNING repeated in tranger2_open_iterator
     if(to_rowid == 0) {
         to_rowid = total_rows;
     } else if(to_rowid > 0) {
@@ -4586,11 +4619,11 @@ PRIVATE json_t *get_segments(
         }
     } else {
         // negative offset
-        if(to_rowid < -total_rows) {
+        if(to_rowid + total_rows > 0) {
+            to_rowid = total_rows + to_rowid;
+        } else {
             // not exist
             return jn_segments;
-        } else {
-            to_rowid = total_rows + to_rowid;
         }
     }
 
