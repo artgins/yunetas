@@ -2940,7 +2940,7 @@ PRIVATE json_t *find_keys_in_disk(
     /*
      *  Only wants a key ?
      */
-    const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
+    const char *key = json_string_value(json_object_get(match_cond, "key"));
     if(!empty_string(key)) {
         if(file_exists(directory, key)) {
             json_array_append_new(jn_keys, json_string(key));
@@ -2949,7 +2949,7 @@ PRIVATE json_t *find_keys_in_disk(
     }
 
     const char *pattern;
-    const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
+    const char *rkey = json_string_value(json_object_get(match_cond, "rkey"));
     if(!empty_string(rkey)) {
         pattern = rkey;
     } else {
@@ -3534,19 +3534,17 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
     const char *id
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
     if(empty_string(id)) {
         return 0;
     }
-    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
+    json_t *topics = json_object_get(tranger, "topics");
 
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
-        json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
+        json_t *iterators = json_object_get(topic, "iterators");
         int idx; json_t *iterator;
         json_array_foreach(iterators, idx, iterator) {
-            const char *iterator_id = kw_get_str(gobj, iterator, "id", "", 0);
+            const char *iterator_id = json_string_value(json_object_get(iterator, "id"));
             if(strcmp(id, iterator_id)==0) {
                 return iterator;
             }
