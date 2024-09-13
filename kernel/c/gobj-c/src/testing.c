@@ -592,7 +592,7 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
  *  sizes of both must match
  *  keys in 'matches' must match with keys in 'list'
  ***************************************************************************/
-PUBLIC int test_list(json_t *list, json_t *matches, const char *msg, ...)
+PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...)
 {
     char message[256];
     int ret = 0;
@@ -602,19 +602,19 @@ PUBLIC int test_list(json_t *list, json_t *matches, const char *msg, ...)
     vsnprintf(message, sizeof(message), msg, ap);
     va_end(ap);
 
-    if(json_array_size(list) != json_array_size(matches)) {
-        printf("%s  --> ERROR%s in test: '%s', sizes don't match (%d,%d)\n", On_Red BWhite, Color_Off,
+    if(json_array_size(found) != json_array_size(expected)) {
+        printf("%s  --> ERROR%s in test: '%s', sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
             message,
-           (int)json_array_size(list),
-           (int)json_array_size(matches)
+           (int)json_array_size(found),
+           (int)json_array_size(expected)
         );
         ret += -1;
     }
 
     int idx;
     json_t *record;
-    json_array_foreach(list, idx, record) {
-        json_t *match = json_array_get(matches, idx);
+    json_array_foreach(found, idx, record) {
+        json_t *match = json_array_get(expected, idx);
         if(!match) {
             // Error already logged with sizes don't match
             ret += -1;

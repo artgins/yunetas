@@ -360,6 +360,30 @@ PRIVATE int do_test(void)
         );
     }
 
+
+    if(1) {
+        // 'last_row': 86400 // Last row of the first segment
+
+        const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, FORWARD";
+        BOOL BACKWARD               = 0;
+        json_int_t FROM_ROWID       = 86400 - 5;
+        json_int_t TO_ROWID         = 86400 + 5 - 1;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 10;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+
+
     /*-------------------------------------*
      *  Search Absolute range, backward
      *-------------------------------------*/
