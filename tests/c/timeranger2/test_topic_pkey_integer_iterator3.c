@@ -19,7 +19,7 @@
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
-PRIVATE int pinta_rows = 1;
+PRIVATE int pinta_md = 1;
 
 /***************************************************************
  *              Prototypes
@@ -52,7 +52,7 @@ PRIVATE int load_rango_callback(
     leidos++;
     counter_rowid++;
 
-    if(pinta_rows) {
+    if(pinta_md) {
         char temp[1024];
         print_md1_record(
             tranger,

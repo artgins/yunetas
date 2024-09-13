@@ -608,8 +608,8 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
                (int)json_array_size(list_found),
                (int)json_array_size(list_expected)
         );
-        print_json2("found", list_found);
-        print_json2("expected", list_expected);
+        //print_json2("found", list_found);
+        //print_json2("expected", list_expected);
         ret += -1;
     }
 
