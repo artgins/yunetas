@@ -4786,9 +4786,15 @@ PRIVATE json_t *get_segments(
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
-            BOOL matched = FALSE;
             json_int_t first_row_segment = partial_rows2;               // first row of this segment
             json_int_t last_row_segment = partial_rows2 + rows2 - 1;    // last row of this segment
+
+            if(from_rowid <= last_row_segment) {
+                // ok
+            } else {
+                break;
+            }
+
             matched |= (from_rowid >= first_row_segment);
             matched |= (to_rowid <= last_row_segment);
             // TODO check t tm system_flag user_flag
