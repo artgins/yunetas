@@ -132,7 +132,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*-------------------------------------------------*
@@ -170,7 +170,7 @@ int do_test(void)
         ),
         0
     );
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
@@ -201,7 +201,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------*
@@ -224,7 +224,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------*
@@ -244,7 +244,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------------*
@@ -305,7 +305,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     /*-------------------------------------*
@@ -342,7 +342,7 @@ int do_test(void)
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------------*
      *      Delete topic
@@ -359,7 +359,7 @@ int do_test(void)
         tranger,
         TOPIC_NAME
     );
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     if(is_directory(path_topic)) {
         printf("%sTopic continue existing %s\n", On_Red BWhite,Color_Off);
@@ -402,7 +402,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     /*-------------------------------------------------*
@@ -440,7 +440,7 @@ int do_test(void)
         ),
         0
     );
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
@@ -478,7 +478,7 @@ int do_test(void)
         "list2"
     );
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*------------------------------------------*
      *  Check tranger memory with lists opened
@@ -554,7 +554,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     /*-------------------------------------*
@@ -590,7 +590,7 @@ int do_test(void)
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "tranger2_append_record")
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*------------------------------------------*
      *  Check tranger memory with lists opened
@@ -678,7 +678,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     /*-------------------------------------*
@@ -706,7 +706,7 @@ int do_test(void)
         list2
     );
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     if(all_leidos != MAX_KEYS*MAX_RECORDS) {
         printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
@@ -733,7 +733,7 @@ int do_test(void)
         TRUE    // verbose
     );
     tranger2_close_topic(tranger, TOPIC_NAME);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -746,7 +746,7 @@ int do_test(void)
         TRUE    // verbose
     );
     tranger2_shutdown(tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;
 }
@@ -792,7 +792,7 @@ int do_test2(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------------------------*
      *  Create a topic (already created, idempotent)
@@ -828,7 +828,7 @@ int do_test2(void)
         jn_cols,
         jn_var
     );
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
@@ -855,7 +855,7 @@ int do_test2(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------*
@@ -876,7 +876,7 @@ int do_test2(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------------*
@@ -939,7 +939,7 @@ int do_test2(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     /*-------------------------------*
@@ -953,7 +953,7 @@ int do_test2(void)
         TRUE    // verbose
     );
     tranger2_shutdown(tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Check disk structure

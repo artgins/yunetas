@@ -98,7 +98,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*-------------------------------------------------*
@@ -121,7 +121,7 @@ int do_test(void)
         tranger2_shutdown(tranger);
         return -1;
     }
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*------------------------------------*
      *  Check "topic_desc.json" file
@@ -145,7 +145,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------*
@@ -167,7 +167,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------*
@@ -187,7 +187,7 @@ int do_test(void)
             NULL,
             TRUE
         );
-        result += test_json_file(file);
+        result += test_json_file(file, result);
     }
 
     /*------------------------------------------*
@@ -244,7 +244,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     list_open_files();
@@ -262,7 +262,7 @@ int do_test(void)
 
     tranger2_close_topic(tranger, TOPIC_NAME);
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*------------------------------------------*
      *  Check tranger memory with topic closed
@@ -299,7 +299,7 @@ int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger));
+        result += test_json(json_incref(tranger), result);
     }
 
     list_open_files();
@@ -350,7 +350,7 @@ int do_test(void)
         );
         json_t *tr = tranger2_startup(0, jn_tr);
 
-        result += test_json(json_incref(tr));
+        result += test_json(json_incref(tr), result);
 
         set_expected_results(
             "tranger_shutdown", // test name
@@ -360,7 +360,7 @@ int do_test(void)
             TRUE    // verbose
         );
         tranger2_shutdown(tr);
-        result += test_json(NULL);  // NULL: we want to check only the logs
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
     /*
@@ -374,7 +374,7 @@ int do_test(void)
         TRUE    // verbose
     );
     tranger2_shutdown(tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;
 }

@@ -25,7 +25,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE BOOL check_log_result(void);
+PRIVATE BOOL check_log_result(int current_result);
 
 PRIVATE BOOL match_record(
     json_t *record, // NOT owned
@@ -76,16 +76,17 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
 /***************************************************************************
  *  Return TRUE if all is ok.
  ***************************************************************************/
-PRIVATE BOOL check_log_result(void)
+PRIVATE BOOL check_log_result(int current_result)
 {
     if(json_array_size(unexpected_log_messages)>0) {
         if(verbose) {
-            printf("%s  --> ERROR %s\n", On_Red BWhite,Color_Off);
+            printf("<-- %sERROR%s %s\n", On_Red BWhite,Color_Off, test_name);
             int idx; json_t *value;
             printf("      Unexpected error:\n");
             json_array_foreach(unexpected_log_messages, idx, value) {
                 printf("          \"%s\"\n", kw_get_str(0, value, "msg", "?", 0));
             }
+            printf("\n");
         } else {
             printf("%sX%s", On_Red BWhite,Color_Off);
         }
@@ -94,22 +95,25 @@ PRIVATE BOOL check_log_result(void)
 
     if(json_array_size(expected_log_messages)>0) {
         if(verbose) {
-            printf("%s  --> ERROR %s\n", On_Red BWhite, Color_Off);
+            printf("<-- %sERROR%s %s\n", On_Red BWhite, Color_Off, test_name);
             int idx; json_t *value;
             printf("      Expected error not consumed:\n");
             json_array_foreach(expected_log_messages, idx, value) {
                 printf("          \"%s\"\n", kw_get_str(0, value, "msg", "?", 0));
             }
+            printf("\n");
         } else {
-            printf("%sX%s", On_Red BWhite,Color_Off);
+            printf("%sX%s", On_Red BWhite, Color_Off);
         }
         return FALSE;
     }
 
     if(verbose) {
-        printf("  --> OK\n");
-    } else {
-        printf(".");
+        if(current_result < 0) {
+            printf("<-- %sERROR%s   '%s'\n\n", On_Red BWhite, Color_Off, test_name);
+        } else {
+            printf("<-- OK   '%s'\n\n", test_name);
+        }
     }
     return TRUE;
 }
@@ -473,7 +477,7 @@ PUBLIC void set_expected_results(
     test_name = name_;
     verbose = verbose_;
     if(verbose) {
-        printf("Test '%s'\n", test_name?test_name:"");
+        printf("--> Test '%s'\n", test_name?test_name:"");
     }
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
@@ -488,7 +492,7 @@ PUBLIC void set_expected_results(
 /***************************************************************************
  *  Return 0 if ok, -1 if error
  ***************************************************************************/
-PUBLIC int test_json_file(const char *file)
+PUBLIC int test_json_file(const char *file, int current_result)
 {
     int result = 0;
     json_t *jn_found = load_json_from_file(0, file, "", 0);
@@ -497,14 +501,14 @@ PUBLIC int test_json_file(const char *file)
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test_name, Color_Off);
+            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
-        if(!check_log_result()) {
+        if(!check_log_result(current_result)) {
             result = -1;
         }
     }
@@ -522,7 +526,7 @@ PUBLIC int test_json_file(const char *file)
 /***************************************************************************
  *  Return 0 if ok, -1 if error
  ***************************************************************************/
-PUBLIC int test_json(json_t *jn_found)
+PUBLIC int test_json(json_t *jn_found, int current_result)
 {
     int result = 0;
 
@@ -533,14 +537,14 @@ PUBLIC int test_json(json_t *jn_found)
     if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test_name, Color_Off);
+            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
-        if(!check_log_result()) {
+        if(!check_log_result(current_result)) {
             result = -1;
         }
     }
@@ -603,7 +607,7 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
     va_end(ap);
 
     if(json_array_size(list_found) != json_array_size(list_expected)) {
-        printf("%s  --> ERROR%s in test: '%s', sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
+        printf("  <-- %sERROR%s in test: '%s', sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
                message,
                (int)json_array_size(list_found),
                (int)json_array_size(list_expected)
@@ -631,7 +635,7 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
                 char *expected_ = json2uglystr(expected_value);
                 char *found_ = json2uglystr(found_value);
                 // Error already logged with sizes don't object_expected
-                printf("%s  --> ERROR%s in test: '%s', %s don't object_expected, idx %d, expected %s, found %s\n",
+                printf("  <-- %sERROR%s in test: '%s', %s don't object_expected, idx %d, expected %s, found %s\n",
                     On_Red BWhite, Color_Off, message, key, idx, expected_, found_
                 );
                 ret += -1;

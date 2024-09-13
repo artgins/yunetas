@@ -136,9 +136,6 @@ PRIVATE int search_data(
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
     MT_PRINT_TIME(time_measure, test_name)
 
-    result += tranger2_close_iterator(tranger, iterator);
-    result += test_json(NULL);  // NULL: we want to check only the logs
-
     // TRICK
     if(from_rowid == 0) {
         // Asking from 0 must be equal to asking by 1
@@ -202,6 +199,9 @@ PRIVATE int search_data(
     JSON_DECREF(matches)
     JSON_DECREF(callback_data)
 
+    result += tranger2_close_iterator(tranger, iterator);
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
     return result;
 }
 
@@ -244,12 +244,13 @@ PRIVATE int do_test(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------------*
      *  Search absolute range, forward
      *-------------------------------------*/
-    if(1) {
+    BOOL test_forward = 0;
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range 1-10, FORWARD (old 60.000 op/sec)";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 1;
@@ -268,7 +269,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range 0-10, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 0;
@@ -287,7 +288,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range 89991-90000, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 89991;
@@ -306,7 +307,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range 89991-90001, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 89991;
@@ -325,7 +326,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range 10-10, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 10;
@@ -344,7 +345,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute BAD range 10-9, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 10;
@@ -363,7 +364,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, FORWARD";
         BOOL BACKWARD               = 0;
         // TRICK last row of the first segment: 86400
@@ -386,8 +387,9 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  Search Absolute range, backward
      *-------------------------------------*/
-    if(1) {
-        const char *TEST_NAME = "Search absolute range 10-1, BACKWARD";
+    BOOL test_backward = 1;
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range 1-10, BACKWARD (old 60.000 op/sec)";
         BOOL BACKWARD               = 1;
         json_int_t FROM_ROWID       = 1;
         json_int_t TO_ROWID         = 10;
@@ -405,6 +407,120 @@ PRIVATE int do_test(void)
         );
     }
 
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range 0-10, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = 0;
+        json_int_t TO_ROWID         = 10;
+        json_int_t ROWS_EXPECTED    = 10;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range 89991-90000, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = 89991;
+        json_int_t TO_ROWID         = 90000;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 10;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range 89991-90001, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = 89991;
+        json_int_t TO_ROWID         = 90001;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 10;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range 10-10, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = 10;
+        json_int_t TO_ROWID         = 10;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 1;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute BAD range 10-9, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = 10;
+        json_int_t TO_ROWID         = 9;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 0;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, BACKWARD";
+        BOOL BACKWARD               = 1;
+        // TRICK last row of the first segment: 86400
+        json_int_t FROM_ROWID       = 86400 - 5;
+        json_int_t TO_ROWID         = 86400 + 5 - 1;
+        const char *KEY             = "0000000000000000001";
+        json_int_t ROWS_EXPECTED    = 10;
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
 
     /*-------------------------------------*
      *  Search Relative range, forward
@@ -557,7 +673,7 @@ PRIVATE int do_test(void)
         TRUE    // verbose
     );
     tranger2_shutdown(tranger);
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     result += global_result;
 
