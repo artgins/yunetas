@@ -4790,7 +4790,7 @@ PRIVATE json_t *get_segments(
             json_int_t first_row_segment = partial_rows2;               // first row of this segment
             json_int_t last_row_segment = partial_rows2 + rows2 - 1;    // last row of this segment
             matched |= (from_rowid >= first_row_segment);
-            matched |= (to_rowid >= last_row_segment);
+            matched |= (to_rowid <= last_row_segment);
             // TODO check t tm system_flag user_flag
 
             if(matched) {
@@ -4817,7 +4817,7 @@ PRIVATE json_t *get_segments(
             json_int_t first_row_segment = partial_rows2 - rows2 + 1; // first row of this segment
             json_int_t last_row_segment = partial_rows2;            // last row of this segment
             matched |= (from_rowid >= first_row_segment);
-            matched |= (to_rowid >= last_row_segment);
+            matched |= (to_rowid <= last_row_segment);
             // TODO check t tm system_flag user_flag
 
             if(matched) {

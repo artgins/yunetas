@@ -20,6 +20,7 @@
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 PRIVATE int pinta_md = 1;
+PRIVATE int pinta_records = 0;
 
 /***************************************************************
  *              Prototypes
@@ -63,9 +64,10 @@ PRIVATE int load_rango_callback(
             temp,
             sizeof(temp)
         );
-
         printf("%s\n", temp);
-        //print_json2("xxx", record);
+    }
+    if(pinta_records) {
+        print_json2("record", record);
     }
 
     json_t *md = json_object();
@@ -360,12 +362,10 @@ PRIVATE int do_test(void)
         );
     }
 
-
     if(1) {
-        // 'last_row': 86400 // Last row of the first segment
-
         const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, FORWARD";
         BOOL BACKWARD               = 0;
+        // TRICK last row of the first segment: 86400
         json_int_t FROM_ROWID       = 86400 - 5;
         json_int_t TO_ROWID         = 86400 + 5 - 1;
         const char *KEY             = "0000000000000000001";
@@ -381,8 +381,6 @@ PRIVATE int do_test(void)
             ROWS_EXPECTED
         );
     }
-
-
 
     /*-------------------------------------*
      *  Search Absolute range, backward
