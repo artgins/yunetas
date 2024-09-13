@@ -4305,6 +4305,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
         );
         return -1;
     }
+
     json_t *segment = json_array_get(segments, cur_segment);
     json_int_t cur_rowid = rowid;
 
@@ -4813,7 +4814,7 @@ PRIVATE json_t *get_segments(
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
             BOOL matched = FALSE;
-            json_int_t first_row_segment = partial_rows2 - rows2;   // first row of this segment
+            json_int_t first_row_segment = partial_rows2 - rows2 + 1; // first row of this segment
             json_int_t last_row_segment = partial_rows2;            // last row of this segment
             matched |= (from_rowid >= first_row_segment);
             matched |= (to_rowid >= last_row_segment);

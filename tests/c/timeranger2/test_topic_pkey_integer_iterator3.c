@@ -282,16 +282,16 @@ PRIVATE int do_test(void)
         /*
          *  Test callback data
          */
-//        matches = json_array();
-//        t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
-//        for(int i=0; i<MAX_RECS; i++){
-//            json_t *match = json_pack("{s:I, s:I}",
-//                "rowid", from_rowid + i,
-//                "t", t1 + i
-//            );
-//            json_array_append_new(matches, match);
-//        }
-//        result += test_list(TEST_NAME " - callback_data", callback_data, matches);
+        matches = json_array();
+        t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++){
+            json_t *match = json_pack("{s:I, s:I}",
+                "rowid", to_rowid - i,
+                "t", t1 - i
+            );
+            json_array_append_new(matches, match);
+        }
+        result += test_list(TEST_NAME " - callback_data", callback_data, matches);
 
         JSON_DECREF(matches)
         JSON_DECREF(callback_data)
