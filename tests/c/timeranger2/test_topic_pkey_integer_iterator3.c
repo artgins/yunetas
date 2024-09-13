@@ -18,7 +18,7 @@
 #define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
-#define MAX_RECS    10 // Records to find
+//#define MAX_RECS    10 // Records to find
 
 PRIVATE int pinta_rows = 1;
 
@@ -79,6 +79,126 @@ PRIVATE int load_rango_callback(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int search_data(
+    json_t *tranger,
+    const char *key,
+    const char *TEST_NAME,
+    BOOL BACKWARD,
+    json_int_t FROM_ROWID,
+    json_int_t TO_ROWID
+)
+{
+    int result = 0;
+
+    const char *test_name = TEST_NAME;
+
+    set_expected_results( // Check that no logs happen
+        test_name, // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    json_int_t from_rowid = FROM_ROWID;
+    json_int_t to_rowid = TO_ROWID;
+
+    json_int_t MAX_RECS = llabs(to_rowid) - llabs(from_rowid) + 1;
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
+    JSON_DECREF(callback_data)
+    callback_data = json_array();
+
+    leidos = 0;
+    counter_rowid = from_rowid;
+    json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
+    json_t *match_cond = json_pack("{s:b, s:I, s:I}",
+        "backward", BACKWARD,
+        "from_rowid", (json_int_t)from_rowid,
+        "to_rowid", (json_int_t)to_rowid
+    );
+    json_t *data = json_array();
+    json_t *iterator = tranger2_open_iterator(
+        tranger,
+        topic,
+        key,                    // key
+        match_cond,             // match_cond, owned
+        load_rango_callback,    // load_record_callback
+        NULL,                   // id
+        data                    // data
+    );
+
+    MT_INCREMENT_COUNT(time_measure, MAX_RECS)
+    MT_PRINT_TIME(time_measure, test_name)
+
+    result += tranger2_close_iterator(tranger, iterator);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*
+     *  Test data
+     */
+    json_t *matches = json_array();
+
+    if(!BACKWARD) {
+        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++){
+            json_t *match = json_pack("{s:I}",
+                "tm", t1 + i
+            );
+            json_array_append_new(matches, match);
+        }
+    } else {
+        json_int_t t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++) {
+            json_t *match = json_pack("{s:I}",
+                "tm", t1 - i
+            );
+            json_array_append_new(matches, match);
+        }
+    }
+
+    result += test_list(data, matches, "%s - %s", TEST_NAME, "data");
+    JSON_DECREF(matches)
+    JSON_DECREF(data)
+
+    /*
+     *  Test callback data
+     */
+    matches = json_array();
+
+    if(!BACKWARD) {
+        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++) {
+            json_t *match = json_pack("{s:I, s:I}",
+                "rowid", from_rowid + i,
+                "t", t1 + i
+            );
+            json_array_append_new(matches, match);
+        }
+    } else {
+        json_int_t t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
+        for(int i=0; i<MAX_RECS; i++){
+            json_t *match = json_pack("{s:I, s:I}",
+                "rowid", to_rowid - i,
+                "t", t1 - i
+            );
+            json_array_append_new(matches, match);
+        }
+    }
+
+    result += test_list(callback_data, matches, "%s - %s", TEST_NAME, "callback_data");
+
+    JSON_DECREF(matches)
+    JSON_DECREF(callback_data)
+
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, open iterator (realtime by disk) with callback
  *  HACK: return -1 to fail, 0 to ok
@@ -127,81 +247,16 @@ PRIVATE int do_test(void)
         #define BACKWARD        0
         #define FROM_ROWID      1
         #define TO_ROWID        10
-        const char *test_name = TEST_NAME;
+        #define KEY             "0000000000000000001"
 
-        set_expected_results( // Check that no logs happen
-            test_name, // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-
-        json_int_t from_rowid = FROM_ROWID;
-        json_int_t to_rowid = TO_ROWID;
-
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        JSON_DECREF(callback_data)
-        callback_data = json_array();
-
-        leidos = 0;
-        counter_rowid = from_rowid;
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-        json_t *match_cond = json_pack("{s:b, s:I, s:I}",
-            "backward", BACKWARD,
-            "from_rowid", (json_int_t)from_rowid,
-            "to_rowid", (json_int_t)to_rowid
-        );
-        json_t *data = json_array();
-        json_t *iterator = tranger2_open_iterator(
+        result += search_data(
             tranger,
-            topic,
-            "0000000000000000001",  // key
-            match_cond,             // match_cond, owned
-            load_rango_callback,    // load_record_callback
-            NULL,                   // id
-            data                    // data
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID
         );
-
-        MT_INCREMENT_COUNT(time_measure, MAX_RECS)
-        MT_PRINT_TIME(time_measure, test_name)
-
-        result += tranger2_close_iterator(tranger, iterator);
-        result += test_json(NULL);  // NULL: we want to check only the logs
-
-        /*
-         *  Test data
-         */
-        json_t *matches = json_array();
-        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
-        for(int i=0; i<MAX_RECS; i++){
-            json_t *match = json_pack("{s:I}",
-                "tm", t1 + i
-            );
-            json_array_append_new(matches, match);
-        }
-        result += test_list(TEST_NAME " - data", data, matches);
-        JSON_DECREF(matches)
-        JSON_DECREF(data)
-
-        /*
-         *  Test callback data
-         */
-        matches = json_array();
-        t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
-        for(int i=0; i<MAX_RECS; i++){
-            json_t *match = json_pack("{s:I, s:I}",
-                "rowid", from_rowid + i,
-                "t", t1 + i
-            );
-            json_array_append_new(matches, match);
-        }
-        result += test_list(TEST_NAME " - callback_data", callback_data, matches);
-
-        JSON_DECREF(matches)
-        JSON_DECREF(callback_data)
     }
 
     /*-------------------------------------*
@@ -214,87 +269,22 @@ PRIVATE int do_test(void)
         #undef BACKWARD
         #undef FROM_ROWID
         #undef TO_ROWID
+        #undef KEY
 
         #define TEST_NAME "Search absolute range, BACKWARD (old 60.000 op/sec)"
         #define BACKWARD        1
         #define FROM_ROWID      1
         #define TO_ROWID        10
+        #define KEY             "0000000000000000001"
 
-        const char *test_name = TEST_NAME;
-        set_expected_results( // Check that no logs happen
-            test_name, // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-
-        json_int_t from_rowid = FROM_ROWID;
-        json_int_t to_rowid = TO_ROWID;
-
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        JSON_DECREF(callback_data)
-        callback_data = json_array();
-
-        leidos = 0;
-        counter_rowid = from_rowid;
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-        json_t *match_cond = json_pack("{s:b, s:I, s:I}",
-            "backward", 1,
-            "from_rowid", (json_int_t)from_rowid,
-            "to_rowid", (json_int_t)to_rowid
-        );
-        json_t *data = json_array();
-        json_t *iterator = tranger2_open_iterator(
+        result += search_data(
             tranger,
-            topic,
-            "0000000000000000001",  // key
-            match_cond,             // match_cond, owned
-            load_rango_callback,    // load_record_callback
-            NULL,                   // id
-            data                    // data
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID
         );
-
-        MT_INCREMENT_COUNT(time_measure, MAX_RECS)
-        MT_PRINT_TIME(time_measure, test_name)
-
-        result += tranger2_close_iterator(tranger, iterator);
-        result += test_json(NULL);  // NULL: we want to check only the logs
-
-        /*
-         *  Test data
-         */
-        json_t *matches = json_array();
-        json_int_t t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
-
-        for(int i=0; i<MAX_RECS; i++){
-            json_t *match = json_pack("{s:I}",
-                "tm", t1 - i
-            );
-            json_array_append_new(matches, match);
-        }
-        result += test_list(TEST_NAME " - data", data, matches);
-        JSON_DECREF(matches)
-        JSON_DECREF(data)
-
-        /*
-         *  Test callback data
-         */
-        matches = json_array();
-        t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
-        for(int i=0; i<MAX_RECS; i++){
-            json_t *match = json_pack("{s:I, s:I}",
-                "rowid", to_rowid - i,
-                "t", t1 - i
-            );
-            json_array_append_new(matches, match);
-        }
-        result += test_list(TEST_NAME " - callback_data", callback_data, matches);
-
-        JSON_DECREF(matches)
-        JSON_DECREF(callback_data)
     }
 
 

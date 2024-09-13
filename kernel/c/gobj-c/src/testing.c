@@ -592,12 +592,22 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
  *  sizes of both must match
  *  keys in 'matches' must match with keys in 'list'
  ***************************************************************************/
-PUBLIC int test_list(const char *name, json_t *list, json_t *matches)
+PUBLIC int test_list(json_t *list, json_t *matches, const char *msg, ...)
 {
+    char message[256];
     int ret = 0;
 
+    va_list ap;
+    va_start(ap, msg);
+    vsnprintf(message, sizeof(message), msg, ap);
+    va_end(ap);
+
     if(json_array_size(list) != json_array_size(matches)) {
-        printf("%s  --> ERROR%s in test: '%s', sizes don't match\n", On_Red BWhite, Color_Off, name);
+        printf("%s  --> ERROR%s in test: '%s', sizes don't match (%d,%d)\n", On_Red BWhite, Color_Off,
+            message,
+           (int)json_array_size(list),
+           (int)json_array_size(matches)
+        );
         ret += -1;
     }
 
@@ -620,7 +630,7 @@ PUBLIC int test_list(const char *name, json_t *list, json_t *matches)
                 char *found = json2uglystr(value_);
                 // Error already logged with sizes don't match
                 printf("%s  --> ERROR%s in test: '%s', %s don't match, idx %d, expected %s, found %s\n",
-                    On_Red BWhite, Color_Off, name, key, idx, expected_, found
+                    On_Red BWhite, Color_Off, message, key, idx, expected_, found
                 );
                 ret += -1;
                 GBMEM_FREE(expected_)
