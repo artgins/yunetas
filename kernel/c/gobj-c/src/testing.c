@@ -592,7 +592,7 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
  *  sizes of both must match
  *  keys in 'matches' must match with keys in 'list'
  ***************************************************************************/
-PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...)
+PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg, ...)
 {
     char message[256];
     int ret = 0;
@@ -602,39 +602,41 @@ PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...)
     vsnprintf(message, sizeof(message), msg, ap);
     va_end(ap);
 
-    if(json_array_size(found) != json_array_size(expected)) {
+    if(json_array_size(list_found) != json_array_size(list_expected)) {
         printf("%s  --> ERROR%s in test: '%s', sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
-            message,
-           (int)json_array_size(found),
-           (int)json_array_size(expected)
+               message,
+               (int)json_array_size(list_found),
+               (int)json_array_size(list_expected)
         );
+        print_json2("found", list_found);
+        print_json2("expected", list_expected);
         ret += -1;
     }
 
     int idx;
     json_t *record;
-    json_array_foreach(found, idx, record) {
-        json_t *match = json_array_get(expected, idx);
-        if(!match) {
-            // Error already logged with sizes don't match
+    json_array_foreach(list_found, idx, record) {
+        json_t *object_expected = json_array_get(list_expected, idx);
+        if(!object_expected) {
+            // Error already logged with sizes don't object_expected
             ret += -1;
             break;
         }
 
         const char *key;
-        json_t *value;
-        json_object_foreach(match, key, value) {
-            json_t *value_ = json_object_get(record, key);
-            if(!json_is_identical(value, value_)) {
-                char *expected_ = json2uglystr(value);
-                char *found = json2uglystr(value_);
-                // Error already logged with sizes don't match
-                printf("%s  --> ERROR%s in test: '%s', %s don't match, idx %d, expected %s, found %s\n",
-                    On_Red BWhite, Color_Off, message, key, idx, expected_, found
+        json_t *expected_value;
+        json_object_foreach(object_expected, key, expected_value) {
+            json_t *found_value = json_object_get(record, key);
+            if(!json_is_identical(expected_value, found_value)) {
+                char *expected_ = json2uglystr(expected_value);
+                char *found_ = json2uglystr(found_value);
+                // Error already logged with sizes don't object_expected
+                printf("%s  --> ERROR%s in test: '%s', %s don't object_expected, idx %d, expected %s, found %s\n",
+                    On_Red BWhite, Color_Off, message, key, idx, expected_, found_
                 );
                 ret += -1;
                 GBMEM_FREE(expected_)
-                GBMEM_FREE(found)
+                GBMEM_FREE(found_)
                 break;
             }
         }

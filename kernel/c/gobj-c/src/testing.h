@@ -48,9 +48,9 @@ PUBLIC int test_file_permission_and_size(const char *path, mode_t permission, of
 /*
  *  list and match must be two json arrays of objects
  *  sizes of both must match
- *  keys in 'matches' must match with keys in 'list'
+ *  keys in 'expected' must match with keys in 'found'
  */
-PUBLIC int test_list(json_t *list, json_t *matches, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)));
+PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANSSON_ATTRS((format(printf, 3, 4)));
 
 
 /***************************************************************************
