@@ -3358,7 +3358,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         /*---------------------------*
          *      History
          *---------------------------*/
-        json_int_t rowid;
+        json_int_t rowid = 0;
         md2_record_t md_record;
 
         BOOL end = FALSE;
@@ -4026,11 +4026,16 @@ PRIVATE json_int_t first_segment_row(
         return -1;
     }
 
-    json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    if(rowid == 0) {
-        if(!backward) {
+    json_int_t rowid;
+
+    if(!backward) {
+        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+        if(rowid == 0) {
             rowid = 1;
-        } else {
+        }
+    } else {
+        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+        if(rowid == 0) {
             rowid = segments_last_row(segments);
         }
     }
@@ -4139,6 +4144,7 @@ PRIVATE json_int_t next_segment_row(
                 return -1;
             }
         }
+
         *rowid = cur_rowid;
 
     } else {
@@ -4177,6 +4183,8 @@ PRIVATE json_int_t next_segment_row(
                 return -1;
             }
         }
+
+        *rowid = cur_rowid;
     }
 
     return cur_segment;
