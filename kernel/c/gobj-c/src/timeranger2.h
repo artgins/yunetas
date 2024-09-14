@@ -517,7 +517,7 @@ PUBLIC int tranger2_iterator_find(
     json_int_t *rowid,
     json_t *match_cond,  // owned
     md2_record_t *md_record,
-    json_t **record  // not yours, don't own
+    json_t **record
 );
 
 /**rst**
