@@ -3368,9 +3368,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         BOOL end = FALSE;
-        json_int_t last_row = (json_int_t)get_topic_key_rows(gobj, topic, key);
-        json_int_t last_t = (json_int_t)tranger2_iterator_last_t(tranger, iterator);
-        json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
+        json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
+        json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
+        json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
 
         if(!backward) {
             rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
@@ -3586,7 +3586,6 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
  *  Get Iterator size (nº of rows)
  ***************************************************************************/
 PUBLIC size_t tranger2_iterator_size(
-    json_t *tranger,
     json_t *iterator
 )
 {
@@ -3609,77 +3608,97 @@ PUBLIC size_t tranger2_iterator_size(
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC json_int_t tranger2_iterator_first_row(json_t *iterator)
+{
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
+        return 0;
+    }
+    json_int_t cur_segment = 0;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "first_row"));
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_int_t tranger2_iterator_last_row(json_t *iterator)
+{
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
+        return 0;
+    }
+    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "last_row"));
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_int_t tranger2_iterator_first_t(
-    json_t *tranger,
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
-    if(json_array_size(segments)==0) {
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
         return 0;
     }
 
-    json_t *segment = json_array_get(segments, 0);
-    return kw_get_int(gobj, segment, "fr_t", 0, KW_REQUIRED);
+    json_int_t cur_segment = 0;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "fr_t"));
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_int_t tranger2_iterator_last_t(
-    json_t *tranger,
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
-    if(json_array_size(segments)==0) {
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
         return 0;
     }
 
-    json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    return kw_get_int(gobj, segment, "to_t", 0, KW_REQUIRED);
+    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "to_t"));
 }
 
 /***************************************************************************
  *  Get first_t
  ***************************************************************************/
 PUBLIC json_int_t tranger2_iterator_first_tm(
-    json_t *tranger,
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
-    if(json_array_size(segments)==0) {
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
         return 0;
     }
 
-    json_t *segment = json_array_get(segments, 0);
-    return kw_get_int(gobj, segment, "fr_tm", 0, KW_REQUIRED);
+    json_int_t cur_segment = 0;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "fr_tm"));
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_int_t tranger2_iterator_last_tm(
-    json_t *tranger,
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
-    if(json_array_size(segments)==0) {
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
         return 0;
     }
 
-    json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    return kw_get_int(gobj, segment, "to_tm", 0, KW_REQUIRED);
+    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+    json_t *segment = json_array_get(segments, cur_segment);
+    return json_integer_value(json_object_get(segment, "to_tm"));
 }
 
 /***************************************************************************
