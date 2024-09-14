@@ -3800,6 +3800,456 @@ PRIVATE BOOL match_record(
 }
 
 /***************************************************************************
+ *  Return a list of segments that match conditions
+ ***************************************************************************/
+PRIVATE json_t *get_segments(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *match_cond  // NOT owned but can be modified (times in string)
+)
+{
+    json_t *jn_segments = json_array();
+
+    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
+
+    /*-------------------------------------*
+     *      Recover cache data
+     *-------------------------------------*/
+    char path[NAME_MAX];
+    snprintf(path, sizeof(path), "cache`%s`files", key);
+    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
+    if(!cache_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return jn_segments;
+    }
+    snprintf(path, sizeof(path), "cache`%s`total", key);
+    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+    if(!cache_total) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return jn_segments;
+    }
+
+    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
+    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
+    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
+    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
+    json_int_t total_rows = kw_get_int(gobj, cache_total, "rows", 0, KW_REQUIRED);
+
+    if(total_rows == 0) {
+        // NO rows
+        return jn_segments;
+    }
+
+    /*-------------------------------------*
+     *      Check range rows in totals
+     *-------------------------------------*/
+    json_int_t from_rowid = 0;
+    json_t *jn_from_rowid = json_object_get(match_cond, "from_rowid");
+    if(json_is_string(jn_from_rowid)) {
+        from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
+        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    } else {
+        from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    }
+
+    // WARNING repeated in tranger2_open_iterator
+    if(from_rowid == 0) {
+        from_rowid = 1;
+    } else if(from_rowid > 0) {
+        // positive offset
+        if(from_rowid > total_rows) {
+            // not exist
+            return jn_segments;
+        }
+    } else {
+        // negative offset
+        if(from_rowid < -total_rows) {
+            // out of range, begin at 0
+            from_rowid = 1;
+        } else {
+            from_rowid = total_rows + from_rowid;
+        }
+    }
+
+    json_int_t to_rowid = 0;
+    json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
+    if(json_is_string(jn_to_rowid)) {
+        to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    } else {
+        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    }
+
+    // WARNING repeated in tranger2_open_iterator
+    if(to_rowid == 0) {
+        to_rowid = total_rows;
+    } else if(to_rowid > 0) {
+        // positive offset
+        if(to_rowid > total_rows) {
+            // out of range, begin at 0
+            to_rowid = total_rows;
+        }
+    } else {
+        // negative offset
+        if(to_rowid + total_rows > 0) {
+            to_rowid = total_rows + to_rowid;
+        } else {
+            // not exist
+            return jn_segments;
+        }
+    }
+
+    if(to_rowid < from_rowid) {
+        // Bad range
+        return jn_segments;
+    }
+
+    /*-------------------------------------*
+     *      Check range t in totals
+     *-------------------------------------*/
+    json_int_t from_t = 0;
+    json_t *jn_from_t = json_object_get(match_cond, "from_t");
+    if(json_is_string(jn_from_t)) {
+        if(strchr(json_string_value(jn_from_t), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            from_t = (json_int_t)timestamp;
+        } else {
+            from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
+        }
+        json_object_set_new(match_cond, "from_t", json_integer(from_t));
+    } else {
+        from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+    }
+
+    if(from_t == 0) {
+        from_t = total_from_t;
+    } else {
+        if(from_t > total_to_t) {
+            // not exist
+            return jn_segments;
+        } else if(from_t < total_from_t) {
+            // out of range, begin at start
+            from_t = total_from_t;
+        }
+    }
+
+    json_int_t to_t = 0;
+    json_t *jn_to_t = json_object_get(match_cond, "to_t");
+    if(json_is_string(jn_to_t)) {
+        if(strchr(json_string_value(jn_to_t), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            to_t = (json_int_t)timestamp;
+        } else {
+            to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
+        }
+        json_object_set_new(match_cond, "to_t", json_integer(to_t));
+    } else {
+        to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+    }
+
+    if(to_t == 0) {
+        to_t = total_to_t;
+    } else {
+        if(to_t > total_to_t) {
+            // out of range, begin at the end
+            to_t = total_to_t;
+        } else if(to_t < total_from_t) {
+            // not exist
+            return jn_segments;
+        }
+    }
+
+    /*-------------------------------------*
+     *      Check range tm in totals
+     *-------------------------------------*/
+    json_int_t from_tm = 0;
+    json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
+    if(json_is_string(jn_from_tm)) {
+        if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            from_tm = (json_int_t)timestamp;
+        } else {
+            from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
+        }
+        json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
+    } else {
+        from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+    }
+
+    if(from_tm == 0) {
+        from_tm = total_from_tm;
+    } else {
+        if (from_tm > total_to_tm) {
+            // not exist
+            return jn_segments;
+        } else if (from_tm < total_from_tm) {
+            // out of range, begin at start
+            from_tm = total_from_tm;
+        }
+    }
+
+    json_int_t to_tm = 0;
+    json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
+    if(json_is_string(jn_to_tm)) {
+        if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
+            int offset;
+            timestamp_t timestamp;
+            if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
+                return jn_segments;
+            }
+            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            //    timestamp *= 1000; // TODO lost milisecond precision?
+            //}
+            to_tm = (json_int_t)timestamp;
+        } else {
+            to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
+        }
+        json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
+    } else {
+        to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+    }
+
+    if(to_tm == 0) {
+        to_tm = total_to_tm;
+    } else {
+        if (to_tm > total_to_tm) {
+            // out of range, begin at the end
+            to_tm = total_to_tm;
+        } else if (to_tm < total_from_tm) {
+            // not exist
+            return jn_segments;
+        }
+    }
+
+    /*------------------------------------------*
+     *  Search the first file in cache files
+     *  to begin the loop
+     *------------------------------------------*/
+    if(!backward) {
+        int idx; json_t *cache_file;
+        json_int_t partial_rows2 = 1;
+        json_int_t rows2;
+        json_array_foreach(cache_files, idx, cache_file) {
+// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
+
+            json_int_t rangeStart = partial_rows2; // first row of this segment
+            json_int_t rangeEnd = partial_rows2 + rows2 - 1; // last row of this segment
+
+            // If the current range starts after the input range ends, stop further checks
+            if (rangeStart > to_rowid) {
+                break;
+            }
+
+            // Print only the valid ranges
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
+                json_t *jn_segment = json_deep_copy(cache_file);
+                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
+                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
+                json_object_set_new(jn_segment, "key", json_string(key));
+                json_array_append_new(jn_segments, jn_segment);
+            }
+
+            partial_rows2 += rows2;
+        }
+    } else {
+        int idx; json_t *cache_file;
+        json_int_t partial_rows2 = total_rows;
+        json_int_t rows2;
+        json_array_backward(cache_files, idx, cache_file) {
+// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
+
+            json_int_t rangeStart = partial_rows2 - rows2 + 1; // first row of this segment
+            json_int_t rangeEnd = partial_rows2;  // last row of this segment
+
+            // If the current range ends before the input range starts, stop further checks
+            if (rangeEnd < from_rowid) {
+                break;
+            }
+
+            // Print only the valid ranges
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
+                json_t *jn_segment = json_deep_copy(cache_file);
+                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
+                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
+                json_object_set_new(jn_segment, "key", json_string(key));
+                json_array_insert_new(jn_segments, 0, jn_segment);
+            }
+            partial_rows2 -= rows2;
+        }
+    }
+
+    return jn_segments;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_int_t find_first_match(
+    json_t *segments,
+    json_t *match_cond,  // not owned
+    json_int_t *prowid
+)
+{
+    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
+    int idx; json_t *segment;
+
+    json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    if(rowid == 0) {
+        if(!backward) {
+            rowid = 1;
+        } else {
+            rowid = tranger2_iterator_last_row(iterator);
+        }
+    }
+
+    if(!backward) {
+        json_array_foreach(segments, idx, segment) {
+            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
+            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            do {
+                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
+                    // no match
+                    break;
+                }
+
+                // Match
+                *prowid = seg_first_rowid;
+                return idx;
+            } while(0);
+        }
+
+    } else {
+        json_array_backward(segments, idx, segment) {
+            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
+            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            do {
+                if(!(seg_first_rowid <= inputValue && inputValue <= seg_last_rowid)) {
+                    // no match
+                    break;
+                }
+
+                // Match
+                *prowid = seg_last_rowid;
+                return idx;
+            } while(0);
+        }
+    }
+
+    return -1;
+
+//    json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
+//    json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
+//    json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
+//
+//    if(!backward) {
+//        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+//
+//        // WARNING repeated in get_segments
+//        if(rowid == 0) {
+//            //rowid = 1;
+//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+//        } else if(rowid>0) {
+//            // positive offset
+//            if(rowid > last_row) {
+//                // not exist
+//                end = FALSE;
+//            } else {
+//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//            }
+//
+//        } else if(rowid<0) {
+//            // negative offset
+//            if(rowid < -last_row) {
+//                // out of range, begin at 0
+//                rowid = 1;
+//            } else {
+//                rowid = last_row + rowid;
+//            }
+//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//        }
+//    } else {
+//        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+//
+//        // WARNING repeated in get_segments
+//        if(rowid == 0) {
+//            //rowid = last_row;
+//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+//        } else if(rowid>0) {
+//            // positive offset
+//            if(rowid > last_row) {
+//                // out of range, begin at 0
+//                rowid = last_row;
+//            }
+//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//        } else if(rowid<0) {
+//            // negative offset
+//            if(rowid + last_row > 0) {
+//                rowid = last_row + rowid;
+//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//            } else {
+//                end = FALSE;
+//            }
+//        }
+//    }
+
+}
+
+/***************************************************************************
  *  Get metadata/record in iterator that firstly match match_cond
  ***************************************************************************/
 PUBLIC int tranger2_iterator_find(
@@ -4442,456 +4892,6 @@ PUBLIC int tranger2_iterator_last(
     }
 
     return 0;
-}
-
-/***************************************************************************
- *  Return a list of segments that match conditions
- ***************************************************************************/
-PRIVATE json_t *get_segments(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *match_cond  // NOT owned but can be modified (times in string)
-)
-{
-    json_t *jn_segments = json_array();
-
-    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-
-    /*-------------------------------------*
-     *      Recover cache data
-     *-------------------------------------*/
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
-    if(!cache_files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return jn_segments;
-    }
-    snprintf(path, sizeof(path), "cache`%s`total", key);
-    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
-    if(!cache_total) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return jn_segments;
-    }
-
-    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
-    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
-    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
-    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
-    json_int_t total_rows = kw_get_int(gobj, cache_total, "rows", 0, KW_REQUIRED);
-
-    if(total_rows == 0) {
-        // NO rows
-        return jn_segments;
-    }
-
-    /*-------------------------------------*
-     *      Check range rows in totals
-     *-------------------------------------*/
-    json_int_t from_rowid = 0;
-    json_t *jn_from_rowid = json_object_get(match_cond, "from_rowid");
-    if(json_is_string(jn_from_rowid)) {
-        from_rowid = kw_get_int(gobj, match_cond, "from_rowid", 0, KW_WILD_NUMBER);
-        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
-    } else {
-        from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    }
-
-    // WARNING repeated in tranger2_open_iterator
-    if(from_rowid == 0) {
-        from_rowid = 1;
-    } else if(from_rowid > 0) {
-        // positive offset
-        if(from_rowid > total_rows) {
-            // not exist
-            return jn_segments;
-        }
-    } else {
-        // negative offset
-        if(from_rowid < -total_rows) {
-            // out of range, begin at 0
-            from_rowid = 1;
-        } else {
-            from_rowid = total_rows + from_rowid;
-        }
-    }
-
-    json_int_t to_rowid = 0;
-    json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
-    if(json_is_string(jn_to_rowid)) {
-        to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
-    } else {
-        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-    }
-
-    // WARNING repeated in tranger2_open_iterator
-    if(to_rowid == 0) {
-        to_rowid = total_rows;
-    } else if(to_rowid > 0) {
-        // positive offset
-        if(to_rowid > total_rows) {
-            // out of range, begin at 0
-            to_rowid = total_rows;
-        }
-    } else {
-        // negative offset
-        if(to_rowid + total_rows > 0) {
-            to_rowid = total_rows + to_rowid;
-        } else {
-            // not exist
-            return jn_segments;
-        }
-    }
-
-    if(to_rowid < from_rowid) {
-        // Bad range
-        return jn_segments;
-    }
-
-    /*-------------------------------------*
-     *      Check range t in totals
-     *-------------------------------------*/
-    json_int_t from_t = 0;
-    json_t *jn_from_t = json_object_get(match_cond, "from_t");
-    if(json_is_string(jn_from_t)) {
-        if(strchr(json_string_value(jn_from_t), 'T')!=0) {
-            int offset;
-            timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
-            from_t = (json_int_t)timestamp;
-        } else {
-            from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(from_t));
-    } else {
-        from_t = json_integer_value(json_object_get(match_cond, "from_t"));
-    }
-
-    if(from_t == 0) {
-        from_t = total_from_t;
-    } else {
-        if(from_t > total_to_t) {
-            // not exist
-            return jn_segments;
-        } else if(from_t < total_from_t) {
-            // out of range, begin at start
-            from_t = total_from_t;
-        }
-    }
-
-    json_int_t to_t = 0;
-    json_t *jn_to_t = json_object_get(match_cond, "to_t");
-    if(json_is_string(jn_to_t)) {
-        if(strchr(json_string_value(jn_to_t), 'T')!=0) {
-            int offset;
-            timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
-            to_t = (json_int_t)timestamp;
-        } else {
-            to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(to_t));
-    } else {
-        to_t = json_integer_value(json_object_get(match_cond, "to_t"));
-    }
-
-    if(to_t == 0) {
-        to_t = total_to_t;
-    } else {
-        if(to_t > total_to_t) {
-            // out of range, begin at the end
-            to_t = total_to_t;
-        } else if(to_t < total_from_t) {
-            // not exist
-            return jn_segments;
-        }
-    }
-
-    /*-------------------------------------*
-     *      Check range tm in totals
-     *-------------------------------------*/
-    json_int_t from_tm = 0;
-    json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-    if(json_is_string(jn_from_tm)) {
-        if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
-            int offset;
-            timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
-            from_tm = (json_int_t)timestamp;
-        } else {
-            from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
-    } else {
-        from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
-    }
-
-    if(from_tm == 0) {
-        from_tm = total_from_tm;
-    } else {
-        if (from_tm > total_to_tm) {
-            // not exist
-            return jn_segments;
-        } else if (from_tm < total_from_tm) {
-            // out of range, begin at start
-            from_tm = total_from_tm;
-        }
-    }
-
-    json_int_t to_tm = 0;
-    json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-    if(json_is_string(jn_to_tm)) {
-        if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
-            int offset;
-            timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
-            to_tm = (json_int_t)timestamp;
-        } else {
-            to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
-    } else {
-        to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
-    }
-
-    if(to_tm == 0) {
-        to_tm = total_to_tm;
-    } else {
-        if (to_tm > total_to_tm) {
-            // out of range, begin at the end
-            to_tm = total_to_tm;
-        } else if (to_tm < total_from_tm) {
-            // not exist
-            return jn_segments;
-        }
-    }
-
-    /*------------------------------------------*
-     *  Search the first file in cache files
-     *  to begin the loop
-     *------------------------------------------*/
-    if(!backward) {
-        int idx; json_t *cache_file;
-        json_int_t partial_rows2 = 1;
-        json_int_t rows2;
-        json_array_foreach(cache_files, idx, cache_file) {
-// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
-
-            json_int_t rangeStart = partial_rows2; // first row of this segment
-            json_int_t rangeEnd = partial_rows2 + rows2 - 1; // last row of this segment
-
-            // If the current range starts after the input range ends, stop further checks
-            if (rangeStart > to_rowid) {
-                break;
-            }
-
-            // Print only the valid ranges
-            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
-                json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
-                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
-                json_object_set_new(jn_segment, "key", json_string(key));
-                json_array_append_new(jn_segments, jn_segment);
-            }
-
-            partial_rows2 += rows2;
-        }
-    } else {
-        int idx; json_t *cache_file;
-        json_int_t partial_rows2 = total_rows;
-        json_int_t rows2;
-        json_array_backward(cache_files, idx, cache_file) {
-// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
-
-            json_int_t rangeStart = partial_rows2 - rows2 + 1; // first row of this segment
-            json_int_t rangeEnd = partial_rows2;  // last row of this segment
-
-            // If the current range ends before the input range starts, stop further checks
-            if (rangeEnd < from_rowid) {
-                break;
-            }
-
-            // Print only the valid ranges
-            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
-                json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
-                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
-                json_object_set_new(jn_segment, "key", json_string(key));
-                json_array_insert_new(jn_segments, 0, jn_segment);
-            }
-            partial_rows2 -= rows2;
-        }
-    }
-
-    return jn_segments;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_int_t find_first_match(
-    json_t *segments,
-    json_t *match_cond,  // not owned
-    json_int_t *prowid
-)
-{
-    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    int idx; json_t *segment;
-
-    json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    if(rowid == 0) {
-        if(!backward) {
-            rowid = 1;
-        } else {
-            rowid = tranger2_iterator_last_row(iterator);
-        }
-    }
-
-    if(!backward) {
-        json_array_foreach(segments, idx, segment) {
-            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
-            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
-
-            do {
-                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
-                    // no match
-                    break;
-                }
-
-                // Match
-                *prowid = seg_first_rowid;
-                return idx;
-            } while(0);
-        }
-
-    } else {
-        json_array_backward(segments, idx, segment) {
-            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
-            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
-
-            do {
-                if(!(seg_first_rowid <= inputValue && inputValue <= seg_last_rowid)) {
-                    // no match
-                    break;
-                }
-
-                // Match
-                *prowid = seg_last_rowid;
-                return idx;
-            } while(0);
-        }
-    }
-
-    return -1;
-
-//    json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
-//    json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
-//    json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
-//
-//    if(!backward) {
-//        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-//
-//        // WARNING repeated in get_segments
-//        if(rowid == 0) {
-//            //rowid = 1;
-//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
-//        } else if(rowid>0) {
-//            // positive offset
-//            if(rowid > last_row) {
-//                // not exist
-//                end = FALSE;
-//            } else {
-//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//            }
-//
-//        } else if(rowid<0) {
-//            // negative offset
-//            if(rowid < -last_row) {
-//                // out of range, begin at 0
-//                rowid = 1;
-//            } else {
-//                rowid = last_row + rowid;
-//            }
-//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//        }
-//    } else {
-//        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-//
-//        // WARNING repeated in get_segments
-//        if(rowid == 0) {
-//            //rowid = last_row;
-//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
-//        } else if(rowid>0) {
-//            // positive offset
-//            if(rowid > last_row) {
-//                // out of range, begin at 0
-//                rowid = last_row;
-//            }
-//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//        } else if(rowid<0) {
-//            // negative offset
-//            if(rowid + last_row > 0) {
-//                rowid = last_row + rowid;
-//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//            } else {
-//                end = FALSE;
-//            }
-//        }
-//    }
-
 }
 
 /***************************************************************************
