@@ -821,7 +821,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
 /***************************************************************************
    Get topic size (number of records)
  ***************************************************************************/
-PUBLIC uint64_t tranger2_topic_size(
+PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,
     const char *topic_name,
     const char *key
@@ -3368,7 +3368,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         BOOL end = FALSE;
-        json_int_t total_rows = (json_int_t)tranger2_iterator_size(tranger, iterator);
+        json_int_t total_rows = (json_int_t)get_topic_key_rows(gobj, topic, key);
         json_int_t last_t = (json_int_t)tranger2_iterator_last_t(tranger, iterator);
         json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
 
@@ -3590,16 +3590,20 @@ PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
-    if(json_array_size(segments)==0) {
+    size_t rows = 0;
+    json_t *segments = json_object_get(iterator, "segments");
+    if (json_array_size(segments) == 0) {
         return 0;
     }
 
-    json_t *segment = json_array_get(segments, json_array_size(segments) - 1);
-    size_t last_rowid = (size_t)kw_get_int(gobj, segment, "last_row", 0, KW_REQUIRED);
-    return last_rowid;
+    int idx;
+    json_t *segment;
+    json_array_foreach(segments, idx, segment) {
+        json_int_t rows_ = json_integer_value(json_object_get(segment, "rows"));
+        rows += rows_;
+    }
+
+    return rows;
 }
 
 /***************************************************************************
@@ -3739,15 +3743,7 @@ PUBLIC int tranger2_iterator_first(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "iterator without segments",
-//            "topic_name",   "%s", tranger2_topic_name(topic),
-//            "key",          "%s", key,
-//            NULL
-//        );
-//        gobj_trace_json(gobj, iterator, "iterator without segments");
+        // Here silence, avoid multiple logs, only logs in first/last
         return -1;
     }
 
@@ -4164,15 +4160,7 @@ PUBLIC int tranger2_iterator_last(
      */
     json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
     if(json_array_size(segments)==0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "iterator without segments",
-//            "topic_name",   "%s", tranger2_topic_name(topic),
-//            "key",          "%s", key,
-//            NULL
-//        );
-//        gobj_trace_json(gobj, iterator, "iterator without segments");
+        // Here silence, avoid multiple logs, only logs in first/last
         return -1;
     }
 
