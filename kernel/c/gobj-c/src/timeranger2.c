@@ -4837,7 +4837,7 @@ PRIVATE json_t *get_segments(
                 json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
                 json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
                 json_object_set_new(jn_segment, "key", json_string(key));
-                json_array_append_new(jn_segments, jn_segment);
+                json_array_insert_new(jn_segments, 0, jn_segment);
             }
             partial_rows2 -= rows2;
         }
@@ -4855,6 +4855,7 @@ PRIVATE json_int_t get_segment_of_rowid(
     json_int_t rowid
 )
 {
+    // TODO debe usar forward or backward
     int idx; json_t *segment;
     json_array_foreach(segments, idx, segment) {
         json_int_t first_row = kw_get_int(gobj, segment, "first_row", -1, KW_REQUIRED);
