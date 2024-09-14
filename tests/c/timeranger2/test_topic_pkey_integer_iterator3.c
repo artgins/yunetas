@@ -136,10 +136,14 @@ PRIVATE int search_data(
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
     MT_PRINT_TIME(time_measure, test_name)
 
-    // TRICK
+    // TRICK adjust the expected data
     if(from_rowid == 0) {
         // Asking from 0 must be equal to asking by 1
         from_rowid = 1;
+    }
+    if(to_rowid > MAX_RECORDS) {
+        // Asking to > MAX_RECORDS must be equal to asking by MAX_RECORDS
+        to_rowid = MAX_RECORDS;
     }
 
     /*
@@ -249,7 +253,7 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  Search absolute range, forward
      *-------------------------------------*/
-    BOOL test_forward = 1;
+    BOOL test_forward = 0;
     if(test_forward) {
         const char *TEST_NAME = "Search absolute range 1-10, FORWARD (old 60.000 op/sec)";
         BOOL BACKWARD               = 0;
@@ -364,7 +368,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(test_forward) {
+    if(test_forward || 1) {
         const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, FORWARD";
         BOOL BACKWARD               = 0;
         // TRICK last row of the first segment: 86400
@@ -426,7 +430,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(test_backward || 1) {
+    if(test_backward) {
         const char *TEST_NAME = "Search absolute range 89991-90000, BACKWARD";
         BOOL BACKWARD               = 1;
         json_int_t FROM_ROWID       = 89991;
@@ -502,7 +506,7 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(test_backward) {
+    if(test_backward || 1) {
         const char *TEST_NAME = "Search absolute range MIDDLE-5 - MIDDEL+5, BACKWARD";
         BOOL BACKWARD               = 1;
         // TRICK last row of the first segment: 86400

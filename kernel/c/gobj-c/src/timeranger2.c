@@ -4786,26 +4786,23 @@ PRIVATE json_t *get_segments(
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
-            json_int_t first_row_segment = partial_rows2;               // first row of this segment
-            json_int_t last_row_segment = partial_rows2 + rows2 - 1;    // last row of this segment
+            json_int_t rangeStart = partial_rows2; // first row of this segment
+            json_int_t rangeEnd = partial_rows2 + rows2 - 1; // last row of this segment
 
-            if(from_rowid <= last_row_segment) {
-                // ok
-            } else {
+            // If the current range starts after the input range ends, stop further checks
+            if (rangeStart > to_rowid) {
                 break;
             }
 
-            matched |= (from_rowid >= first_row_segment);
-            matched |= (to_rowid <= last_row_segment);
-            // TODO check t tm system_flag user_flag
-
-            if(matched) {
+            // Print only the valid ranges
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
                 json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(first_row_segment));
-                json_object_set_new(jn_segment, "last_row", json_integer(last_row_segment));
+                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
+                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
                 json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }
+
             partial_rows2 += rows2;
         }
     } else {
@@ -4819,17 +4816,19 @@ PRIVATE json_t *get_segments(
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
             rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
-            BOOL matched = FALSE;
-            json_int_t first_row_segment = partial_rows2 - rows2 + 1; // first row of this segment
-            json_int_t last_row_segment = partial_rows2;            // last row of this segment
-            matched |= (from_rowid >= first_row_segment);
-            matched |= (to_rowid <= last_row_segment);
-            // TODO check t tm system_flag user_flag
+            json_int_t rangeStart = partial_rows2 - rows2 + 1; // first row of this segment
+            json_int_t rangeEnd = partial_rows2;  // last row of this segment
 
-            if(matched) {
+            // If the current range ends before the input range starts, stop further checks
+            if (rangeEnd < from_rowid) {
+                break;
+            }
+
+            // Print only the valid ranges
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
                 json_t *jn_segment = json_deep_copy(cache_file);
-                json_object_set_new(jn_segment, "first_row", json_integer(first_row_segment));
-                json_object_set_new(jn_segment, "last_row", json_integer(last_row_segment));
+                json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
+                json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
                 json_object_set_new(jn_segment, "key", json_string(key));
                 json_array_append_new(jn_segments, jn_segment);
             }
