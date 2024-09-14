@@ -4035,8 +4035,9 @@ PRIVATE json_int_t first_segment_row(
         }
     } else {
         rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-        if(rowid == 0) {
-            rowid = segments_last_row(segments);
+        json_int_t last_row = segments_last_row(segments);
+        if(rowid == 0 || rowid > last_row) {
+            rowid = last_row;
         }
     }
     // TODO   if(system_flag & sf_deleted_record) {
