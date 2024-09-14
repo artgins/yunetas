@@ -508,23 +508,16 @@ PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 );
 
-PUBLIC json_int_t tranger2_iterator_first_row(
-    json_t *iterator
-);
-PUBLIC json_int_t tranger2_iterator_last_row(
-    json_t *iterator
-);
-PUBLIC json_int_t tranger2_iterator_first_t(
-    json_t *iterator
-);
-PUBLIC json_int_t tranger2_iterator_last_t(
-    json_t *iterator
-);
-PUBLIC json_int_t tranger2_iterator_first_tm(
-    json_t *iterator
-);
-PUBLIC json_int_t tranger2_iterator_last_tm(
-    json_t *iterator
+/**rst**
+    Get metadata/record in iterator that firstly match match_cond
+**rst**/
+PUBLIC int tranger2_iterator_find(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    json_t *match_cond,  // owned
+    md2_record_t *md_record,
+    json_t **record  // not yours, don't own
 );
 
 /**rst**
@@ -569,17 +562,6 @@ PUBLIC int tranger2_iterator_last(
     json_int_t *rowid,
     md2_record_t *md_record,
     json_t **record   // not yours, don't own
-);
-
-/**rst**
-    Get metadata/record of rowid in iterator
-**rst**/
-PUBLIC int tranger2_iterator_get_by_rowid(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t rowid,
-    md2_record_t *md_record,
-    json_t **record  // not yours, don't own
 );
 
 /*

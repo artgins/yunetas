@@ -126,19 +126,16 @@ PRIVATE json_t *read_record_content(
     json_t *segment,
     md2_record_t *md_record
 );
-PRIVATE json_int_t get_segment_of_rowid(
-    hgobj gobj,
+PRIVATE json_int_t find_first_match(
     json_t *segments,
-    json_int_t rowid
+    json_t *match_cond,  // not owned
+    json_int_t *rowid
 );
 PRIVATE BOOL match_record(
     BOOL backward,
     const md2_record_t *md_record,
     json_int_t rowid,
     json_t *match_cond,  // not owned
-    json_int_t last_row,
-    json_int_t last_t,
-    json_int_t last_tm,
     BOOL *end
 );
 
@@ -3367,61 +3364,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             precord = &record;
         }
 
-        BOOL end = FALSE;
-        json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
-        json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
-        json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
-
-        if(!backward) {
-            rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-
-            // WARNING repeated in get_segments
-            if(rowid == 0) {
-                //rowid = 1;
-                end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
-            } else if(rowid>0) {
-                // positive offset
-                if(rowid > last_row) {
-                    // not exist
-                    end = FALSE;
-                } else {
-                    end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-                }
-
-            } else if(rowid<0) {
-                // negative offset
-                if(rowid < -last_row) {
-                    // out of range, begin at 0
-                    rowid = 1;
-                } else {
-                    rowid = last_row + rowid;
-                }
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            }
-        } else {
-            rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-
-            // WARNING repeated in get_segments
-            if(rowid == 0) {
-                //rowid = last_row;
-                end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
-            } else if(rowid>0) {
-                // positive offset
-                if(rowid > last_row) {
-                    // out of range, begin at 0
-                    rowid = last_row;
-                }
-                end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-            } else if(rowid<0) {
-                // negative offset
-                if(rowid + last_row > 0) {
-                    rowid = last_row + rowid;
-                    end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
-                } else {
-                    end = FALSE;
-                }
-            }
-        }
+        BOOL end = tranger2_iterator_find(
+            tranger,
+            iterator,
+            &rowid,
+            json_incref(match_cond),
+            &md_record,
+            precord
+        );
 
         while(!end) {
             if(match_record(
@@ -3429,9 +3379,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 &md_record,
                 rowid,
                 match_cond,
-                last_row,
-                last_t,
-                last_tm,
                 &end
             )) {
                 // Inform to the user list: record in real time
@@ -3608,9 +3555,8 @@ PUBLIC size_t tranger2_iterator_size(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_first_row(json_t *iterator)
+PRIVATE json_int_t segments_first_row(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3622,9 +3568,8 @@ PUBLIC json_int_t tranger2_iterator_first_row(json_t *iterator)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_last_row(json_t *iterator)
+PUBLIC json_int_t segments_last_row(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3636,11 +3581,8 @@ PUBLIC json_int_t tranger2_iterator_last_row(json_t *iterator)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_first_t(
-    json_t *iterator
-)
+PRIVATE json_int_t segments_first_t(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3653,11 +3595,8 @@ PUBLIC json_int_t tranger2_iterator_first_t(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_last_t(
-    json_t *iterator
-)
+PRIVATE json_int_t segments_last_t(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3670,11 +3609,8 @@ PUBLIC json_int_t tranger2_iterator_last_t(
 /***************************************************************************
  *  Get first_t
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_first_tm(
-    json_t *iterator
-)
+PRIVATE json_int_t segments_first_tm(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3687,11 +3623,8 @@ PUBLIC json_int_t tranger2_iterator_first_tm(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t tranger2_iterator_last_tm(
-    json_t *iterator
-)
+PRIVATE json_int_t segments_last_tm(json_t *segments)
 {
-    json_t *segments = json_object_get(iterator, "segments");
     if (json_array_size(segments) == 0) {
         return 0;
     }
@@ -3699,6 +3632,285 @@ PUBLIC json_int_t tranger2_iterator_last_tm(
     json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
     json_t *segment = json_array_get(segments, cur_segment);
     return json_integer_value(json_object_get(segment, "to_tm"));
+}
+
+/***************************************************************************
+ *  Match md record
+ ***************************************************************************/
+PRIVATE BOOL match_record(
+    BOOL backward,
+    const md2_record_t *md_record,
+    json_int_t rowid,
+    json_t *match_cond,  // not owned
+    BOOL *end
+)
+{
+    *end = FALSE;
+
+//    json_int_t last_row,
+//    json_int_t last_t,
+//    json_int_t last_tm,
+    if(json_object_size(match_cond)==0) {
+        // No conditions, match all
+        return TRUE;
+    }
+
+    json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+
+    if(from_rowid > 0) {
+        if(rowid < from_rowid) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(from_rowid < 0){
+        uint64_t x = last_row + from_rowid;
+        if(rowid <= x) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    if(to_rowid > 0) {
+        if(rowid > to_rowid) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(to_rowid < 0) {
+        uint64_t x = last_row + to_rowid;
+        if(rowid > x) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+
+    if(from_t > 0) {
+        if(md_record->__t__ < from_t) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(from_t < 0) {
+        uint64_t x = last_t + from_t;
+        if(md_record->__t__ <= x) {
+            if(backward) {
+                if(end) {
+                    *end = TRUE;
+                }
+            }
+            return FALSE;
+        }
+    }
+
+    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+
+    if(to_t > 0) {
+        if(md_record->__t__ > to_t) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(to_t < 0) {
+        uint64_t x = last_t + to_t;
+        if(md_record->__t__ > x) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+
+    if(from_tm > 0) {
+        if(md_record->__tm__ < from_tm) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(from_tm < 0) {
+        uint64_t x = last_tm + from_tm;
+        if(md_record->__tm__ <= x) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+
+    if(to_tm > 0) {
+        if(md_record->__tm__ > to_tm) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    } else if(to_tm < 0) {
+        uint64_t x = last_tm + to_tm;
+        if(md_record->__tm__ > x) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+// TODO
+//    if(kw_has_key(match_cond, "user_flag")) {
+//        uint32_t user_flag = kw_get_int(match_cond, "user_flag", 0, 0);
+//        if((user_flag != user_flag)) {
+//            return FALSE;
+//        }
+//    }
+//    if(kw_has_key(match_cond, "not_user_flag")) {
+//        uint32_t not_user_flag = kw_get_int(match_cond, "not_user_flag", 0, 0);
+//        if((user_flag == not_user_flag)) {
+//            return FALSE;
+//        }
+//    }
+//    if(kw_has_key(match_cond, "user_flag_mask_set")) {
+//        uint32_t user_flag_mask_set = kw_get_int(match_cond, "user_flag_mask_set", 0, 0);
+//        if((user_flag & user_flag_mask_set) != user_flag_mask_set) {
+//            return FALSE;
+//        }
+//    }
+//    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
+//        uint32_t user_flag_mask_notset = kw_get_int(match_cond, "user_flag_mask_notset", 0, 0);
+//        if((user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
+//            return FALSE;
+//        }
+//    }
+
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Get metadata/record in iterator that firstly match match_cond
+ ***************************************************************************/
+PUBLIC int tranger2_iterator_find(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *prowid,
+    json_t *match_cond,  // owned
+    md2_record_t *md_record,
+    json_t **record
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    const char *key = json_string_value(json_object_get(iterator, "key"));
+
+    /*
+     *  Check parameters
+     */
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no topic",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "no key",
+            NULL
+        );
+        return -1;
+    }
+
+    if(!md_record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "md_record NULL",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    } else {
+        memset(md_record, 0, sizeof(md2_record_t));
+    }
+
+    if(record) {
+        *record = NULL;
+    }
+
+    /*
+     *  Get segments
+     */
+    json_t *segments = json_object_get(iterator, "segments");
+    if(json_array_size(segments)==0) {
+        return -1;
+    }
+
+    /*
+     *  Get the pointer (cur_segment, cur_rowid)
+     */
+    json_int_t cur_rowid;
+    json_int_t cur_segment = find_first_match(segments, match_cond, &cur_rowid);
+    if(cur_segment < 0) {
+        return -1;
+    }
+
+    json_t *segment = json_array_get(segments, cur_segment);
+
+    /*
+     *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
+     */
+    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+    json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
+
+    /*
+     *  Get the metadata
+     */
+    if(get_md_by_rowid(
+        gobj,
+        tranger,
+        topic,
+        key,
+        segment,
+        cur_rowid,
+        md_record
+    )<0) {
+        return -1;
+    }
+
+    // TODO   if(system_flag & sf_deleted_record) {
+    //        return tranger_prev_record(tranger, topic, md_record);
+    //    }
+
+    if(record) {
+        *record = read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            md_record
+        );
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -4233,293 +4445,6 @@ PUBLIC int tranger2_iterator_last(
 }
 
 /***************************************************************************
- *  Get metadata/record of rowid in iterator
- ***************************************************************************/
-PUBLIC int tranger2_iterator_get_by_rowid(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t rowid,
-    md2_record_t *md_record,
-    json_t **record
-)
-{
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
-
-    /*
-     *  Check parameters
-     */
-    if(empty_string(topic_name)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "no topic",
-            NULL
-        );
-        return -1;
-    }
-    if(empty_string(key)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "no key",
-            NULL
-        );
-        return -1;
-    }
-
-    if(!md_record) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "md_record NULL",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return -1;
-    } else {
-        memset(md_record, 0, sizeof(md2_record_t));
-    }
-
-    if(record) {
-        *record = NULL;
-    }
-
-    /*
-     *  Get segments
-     */
-    json_t *segments = json_object_get(iterator, "segments");
-    if(json_array_size(segments)==0) {
-        return -1;
-    }
-
-    /*
-     *  Get the pointer (cur_segment, cur_rowid)
-     */
-    json_int_t cur_segment = get_segment_of_rowid(gobj, segments, rowid);
-    if(cur_segment < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "rowid out of range",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            "rowid",        "%ld", (long)rowid,
-            NULL
-        );
-        return -1;
-    }
-
-    json_t *segment = json_array_get(segments, cur_segment);
-    json_int_t cur_rowid = rowid;
-
-    /*
-     *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
-     */
-    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-    json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
-
-    /*
-     *  Get the metadata
-     */
-    if(get_md_by_rowid(
-        gobj,
-        tranger,
-        topic,
-        key,
-        segment,
-        cur_rowid,
-        md_record
-    )<0) {
-        return -1;
-    }
-
-    // TODO   if(system_flag & sf_deleted_record) {
-    //        return tranger_prev_record(tranger, topic, md_record);
-    //    }
-
-    if(record) {
-        *record = read_record_content(
-            tranger,
-            topic,
-            key,
-            segment,
-            md_record
-        );
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  Match md record
- ***************************************************************************/
-PRIVATE BOOL match_record(
-    BOOL backward,
-    const md2_record_t *md_record,
-    json_int_t rowid,
-    json_t *match_cond,  // not owned
-    json_int_t last_row,
-    json_int_t last_t,
-    json_int_t last_tm,
-    BOOL *end
-)
-{
-    *end = FALSE;
-
-    if(json_object_size(match_cond)==0) {
-        // No conditions, match all
-        return TRUE;
-    }
-
-    json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-
-    if(from_rowid > 0) {
-        if(rowid < from_rowid) {
-            if(backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(from_rowid < 0){
-        uint64_t x = last_row + from_rowid;
-        if(rowid <= x) {
-            if(backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    }
-
-    json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-    if(to_rowid > 0) {
-        if(rowid > to_rowid) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(to_rowid < 0) {
-        uint64_t x = last_row + to_rowid;
-        if(rowid > x) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    }
-
-    json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
-
-    if(from_t > 0) {
-        if(md_record->__t__ < from_t) {
-            if(backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(from_t < 0) {
-        uint64_t x = last_t + from_t;
-        if(md_record->__t__ <= x) {
-            if(backward) {
-                if(end) {
-                    *end = TRUE;
-                }
-            }
-            return FALSE;
-        }
-    }
-
-    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
-
-    if(to_t > 0) {
-        if(md_record->__t__ > to_t) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(to_t < 0) {
-        uint64_t x = last_t + to_t;
-        if(md_record->__t__ > x) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    }
-
-    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
-
-    if(from_tm > 0) {
-        if(md_record->__tm__ < from_tm) {
-            if(backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(from_tm < 0) {
-        uint64_t x = last_tm + from_tm;
-        if(md_record->__tm__ <= x) {
-            if(backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    }
-
-    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
-
-    if(to_tm > 0) {
-        if(md_record->__tm__ > to_tm) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    } else if(to_tm < 0) {
-        uint64_t x = last_tm + to_tm;
-        if(md_record->__tm__ > x) {
-            if(!backward) {
-                *end = TRUE;
-            }
-            return FALSE;
-        }
-    }
-
-// TODO
-//    if(kw_has_key(match_cond, "user_flag")) {
-//        uint32_t user_flag = kw_get_int(match_cond, "user_flag", 0, 0);
-//        if((user_flag != user_flag)) {
-//            return FALSE;
-//        }
-//    }
-//    if(kw_has_key(match_cond, "not_user_flag")) {
-//        uint32_t not_user_flag = kw_get_int(match_cond, "not_user_flag", 0, 0);
-//        if((user_flag == not_user_flag)) {
-//            return FALSE;
-//        }
-//    }
-//    if(kw_has_key(match_cond, "user_flag_mask_set")) {
-//        uint32_t user_flag_mask_set = kw_get_int(match_cond, "user_flag_mask_set", 0, 0);
-//        if((user_flag & user_flag_mask_set) != user_flag_mask_set) {
-//            return FALSE;
-//        }
-//    }
-//    if(kw_has_key(match_cond, "user_flag_mask_notset")) {
-//        uint32_t user_flag_mask_notset = kw_get_int(match_cond, "user_flag_mask_notset", 0, 0);
-//        if((user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
-//            return FALSE;
-//        }
-//    }
-
-    return TRUE;
-}
-
-/***************************************************************************
  *  Return a list of segments that match conditions
  ***************************************************************************/
 PRIVATE json_t *get_segments(
@@ -4849,23 +4774,124 @@ PRIVATE json_t *get_segments(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_int_t get_segment_of_rowid(
-    hgobj gobj,
+PRIVATE json_int_t find_first_match(
     json_t *segments,
-    json_int_t rowid
+    json_t *match_cond,  // not owned
+    json_int_t *prowid
 )
 {
-    // TODO debe usar forward or backward
+    BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
     int idx; json_t *segment;
-    json_array_foreach(segments, idx, segment) {
-        json_int_t first_row = kw_get_int(gobj, segment, "first_row", -1, KW_REQUIRED);
-        json_int_t last_row = kw_get_int(gobj, segment, "last_row", -1, KW_REQUIRED);
-        if(rowid >= first_row && rowid <= last_row) {
-            return idx;
+
+    json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    if(rowid == 0) {
+        if(!backward) {
+            rowid = 1;
+        } else {
+            rowid = tranger2_iterator_last_row(iterator);
+        }
+    }
+
+    if(!backward) {
+        json_array_foreach(segments, idx, segment) {
+            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
+            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            do {
+                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
+                    // no match
+                    break;
+                }
+
+                // Match
+                *prowid = seg_first_rowid;
+                return idx;
+            } while(0);
+        }
+
+    } else {
+        json_array_backward(segments, idx, segment) {
+            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
+            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            do {
+                if(!(seg_first_rowid <= inputValue && inputValue <= seg_last_rowid)) {
+                    // no match
+                    break;
+                }
+
+                // Match
+                *prowid = seg_last_rowid;
+                return idx;
+            } while(0);
         }
     }
 
     return -1;
+
+//    json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
+//    json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
+//    json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
+//
+//    if(!backward) {
+//        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+//
+//        // WARNING repeated in get_segments
+//        if(rowid == 0) {
+//            //rowid = 1;
+//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
+//        } else if(rowid>0) {
+//            // positive offset
+//            if(rowid > last_row) {
+//                // not exist
+//                end = FALSE;
+//            } else {
+//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//            }
+//
+//        } else if(rowid<0) {
+//            // negative offset
+//            if(rowid < -last_row) {
+//                // out of range, begin at 0
+//                rowid = 1;
+//            } else {
+//                rowid = last_row + rowid;
+//            }
+//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//        }
+//    } else {
+//        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+//
+//        // WARNING repeated in get_segments
+//        if(rowid == 0) {
+//            //rowid = last_row;
+//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
+//        } else if(rowid>0) {
+//            // positive offset
+//            if(rowid > last_row) {
+//                // out of range, begin at 0
+//                rowid = last_row;
+//            }
+//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//        } else if(rowid<0) {
+//            // negative offset
+//            if(rowid + last_row > 0) {
+//                rowid = last_row + rowid;
+//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
+//            } else {
+//                end = FALSE;
+//            }
+//        }
+//    }
+
 }
 
 /***************************************************************************
