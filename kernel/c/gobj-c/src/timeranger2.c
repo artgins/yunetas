@@ -134,6 +134,7 @@ PRIVATE json_int_t find_first_match(
 PRIVATE json_int_t find_next_match(
     json_t *segments,
     json_t *match_cond,  // not owned
+    json_int_t cur_segment,
     json_int_t *rowid
 );
 PRIVATE BOOL match_record(
@@ -3355,7 +3356,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
      *-------------------------------------------------------------------------*/
     if(load_record_callback || data) {
         BOOL only_md = json_boolean_value(json_object_get(match_cond, "only_md"));
-        BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
         /*---------------------------*
          *      History
@@ -3381,9 +3381,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 break;
             }
 
-            // TODO   if(system_flag & sf_deleted_record) {
-            //        return tranger_prev_record(tranger, topic, md_record);
-            //    }
             json_t *record = NULL;
             if(!only_md) {
                 record = read_record_content(
@@ -3421,7 +3418,12 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
             JSON_DECREF(record)
 
-            cur_segment = find_next_match(segments, match_cond, &rowid);
+            cur_segment = find_next_match(
+                segments,
+                match_cond,
+                cur_segment,
+                &rowid
+            );
         }
 
         /*---------------------------*
@@ -3977,7 +3979,13 @@ PRIVATE json_int_t find_first_match(
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    int idx; json_t *segment;
+
+    *prowid = -1;
+    size_t segments_size = json_array_size(segments);
+    if(segments_size == 0) {
+        // Here silence, avoid multiple logs, only logs in first/last
+        return -1;
+    }
 
     json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
     if(rowid == 0) {
@@ -3987,15 +3995,19 @@ PRIVATE json_int_t find_first_match(
             rowid = segments_last_row(segments);
         }
     }
+    // TODO   if(system_flag & sf_deleted_record) {
+    //        return tranger_prev_record(tranger, topic, md_record);
+    //    }
 
+    int idx; json_t *segment;
     if(!backward) {
         json_array_foreach(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
                 if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
@@ -4013,10 +4025,10 @@ PRIVATE json_int_t find_first_match(
         json_array_backward(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
                 if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
@@ -4096,121 +4108,95 @@ PRIVATE json_int_t find_first_match(
 PRIVATE json_int_t find_next_match(
     json_t *segments,
     json_t *match_cond,  // not owned
-    json_int_t *prowid
+    json_int_t cur_segment,
+    json_int_t *rowid
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    int idx; json_t *segment;
+    json_int_t cur_rowid = *rowid;
+    *rowid = -1;
 
-    json_int_t rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    if(rowid == 0) {
-        if(!backward) {
-            rowid = 1;
-        } else {
-            rowid = segments_last_row(segments);
-        }
+    size_t segments_size = json_array_size(segments);
+    if(segments_size == 0) {
+        // Here silence, avoid multiple logs, only logs in first/last
+        return -1;
     }
+
+    json_t *segment = json_array_get(segments, cur_segment);
 
     if(!backward) {
-        json_array_foreach(segments, idx, segment) {
-            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
-            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+        /*
+         *  Increment rowid
+         */
+        cur_rowid++;
 
-            do {
-                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
-                    // no match, break and continue
-                    break;
-                }
+        /*
+         *  Check if is in the same segment, if not then go to the next segment
+         */
+        json_int_t segment_last_row = json_integer_value(json_object_get(segment, "last_row"));
 
-                // Match
-                *prowid = seg_first_rowid;
-                return idx;
-            } while(0);
+        if(cur_rowid > segment_last_row) {
+            // Go to the next segment
+            cur_segment++;
+            if(cur_segment >= segments_size) {
+                // No more
+                return -1;
+            }
+            segment = json_array_get(segments, cur_segment);
+            json_int_t segment_first_row = json_integer_value(json_object_get(segment, "first_row"));
+            if(cur_rowid != segment_first_row) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "next rowids not consecutive",
+                    "cur_rowid",    "%ld", (long)cur_rowid,
+                    "segment_first","%ld", (long)segment_first_row,
+                    NULL
+                );
+                return -1;
+            }
         }
+        *rowid = cur_rowid;
 
     } else {
-        json_array_backward(segments, idx, segment) {
-            json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
-            json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+        /*
+         *  Decrement rowid
+         */
+        cur_rowid--;
+        if(cur_rowid <= 0) {
+            // No more
+            return -1;
+        }
 
-            do {
-                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
-                    // no match, break and continue
-                    break;
-                }
+        /*
+         *  Check if is in the same segment, if not then go to the previous segment
+         */
+        json_int_t segment_first_row = json_integer_value(json_object_get(segment, "first_row"));
+        if(cur_rowid < segment_first_row) {
+            // Go to the previous segment
+            cur_segment--;
+            if(cur_segment < 0) {
+                // No more
+                return -1;
+            }
+            segment = json_array_get(segments, cur_segment);
 
-                // Match
-                *prowid = seg_last_rowid;
-                return idx;
-            } while(0);
+            json_int_t segment_last_row = json_integer_value(json_object_get(segment, "last_row"));
+            if(cur_rowid != segment_last_row) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "previous rowids not consecutive",
+                    "cur_rowid",    "%ld", (long)cur_rowid,
+                    "segment_first","%ld", (long)segment_last_row,
+                    NULL
+                );
+                return -1;
+            }
         }
     }
 
-    return -1;
-
-//    json_int_t last_row = (json_int_t)tranger2_iterator_last_row(iterator);
-//    json_int_t last_t = (json_int_t)tranger2_iterator_last_t(iterator);
-//    json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(iterator);
-//
-//    if(!backward) {
-//        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-//
-//        // WARNING repeated in get_segments
-//        if(rowid == 0) {
-//            //rowid = 1;
-//            end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
-//        } else if(rowid>0) {
-//            // positive offset
-//            if(rowid > last_row) {
-//                // not exist
-//                end = FALSE;
-//            } else {
-//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//            }
-//
-//        } else if(rowid<0) {
-//            // negative offset
-//            if(rowid < -last_row) {
-//                // out of range, begin at 0
-//                rowid = 1;
-//            } else {
-//                rowid = last_row + rowid;
-//            }
-//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//        }
-//    } else {
-//        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-//
-//        // WARNING repeated in get_segments
-//        if(rowid == 0) {
-//            //rowid = last_row;
-//            end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
-//        } else if(rowid>0) {
-//            // positive offset
-//            if(rowid > last_row) {
-//                // out of range, begin at 0
-//                rowid = last_row;
-//            }
-//            end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//        } else if(rowid<0) {
-//            // negative offset
-//            if(rowid + last_row > 0) {
-//                rowid = last_row + rowid;
-//                end = tranger2_iterator_find(tranger, iterator, rowid, &md_record, precord);
-//            } else {
-//                end = FALSE;
-//            }
-//        }
-//    }
-
+    return cur_segment;
 }
 
 /***************************************************************************
