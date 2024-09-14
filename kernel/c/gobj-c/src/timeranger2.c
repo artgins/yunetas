@@ -136,7 +136,7 @@ PRIVATE BOOL match_record(
     const md2_record_t *md_record,
     json_int_t rowid,
     json_t *match_cond,  // not owned
-    json_int_t total_rows,
+    json_int_t last_row,
     json_int_t last_t,
     json_int_t last_tm,
     BOOL *end
@@ -2191,7 +2191,7 @@ PRIVATE int get_md_record_for_wr(
 //        return -1;
 //    }
 //
-//    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);
+//    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key); TODO  es last_rowid
 //    json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
 //    if(__last_rowid__ <= 0) {
 //        return -1;
@@ -3368,7 +3368,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         }
 
         BOOL end = FALSE;
-        json_int_t total_rows = (json_int_t)get_topic_key_rows(gobj, topic, key);
+        json_int_t last_row = (json_int_t)get_topic_key_rows(gobj, topic, key);
         json_int_t last_t = (json_int_t)tranger2_iterator_last_t(tranger, iterator);
         json_int_t last_tm = (json_int_t)tranger2_iterator_last_tm(tranger, iterator);
 
@@ -3381,7 +3381,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 end = tranger2_iterator_first(tranger, iterator, &rowid, &md_record, precord);
             } else if(rowid>0) {
                 // positive offset
-                if(rowid > total_rows) {
+                if(rowid > last_row) {
                     // not exist
                     end = FALSE;
                 } else {
@@ -3390,11 +3390,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
             } else if(rowid<0) {
                 // negative offset
-                if(rowid < -total_rows) {
+                if(rowid < -last_row) {
                     // out of range, begin at 0
                     rowid = 1;
                 } else {
-                    rowid = total_rows + rowid;
+                    rowid = last_row + rowid;
                 }
                 end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
             }
@@ -3403,19 +3403,19 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
             // WARNING repeated in get_segments
             if(rowid == 0) {
-                //rowid = total_rows;
+                //rowid = last_row;
                 end = tranger2_iterator_last(tranger, iterator, &rowid, &md_record, precord);
             } else if(rowid>0) {
                 // positive offset
-                if(rowid > total_rows) {
+                if(rowid > last_row) {
                     // out of range, begin at 0
-                    rowid = total_rows;
+                    rowid = last_row;
                 }
                 end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
             } else if(rowid<0) {
                 // negative offset
-                if(rowid + total_rows > 0) {
-                    rowid = total_rows + rowid;
+                if(rowid + last_row > 0) {
+                    rowid = last_row + rowid;
                     end = tranger2_iterator_get_by_rowid(tranger, iterator, rowid, &md_record, precord);
                 } else {
                     end = FALSE;
@@ -3429,7 +3429,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 &md_record,
                 rowid,
                 match_cond,
-                total_rows,
+                last_row,
                 last_t,
                 last_tm,
                 &end
@@ -4343,7 +4343,7 @@ PRIVATE BOOL match_record(
     const md2_record_t *md_record,
     json_int_t rowid,
     json_t *match_cond,  // not owned
-    json_int_t total_rows,
+    json_int_t last_row,
     json_int_t last_t,
     json_int_t last_tm,
     BOOL *end
@@ -4366,7 +4366,7 @@ PRIVATE BOOL match_record(
             return FALSE;
         }
     } else if(from_rowid < 0){
-        uint64_t x = total_rows + from_rowid;
+        uint64_t x = last_row + from_rowid;
         if(rowid <= x) {
             if(backward) {
                 *end = TRUE;
@@ -4384,7 +4384,7 @@ PRIVATE BOOL match_record(
             return FALSE;
         }
     } else if(to_rowid < 0) {
-        uint64_t x = total_rows + to_rowid;
+        uint64_t x = last_row + to_rowid;
         if(rowid > x) {
             if(!backward) {
                 *end = TRUE;
