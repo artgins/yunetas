@@ -3760,7 +3760,7 @@ PUBLIC int tranger2_iterator_first(
     /*
      *  Get segments
      */
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
+    json_t *segments = json_object_get(iterator, "segments");
     if(json_array_size(segments)==0) {
         // Here silence, avoid multiple logs, only logs in first/last
         return -1;
@@ -4177,7 +4177,7 @@ PUBLIC int tranger2_iterator_last(
     /*
      *  Get segments
      */
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
+    json_t *segments = json_object_get(iterator, "segments");
     if(json_array_size(segments)==0) {
         // Here silence, avoid multiple logs, only logs in first/last
         return -1;
@@ -4291,7 +4291,7 @@ PUBLIC int tranger2_iterator_get_by_rowid(
     /*
      *  Get segments
      */
-    json_t *segments = kw_get_list(gobj, iterator, "segments", 0, KW_REQUIRED);
+    json_t *segments = json_object_get(iterator, "segments");
     if(json_array_size(segments)==0) {
         return -1;
     }
@@ -4855,8 +4855,6 @@ PRIVATE json_int_t get_segment_of_rowid(
     json_int_t rowid
 )
 {
-    json_int_t cur_segment = -1;
-
     int idx; json_t *segment;
     json_array_foreach(segments, idx, segment) {
         json_int_t first_row = kw_get_int(gobj, segment, "first_row", -1, KW_REQUIRED);
@@ -4866,7 +4864,7 @@ PRIVATE json_int_t get_segment_of_rowid(
         }
     }
 
-    return cur_segment;
+    return -1;
 }
 
 /***************************************************************************
