@@ -42,7 +42,6 @@ size_t all_leidos = 0;
 int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond,     // not yours, don't own
     md2_record_t *md2_record,
     json_t *jn_record,      // must be owned
     const char *key,
@@ -58,7 +57,6 @@ size_t one_leidos = 0;
 int one_load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond, // not yours, don't own
     md2_record_t *md2_record,
     json_t *jn_record,  // must be owned
     const char *key,

@@ -44,7 +44,6 @@ PRIVATE json_t *callback_data = 0;
 PRIVATE int load_rango_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond,     // not yours, don't own
     md2_record_t *md_record,
     json_t *record,      // must be owned
     const char *key,

@@ -42,7 +42,6 @@ PRIVATE uint64_t leidos = 0;
 PRIVATE int iterator_callback1(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond,     // not yours, don't own
     md2_record_t *md2_record,
     json_t *record,      // must be owned
     const char *key,
@@ -60,7 +59,6 @@ PRIVATE int iterator_callback1(
 PRIVATE int iterator_callback2(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond,     // not yours, don't own
     md2_record_t *md2_record,
     json_t *record,      // must be owned
     const char *key,
