@@ -117,7 +117,8 @@ PRIVATE json_t *get_segments(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond  // NOT owned
+    json_t *match_cond, // NOT owned but can be modified (times in string)
+    BOOL *realtime
 );
 PRIVATE json_t *read_record_content(
     json_t *tranger,
@@ -3320,12 +3321,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
      *-----------------------------------------*/
     load_topic_metadata(gobj, tranger, topic);  // idempotent
 
+    BOOL realtime;
     json_t *segments = get_segments(
         gobj,
         tranger,
         topic,
         key,
-        match_cond  // NOT owned but can be modified (times in string)
+        match_cond, // NOT owned but can be modified (times in string)
+        &realtime
     );
 
     json_t *iterator = json_object();
@@ -3363,6 +3366,15 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         BOOL end = FALSE;
         json_int_t cur_segment = first_segment_row(segments, match_cond, &rowid);
+
+        /*
+         *  Save the pointer
+         */
+        if(cur_segment >= 0) {
+            json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+            json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+        }
+
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
             /*
@@ -3425,19 +3437,21 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 cur_segment,
                 &rowid
             );
+            if(cur_segment >= 0) {
+                json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+                json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+            }
         }
 
         /*---------------------------*
          *      Realtime
          *---------------------------*/
-        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-        BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-        if(!master) {
-            rt_by_mem = FALSE;
-        }
-
-        json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-        if(to_rowid == 0) {
+        if(realtime) {
+            BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+            BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
+            if(!master) {
+                rt_by_mem = FALSE;
+            }
             json_t *rt;
             if(rt_by_mem) {
                 rt = tranger2_open_rt_list(
@@ -3569,12 +3583,14 @@ PRIVATE json_t *get_segments(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond  // NOT owned but can be modified (times in string)
+    json_t *match_cond, // NOT owned but can be modified (times in string)
+    BOOL *prealtime
 )
 {
-    json_t *jn_segments = json_array();
-
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
+    BOOL realtime = FALSE;
+
+    json_t *jn_segments = json_array();
 
     /*-------------------------------------*
      *      Recover cache data
@@ -3630,7 +3646,7 @@ PRIVATE json_t *get_segments(
         from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
     }
 
-    // WARNING repeated in tranger2_open_iterator
+    // WARNING adjust
     if(from_rowid == 0) {
         from_rowid = 1;
     } else if(from_rowid > 0) {
@@ -3658,8 +3674,9 @@ PRIVATE json_t *get_segments(
         to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
     }
 
-    // WARNING repeated in tranger2_open_iterator
+    // WARNING adjust
     if(to_rowid == 0) {
+        realtime = TRUE;
         to_rowid = total_rows;
     } else if(to_rowid > 0) {
         // positive offset
@@ -3706,6 +3723,7 @@ PRIVATE json_t *get_segments(
         from_t = json_integer_value(json_object_get(match_cond, "from_t"));
     }
 
+    // WARNING adjust
     if(from_t == 0) {
         from_t = total_from_t;
     } else {
@@ -3739,9 +3757,13 @@ PRIVATE json_t *get_segments(
         to_t = json_integer_value(json_object_get(match_cond, "to_t"));
     }
 
+    // WARNING adjust
     if(to_t == 0) {
         to_t = total_to_t;
     } else {
+        if(realtime) {
+            realtime = FALSE;
+        }
         if(to_t > total_to_t) {
             // out of range, begin at the end
             to_t = total_to_t;
@@ -3775,6 +3797,7 @@ PRIVATE json_t *get_segments(
         from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
     }
 
+    // WARNING adjust
     if(from_tm == 0) {
         from_tm = total_from_tm;
     } else {
@@ -3808,9 +3831,13 @@ PRIVATE json_t *get_segments(
         to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
     }
 
+    // WARNING adjust
     if(to_tm == 0) {
         to_tm = total_to_tm;
     } else {
+        if(realtime) {
+            realtime = FALSE;
+        }
         if (to_tm > total_to_tm) {
             // out of range, begin at the end
             to_tm = total_to_tm;
@@ -3819,6 +3846,8 @@ PRIVATE json_t *get_segments(
             return jn_segments;
         }
     }
+
+    *prealtime = realtime;
 
     /*------------------------------------------*
      *  Search the first file in cache files
@@ -3991,18 +4020,23 @@ PRIVATE BOOL match_record(
 //            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
 //            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
-    if(rowid < from_rowid) {
-        if(backward) {
-            *end = TRUE;
+
+    if(from_rowid != 0) {
+        if(rowid < from_rowid) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
         }
-        return FALSE;
     }
 
-    if(rowid > to_rowid) {
-        if(!backward) {
-            *end = TRUE;
+    if(to_rowid != 0) {
+        if(rowid > to_rowid) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
         }
-        return FALSE;
     }
 
     return TRUE;
@@ -4269,6 +4303,7 @@ PUBLIC int tranger2_iterator_find(
 
     /*
      *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
+     *  TODO review ALL
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
@@ -4379,6 +4414,7 @@ PUBLIC int tranger2_iterator_first(
 
     /*
      *  Save the pointer
+     *  TODO review ALL
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
@@ -4528,6 +4564,7 @@ PUBLIC int tranger2_iterator_next(
 
     /*
      *  Save the pointer
+     *  TODO review ALL
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
@@ -4682,6 +4719,7 @@ PUBLIC int tranger2_iterator_prev(
 
     /*
      *  Save the pointer
+     *  TODO review ALL
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
@@ -4796,6 +4834,7 @@ PUBLIC int tranger2_iterator_last(
 
     /*
      *  Save the pointer
+     *  TODO review ALL
      */
     json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
     json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));

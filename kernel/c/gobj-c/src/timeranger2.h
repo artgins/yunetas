@@ -459,10 +459,11 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         filter  dict with fields to match
 
         rt_by_mem   if TRUE  => realtime by memory (list, master);
-                    if FALSE => rt by disk (force false if not master)
+                    if FALSE => rt by disk (force to false if not master)
                     default: FALSE
 
-        from_rowid
+
+        from_rowid  // if to_rowid && to_t && to_tm is 0 then there is realtime
         to_rowid
         from_t
         to_t

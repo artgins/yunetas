@@ -149,12 +149,12 @@ PRIVATE int do_test(void)
 
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
-        print_json2("BAD count tm of message", tranger);
+        //print_json2("BAD count tm of message", tranger);
         result += -1;
     }
     if(t != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
-        print_json2("BAD count t of message", tranger);
+        //print_json2("BAD count t of message", tranger);
         result += -1;
     }
 
@@ -174,12 +174,12 @@ PRIVATE int do_test(void)
 
     if(tm != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
-        print_json2("BAD count tm of message", tranger);
+        //print_json2("BAD count tm of message", tranger);
         result += -1;
     }
     if(t != 946774799) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
-        print_json2("BAD count t of message", tranger);
+        //print_json2("BAD count t of message", tranger);
         result += -1;
     }
 
@@ -188,7 +188,7 @@ PRIVATE int do_test(void)
      */
     if(leidos != MAX_KEYS*MAX_RECORDS) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count leidos of message", Color_Off);
-        print_json2("BAD count leidos of message", tranger);
+        //print_json2("BAD count leidos of message", tranger);
         result += -1;
     }
 
