@@ -586,7 +586,7 @@ int do_test(void)
     }
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
-    MT_PRINT_TIME(time_measure, "tranger2_append_record")
+    MT_PRINT_TIME(time_measure, "tranger2_append_record  (old 130.000 op/sec)")
 
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
