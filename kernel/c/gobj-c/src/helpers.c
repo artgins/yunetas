@@ -4227,16 +4227,18 @@ PRIVATE void _trace_json(int deep, BOOL verbose, const char *fmt, ...) JANSSON_A
 
 PRIVATE void _trace_json(int deep, BOOL verbose, const char *fmt, ...)
 {
-    va_list ap;
-    char bf[2*1024];
-    _tab(bf, sizeof(bf), deep);
+    if(verbose) {
+        va_list ap;
+        char bf[2 * 1024];
+        _tab(bf, sizeof(bf), deep);
 
-    va_start(ap, fmt);
-    int len = (int)strlen(bf);
-    vsnprintf(bf+len, sizeof(bf)-len, fmt, ap);
-    va_end(ap);
+        va_start(ap, fmt);
+        int len = (int) strlen(bf);
+        vsnprintf(bf + len, sizeof(bf) - len, fmt, ap);
+        va_end(ap);
 
-    fprintf(stdout, "%s", bf);
+        fprintf(stdout, "%s", bf);
+    }
 }
 
 /***************************************************************************
@@ -4323,10 +4325,14 @@ PUBLIC int debug_json(json_t *jn, BOOL verbose)
             On_Red BWhite, Color_Off);
         return -1;
     }
-    fprintf(stdout, "\n");
+    if(verbose) {
+        fprintf(stdout, "\n");
+    }
     int ret = _debug_json(0, jn, 0, 0, verbose);
-    fprintf(stdout, "\n");
-    fflush(stdout);
+    if(verbose) {
+        fprintf(stdout, "\n");
+        fflush(stdout);
+    }
     return ret;
 }
 
