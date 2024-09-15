@@ -3454,7 +3454,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
-                    match_cond,
+                    json_incref(match_cond),
                     load_record_callback,   // called on append new record
                     iterator_id
                 );
@@ -3463,7 +3463,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
-                    match_cond,
+                    json_incref(match_cond),
                     load_record_callback,   // called on append new record
                     iterator_id
                 );

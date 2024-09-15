@@ -516,11 +516,11 @@ int date_overflows(timestamp_t date);
 /*---------------------------------*
  *      Utilities functions
  *---------------------------------*/
-typedef int (*view_fn_t)(const char *format, ...);;
+typedef int (*view_fn_t)(const char *format, ...)JANSSON_ATTRS((format(printf, 1, 2)));
 PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel);
 PUBLIC json_t *tdump2json(const uint8_t *s, size_t len);
 PUBLIC int print_json2(const char *label, json_t *jn);
-PUBLIC int debug_json(json_t *jn);
+PUBLIC int debug_json(json_t *jn, BOOL verbose);
 PUBLIC char *current_timestamp(char *bf, size_t bfsize);
 PUBLIC time_t start_sectimer(time_t seconds);   /* value <=0 will disable the timer */
 PUBLIC BOOL   test_sectimer(time_t value);      /* Return TRUE if timer has finish */

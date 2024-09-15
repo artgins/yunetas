@@ -4092,7 +4092,7 @@ PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t vi
                 view("%s%s  %s\n", prefix, bf, asci);
 
             } else {
-                view("%s%04X: %s  %s\n", prefix, i-15, bf, asci);
+                view("%s%04X: %s  %s\n", prefix, (int)(i-15), bf, asci);
             }
 
             p = bf;
@@ -4116,7 +4116,7 @@ PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t vi
             view("%s%s  %s\n", prefix, bf, asci);
 
         } else {
-            view("%s%04X: %s  %s\n", prefix, i - j, bf, asci);
+            view("%s%04X: %s  %s\n", prefix, (int)(i - j), bf, asci);
         }
     }
 }
@@ -4223,14 +4223,16 @@ PRIVATE char *_tab(char *bf, int bflen, int deep)
 /****************************************************************************
  *  Trace machine function
  ****************************************************************************/
-PRIVATE void _trace_json(int deep, const char *fmt, ...)
+PRIVATE void _trace_json(int deep, BOOL verbose, const char *fmt, ...) JANSSON_ATTRS((format(printf, 3, 4)));
+
+PRIVATE void _trace_json(int deep, BOOL verbose, const char *fmt, ...)
 {
     va_list ap;
     char bf[2*1024];
     _tab(bf, sizeof(bf), deep);
 
     va_start(ap, fmt);
-    int len = strlen(bf);
+    int len = (int)strlen(bf);
     vsnprintf(bf+len, sizeof(bf)-len, fmt, ap);
     va_end(ap);
 
@@ -4240,7 +4242,7 @@ PRIVATE void _trace_json(int deep, const char *fmt, ...)
 /***************************************************************************
  *  Print json with refcounts
  ***************************************************************************/
-PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict)
+PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict, BOOL verbose)
 {
     if(!jn) {
         fprintf(stdout, "%sERROR _debug_json()%s: json NULL\n", On_Red BWhite, Color_Off);
@@ -4255,56 +4257,56 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
     if(json_is_array(jn)) {
         size_t idx;
         json_t *jn_value;
-        _trace_json(inside_dict?0:deep, "[ (%d)\n", jn->refcount);
+        _trace_json(inside_dict?0:deep, verbose, "[ (%d)\n", (int)(jn->refcount));
         deep++;
         json_array_foreach(jn, idx, jn_value) {
             if(idx > 0) {
-                _trace_json(0, ",\n");
+                _trace_json(0, verbose, ",\n");
             }
-            ret += _debug_json(deep, jn_value, 1, 0);
+            ret += _debug_json(deep, jn_value, 1, 0, verbose);
         }
         deep--;
-        _trace_json(0, "\n");
-        _trace_json(deep, "]");
+        _trace_json(0, verbose, "\n");
+        _trace_json(deep, verbose, "]");
         if(!inside_dict) {
-            _trace_json(deep, "\n");
+            _trace_json(deep, verbose, "\n");
         }
 
     } else if(json_is_object(jn)) {
         const char *key;
         json_t *jn_value;
 
-        _trace_json(inside_dict?0:deep, "{ (%d)\n", jn->refcount);
+        _trace_json(inside_dict?0:deep, verbose, "{ (%d)\n", (int)(jn->refcount));
         deep++;
         int idx = 0;
-        int max_idx = json_object_size(jn);
+        int max_idx = (int)json_object_size(jn);
         json_object_foreach(jn, key, jn_value) {
-            _trace_json(deep, "\"%s\": ", key);
-            ret += _debug_json(deep, jn_value, 0, 1);
+            _trace_json(deep, verbose, "\"%s\": ", key);
+            ret += _debug_json(deep, jn_value, 0, 1, verbose);
             idx++;
             if(idx < max_idx) {
-                _trace_json(0, ",\n");
+                _trace_json(0, verbose, ",\n");
             } else {
-               _trace_json(0, "\n");
+               _trace_json(0, verbose, "\n");
             }
         }
         deep--;
-        _trace_json(deep, "}");
+        _trace_json(deep, verbose, "}");
     } else if(json_is_string(jn)) {
-        _trace_json(inside_list?deep:0, "\"%s\" (%d)", json_string_value(jn), jn->refcount);
+        _trace_json(inside_list?deep:0, verbose, "\"%s\" (%d)", json_string_value(jn), (int)(jn->refcount));
     } else if(json_is_integer(jn)) {
-        _trace_json(inside_list?deep:0, "%"JSON_INTEGER_FORMAT" (%d)", json_integer_value(jn), jn->refcount);
+        _trace_json(inside_list?deep:0, verbose, "%"JSON_INTEGER_FORMAT" (%d)", json_integer_value(jn), (int)(jn->refcount));
     } else if(json_is_real(jn)) {
-        _trace_json(inside_list?deep:0, "%.2f (%d)", json_real_value(jn), jn->refcount);
+        _trace_json(inside_list?deep:0, verbose, "%.2f (%d)", json_real_value(jn), (int)(jn->refcount));
     } else if(json_is_true(jn))  {
-        _trace_json(inside_list?deep:0, "true");
+        _trace_json(inside_list?deep:0, verbose, "true");
     } else if(json_is_false(jn)) {
-        _trace_json(inside_list?deep:0, "false");
+        _trace_json(inside_list?deep:0, verbose, "false");
     } else if(json_is_null(jn)) {
-        _trace_json(inside_list?deep:0, "null");
+        _trace_json(inside_list?deep:0, verbose, "null");
     } else {
         fprintf(stdout, "%sERROR _debug_json()%s: What???\n", On_Red BWhite, Color_Off);
-        _trace_json(inside_list?deep:0, "What???");
+        _trace_json(inside_list?deep:0, verbose, "What???");
         return -1;
     }
 
@@ -4314,7 +4316,7 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
 /***************************************************************************
  *  Print json with refcounts
  ***************************************************************************/
-PUBLIC int debug_json(json_t *jn)
+PUBLIC int debug_json(json_t *jn, BOOL verbose)
 {
     if(!jn || jn->refcount <= 0) {
         fprintf(stdout, "%sERROR debug_json()%s: json NULL or refcount is 0\n",
@@ -4322,7 +4324,7 @@ PUBLIC int debug_json(json_t *jn)
         return -1;
     }
     fprintf(stdout, "\n");
-    int ret = _debug_json(0, jn, 0, 0);
+    int ret = _debug_json(0, jn, 0, 0, verbose);
     fprintf(stdout, "\n");
     fflush(stdout);
     return ret;
