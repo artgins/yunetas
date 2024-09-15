@@ -3517,10 +3517,22 @@ PUBLIC int tranger2_close_iterator(
 
     json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED));
 
-    json_array_remove(
-        kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED),
-        json_array_find_idx(kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED), iterator)
-    );
+    json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
+    int idx = json_array_find_idx(iterators, iterator);
+    if(idx >=0 && idx < json_array_size(iterators)) {
+        json_array_remove(
+            iterators,
+            idx
+        );
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_iterator(): iterator not found",
+            NULL
+        );
+        return -1;
+    }
 
     return 0;
 }

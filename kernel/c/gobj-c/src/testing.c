@@ -497,7 +497,7 @@ PUBLIC int test_json_file(const char *file, int current_result)
     int result = 0;
     json_t *jn_found = load_json_from_file(0, file, "", 0);
 
-    gbuffer_t *gbuf_path = gbuffer_create(32*1024, 32*1024); // vale para pintar el path del json por donde va cuando hay error
+    gbuffer_t *gbuf_path = NULL; //gbuffer_create(32*1024, 32*1024); // vale para pintar el path del json por donde va cuando hay error
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {

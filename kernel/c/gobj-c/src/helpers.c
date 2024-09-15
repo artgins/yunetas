@@ -45,6 +45,7 @@
 #endif
 
 #include "kwid.h"
+#include "ansi_escape_codes.h"
 #include "helpers.h"
 
 /***************************************************
@@ -4201,6 +4202,130 @@ PUBLIC int print_json2(const char *label, json_t *jn)
     json_dumpf(jn, stdout, flags);
     fprintf(stdout, "\n");
     return 0;
+}
+
+/****************************************************************************
+ *  Indent, return spaces multiple of depth level gobj.
+ *  With this, we can see the trace messages indenting according
+ *  to depth level.
+ ****************************************************************************/
+PRIVATE char *_tab(char *bf, int bflen, int deep)
+{
+    int i;
+
+    for(i=0; i<deep*4 && i<bflen-1; i++) {
+        bf[i] = ' ';
+    }
+    bf[i] = '\0';
+    return bf;
+}
+
+/****************************************************************************
+ *  Trace machine function
+ ****************************************************************************/
+PRIVATE void _trace_json(int deep, const char *fmt, ...)
+{
+    va_list ap;
+    char bf[2*1024];
+    _tab(bf, sizeof(bf), deep);
+
+    va_start(ap, fmt);
+    int len = strlen(bf);
+    vsnprintf(bf+len, sizeof(bf)-len, fmt, ap);
+    va_end(ap);
+
+    fprintf(stdout, "%s", bf);
+}
+
+/***************************************************************************
+ *  Print json with refcounts
+ ***************************************************************************/
+PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict)
+{
+    if(!jn) {
+        fprintf(stdout, "%sERROR _debug_json()%s: json NULL\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(jn->refcount <= 0) {
+        fprintf(stdout, "%sERROR _debug_json()%s: refcount is 0\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    int ret = 0;
+    if(json_is_array(jn)) {
+        size_t idx;
+        json_t *jn_value;
+        _trace_json(inside_dict?0:deep, "[ (%d)\n", jn->refcount);
+        deep++;
+        json_array_foreach(jn, idx, jn_value) {
+            if(idx > 0) {
+                _trace_json(0, ",\n");
+            }
+            ret += _debug_json(deep, jn_value, 1, 0);
+        }
+        deep--;
+        _trace_json(0, "\n");
+        _trace_json(deep, "]");
+        if(!inside_dict) {
+            _trace_json(deep, "\n");
+        }
+
+    } else if(json_is_object(jn)) {
+        const char *key;
+        json_t *jn_value;
+
+        _trace_json(inside_dict?0:deep, "{ (%d)\n", jn->refcount);
+        deep++;
+        int idx = 0;
+        int max_idx = json_object_size(jn);
+        json_object_foreach(jn, key, jn_value) {
+            _trace_json(deep, "\"%s\": ", key);
+            ret += _debug_json(deep, jn_value, 0, 1);
+            idx++;
+            if(idx < max_idx) {
+                _trace_json(0, ",\n");
+            } else {
+               _trace_json(0, "\n");
+            }
+        }
+        deep--;
+        _trace_json(deep, "}");
+    } else if(json_is_string(jn)) {
+        _trace_json(inside_list?deep:0, "\"%s\" (%d)", json_string_value(jn), jn->refcount);
+    } else if(json_is_integer(jn)) {
+        _trace_json(inside_list?deep:0, "%"JSON_INTEGER_FORMAT" (%d)", json_integer_value(jn), jn->refcount);
+    } else if(json_is_real(jn)) {
+        _trace_json(inside_list?deep:0, "%.2f (%d)", json_real_value(jn), jn->refcount);
+    } else if(json_is_true(jn))  {
+        _trace_json(inside_list?deep:0, "true");
+    } else if(json_is_false(jn)) {
+        _trace_json(inside_list?deep:0, "false");
+    } else if(json_is_null(jn)) {
+        _trace_json(inside_list?deep:0, "null");
+    } else {
+        fprintf(stdout, "%sERROR _debug_json()%s: What???\n", On_Red BWhite, Color_Off);
+        _trace_json(inside_list?deep:0, "What???");
+        return -1;
+    }
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Print json with refcounts
+ ***************************************************************************/
+PUBLIC int debug_json(json_t *jn)
+{
+    if(!jn || jn->refcount <= 0) {
+        fprintf(stdout, "%sERROR debug_json()%s: json NULL or refcount is 0\n",
+            On_Red BWhite, Color_Off);
+        return -1;
+    }
+    fprintf(stdout, "\n");
+    int ret = _debug_json(0, jn, 0, 0);
+    fprintf(stdout, "\n");
+    fflush(stdout);
+    return ret;
 }
 
 /*****************************************************************
