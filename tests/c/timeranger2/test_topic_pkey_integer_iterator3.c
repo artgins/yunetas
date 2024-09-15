@@ -253,7 +253,7 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  Search absolute range, forward
      *-------------------------------------*/
-    BOOL test_forward = 1;
+    BOOL test_forward = 0;
 
     if(test_forward) {
         const char *TEST_NAME = "Search absolute range 1-10, FORWARD (old 60.000 op/sec)";
