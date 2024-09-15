@@ -6,5 +6,5 @@ while true; do
         echo "Program failed, exiting loop."
         break       # Exit the loop if the program fails
     fi
-    sleep 1         # Optional: Wait before next iteration
+    echo "fin"
 done
