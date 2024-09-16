@@ -124,7 +124,6 @@ PRIVATE int search_data(
     );
     json_t *data = json_array();
 
-print_json2("BEFORE OPEN iterator", tranger); // TODO TEST
     json_t *iterator = tranger2_open_iterator(
         tranger,
         topic,
@@ -134,7 +133,6 @@ print_json2("BEFORE OPEN iterator", tranger); // TODO TEST
         NULL,                   // id
         data                    // data
     );
-print_json2("AFTER OPEN iterator", tranger); // TODO TEST
 
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
     MT_PRINT_TIME(time_measure, test_name)
@@ -208,8 +206,6 @@ print_json2("AFTER OPEN iterator", tranger); // TODO TEST
 
     result += tranger2_close_iterator(tranger, iterator);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-print_json2("AFTER CLOSE iterator", tranger); // TODO TEST
 
     return result;
 }
