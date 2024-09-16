@@ -4161,6 +4161,10 @@ PRIVATE json_int_t first_segment_row(
             from_rowid = 1;
         } else if(from_rowid > 0) {
             // positive offset
+            if(from_rowid > total_rows) {
+                // not exist
+                return -1;
+            }
         } else {
             // negative offset
             if(from_rowid < -total_rows) {
@@ -4189,6 +4193,7 @@ PRIVATE json_int_t first_segment_row(
             // negative offset
             if(to_rowid < -total_rows) {
                 // not exist
+                return -1;
             } else {
                 to_rowid = total_rows + to_rowid;
             }
