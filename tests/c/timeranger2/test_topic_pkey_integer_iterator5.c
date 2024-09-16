@@ -181,23 +181,25 @@ PRIVATE int do_test(void)
 
         size_t from_rowid;
         for(from_rowid=0; from_rowid<total_rows/page_size; from_rowid += page_size) {
+            size_t to_rowid = from_rowid + page_size;
             result += search_page(
                 tranger,
                 iterator,
                 from_rowid,
-                from_rowid + page_size,
+                to_rowid,
                 page_size
             );
+            break; // TODO remove
         }
-        if(from_rowid < total_rows) {
-            result += search_page(
-                tranger,
-                iterator,
-                from_rowid,
-                total_rows - from_rowid,
-                page_size
-            );
-        }
+//        if(from_rowid < total_rows) {
+//            result += search_page(
+//                tranger,
+//                iterator,
+//                from_rowid,
+//                total_rows - from_rowid,
+//                page_size
+//            );
+//        }
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, TEST_NAME)
