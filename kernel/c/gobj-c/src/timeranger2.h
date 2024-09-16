@@ -388,64 +388,6 @@ typedef int (*tranger2_load_record_callback_t)(
 );
 
 /**rst**
-    Open realtime list, valid when the yuno is the master writing,
-    realtime messages from append_message()
-**rst**/
-PUBLIC json_t *tranger2_open_rt_list(
-    json_t *tranger,
-    const char *topic_name,
-    const char *key,        // if empty receives all keys, else only this key
-    json_t *match_cond,     // owned
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
-    const char *list_id     // list id, optional
-);
-
-/**rst**
-    Close realtime list
-**rst**/
-PUBLIC int tranger2_close_rt_list(
-    json_t *tranger,
-    json_t *list
-);
-
-/**rst**
-    Get list by his id
-**rst**/
-PUBLIC json_t *tranger2_get_rt_list_by_id(
-    json_t *tranger,
-    const char *list_id
-);
-
-/**rst**
-    Open realtime disk, valid when the yuno is the master writing or not-master reading,
-    realtime messages from events of disk
-**rst**/
-PUBLIC json_t *tranger2_open_rt_disk(
-    json_t *tranger,
-    const char *topic_name,
-    const char *key,        // if empty receives all keys, else only this key
-    json_t *match_cond,     // owned
-    tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *disk_id     // disk id, optional
-);
-
-/**rst**
-    Close realtime disk
-**rst**/
-PUBLIC int tranger2_close_rt_disk(
-    json_t *tranger,
-    json_t *disk
-);
-
-/**rst**
-    Get disk by his id
-**rst**/
-PUBLIC json_t *tranger2_get_rt_disk_by_id(
-    json_t *tranger,
-    const char *disk_id
-);
-
-/**rst**
     Open iterator
 
     match_cond:
@@ -517,6 +459,64 @@ PUBLIC json_t *tranger2_iterator_get( // return must be owned
     json_t *iterator,
     json_int_t from_rowid,
     json_int_t to_rowid
+);
+
+/**rst**
+    Open realtime list, valid when the yuno is the master writing,
+    realtime messages from append_message()
+**rst**/
+PUBLIC json_t *tranger2_open_rt_list(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
+    const char *list_id     // list id, optional
+);
+
+/**rst**
+    Close realtime list
+**rst**/
+PUBLIC int tranger2_close_rt_list(
+    json_t *tranger,
+    json_t *list
+);
+
+/**rst**
+    Get list by his id
+**rst**/
+PUBLIC json_t *tranger2_get_rt_list_by_id(
+    json_t *tranger,
+    const char *list_id
+);
+
+/**rst**
+    Open realtime disk, valid when the yuno is the master writing or not-master reading,
+    realtime messages from events of disk
+**rst**/
+PUBLIC json_t *tranger2_open_rt_disk(
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,        // if empty receives all keys, else only this key
+    json_t *match_cond,     // owned
+    tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
+    const char *disk_id     // disk id, optional
+);
+
+/**rst**
+    Close realtime disk
+**rst**/
+PUBLIC int tranger2_close_rt_disk(
+    json_t *tranger,
+    json_t *disk
+);
+
+/**rst**
+    Get disk by his id
+**rst**/
+PUBLIC json_t *tranger2_get_rt_disk_by_id(
+    json_t *tranger,
+    const char *disk_id
 );
 
 /*
