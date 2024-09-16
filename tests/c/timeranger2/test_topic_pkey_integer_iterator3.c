@@ -20,7 +20,7 @@
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
-PRIVATE int pinta_md = 0;
+PRIVATE int pinta_md = 1;
 PRIVATE int pinta_records = 0;
 
 /***************************************************************

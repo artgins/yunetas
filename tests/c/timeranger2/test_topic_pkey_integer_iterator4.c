@@ -186,7 +186,7 @@ PRIVATE int search_data(
             json_array_append_new(matches, match);
         }
     } else {
-        json_int_t t1 = 946684800 + to_rowid;
+        json_int_t t1 = 946684800 + to_rowid -1;
         for(int i=0; i<ROWS_EXPECTED; i++) {
             json_t *match = json_pack("{s:I}",
                 "tm", t1 - i
@@ -214,7 +214,7 @@ PRIVATE int search_data(
             json_array_append_new(matches, match);
         }
     } else {
-        json_int_t t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
+        json_int_t t1 = 946684800 + to_rowid - 1;
         for(int i=0; i<ROWS_EXPECTED; i++){
             json_t *match = json_pack("{s:I, s:I}",
                 "rowid", to_rowid - i,
@@ -276,7 +276,7 @@ PRIVATE int do_test(void)
     json_t *tranger = tranger2_startup(0, jn_tranger);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
-    BOOL test_forward = 0;
+    BOOL test_forward = 1;
     BOOL test_backward = 1;
 
     /*-------------------------------------*
@@ -347,7 +347,7 @@ PRIVATE int do_test(void)
         BOOL BACKWARD               = 1;
         json_int_t FROM_ROWID       = -20;
         json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 20;
+        json_int_t ROWS_EXPECTED    = 10;
         const char *KEY             = "0000000000000000001";
 
         result += search_data(
