@@ -3669,6 +3669,22 @@ PUBLIC size_t tranger2_iterator_size(
 }
 
 /***************************************************************************
+ *  Get a list of records from iterator, to work with pages
+ ***************************************************************************/
+PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t from_rowid,
+    json_int_t to_rowid
+)
+{
+    json_t *jn_list = json_array();
+
+    return jn_list;
+}
+
+
+/***************************************************************************
  *  Return a list of segments that match conditions
  *  match_cond cah be modified in (times in string)
  ***************************************************************************/
