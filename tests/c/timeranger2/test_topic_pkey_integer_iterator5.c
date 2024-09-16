@@ -42,21 +42,47 @@ PRIVATE int global_result = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int search_data(
+PRIVATE int search_page(
     json_t *tranger,
-    const char *key,
-    const char *TEST_NAME,
-    BOOL BACKWARD,
-    json_int_t FROM_ROWID,
-    json_int_t TO_ROWID,
-    json_int_t ROWS_EXPECTED
+    json_t *iterator,
+    uint64_t from_rowid,
+    uint64_t to_rowid,
+    size_t rows_expected
 )
 {
     int result = 0;
 
-//    const char *test_name = TEST_NAME;
+    json_t *rows = tranger2_iterator_get_page(
+        tranger,
+        iterator,
+        from_rowid,
+        to_rowid
+    );
 
+    uint64_t rows_found = json_array_size(rows);
+    if(rows_found != rows_expected) {
+        printf("%sERROR%s --> rows expected %d, found %d\n", On_Red BWhite, Color_Off,
+            (int)rows_expected,
+            (int)json_array_size(rows)
+        );
+        result += -1;
+    }
 
+    uint64_t t1 = 946684800 + from_rowid -1;
+    int idx; json_t *row;
+    json_array_foreach(rows, idx, row) {
+        uint64_t tm = json_integer_value(json_object_get(row, "tm"));
+        if(tm != t1) {
+            result += -1;
+            printf("%sERROR%s --> tm expected %d, found %d\n", On_Red BWhite, Color_Off,
+                (int)tm,
+                (int)t1
+            );
+        }
+        t1++;
+    }
+
+    JSON_DECREF(rows)
     return result;
 }
 
@@ -105,10 +131,10 @@ PRIVATE int do_test(void)
     BOOL test_backward = 1;
 
     /*-------------------------------------*
-     *  Search relative range, forward
+     *  Search pages, forward
      *-------------------------------------*/
     if(test_forward) {
-        const char *KEY             = "0000000000000000001";
+        const char *KEY = "0000000000000000001";
         set_expected_results( // Check that no logs happen
             "tranger2_open_iterator", // test name
             NULL,   // error's list, It must not be any log error
@@ -133,11 +159,54 @@ PRIVATE int do_test(void)
             NULL,                   // id
             NULL                    // data
         );
-
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+        /*-------------------------*
+         *
+         *-------------------------*/
+        const char *TEST_NAME = "Search page, FORWARD";
+        set_expected_results( // Check that no logs happen
+            TEST_NAME, // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        json_int_t page_size = 41;
+        size_t total_rows = tranger2_iterator_size(iterator);
 
+        MT_START_TIME(time_measure)
+
+        size_t from_rowid;
+        for(from_rowid=0; from_rowid<total_rows/page_size; from_rowid += page_size) {
+            result += search_page(
+                tranger,
+                iterator,
+                from_rowid,
+                from_rowid + page_size,
+                page_size
+            );
+        }
+        if(from_rowid < total_rows) {
+            result += search_page(
+                tranger,
+                iterator,
+                from_rowid,
+                total_rows - from_rowid,
+                page_size
+            );
+        }
+
+        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, TEST_NAME)
+
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+        /*-------------------------*
+         *  close
+         *-------------------------*/
         set_expected_results( // Check that no logs happen
             "tranger2_close_iterator", // test name
             NULL,   // error's list, It must not be any log error
@@ -151,7 +220,7 @@ PRIVATE int do_test(void)
     }
 
     /*-------------------------------------*
-     *  Search relative range, backward
+     *  Search pages, backward
      *-------------------------------------*/
     if(test_backward) {
         const char *KEY             = "0000000000000000001";
@@ -179,11 +248,17 @@ PRIVATE int do_test(void)
             NULL,                   // id
             NULL                    // data
         );
-
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+        /*-------------------------*
+         *
+         *-------------------------*/
 
+        /*-------------------------*
+         *  close
+         *-------------------------*/
         set_expected_results( // Check that no logs happen
             "tranger2_close_iterator", // test name
             NULL,   // error's list, It must not be any log error

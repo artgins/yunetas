@@ -148,12 +148,12 @@ PRIVATE int do_test(void)
     json_t *iterator1 = tranger2_get_iterator_by_id(tranger, "it1");
 
     if(tm != 946774799) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");
         //print_json2("BAD count tm of message", tranger);
         result += -1;
     }
     if(t != 946774799) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count t of message");
         //print_json2("BAD count t of message", tranger);
         result += -1;
     }
@@ -173,12 +173,12 @@ PRIVATE int do_test(void)
     );
 
     if(tm != 946774799) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count tm of message", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");
         //print_json2("BAD count tm of message", tranger);
         result += -1;
     }
     if(t != 946774799) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count t of message", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count t of message");
         //print_json2("BAD count t of message", tranger);
         result += -1;
     }
@@ -187,7 +187,7 @@ PRIVATE int do_test(void)
      *  Check totals
      */
     if(leidos != MAX_KEYS*MAX_RECORDS) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "BAD count leidos of message", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count leidos of message");
         //print_json2("BAD count leidos of message", tranger);
         result += -1;
     }
@@ -219,7 +219,7 @@ PRIVATE int do_test(void)
         NULL    // data
     );
     if(iterator22) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "Repeat iterator must be null", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Repeat iterator must be null");
         result += -1;
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
@@ -598,7 +598,7 @@ int main(int argc, char *argv[])
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "system memory not free");
         result += -1;
     }
 

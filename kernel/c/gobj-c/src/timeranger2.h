@@ -457,8 +457,8 @@ PUBLIC size_t tranger2_iterator_size(
 PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *tranger,
     json_t *iterator,
-    json_int_t from_rowid,
-    json_int_t to_rowid
+    uint64_t from_rowid,
+    uint64_t to_rowid
 );
 
 /**rst**
