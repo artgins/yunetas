@@ -454,7 +454,7 @@ PUBLIC size_t tranger2_iterator_size(
 /**rst**
     Get a list of records from iterator, to work with pages
 **rst**/
-PUBLIC json_t *tranger2_iterator_get( // return must be owned
+PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *tranger,
     json_t *iterator,
     json_int_t from_rowid,
