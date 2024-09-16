@@ -140,10 +140,12 @@ PRIVATE json_int_t next_segment_row(
 );
 PRIVATE BOOL match_record(
     json_t *match_cond,
+    json_int_t total_rows,
     json_int_t rowid,
     md2_record_t *md_record,
     BOOL *end
 );
+PRIVATE json_int_t segments_last_row(json_t *segments);
 
 /***************************************************************
  *              Data
@@ -3420,8 +3422,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         json_int_t rowid = 0;
         md2_record_t md_record;
 
-        BOOL end = FALSE;
         json_int_t cur_segment = first_segment_row(segments, match_cond, &rowid);
+        json_int_t total_rows = segments_last_row(segments);
 
         /*
          *  Save the pointer
@@ -3431,6 +3433,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
         }
 
+        BOOL end = FALSE;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
             /*
@@ -3448,7 +3451,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 break;
             }
 
-            if(match_record(match_cond, rowid, &md_record, &end)) {
+            if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
                 json_t *record = NULL;
                 if(!only_md) {
                     record = read_record_content(
@@ -4023,7 +4026,7 @@ PRIVATE json_t *get_segments(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_int_t segments_last_row(json_t *segments)
+PRIVATE json_int_t segments_last_row(json_t *segments)
 {
     if (json_array_size(segments) == 0) {
         return 0;
@@ -4094,6 +4097,7 @@ PUBLIC json_int_t segments_last_row(json_t *segments)
  ***************************************************************************/
 PRIVATE BOOL match_record(
     json_t *match_cond,
+    json_int_t total_rows,
     json_int_t rowid,
     md2_record_t *md_record,
     BOOL *end
@@ -4109,6 +4113,45 @@ PRIVATE BOOL match_record(
 //            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
 //            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
 //            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+    // WARNING adjust REPEATED
+    if(from_rowid == 0) {
+        from_rowid = 1;
+    } else if(from_rowid > 0) {
+        // positive offset
+        if(from_rowid > total_rows) {
+            // not exist
+            *end = TRUE;
+            return FALSE;
+        }
+    } else {
+        // negative offset
+        if(from_rowid < -total_rows) {
+            // out of range, begin at 0
+            from_rowid = 1;
+        } else {
+            from_rowid = total_rows + from_rowid + 1;
+        }
+    }
+
+    if(to_rowid == 0) {
+        to_rowid = total_rows;
+    } else if(to_rowid > 0) {
+        // positive offset
+        if(to_rowid > total_rows) {
+            // out of range, begin at 0
+            to_rowid = total_rows;
+        }
+    } else {
+        // negative offset
+        if(to_rowid < -total_rows) {
+            // not exist
+            *end = TRUE;
+            return FALSE;
+        } else {
+            to_rowid = total_rows + to_rowid;
+        }
+    }
 
 
     if(from_rowid != 0) {

@@ -277,7 +277,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     BOOL test_forward = 0;
-    BOOL test_backward = 0;
+    BOOL test_backward = 1;
 
     /*-------------------------------------*
      *  Search relative range, forward
@@ -301,12 +301,12 @@ PRIVATE int do_test(void)
         );
     }
 
-    if(test_forward || 1) {
+    if(test_forward) {
         const char *TEST_NAME = "Search relative range from_rowid=-20 to_rowid=-10, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = -20;
         json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 20;
+        json_int_t ROWS_EXPECTED    = 10;
         const char *KEY             = "0000000000000000001";
 
         result += search_data(
