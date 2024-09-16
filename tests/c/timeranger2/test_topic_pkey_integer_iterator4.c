@@ -153,7 +153,7 @@ PRIVATE int search_data(
     json_t *matches = json_array();
 
     if(!BACKWARD) {
-        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+        json_int_t t1 = 946684800 + MAX_RECORDS + from_rowid + 1;
         for(int i=0; i<ROWS_EXPECTED; i++){
             json_t *match = json_pack("{s:I}",
                 "tm", t1 + i
@@ -161,7 +161,7 @@ PRIVATE int search_data(
             json_array_append_new(matches, match);
         }
     } else {
-        json_int_t t1 = 946684800 + to_rowid - 1; // 2000-01-01T00:00:00+0000
+        json_int_t t1 = 946684800 +  MAX_RECORDS + to_rowid;
         for(int i=0; i<ROWS_EXPECTED; i++) {
             json_t *match = json_pack("{s:I}",
                 "tm", t1 - i

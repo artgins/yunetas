@@ -3751,7 +3751,7 @@ PRIVATE json_t *get_segments(
             // out of range, begin at 0
             from_rowid = 1;
         } else {
-            from_rowid = total_rows + from_rowid;
+            from_rowid = total_rows + from_rowid + 1;
         }
     }
 
