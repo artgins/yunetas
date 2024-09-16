@@ -510,59 +510,13 @@ PUBLIC size_t tranger2_iterator_size(
 );
 
 /**rst**
-    Get metadata/record in iterator that firstly match match_cond
+    Get a list of records from iterator, to work with pages
 **rst**/
-PUBLIC int tranger2_iterator_find(
+PUBLIC json_t *tranger2_iterator_get( // return must be owned
     json_t *tranger,
     json_t *iterator,
-    json_int_t *rowid,
-    json_t *match_cond,  // owned
-    md2_record_t *md_record,
-    json_t **record
-);
-
-/**rst**
-    Get metadata/record of first row in iterator
-**rst**/
-PUBLIC int tranger2_iterator_first(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t *rowid,
-    md2_record_t *md_record,
-    json_t **record
-);
-
-/**rst**
-    Get metadata/record of next row in iterator
-**rst**/
-PUBLIC int tranger2_iterator_next(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t *rowid,
-    md2_record_t *md_record,
-    json_t **record
-);
-
-/**rst**
-    Get metadata/record of previous row in iterator
-**rst**/
-PUBLIC int tranger2_iterator_prev(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t *rowid,
-    md2_record_t *md_record,
-    json_t **record   // not yours, don't own
-);
-
-/**rst**
-    Get metadata/record of last row in iterator
-**rst**/
-PUBLIC int tranger2_iterator_last(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t *rowid,
-    md2_record_t *md_record,
-    json_t **record   // not yours, don't own
+    json_int_t from_rowid,
+    json_int_t to_rowid
 );
 
 /*

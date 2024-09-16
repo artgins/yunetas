@@ -4315,6 +4315,70 @@ PRIVATE json_int_t next_segment_row(
     return cur_segment;
 }
 
+
+/*
+ *
+ *  TODO To review below functions, perhaps not needed
+ *
+ */
+
+
+/**rst**
+    Get metadata/record in iterator that firstly match match_cond
+**rst**/
+PUBLIC int tranger2_iterator_find(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    json_t *match_cond,  // owned
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of first row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_first(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of next row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_next(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of previous row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_prev(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    md2_record_t *md_record,
+    json_t **record
+);
+
+/**rst**
+    Get metadata/record of last row in iterator
+**rst**/
+PUBLIC int tranger2_iterator_last(
+    json_t *tranger,
+    json_t *iterator,
+    json_int_t *rowid,
+    md2_record_t *md_record,
+    json_t **record
+);
+
 /***************************************************************************
  *  Get metadata/record in iterator that firstly match match_cond
  ***************************************************************************/
@@ -4327,6 +4391,7 @@ PUBLIC int tranger2_iterator_find(
     json_t **record
 )
 {
+    // TODO review
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
     json_t *topic = tranger2_topic(tranger, topic_name);
@@ -4441,6 +4506,7 @@ PUBLIC int tranger2_iterator_first(
     json_t **record
 )
 {
+    // TODO review
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
@@ -4556,6 +4622,7 @@ PUBLIC int tranger2_iterator_next(
     json_t **record
 )
 {
+    // TODO review
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
@@ -4706,6 +4773,7 @@ PUBLIC int tranger2_iterator_prev(
     json_t **record
 )
 {
+    // TODO review
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);
@@ -4861,6 +4929,7 @@ PUBLIC int tranger2_iterator_last(
     json_t **record
 )
 {
+    // TODO review
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED);
     json_t *topic = tranger2_topic(tranger, topic_name);

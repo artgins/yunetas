@@ -257,7 +257,7 @@ PRIVATE int do_test(void)
     BOOL test_forward = 1;
 
     if(test_forward) {
-        const char *TEST_NAME = "Search absolute range 1-10, FORWARD (old 60.000 op/sec)";
+        const char *TEST_NAME = "Search absolute range 1-10, FORWARD";
         BOOL BACKWARD               = 0;
         json_int_t FROM_ROWID       = 1;
         json_int_t TO_ROWID         = 10;
@@ -396,7 +396,7 @@ PRIVATE int do_test(void)
     BOOL test_backward = 1;
 
     if(test_backward) {
-        const char *TEST_NAME = "Search absolute range 1-10, BACKWARD (old 60.000 op/sec)";
+        const char *TEST_NAME = "Search absolute range 1-10, BACKWARD";
         BOOL BACKWARD               = 1;
         json_int_t FROM_ROWID       = 1;
         json_int_t TO_ROWID         = 10;
