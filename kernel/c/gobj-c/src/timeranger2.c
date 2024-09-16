@@ -3678,7 +3678,64 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     uint64_t to_rowid
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!iterator) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_iterator_get_page(): iterator NULL",
+            NULL
+        );
+        return NULL;
+    }
+    json_t *topic = tranger2_topic(
+        tranger,
+        kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED)
+    );
+    const char *key = json_string_value(json_object_get(iterator, "key"));
+//    json_t *segments = json_object_get(iterator, "segments");
+
     json_t *jn_list = json_array();
+    json_int_t rowid = 0;
+    md2_record_t md_record;
+
+//    json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+
+    BOOL end = FALSE;
+    while(!end) {
+        json_t *segment = NULL; //json_array_get(segments, cur_segment);
+        /*
+         *  Get the metadata
+         */
+        if(get_md_by_rowid(
+            gobj,
+            tranger,
+            topic,
+            key,
+            segment,
+            rowid,
+            &md_record
+        )<0) {
+            break;
+        }
+
+        json_t *record = read_record_content(
+            tranger,
+            topic,
+            key,
+            segment,
+            &md_record
+        );
+        json_array_append_new(jn_list, record);
+
+//        cur_segment = next_segment_row(
+//            segments,
+//            match_cond,
+//            cur_segment,
+//            &rowid
+//        );
+    }
+
 
     return jn_list;
 }
