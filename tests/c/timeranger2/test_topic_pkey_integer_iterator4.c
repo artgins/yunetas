@@ -1,8 +1,8 @@
 /****************************************************************************
- *          test_topic_pkey_integer_iterator3.c
+ *          test_topic_pkey_integer_iterator4.c
  *
  *  - Open as master, open iterator to search with callback and data
- *  - Do absolute searches
+ *  - Do relative searches
  *
  *          Copyright (c) 2024 ArtGins.
  *          All Rights Reserved.

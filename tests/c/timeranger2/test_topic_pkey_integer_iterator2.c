@@ -4,7 +4,7 @@
  *  - Open as master, open iterator for each key (two keys),
  *      empty match_cond (all records)  with callback
  *
- *          Copyright (c) 2024 Niyamaka.
+ *          Copyright (c) 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

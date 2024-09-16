@@ -4,7 +4,7 @@
  *  - do_test: Open as master, check main files, open rt lists and ADD RECORDS
  *  - do_test2: Open as master and change topic version and cols
  *
- *          Copyright (c) 2023 Niyamaka.
+ *          Copyright (c) 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

@@ -3,7 +3,7 @@
  *
  *  Open as master, open iterator without callback
  *
- *          Copyright (c) 2024 Niyamaka.
+ *          Copyright (c) 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
