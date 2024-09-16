@@ -20,8 +20,8 @@
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
-PRIVATE int pinta_md = 1;
-PRIVATE int pinta_records = 0;
+//PRIVATE int pinta_md = 1;
+//PRIVATE int pinta_records = 0;
 
 /***************************************************************
  *              Prototypes
@@ -37,48 +37,7 @@ PRIVATE yev_loop_t *yev_loop;
  *
  ***************************************************************************/
 PRIVATE int global_result = 0;
-PRIVATE uint64_t leidos = 0;
-PRIVATE json_int_t counter_rowid = 0;
-PRIVATE json_t *callback_data = 0;
 
-PRIVATE int load_rango_callback(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const char *rt_id,
-    json_int_t rowid,
-    md2_record_t *md_record,
-    json_t *record      // must be owned
-)
-{
-    leidos++;
-    counter_rowid++;
-
-    if(pinta_md) {
-        char temp[1024];
-        print_md1_record(
-            tranger,
-            topic,
-            md_record,
-            key,
-            rowid,
-            temp,
-            sizeof(temp)
-        );
-        printf("%s\n", temp);
-    }
-    if(pinta_records) {
-        print_json2("record", record);
-    }
-
-    json_t *md = json_object();
-    json_object_set_new(md, "rowid", json_integer(rowid));
-    json_object_set_new(md, "t", json_integer((json_int_t)md_record->__t__));
-    json_array_append_new(callback_data, md);
-
-    JSON_DECREF(record)
-    return 0;
-}
 
 /***************************************************************************
  *
@@ -95,142 +54,8 @@ PRIVATE int search_data(
 {
     int result = 0;
 
-    const char *test_name = TEST_NAME;
+//    const char *test_name = TEST_NAME;
 
-    set_expected_results( // Check that no logs happen
-        test_name, // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-
-    json_int_t from_rowid = FROM_ROWID;
-    json_int_t to_rowid = TO_ROWID;
-
-    time_measure_t time_measure;
-    MT_START_TIME(time_measure)
-
-    JSON_DECREF(callback_data)
-    callback_data = json_array();
-
-    leidos = 0;
-    counter_rowid = from_rowid;
-    json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-    json_t *match_cond = json_pack("{s:b, s:I, s:I}",
-        "backward", BACKWARD,
-        "from_rowid", (json_int_t)from_rowid,
-        "to_rowid", (json_int_t)to_rowid
-    );
-    json_t *data = json_array();
-
-    json_t *iterator = tranger2_open_iterator(
-        tranger,
-        topic,
-        key,                    // key
-        match_cond,             // match_cond, owned
-        load_rango_callback,    // load_record_callback
-        NULL,                   // id
-        data                    // data
-    );
-
-    MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
-    MT_PRINT_TIME(time_measure, test_name)
-
-    // TRICK adjust the expected data
-    // WARNING adjust REPEATED
-    if(from_rowid == 0) {
-        from_rowid = 1;
-    } else if(from_rowid > 0) {
-        // positive offset
-    } else {
-        // negative offset
-        if(from_rowid < -MAX_RECORDS) {
-            // out of range, begin at 0
-            from_rowid = 1;
-        } else {
-            from_rowid = MAX_RECORDS + from_rowid + 1;
-        }
-    }
-
-    // WARNING adjust REPEATED
-    if(to_rowid == 0) {
-        to_rowid = MAX_RECORDS;
-    } else if(to_rowid > 0) {
-        // positive offset
-        if(to_rowid > MAX_RECORDS) {
-            // out of range, begin at 0
-            to_rowid = MAX_RECORDS;
-        }
-    } else {
-        // negative offset
-        if(to_rowid < -MAX_RECORDS) {
-            // not exist
-            return -1;
-        } else {
-            to_rowid = MAX_RECORDS + to_rowid + 1;
-        }
-    }
-
-    /*
-     *  Test data
-     */
-    json_t *matches = json_array();
-
-    if(!BACKWARD) {
-        json_int_t t1 = 946684800 + from_rowid -1;
-        for(int i=0; i<ROWS_EXPECTED; i++){
-            json_t *match = json_pack("{s:I}",
-                "tm", t1 + i
-            );
-            json_array_append_new(matches, match);
-        }
-    } else {
-        json_int_t t1 = 946684800 + to_rowid -1;
-        for(int i=0; i<ROWS_EXPECTED; i++) {
-            json_t *match = json_pack("{s:I}",
-                "tm", t1 - i
-            );
-            json_array_append_new(matches, match);
-        }
-    }
-
-    result += test_list(data, matches, "%s - %s", TEST_NAME, "data");
-    JSON_DECREF(matches)
-    JSON_DECREF(data)
-
-    /*
-     *  Test callback data
-     */
-    matches = json_array();
-
-    if(!BACKWARD) {
-        json_int_t t1 = 946684800 + from_rowid -1;
-        for(int i=0; i<ROWS_EXPECTED; i++) {
-            json_t *match = json_pack("{s:I, s:I}",
-                "rowid", from_rowid + i,
-                "t", t1 + i
-            );
-            json_array_append_new(matches, match);
-        }
-    } else {
-        json_int_t t1 = 946684800 + to_rowid - 1;
-        for(int i=0; i<ROWS_EXPECTED; i++){
-            json_t *match = json_pack("{s:I, s:I}",
-                "rowid", to_rowid - i,
-                "t", t1 - i
-            );
-            json_array_append_new(matches, match);
-        }
-    }
-
-    result += test_list(callback_data, matches, "%s - %s", TEST_NAME, "callback_data");
-
-    JSON_DECREF(matches)
-    JSON_DECREF(callback_data)
-
-    result += tranger2_close_iterator(tranger, iterator);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;
 }
@@ -283,277 +108,94 @@ PRIVATE int do_test(void)
      *  Search relative range, forward
      *-------------------------------------*/
     if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-10, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = 0;
-        json_int_t ROWS_EXPECTED    = 10;
         const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
+        set_expected_results( // Check that no logs happen
+            "tranger2_open_iterator", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
-    }
 
-    if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-10 to_rowid=-10, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
+        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
+        json_t *match_cond = json_pack("{s:b}",
+            "backward", 0
         );
-    }
-
-    if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-1 to_rowid=-1, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -1;
-        json_int_t TO_ROWID         = -1;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
+        json_t *iterator = tranger2_open_iterator(
             tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
+            topic,
+            KEY,                    // key
+            match_cond,             // match_cond, owned
+            NULL,                   // load_record_callback
+            NULL,                   // id
+            NULL                    // data
         );
-    }
 
-    if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-20 to_rowid=-10, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -20;
-        json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 11;
-        const char *KEY             = "0000000000000000001";
+        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
 
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
+
+        set_expected_results( // Check that no logs happen
+            "tranger2_close_iterator", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
-    }
+        result += tranger2_close_iterator(tranger, iterator);
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
 
-    if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS to_rowid=-MAX_RECORDS, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -MAX_RECORDS;
-        json_int_t TO_ROWID         = -MAX_RECORDS;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_forward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS-1 to_rowid=-MAX_RECORDS, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -MAX_RECORDS-1;
-        json_int_t TO_ROWID         = -MAX_RECORDS;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_forward) {
-        const char *TEST_NAME = "Search BAD relative range from_rowid=-10 to_rowid=-20, FORWARD";
-        BOOL BACKWARD               = 0;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = -20;
-        json_int_t ROWS_EXPECTED    = 0;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
     }
 
     /*-------------------------------------*
      *  Search relative range, backward
      *-------------------------------------*/
     if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-10, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = 0;
-        json_int_t ROWS_EXPECTED    = 10;
         const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
+        set_expected_results( // Check that no logs happen
+            "tranger2_open_iterator", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
+        json_t *match_cond = json_pack("{s:b}",
+            "backward", 1
+        );
+        json_t *iterator = tranger2_open_iterator(
+            tranger,
+            topic,
+            KEY,                    // key
+            match_cond,             // match_cond, owned
+            NULL,                   // load_record_callback
+            NULL,                   // id
+            NULL                    // data
+        );
+
+        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+
+
+        set_expected_results( // Check that no logs happen
+            "tranger2_close_iterator", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        result += tranger2_close_iterator(tranger, iterator);
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
+
     }
 
-    if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-10 to_rowid=-10, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-1 to_rowid=-1, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -1;
-        json_int_t TO_ROWID         = -1;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-20 to_rowid=-10, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -20;
-        json_int_t TO_ROWID         = -10;
-        json_int_t ROWS_EXPECTED    = 11;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS to_rowid=-MAX_RECORDS, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -MAX_RECORDS;
-        json_int_t TO_ROWID         = -MAX_RECORDS;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_backward) {
-        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS-1 to_rowid=-MAX_RECORDS, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -MAX_RECORDS-1;
-        json_int_t TO_ROWID         = -MAX_RECORDS;
-        json_int_t ROWS_EXPECTED    = 1;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    if(test_forward) {
-        const char *TEST_NAME = "Search BAD relative range from_rowid=-10 to_rowid=-20, BACKWARD";
-        BOOL BACKWARD               = 1;
-        json_int_t FROM_ROWID       = -10;
-        json_int_t TO_ROWID         = -20;
-        json_int_t ROWS_EXPECTED    = 0;
-        const char *KEY             = "0000000000000000001";
-
-        result += search_data(
-            tranger,
-            KEY,
-            TEST_NAME,
-            BACKWARD,
-            FROM_ROWID,
-            TO_ROWID,
-            ROWS_EXPECTED
-        );
-    }
-
-    /*-------------------------------------*
-     *      Search by rowid
-     *-------------------------------------*/
 //    json_t *page = tranger2_iterator_get_page( // return must be owned
 //        tranger,
 //        iterator,
