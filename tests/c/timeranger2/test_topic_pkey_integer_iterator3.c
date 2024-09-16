@@ -178,7 +178,7 @@ PRIVATE int search_data(
             // not exist
             return -1;
         } else {
-            to_rowid = MAX_RECORDS + to_rowid;
+            to_rowid = MAX_RECORDS + to_rowid + 1;
         }
     }
 

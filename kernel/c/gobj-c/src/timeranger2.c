@@ -3783,7 +3783,7 @@ PRIVATE json_t *get_segments(
             // not exist
             return jn_segments;
         } else {
-            to_rowid = total_rows + to_rowid;
+            to_rowid = total_rows + to_rowid + 1;
         }
     }
 
@@ -4149,7 +4149,7 @@ PRIVATE BOOL match_record(
             *end = TRUE;
             return FALSE;
         } else {
-            to_rowid = total_rows + to_rowid;
+            to_rowid = total_rows + to_rowid + 1;
         }
     }
 
@@ -4238,7 +4238,7 @@ PRIVATE json_int_t first_segment_row(
                 // not exist
                 return -1;
             } else {
-                to_rowid = total_rows + to_rowid;
+                to_rowid = total_rows + to_rowid + 1;
             }
         }
 
