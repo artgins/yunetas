@@ -138,13 +138,38 @@ PRIVATE int search_data(
     MT_PRINT_TIME(time_measure, test_name)
 
     // TRICK adjust the expected data
+    // WARNING adjust REPEATED
     if(from_rowid == 0) {
-        // Asking from 0 must be equal to asking by 1
         from_rowid = 1;
+    } else if(from_rowid > 0) {
+        // positive offset
+    } else {
+        // negative offset
+        if(from_rowid < -MAX_RECORDS) {
+            // out of range, begin at 0
+            from_rowid = 1;
+        } else {
+            from_rowid = MAX_RECORDS + from_rowid + 1;
+        }
     }
-    if(to_rowid > MAX_RECORDS) {
-        // Asking to > MAX_RECORDS must be equal to asking by MAX_RECORDS
+
+    // WARNING adjust REPEATED
+    if(to_rowid == 0) {
         to_rowid = MAX_RECORDS;
+    } else if(to_rowid > 0) {
+        // positive offset
+        if(to_rowid > MAX_RECORDS) {
+            // out of range, begin at 0
+            to_rowid = MAX_RECORDS;
+        }
+    } else {
+        // negative offset
+        if(to_rowid < -MAX_RECORDS) {
+            // not exist
+            return -1;
+        } else {
+            to_rowid = MAX_RECORDS + to_rowid;
+        }
     }
 
     /*
@@ -153,7 +178,7 @@ PRIVATE int search_data(
     json_t *matches = json_array();
 
     if(!BACKWARD) {
-        json_int_t t1 = 946684800 + MAX_RECORDS + from_rowid + 1;
+        json_int_t t1 = 946684800 + from_rowid -1;
         for(int i=0; i<ROWS_EXPECTED; i++){
             json_t *match = json_pack("{s:I}",
                 "tm", t1 + i
@@ -161,7 +186,7 @@ PRIVATE int search_data(
             json_array_append_new(matches, match);
         }
     } else {
-        json_int_t t1 = 946684800 +  MAX_RECORDS + to_rowid;
+        json_int_t t1 = 946684800 + to_rowid;
         for(int i=0; i<ROWS_EXPECTED; i++) {
             json_t *match = json_pack("{s:I}",
                 "tm", t1 - i
@@ -180,7 +205,7 @@ PRIVATE int search_data(
     matches = json_array();
 
     if(!BACKWARD) {
-        json_int_t t1 = 946684800 + from_rowid - 1; // 2000-01-01T00:00:00+0000
+        json_int_t t1 = 946684800 + from_rowid -1;
         for(int i=0; i<ROWS_EXPECTED; i++) {
             json_t *match = json_pack("{s:I, s:I}",
                 "rowid", from_rowid + i,

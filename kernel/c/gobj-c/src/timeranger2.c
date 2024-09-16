@@ -117,7 +117,7 @@ PRIVATE json_t *get_segments(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond, // NOT owned but can be modified (times in string)
+    json_t *match_cond, // NOT owned but can be modified
     BOOL *realtime
 );
 PRIVATE json_t *read_record_content(
@@ -3383,9 +3383,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         tranger,
         topic,
         key,
-        match_cond, // NOT owned but can be modified (times in string)
+        match_cond, // NOT owned but can be modified
         &realtime
     );
+
+print_json2("segments", segments); // TODO TEST
 
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
@@ -3666,13 +3668,14 @@ PUBLIC size_t tranger2_iterator_size(
 
 /***************************************************************************
  *  Return a list of segments that match conditions
+ *  match_cond cah be modified in (times in string) (rowids negatives)
  ***************************************************************************/
 PRIVATE json_t *get_segments(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond, // NOT owned but can be modified (times in string)
+    json_t *match_cond, // NOT owned but can be modified
     BOOL *prealtime
 )
 {
@@ -3736,7 +3739,16 @@ PRIVATE json_t *get_segments(
         from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
     }
 
-    // WARNING adjust
+    json_int_t to_rowid = 0;
+    json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
+    if(json_is_string(jn_to_rowid)) {
+        to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
+        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    } else {
+        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+    }
+
+    // WARNING adjust REPEATED
     if(from_rowid == 0) {
         from_rowid = 1;
     } else if(from_rowid > 0) {
@@ -3755,16 +3767,7 @@ PRIVATE json_t *get_segments(
         }
     }
 
-    json_int_t to_rowid = 0;
-    json_t *jn_to_rowid = json_object_get(match_cond, "to_rowid");
-    if(json_is_string(jn_to_rowid)) {
-        to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
-    } else {
-        to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-    }
-
-    // WARNING adjust
+    // WARNING adjust REPEATED
     if(to_rowid == 0) {
         realtime = TRUE;
         to_rowid = total_rows;
@@ -3776,12 +3779,19 @@ PRIVATE json_t *get_segments(
         }
     } else {
         // negative offset
-        if(to_rowid + total_rows > 0) {
-            to_rowid = total_rows + to_rowid;
-        } else {
+        if(to_rowid < -total_rows) {
             // not exist
             return jn_segments;
+        } else {
+            to_rowid = total_rows + to_rowid;
         }
+
+//        if(to_rowid + total_rows > 0) {
+//            to_rowid = total_rows + to_rowid;
+//        } else {
+//            // not exist
+//            return jn_segments;
+//        }
     }
 
     if(to_rowid < from_rowid) {
@@ -4150,20 +4160,56 @@ PRIVATE json_int_t first_segment_row(
         return -1;
     }
 
+    json_int_t total_rows = segments_last_row(segments);
     json_int_t rowid;
 
     if(!backward) {
-        rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-        if(rowid == 0) {
-            rowid = 1;
+        json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+
+        // WARNING adjust REPEATED
+        if(from_rowid == 0) {
+            from_rowid = 1;
+        } else if(from_rowid > 0) {
+            // positive offset
+            if(from_rowid > total_rows) {
+                // not exist
+                return -1;
+            }
+        } else {
+            // negative offset
+            if(from_rowid < -total_rows) {
+                // out of range, begin at 0
+                from_rowid = 1;
+            } else {
+                from_rowid = total_rows + from_rowid + 1;
+            }
         }
+        rowid = from_rowid;
+
     } else {
-        rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-        json_int_t last_row = segments_last_row(segments);
-        if(rowid == 0 || rowid > last_row) {
-            rowid = last_row;
+        json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
+
+        // WARNING adjust REPEATED
+        if(to_rowid == 0) {
+            to_rowid = total_rows;
+        } else if(to_rowid > 0) {
+            // positive offset
+            if(to_rowid > total_rows) {
+                // out of range, begin at 0
+                to_rowid = total_rows;
+            }
+        } else {
+            // negative offset
+            if(to_rowid < -total_rows) {
+                // not exist
+                return -1;
+            } else {
+                to_rowid = total_rows + to_rowid;
+            }
         }
+        rowid = to_rowid;
     }
+
     // TODO   if(system_flag & sf_deleted_record) {
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
@@ -4185,7 +4231,7 @@ PRIVATE json_int_t first_segment_row(
                 }
 
                 // Match
-                *prowid = seg_first_rowid;
+                *prowid = rowid;
                 return idx;
             } while(0);
         }
@@ -4206,7 +4252,7 @@ PRIVATE json_int_t first_segment_row(
                 }
 
                 // Match
-                *prowid = seg_last_rowid;
+                *prowid = rowid;
                 return idx;
             } while(0);
         }
