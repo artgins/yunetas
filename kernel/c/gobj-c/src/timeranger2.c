@@ -102,7 +102,7 @@ PRIVATE int close_fd_wr_files(
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
 PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
-PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
+PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
     json_t *tranger,
@@ -129,6 +129,7 @@ PRIVATE json_t *read_record_content(
 );
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
+    json_int_t totals_rows,
     json_t *match_cond,  // not owned
     json_int_t *rowid
 );
@@ -145,7 +146,6 @@ PRIVATE BOOL match_record(
     md2_record_t *md_record,
     BOOL *end
 );
-PRIVATE json_int_t segments_last_row(json_t *segments);
 
 /***************************************************************
  *              Data
@@ -823,7 +823,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
 }
 
 /***************************************************************************
-   Get topic size (number of records)
+   Get key size (number of records)
  ***************************************************************************/
 PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,
@@ -3422,8 +3422,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         json_int_t rowid = 0;
         md2_record_t md_record;
 
-        json_int_t cur_segment = first_segment_row(segments, match_cond, &rowid);
-        json_int_t total_rows = segments_last_row(segments);
+        json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+        json_int_t cur_segment = first_segment_row(segments, total_rows, match_cond, &rowid);
+//            segments_last_row(segments);
 
         /*
          *  Save the pointer
@@ -4026,15 +4027,15 @@ PRIVATE json_t *get_segments(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_int_t segments_last_row(json_t *segments)
-{
-    if (json_array_size(segments) == 0) {
-        return 0;
-    }
-    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
-    json_t *segment = json_array_get(segments, cur_segment);
-    return json_integer_value(json_object_get(segment, "last_row"));
-}
+//PRIVATE json_int_t segments_last_row(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "last_row"));
+//}
 
 /***************************************************************************
  *
@@ -4180,6 +4181,7 @@ PRIVATE BOOL match_record(
  ***************************************************************************/
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
+    json_int_t total_rows,
     json_t *match_cond,  // not owned
     json_int_t *prowid
 )
@@ -4193,7 +4195,6 @@ PRIVATE json_int_t first_segment_row(
         return -1;
     }
 
-    json_int_t total_rows = segments_last_row(segments);
     json_int_t rowid;
 
     if(!backward) {
@@ -4473,105 +4474,105 @@ PUBLIC int tranger2_iterator_find(
 )
 {
     // TODO review
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    const char *key = json_string_value(json_object_get(iterator, "key"));
-
-    /*
-     *  Check parameters
-     */
-    if(empty_string(topic_name)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "no topic",
-            NULL
-        );
-        return -1;
-    }
-    if(empty_string(key)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "no key",
-            NULL
-        );
-        return -1;
-    }
-
-    if(!md_record) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "md_record NULL",
-            "topic_name",   "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return -1;
-    } else {
-        memset(md_record, 0, sizeof(md2_record_t));
-    }
-
-    if(record) {
-        *record = NULL;
-    }
-
-    /*
-     *  Get segments
-     */
-    json_t *segments = json_object_get(iterator, "segments");
-    if(json_array_size(segments)==0) {
-        return -1;
-    }
-
-    /*
-     *  Get the pointer (cur_segment, cur_rowid)
-     */
-    json_int_t cur_rowid;
-    json_int_t cur_segment = first_segment_row(segments, match_cond, &cur_rowid);
-    if(cur_segment < 0) {
-        return -1;
-    }
-
-    json_t *segment = json_array_get(segments, cur_segment);
-
-    /*
-     *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
-     *  TODO review ALL
-     */
-    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
-    json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
-
-    /*
-     *  Get the metadata
-     */
-    if(get_md_by_rowid(
-        gobj,
-        tranger,
-        topic,
-        key,
-        segment,
-        cur_rowid,
-        md_record
-    )<0) {
-        return -1;
-    }
-
-    // TODO   if(system_flag & sf_deleted_record) {
-    //        return tranger_prev_record(tranger, topic, md_record);
-    //    }
-
-    if(record) {
-        *record = read_record_content(
-            tranger,
-            topic,
-            key,
-            segment,
-            md_record
-        );
-    }
+//    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+//    const char *topic_name = json_string_value(json_object_get(iterator, "topic_name"));
+//    json_t *topic = tranger2_topic(tranger, topic_name);
+//    const char *key = json_string_value(json_object_get(iterator, "key"));
+//
+//    /*
+//     *  Check parameters
+//     */
+//    if(empty_string(topic_name)) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "no topic",
+//            NULL
+//        );
+//        return -1;
+//    }
+//    if(empty_string(key)) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "no key",
+//            NULL
+//        );
+//        return -1;
+//    }
+//
+//    if(!md_record) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "md_record NULL",
+//            "topic_name",   "%s", tranger2_topic_name(topic),
+//            "key",          "%s", key,
+//            NULL
+//        );
+//        return -1;
+//    } else {
+//        memset(md_record, 0, sizeof(md2_record_t));
+//    }
+//
+//    if(record) {
+//        *record = NULL;
+//    }
+//
+//    /*
+//     *  Get segments
+//     */
+//    json_t *segments = json_object_get(iterator, "segments");
+//    if(json_array_size(segments)==0) {
+//        return -1;
+//    }
+//
+//    /*
+//     *  Get the pointer (cur_segment, cur_rowid)
+//     */
+//    json_int_t cur_rowid;
+//    json_int_t cur_segment = first_segment_row(segments, match_cond, &cur_rowid);
+//    if(cur_segment < 0) {
+//        return -1;
+//    }
+//
+//    json_t *segment = json_array_get(segments, cur_segment);
+//
+//    /*
+//     *  Save the pointer TODO no debería salvarlo después de get_md_.. ok?
+//     *  TODO review ALL
+//     */
+//    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+//    json_object_set_new(iterator, "cur_rowid", json_integer(cur_rowid));
+//
+//    /*
+//     *  Get the metadata
+//     */
+//    if(get_md_by_rowid(
+//        gobj,
+//        tranger,
+//        topic,
+//        key,
+//        segment,
+//        cur_rowid,
+//        md_record
+//    )<0) {
+//        return -1;
+//    }
+//
+//    // TODO   if(system_flag & sf_deleted_record) {
+//    //        return tranger_prev_record(tranger, topic, md_record);
+//    //    }
+//
+//    if(record) {
+//        *record = read_record_content(
+//            tranger,
+//            topic,
+//            key,
+//            segment,
+//            md_record
+//        );
+//    }
 
     return 0;
 }
@@ -5118,7 +5119,7 @@ PUBLIC int tranger2_iterator_last(
 /***************************************************************************
  *  Get key rows (topic key size)
  ***************************************************************************/
-PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
+PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
 {
     char path[PATH_MAX];
 
@@ -5128,7 +5129,7 @@ PRIVATE uint64_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
         return 0;
     }
     snprintf(path, sizeof(path), "cache`%s`total`rows", key);
-    return kw_get_int(gobj, topic, path, 0, 0);
+    return kw_get_int(gobj, topic, path, 0, KW_REQUIRED);
 }
 
 /***************************************************************************

@@ -358,6 +358,63 @@ PRIVATE int do_test(void)
         );
     }
 
+    if(test_forward) {
+        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS to_rowid=-MAX_RECORDS, FORWARD";
+        BOOL BACKWARD               = 0;
+        json_int_t FROM_ROWID       = -MAX_RECORDS;
+        json_int_t TO_ROWID         = -MAX_RECORDS;
+        json_int_t ROWS_EXPECTED    = 1;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_forward) {
+        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS-1 to_rowid=-MAX_RECORDS, FORWARD";
+        BOOL BACKWARD               = 0;
+        json_int_t FROM_ROWID       = -MAX_RECORDS-1;
+        json_int_t TO_ROWID         = -MAX_RECORDS;
+        json_int_t ROWS_EXPECTED    = 1;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_forward) {
+        const char *TEST_NAME = "Search BAD relative range from_rowid=-10 to_rowid=-20, FORWARD";
+        BOOL BACKWARD               = 0;
+        json_int_t FROM_ROWID       = -10;
+        json_int_t TO_ROWID         = -20;
+        json_int_t ROWS_EXPECTED    = 0;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
     /*-------------------------------------*
      *  Search relative range, backward
      *-------------------------------------*/
@@ -437,12 +494,47 @@ PRIVATE int do_test(void)
         );
     }
 
-    /*-------------------------------------*
-     *  Search BAD relative range, forward
-     *-------------------------------------*/
-    if(1) {
-        const char *TEST_NAME = "Search BAD relative range from_rowid=-10 to_rowid=-20, FORWARD";
-        BOOL BACKWARD               = 0;
+    if(test_backward) {
+        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS to_rowid=-MAX_RECORDS, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = -MAX_RECORDS;
+        json_int_t TO_ROWID         = -MAX_RECORDS;
+        json_int_t ROWS_EXPECTED    = 1;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_backward) {
+        const char *TEST_NAME = "Search relative range from_rowid=-MAX_RECORDS-1 to_rowid=-MAX_RECORDS, BACKWARD";
+        BOOL BACKWARD               = 1;
+        json_int_t FROM_ROWID       = -MAX_RECORDS-1;
+        json_int_t TO_ROWID         = -MAX_RECORDS;
+        json_int_t ROWS_EXPECTED    = 1;
+        const char *KEY             = "0000000000000000001";
+
+        result += search_data(
+            tranger,
+            KEY,
+            TEST_NAME,
+            BACKWARD,
+            FROM_ROWID,
+            TO_ROWID,
+            ROWS_EXPECTED
+        );
+    }
+
+    if(test_forward) {
+        const char *TEST_NAME = "Search BAD relative range from_rowid=-10 to_rowid=-20, BACKWARD";
+        BOOL BACKWARD               = 1;
         json_int_t FROM_ROWID       = -10;
         json_int_t TO_ROWID         = -20;
         json_int_t ROWS_EXPECTED    = 0;
