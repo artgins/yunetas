@@ -2715,19 +2715,47 @@ PUBLIC int tranger2_close_rt_list(
     json_t *list
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!list) {
-        // silence
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_list(): list NULL",
+            NULL
+        );
         return -1;
     }
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        json_array_remove(
-            kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
-            json_array_find_idx(kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED), list)
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
+
+    json_t *lists = kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED);
+    if(!lists) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_list(): lists not found",
+            NULL
         );
+        return -1;
     }
+
+    int idx = json_array_find_idx(lists, list);
+    if(idx >=0 && idx < json_array_size(lists)) {
+        json_array_remove(
+            lists,
+            idx
+        );
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_list(): list not found",
+            NULL
+        );
+        return -1;
+    }
+
     return 0;
 }
 
@@ -2883,19 +2911,47 @@ PUBLIC int tranger2_close_rt_disk(
     json_t *disk
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!disk) {
-        // silence
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_disk(): disk NULL",
+            NULL
+        );
         return -1;
     }
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        json_array_remove(
-            kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED),
-            json_array_find_idx(kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED), disk)
+    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
+
+    json_t *disks = kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED);
+    if(!disks) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_disk(): disks not found",
+            NULL
         );
+        return -1;
     }
+
+    int idx = json_array_find_idx(disks, disk);
+    if(idx >=0 && idx < json_array_size(disks)) {
+        json_array_remove(
+            disks,
+            idx
+        );
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_rt_disk(): disk not found",
+            NULL
+        );
+        return -1;
+    }
+
     return 0;
 }
 
@@ -3462,6 +3518,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     load_record_callback,   // called on append new record
                     iterator_id
                 );
+                json_object_set(iterator, "rt_list", rt);
             } else {
                 rt = tranger2_open_rt_disk(
                     tranger,
@@ -3471,6 +3528,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     load_record_callback,   // called on append new record
                     iterator_id
                 );
+                json_object_set(iterator, "rt_disk", rt);
             }
             if(!rt) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -3515,9 +3573,28 @@ PUBLIC int tranger2_close_iterator(
         return -1;
     }
 
+    json_t *rt_list = json_object_get(iterator, "rt_list");
+    if(rt_list) {
+        tranger2_close_rt_disk(tranger, rt_list);
+    }
+    json_t *rt_disk = json_object_get(iterator, "rt_disk");
+    if(rt_disk) {
+        tranger2_close_rt_disk(tranger, rt_disk);
+    }
+
     json_t *topic = tranger2_topic(tranger, kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED));
 
     json_t *iterators = kw_get_list(gobj, topic, "iterators", 0, KW_REQUIRED);
+    if(!iterators) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_close_iterator(): iterators not found",
+            NULL
+        );
+        return -1;
+    }
+
     int idx = json_array_find_idx(iterators, iterator);
     if(idx >=0 && idx < json_array_size(iterators)) {
         json_array_remove(
@@ -3601,6 +3678,7 @@ PRIVATE json_t *get_segments(
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
     BOOL realtime = FALSE;
+    *prealtime = realtime;
 
     json_t *jn_segments = json_array();
 

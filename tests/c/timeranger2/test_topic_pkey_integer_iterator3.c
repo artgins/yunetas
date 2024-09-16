@@ -20,7 +20,7 @@
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
-PRIVATE int pinta_md = 1;
+PRIVATE int pinta_md = 0;
 PRIVATE int pinta_records = 0;
 
 /***************************************************************
@@ -123,6 +123,8 @@ PRIVATE int search_data(
         "to_rowid", (json_int_t)to_rowid
     );
     json_t *data = json_array();
+
+print_json2("BEFORE OPEN iterator", tranger); // TODO TEST
     json_t *iterator = tranger2_open_iterator(
         tranger,
         topic,
@@ -132,6 +134,7 @@ PRIVATE int search_data(
         NULL,                   // id
         data                    // data
     );
+print_json2("AFTER OPEN iterator", tranger); // TODO TEST
 
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
     MT_PRINT_TIME(time_measure, test_name)
@@ -206,6 +209,8 @@ PRIVATE int search_data(
     result += tranger2_close_iterator(tranger, iterator);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+print_json2("AFTER CLOSE iterator", tranger); // TODO TEST
+
     return result;
 }
 
@@ -253,7 +258,7 @@ PRIVATE int do_test(void)
     /*-------------------------------------*
      *  Search absolute range, forward
      *-------------------------------------*/
-    BOOL test_forward = 0;
+    BOOL test_forward = 1;
 
     if(test_forward) {
         const char *TEST_NAME = "Search absolute range 1-10, FORWARD (old 60.000 op/sec)";

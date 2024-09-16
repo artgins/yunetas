@@ -387,7 +387,14 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
-                            'load_record_callback': 9999 \
+                            'load_record_callback': 9999, \
+                            'rt_disk': { \
+                                'id': 'it1', \
+                                'topic_name': 'topic_pkey_integer', \
+                                'key': '0000000000000000001', \
+                                'match_cond': {}, \
+                                'load_record_callback': 99999 \
+                            } \
                         }, \
                         { \
                             'id': '0000000000000000002', \
@@ -422,7 +429,14 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
-                            'load_record_callback': 9999 \
+                            'load_record_callback': 9999, \
+                            'rt_disk': { \
+                                'id': '0000000000000000002', \
+                                'topic_name': 'topic_pkey_integer', \
+                                'key': '0000000000000000002', \
+                                'match_cond': {}, \
+                                'load_record_callback': 99999 \
+                            } \
                         } \
                     ] \
                 } \
