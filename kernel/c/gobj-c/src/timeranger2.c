@@ -3387,8 +3387,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         &realtime
     );
 
-print_json2("segments", segments); // TODO TEST
-
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
     json_object_set_new(iterator, "key", json_string(key));
@@ -3668,7 +3666,7 @@ PUBLIC size_t tranger2_iterator_size(
 
 /***************************************************************************
  *  Return a list of segments that match conditions
- *  match_cond cah be modified in (times in string) (rowids negatives)
+ *  match_cond cah be modified in (times in string)
  ***************************************************************************/
 PRIVATE json_t *get_segments(
     hgobj gobj,
@@ -3767,7 +3765,6 @@ PRIVATE json_t *get_segments(
         }
     }
 
-    // WARNING adjust REPEATED
     if(to_rowid == 0) {
         realtime = TRUE;
         to_rowid = total_rows;
@@ -3785,13 +3782,6 @@ PRIVATE json_t *get_segments(
         } else {
             to_rowid = total_rows + to_rowid;
         }
-
-//        if(to_rowid + total_rows > 0) {
-//            to_rowid = total_rows + to_rowid;
-//        } else {
-//            // not exist
-//            return jn_segments;
-//        }
     }
 
     if(to_rowid < from_rowid) {
@@ -4171,10 +4161,6 @@ PRIVATE json_int_t first_segment_row(
             from_rowid = 1;
         } else if(from_rowid > 0) {
             // positive offset
-            if(from_rowid > total_rows) {
-                // not exist
-                return -1;
-            }
         } else {
             // negative offset
             if(from_rowid < -total_rows) {
@@ -4184,6 +4170,7 @@ PRIVATE json_int_t first_segment_row(
                 from_rowid = total_rows + from_rowid + 1;
             }
         }
+
         rowid = from_rowid;
 
     } else {
@@ -4202,11 +4189,11 @@ PRIVATE json_int_t first_segment_row(
             // negative offset
             if(to_rowid < -total_rows) {
                 // not exist
-                return -1;
             } else {
                 to_rowid = total_rows + to_rowid;
             }
         }
+
         rowid = to_rowid;
     }
 

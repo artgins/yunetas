@@ -137,14 +137,49 @@ PRIVATE int search_data(
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)
     MT_PRINT_TIME(time_measure, test_name)
 
+//    // TRICK adjust the expected data
+//    if(from_rowid == 0) {
+//        // Asking from 0 must be equal to asking by 1
+//        from_rowid = 1;
+//    }
+//    if(to_rowid > MAX_RECORDS) {
+//        // Asking to > MAX_RECORDS must be equal to asking by MAX_RECORDS
+//        to_rowid = MAX_RECORDS;
+//    }
+
     // TRICK adjust the expected data
+    // WARNING adjust REPEATED
     if(from_rowid == 0) {
-        // Asking from 0 must be equal to asking by 1
         from_rowid = 1;
+    } else if(from_rowid > 0) {
+        // positive offset
+    } else {
+        // negative offset
+        if(from_rowid < -MAX_RECORDS) {
+            // out of range, begin at 0
+            from_rowid = 1;
+        } else {
+            from_rowid = MAX_RECORDS + from_rowid + 1;
+        }
     }
-    if(to_rowid > MAX_RECORDS) {
-        // Asking to > MAX_RECORDS must be equal to asking by MAX_RECORDS
+
+    // WARNING adjust REPEATED
+    if(to_rowid == 0) {
         to_rowid = MAX_RECORDS;
+    } else if(to_rowid > 0) {
+        // positive offset
+        if(to_rowid > MAX_RECORDS) {
+            // out of range, begin at 0
+            to_rowid = MAX_RECORDS;
+        }
+    } else {
+        // negative offset
+        if(to_rowid < -MAX_RECORDS) {
+            // not exist
+            return -1;
+        } else {
+            to_rowid = MAX_RECORDS + to_rowid;
+        }
     }
 
     /*
