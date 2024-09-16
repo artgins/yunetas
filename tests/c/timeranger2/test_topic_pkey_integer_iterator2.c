@@ -42,10 +42,11 @@ PRIVATE uint64_t leidos = 0;
 PRIVATE int iterator_callback1(
     json_t *tranger,
     json_t *topic,
-    md2_record_t *md2_record,
-    json_t *record,      // must be owned
     const char *key,
-    json_int_t relative_rowid
+    const char *rt_id,
+    json_int_t rowid,
+    md2_record_t *md2_record,
+    json_t *record      // must be owned
 )
 {
     t++;
@@ -59,10 +60,11 @@ PRIVATE int iterator_callback1(
 PRIVATE int iterator_callback2(
     json_t *tranger,
     json_t *topic,
-    md2_record_t *md2_record,
-    json_t *record,      // must be owned
     const char *key,
-    json_int_t relative_rowid
+    const char *rt_id,
+    json_int_t rowid,
+    md2_record_t *md2_record,
+    json_t *record      // must be owned
 )
 {
     t++;

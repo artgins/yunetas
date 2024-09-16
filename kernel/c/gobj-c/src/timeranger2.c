@@ -2135,6 +2135,7 @@ PUBLIC int tranger2_append_record(
     json_array_foreach(lists, idx, list) {
         const char *key_ = json_string_value(json_object_get(list, "key"));
         if(empty_string(key_) || strcmp(key_, key_value)==0) {
+            const char *id = json_string_value(json_object_get(list, "id"));
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)kw_get_int(
                 gobj,
@@ -2148,10 +2149,11 @@ PUBLIC int tranger2_append_record(
                 load_record_callback(
                     tranger,
                     topic,
-                    md_record,
-                    json_incref(jn_record),
                     key_value,
-                    relative_rowid
+                    id,
+                    relative_rowid,
+                    md_record,
+                    json_incref(jn_record)
                 );
             }
         }
@@ -2862,10 +2864,11 @@ PUBLIC json_t *tranger2_open_rt_disk(
         load_record_callback(
             tranger,
             topic,
-            &md_record,
-            json_incref(record), // must be owned TODO decref
             key,    // key
-            rowid   // relative_rowid
+            "id", // TODO
+            rowid,   // relative_rowid
+            &md_record,
+            json_incref(record) // must be owned TODO decref
         );
     }
 
@@ -2873,7 +2876,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
 }
 
 /***************************************************************************
- *  Close realtime dis,
+ *  Close realtime disk
  ***************************************************************************/
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
@@ -3295,7 +3298,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         JSON_DECREF(match_cond)
         return NULL;
     }
-    if(!iterator_id) {
+    if(empty_string(iterator_id)) {
         iterator_id = key;
     }
 
@@ -3406,10 +3409,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     int ret = load_record_callback(
                         tranger,
                         topic,
-                        &md_record,
-                        json_incref(record), // must be owned
                         key,    // key
-                        rowid   // relative_rowid
+                        iterator_id,
+                        rowid,   // relative_rowid
+                        &md_record,
+                        json_incref(record) // must be owned
                     );
                     /*
                      *  Return:

@@ -380,10 +380,11 @@ PUBLIC uint32_t tranger2_read_user_flag(
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
-    md2_record_t *md2_record,
-    json_t *jn_record,  // must be owned
     const char *key,
-    json_int_t relative_rowid
+    const char *rt_id, // iterator or rt_list/rt_disk id
+    json_int_t rowid,
+    md2_record_t *md2_record,
+    json_t *jn_record  // must be owned
 );
 
 /**rst**
@@ -429,7 +430,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
 );
 
 /**rst**
-    Close realtime dis,
+    Close realtime disk
 **rst**/
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
