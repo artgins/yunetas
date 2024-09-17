@@ -45,32 +45,35 @@ PRIVATE int global_result = 0;
 PRIVATE int search_page(
     json_t *tranger,
     json_t *iterator,
-    uint64_t from_rowid,
+    json_int_t from_rowid,
     size_t limit,
-    size_t rows_expected
+    size_t rows_expected,
+    BOOL BACKWARD
 )
 {
     int result = 0;
 
-    json_t *rows = tranger2_iterator_get_page(
+    json_t *page = tranger2_iterator_get_page(
         tranger,
         iterator,
         from_rowid,
-        limit
+        limit,
+        BACKWARD
     );
 
-    uint64_t rows_found = json_array_size(rows);
+    uint64_t rows_found = json_array_size(json_object_get(page, "data"));
     if(rows_found != rows_expected) {
         printf("%sERROR%s --> rows expected %d, found %d\n", On_Red BWhite, Color_Off,
             (int)rows_expected,
-            (int)json_array_size(rows)
+            (int)rows_found
         );
         result += -1;
     }
 
+    json_t *data = json_object_get(page, "data");
     uint64_t t1 = 946684800 + from_rowid -1;
     int idx; json_t *row;
-    json_array_foreach(rows, idx, row) {
+    json_array_foreach(data, idx, row) {
         uint64_t tm = json_integer_value(json_object_get(row, "tm"));
         if(tm != t1) {
             result += -1;
@@ -82,7 +85,7 @@ PRIVATE int search_page(
         t1++;
     }
 
-    JSON_DECREF(rows)
+    JSON_DECREF(page)
     return result;
 }
 
@@ -179,14 +182,15 @@ PRIVATE int do_test(void)
 
         MT_START_TIME(time_measure)
 
-        size_t from_rowid;
-        for(from_rowid=1; from_rowid<=total_rows/page_size; from_rowid += page_size) {
+        json_int_t from_rowid;
+        for(from_rowid=1; from_rowid<=total_rows; from_rowid += page_size) {
             result += search_page(
                 tranger,
                 iterator,
                 from_rowid,
                 page_size,
-                page_size
+                page_size,
+                0
             );
         }
         if(from_rowid <= total_rows) {
@@ -195,7 +199,8 @@ PRIVATE int do_test(void)
                 iterator,
                 from_rowid,
                 page_size,
-                total_rows - from_rowid + 1 // = (total_rows % page_size)
+                total_rows % page_size,
+                0
             );
         }
 
