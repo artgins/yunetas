@@ -216,6 +216,19 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 );
 
 /**rst**
+   Return list of keys of the topic
+    match_cond:
+        key
+        rkey    regular expression of key
+
+**rst**/
+PUBLIC json_t *tranger2_list_keys( // return is yours
+    json_t *tranger,
+    json_t *topic,
+    json_t *match_cond  // owned, uses "key" and "rkey"
+);
+
+/**rst**
    Get key size (number of records)
 **rst**/
 PUBLIC uint64_t tranger2_topic_key_size(
@@ -251,7 +264,7 @@ PUBLIC int tranger2_delete_topic(
    Backup topic and re-create it.
    If ``backup_path`` is empty then it will be used the topic path
    If ``backup_name`` is empty then it will be used ``topic_name``.bak
-   If overwrite_backup is true and backup exists then it will be overwrited
+   If overwrite_backup is true and backup exists then it will be overwrite
         but before tranger_backup_deleting_callback() will be called
             and if it returns TRUE then the existing backup will be not removed.
    Return the new topic

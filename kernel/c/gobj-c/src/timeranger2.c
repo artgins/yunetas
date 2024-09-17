@@ -147,6 +147,11 @@ PRIVATE BOOL match_record(
     md2_record_t *md_record,
     BOOL *end
 );
+PRIVATE json_t *find_keys_in_disk(
+    hgobj gobj,
+    const char *directory,
+    json_t *match_cond  // not owned, uses "key" and "rkey"
+);
 
 /***************************************************************
  *              Data
@@ -821,6 +826,26 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
         }
     }
     return topic;
+}
+
+/***************************************************************************
+   Return list of keys of the topic
+    match_cond:
+        key
+        rkey    regular expression of key
+ ***************************************************************************/
+PUBLIC json_t *tranger2_list_keys( // return is yours
+    json_t *tranger,
+    json_t *topic,
+    json_t *match_cond  // owned, uses "key" and "rkey"
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+
+    json_t *jn_keys = find_keys_in_disk(gobj, directory, match_cond);
+    JSON_DECREF(match_cond)
+    return jn_keys;
 }
 
 /***************************************************************************

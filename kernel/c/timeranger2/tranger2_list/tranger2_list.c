@@ -512,7 +512,6 @@ PRIVATE int list_messages(void)
     char *path = arguments.path;
     char *database = arguments.database;
     char *topic_name = arguments.topic;
-    char *key = arguments.key;
 
     /*-------------------------------*
      *      Startup TimeRanger
@@ -541,18 +540,30 @@ PRIVATE int list_messages(void)
         exit(-1);
     }
 
-    json_t *tr_list = tranger2_open_iterator(
+    json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
         topic,
-        key,
-        json_incref(match_cond),  // owned
-        load_record_callback, // called on LOADING and APPENDING
-        "",     // iterator id, optional, if empty will be the key
-        NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
+        json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
-    if(tr_list) {
-        tranger2_close_iterator(tranger, tr_list);
+    print_json2("KEYS", jn_keys); // TODO TEST
+
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        json_t *tr_list = tranger2_open_iterator(
+            tranger,
+            topic,
+            key,
+            json_incref(match_cond),  // owned
+            load_record_callback, // called on LOADING and APPENDING
+            "",     // iterator id, optional, if empty will be the key
+            NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
+        );
+        if(tr_list) {
+            tranger2_close_iterator(tranger, tr_list);
+        }
     }
+
 
     /*-------------------------------*
      *  Free resources
