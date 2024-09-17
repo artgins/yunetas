@@ -531,13 +531,13 @@ PRIVATE int list_messages(void)
         fprintf(stderr, "Can't open topic %s\n\n", topic_name);
         exit(-1);
     }
+    printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
         topic,
         json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
-    print_json2("KEYS", jn_keys); // TODO TEST
 
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
