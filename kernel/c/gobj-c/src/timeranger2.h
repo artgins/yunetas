@@ -452,14 +452,19 @@ PUBLIC size_t tranger2_iterator_size(
 );
 
 /**rst**
-    Get a list of records from iterator, to work with pages
+    Get a page of records from iterator
+    Return
+        total_rows:     iterator size (nº of rows)
+        pages:          number of pages with the required limit
+        data:           list of required records found
 **rst**/
 PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *tranger,
     json_t *iterator,
-    uint64_t from_rowid,
-    uint64_t to_rowid
+    uint64_t from_rowid,    // based 1
+    size_t limit
 );
+
 
 /**rst**
     Open realtime list, valid when the yuno is the master writing,
