@@ -20,8 +20,8 @@
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
-//PRIVATE int pinta_md = 1;
-//PRIVATE int pinta_records = 0;
+PRIVATE int pinta_tiempos_intermedios = 0;
+PRIVATE int pinta_records = 0;
 
 /***************************************************************
  *              Prototypes
@@ -63,6 +63,9 @@ PRIVATE int search_page(
         BACKWARD
     );
 
+    if(pinta_records) {
+        print_json2("page", page);
+    }
     uint64_t rows_found = json_array_size(json_object_get(page, "data"));
     if(rows_found != rows_expected) {
         printf("%sERROR%s --> rows expected %d, found %d\n", On_Red BWhite, Color_Off,
@@ -89,18 +92,52 @@ PRIVATE int search_page(
     }
 
     json_t *data = json_object_get(page, "data");
-    uint64_t t1 = 946684800 + from_rowid -1;
+
+    uint64_t t1, rowid;
+    if(!BACKWARD) {
+        t1 = 946684800 + from_rowid -1;
+        rowid = from_rowid;
+
+    } else {
+        t1 = 946684800 + from_rowid + rows_found - 2;
+        rowid = from_rowid + rows_found - 1;
+    }
     int idx; json_t *row;
     json_array_foreach(data, idx, row) {
         uint64_t tm = json_integer_value(json_object_get(row, "tm"));
         if(tm != t1) {
             result += -1;
             printf("%sERROR%s --> tm expected %d, found %d\n", On_Red BWhite, Color_Off,
-                (int)tm,
-                (int)t1
+                (int)t1,
+                (int)tm
             );
         }
-        t1++;
+        if(tm != t1) {
+            result += -1;
+            printf("%sERROR%s --> tm expected %d, found %d\n", On_Red BWhite, Color_Off,
+                (int)t1,
+                (int)tm
+            );
+        }
+
+        uint64_t rowid_ = json_integer_value(
+            json_object_get(json_object_get(row, "__md_tranger__"), "rowid")
+        );
+        if(rowid != rowid_) {
+            result += -1;
+            printf("%sERROR%s --> rowid expected %d, found %d\n", On_Red BWhite, Color_Off,
+                (int)rowid,
+                (int)rowid_
+            );
+        }
+
+        if(!BACKWARD) {
+            t1++;
+            rowid++;
+        } else {
+            t1--;
+            rowid--;
+        }
     }
 
     JSON_DECREF(page)
@@ -187,7 +224,7 @@ PRIVATE int do_test(void)
         /*-------------------------*
          *
          *-------------------------*/
-        const char *TEST_NAME = "Search page";
+        const char *TEST_NAME = "Search page FORWARD";
         set_expected_results( // Check that no logs happen
             TEST_NAME, // test name
             NULL,   // error's list, It must not be any log error
@@ -206,6 +243,8 @@ PRIVATE int do_test(void)
         int page;
         json_int_t from_rowid;
         for(from_rowid=1, page=0; page<pages; page++, from_rowid += page_size) {
+            time_measure_t time_measure2;
+            MT_START_TIME(time_measure2)
             result += search_page(
                 tranger,
                 iterator,
@@ -216,11 +255,17 @@ PRIVATE int do_test(void)
                 total_pages,
                 0
             );
+            MT_INCREMENT_COUNT(time_measure2, page_size)
+            if(pinta_tiempos_intermedios) {
+                MT_PRINT_TIME(time_measure2, "search_page")
+            }
             if(result < 0) {
                 break;
             }
         }
         if(from_rowid <= total_rows) { // if((total_rows%page_size)!=0) {
+            time_measure_t time_measure2;
+            MT_START_TIME(time_measure2)
             result += search_page(
                 tranger,
                 iterator,
@@ -231,6 +276,10 @@ PRIVATE int do_test(void)
                 total_pages,
                 0
             );
+            MT_INCREMENT_COUNT(time_measure2, total_rows % page_size)
+            if(pinta_tiempos_intermedios) {
+                MT_PRINT_TIME(time_measure2, "search_page")
+            }
         }
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
@@ -250,14 +299,13 @@ PRIVATE int do_test(void)
         );
         result += tranger2_close_iterator(tranger, iterator);
         result += test_json(NULL, result);  // NULL: we want to check only the logs
-
     }
 
     /*-------------------------------------*
      *  Search pages, backward
      *-------------------------------------*/
     if(test_backward) {
-        const char *KEY             = "0000000000000000001";
+        const char *KEY = "0000000000000000001";
         set_expected_results( // Check that no logs happen
             "tranger2_open_iterator", // test name
             NULL,   // error's list, It must not be any log error
@@ -271,7 +319,7 @@ PRIVATE int do_test(void)
 
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:b}",
-            "backward", 1
+            "backward", 0
         );
         json_t *iterator = tranger2_open_iterator(
             tranger,
@@ -289,6 +337,68 @@ PRIVATE int do_test(void)
         /*-------------------------*
          *
          *-------------------------*/
+        const char *TEST_NAME = "Search page BACKWARD";
+        set_expected_results( // Check that no logs happen
+            TEST_NAME, // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        json_int_t page_size = 41;
+        size_t total_rows = tranger2_iterator_size(iterator);
+
+        size_t pages = total_rows / page_size;
+        size_t total_pages = pages + ((total_rows % page_size)?1:0);
+
+        MT_START_TIME(time_measure)
+
+        int page;
+        json_int_t from_rowid;
+        for(from_rowid=1, page=0; page<pages; page++, from_rowid += page_size) {
+            time_measure_t time_measure2;
+            MT_START_TIME(time_measure2)
+            result += search_page(
+                tranger,
+                iterator,
+                from_rowid,
+                page_size,
+                page_size,
+                MAX_RECORDS,
+                total_pages,
+                1
+            );
+            MT_INCREMENT_COUNT(time_measure2, page_size)
+            if(pinta_tiempos_intermedios) {
+                MT_PRINT_TIME(time_measure2, "search_page")
+            }
+            if(result < 0) {
+                break;
+            }
+        }
+        if(from_rowid <= total_rows) { // if((total_rows%page_size)!=0) {
+            time_measure_t time_measure2;
+            MT_START_TIME(time_measure2)
+            result += search_page(
+                tranger,
+                iterator,
+                from_rowid,
+                page_size,
+                total_rows % page_size,
+                MAX_RECORDS,
+                total_pages,
+                1
+            );
+            MT_INCREMENT_COUNT(time_measure2, total_rows % page_size)
+            if(pinta_tiempos_intermedios) {
+                MT_PRINT_TIME(time_measure2, "search_page")
+            }
+        }
+
+        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, TEST_NAME)
+
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
 
         /*-------------------------*
          *  close
@@ -302,17 +412,7 @@ PRIVATE int do_test(void)
         );
         result += tranger2_close_iterator(tranger, iterator);
         result += test_json(NULL, result);  // NULL: we want to check only the logs
-
     }
-
-//    json_t *page = tranger2_iterator_get_page( // return must be owned
-//        tranger,
-//        iterator,
-//        from_rowid,
-//        json_int_t to_rowid
-//    );
-
-    //    json_int_t key = appends/2 + 1;
 
     /*-------------------------------------*
      *      Open rt list

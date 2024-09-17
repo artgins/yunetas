@@ -2161,8 +2161,6 @@ PUBLIC int tranger2_append_record(
         }
     }
 
-    // TEST performance 114000 (sin md)
-
     JSON_DECREF(jn_record)
     return 0;
 }
@@ -3461,6 +3459,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         segment,
                         &md_record
                     );
+                    if(record) {
+                        json_t *__md_tranger__ = md2json(&md_record, rowid);
+                        json_object_set_new(
+                            record,
+                            "__md_tranger__",
+                            __md_tranger__  // owned
+                        );
+                    }
                 }
 
                 // Inform to the user list
@@ -3761,6 +3767,14 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
                 segment,
                 &md_record
             );
+            if(record) {
+                json_t *__md_tranger__ = md2json(&md_record, rowid);
+                json_object_set_new(
+                    record,
+                    "__md_tranger__",
+                    __md_tranger__  // owned
+                );
+            }
 
             json_array_append_new(data, record);
         }

@@ -104,6 +104,15 @@ static inline void mt_print_time(time_measure_t *time_measure, const char *prefi
     );
 }
 
+static inline double mt_get_time(time_measure_t *time_measure)
+{
+    register uint64_t s, e;
+    s = ((uint64_t)time_measure->start.tv_sec)*1000000 + ((uint64_t)time_measure->start.tv_nsec)/1000;
+    e = ((uint64_t)time_measure->end.tv_sec)*1000000 + ((uint64_t)time_measure->end.tv_nsec)/1000;
+    double dt =  ((double)(e-s))/1000000;
+    return dt;
+}
+
 #ifdef __cplusplus
 }
 #endif
