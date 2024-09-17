@@ -415,38 +415,6 @@ PRIVATE int do_test(void)
     }
 
     /*-------------------------------------*
-     *      Open rt list
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "open rt list 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    all_leidos = 0;
-//    one_leidos = 0;
-//
-//    json_t *tr_list = tranger2_open_rt_list(
-//        tranger,
-//        TOPIC_NAME,
-//        "",             // key
-//        all_load_record_callback,
-//        ""              // list id
-//    );
-//
-//    tranger2_open_rt_list(
-//        tranger,
-//        TOPIC_NAME,
-//        "0000000000000000001",       // key
-//        one_load_record_callback,
-//        "list2"              // list id
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
      *      Add records
      *-------------------------------------*/
 //    set_expected_results( // Check that no logs happen
@@ -475,46 +443,6 @@ PRIVATE int do_test(void)
 //    }
 //    result += test_json(NULL);  // NULL: we want to check only the logs
 
-    /*-------------------------------------*
-     *      Close rt lists
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "close rt lists 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    tranger2_close_rt_list(
-//        tranger,
-//        tr_list
-//    );
-//
-//    json_t *list2 =tranger2_get_rt_list_by_id(
-//        tranger,
-//        "list2"
-//    );
-//    tranger2_close_rt_list(
-//        tranger,
-//        list2
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-//
-//    if(all_leidos != MAX_KEYS*MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//           (int)all_leidos, MAX_KEYS*MAX_RECORDS
-//        );
-//        result += -1;
-//    }
-//
-//    if(one_leidos != MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//            (int)one_leidos, MAX_RECORDS
-//        );
-//        result += -1;
-//    }
 
     /*-------------------------------*
      *  tranger_backup_topic
