@@ -5539,7 +5539,7 @@ PRIVATE json_t *read_record_content(
 /***************************************************************************
  *  Print rowid, t, tm, key
  ***************************************************************************/
-PUBLIC void print_md0_record(
+PUBLIC void tranger2_print_md0_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -5605,7 +5605,7 @@ PUBLIC void print_md0_record(
 /***************************************************************************
  *  Print rowid, uflag, sflag, t, tm, key
  ***************************************************************************/
-PUBLIC void print_md1_record(
+PUBLIC void tranger2_print_md1_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -5678,7 +5678,7 @@ PUBLIC void print_md1_record(
 /***************************************************************************
  *  print rowid, offset, size, t, path
  ***************************************************************************/
-PUBLIC void print_md2_record(
+PUBLIC void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -5719,7 +5719,7 @@ PUBLIC void print_md2_record(
 /***************************************************************************
  *  Print path
  ***************************************************************************/
-PUBLIC void print_record_filename(
+PUBLIC void tranger2_print_record_filename(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,

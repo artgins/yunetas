@@ -525,7 +525,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
  *  print_md2_record: print rowid, offset, size, t, path
  *  print_record_filename: Print path
  */
-PUBLIC void print_md0_record(
+PUBLIC void tranger2_print_md0_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -534,7 +534,7 @@ PUBLIC void print_md0_record(
     char *bf,
     int bfsize
 );
-PUBLIC void print_md1_record(
+PUBLIC void tranger2_print_md1_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -543,7 +543,7 @@ PUBLIC void print_md1_record(
     char *bf,
     int bfsize
 );
-PUBLIC void print_md2_record(
+PUBLIC void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,
@@ -553,7 +553,7 @@ PUBLIC void print_md2_record(
     int bfsize
 );
 
-PUBLIC void print_record_filename(
+PUBLIC void tranger2_print_record_filename(
     json_t *tranger,
     json_t *topic,
     const md2_record_t *md_record,

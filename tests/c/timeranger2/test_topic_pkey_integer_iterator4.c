@@ -56,7 +56,7 @@ PRIVATE int load_rango_callback(
 
     if(pinta_md) {
         char temp[1024];
-        print_md1_record(
+        tranger2_print_md1_record(
             tranger,
             topic,
             md_record,

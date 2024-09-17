@@ -361,10 +361,10 @@ PUBLIC int load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond, // not yours, don't own
-    md2_record_t *md2_record,
+    md2_record_t *md_record,
     json_t *jn_record, // must be owned
     const char *key,
-    json_int_t relative_rowid
+    json_int_t rowid
 )
 {
     static BOOL first_time = TRUE;
@@ -375,7 +375,7 @@ PUBLIC int load_record_callback(
     int verbose = 0; // TODO (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
-    tr2_print_md1_record(tranger, topic, key, md_record, title, sizeof(title));
+    tranger2_print_md1_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
 
     BOOL table_mode = FALSE;
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
