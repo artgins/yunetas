@@ -14,6 +14,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include "helpers.h"
 #include "timeranger2.h"
 
 extern void jsonp_free(void *ptr); // json low level
@@ -1909,8 +1910,11 @@ PUBLIC int tranger2_append_record(
         } else {
             if(json_is_string(jn_tval)) {
                 int offset;
-                timestamp_t timestamp; // TODO if is it a millisecond time?
-                parse_date_basic(json_string_value(jn_tval), &timestamp, &offset);
+                timestamp_t timestamp;
+                timestamp = approxidate(json_string_value(jn_tval));
+                // TODO if(__system_flag__ & (sf2_tm_ms)) {
+                //    timestamp *= 1000; // TODO lost milisecond precision?
+                //}
                 md_record->__tm__ = timestamp;
             } else if(json_is_integer(jn_tval)) {
                 md_record->__tm__ = json_integer_value(jn_tval);
@@ -3938,9 +3942,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_t), 'T')!=0) {
             int offset;
             timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
+            timestamp = approxidate(json_string_value(jn_from_t));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
@@ -3972,9 +3974,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_t), 'T')!=0) {
             int offset;
             timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
+            timestamp = approxidate(json_string_value(jn_to_t));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
@@ -4012,9 +4012,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
             int offset;
             timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
+            timestamp = approxidate(json_string_value(jn_from_tm));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
@@ -4046,9 +4044,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
             int offset;
             timestamp_t timestamp;
-            if(parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset)<0) {
-                return jn_segments;
-            }
+            timestamp = approxidate(json_string_value(jn_to_tm));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}

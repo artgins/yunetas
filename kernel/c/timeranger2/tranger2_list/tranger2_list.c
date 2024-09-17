@@ -357,14 +357,14 @@ PRIVATE int list_topics(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int load_record_callback(
+PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *match_cond, // not yours, don't own
-    md2_record_t *md_record,
-    json_t *jn_record, // must be owned
     const char *key,
-    json_int_t rowid
+    const char *rt_id, // iterator or rt_list/rt_disk id
+    json_int_t rowid,
+    md2_record_t *md_record,
+    json_t *jn_record  // must be owned
 )
 {
     static BOOL first_time = TRUE;
@@ -512,7 +512,8 @@ PRIVATE int list_messages(void)
     char *path = arguments.path;
     char *database = arguments.database;
     char *topic_name = arguments.topic;
-//    int verbose = arguments.verbose;
+    char *key = arguments.key;
+    // TODO int verbose = arguments.verbose;
 
     /*-------------------------------*
      *      Startup TimeRanger
@@ -531,31 +532,30 @@ PRIVATE int list_messages(void)
     /*-------------------------------*
      *  Open topic
      *-------------------------------*/
-    json_t * htopic = tranger2_open_topic(
+    json_t *topic = tranger2_open_topic(
         tranger,
         topic_name,
         FALSE
     );
-    if(!htopic) {
+    if(!topic) {
         fprintf(stderr, "Can't open topic %s\n\n", topic_name);
         exit(-1);
     }
 
-// TODO change by iterator   JSON_INCREF(match_cond)
-//    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:i}",
-//        "topic_name", topic_name,
-//        "match_cond", match_cond?match_cond:json_object(),
-//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-//        "verbose", verbose
-//    );
-//
-//    json_t *tr_list = tranger2_open_list(
-//        tranger,
-//        jn_list
-//    );
-//    if(tr_list) {
-//        tranger2_close_list(tranger, tr_list);
-//    }
+    JSON_INCREF(match_cond)
+
+    json_t *tr_list = tranger2_open_iterator(
+        tranger,
+        topic,
+        key,
+        match_cond,  // owned
+        load_record_callback, // called on LOADING and APPENDING
+        "",     // iterator id, optional, if empty will be the key
+        NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
+    );
+    if(tr_list) {
+        tranger2_close_iterator(tranger, tr_list);
+    }
 
     /*-------------------------------*
      *  Free resources

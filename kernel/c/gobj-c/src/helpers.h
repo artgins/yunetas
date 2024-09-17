@@ -513,6 +513,102 @@ timestamp_t approxidate_relative(const char *date);
 void parse_date_format(const char *format, struct date_mode *mode);
 int date_overflows(timestamp_t date);
 
+/*
+Here’s a breakdown of the kinds of formats approxidate_careful() can interpret:
+1. Absolute Dates (Standard formats):
+
+    ISO 8601 format:
+        YYYY-MM-DD (e.g., 2024-09-17)
+        YYYY/MM/DD (e.g., 2024/09/17)
+    Basic English date formats:
+        Sep 17 2024
+        17 Sep 2024
+        September 17, 2024
+    US-centric formats:
+        09/17/2024
+        9/17/2024
+    Year-only:
+        2024
+    Month and year:
+        Sep 2024
+
+2. Relative Dates:
+
+The function can interpret relative dates, which are based on the current date (or another reference point) and include phrases like:
+
+    Days ago/forward:
+        3 days ago
+        2 days from now
+    Weeks ago/forward:
+        2 weeks ago
+        1 week from now
+    Months ago/forward:
+        1 month ago
+        in 3 months
+    Years ago/forward:
+        2 years ago
+        next year
+        in 5 years
+    Human-readable terms:
+        yesterday
+        today
+        tomorrow
+    Named days of the week:
+        Monday
+        last Monday
+        next Friday
+        this Tuesday
+
+3. Special Time Keywords:
+
+It can handle specific keywords associated with time, such as:
+
+    Noon:
+        noon today
+    Midnight:
+        midnight
+    Time of day:
+        3:45 PM
+        10:30 AM
+
+4. Combinations of Date and Time:
+
+    yesterday 3:00 PM
+    next Friday at 12:30
+    2024-09-17 10:45
+
+5. Time-relative to specific date:
+
+Approxidate can also parse relative times or dates anchored to a specific time:
+
+    3 days after 2024-09-17
+    2 weeks before next Monday
+
+6. Shorthand Dates:
+
+    Today’s shorthand:
+        0 (interpreted as today)
+    Days ago shorthand:
+        -1 (interpreted as yesterday)
+        +2 (interpreted as two days from today)
+
+7. Special Cases and Contextual Phrases:
+
+It might also interpret more casual terms such as:
+
+    the day before yesterday
+    the day after tomorrow
+
+Important Considerations:
+
+    Contextual Parsing: approxidate_careful() will interpret relative terms (like tomorrow or next week) based on the current date or a reference date.
+    Locale-specific parsing: It is likely designed to handle common date formats used in different regions, including differences between US-centric formats (MM/DD/YYYY) and European formats (DD/MM/YYYY).
+
+Error Handling:
+
+    Ambiguities: When presented with ambiguous formats or incomplete information, approxidate_careful() tries to interpret the most likely date based on context, hence the "careful" part of its functionality.
+ */
+
 /*---------------------------------*
  *      Utilities functions
  *---------------------------------*/

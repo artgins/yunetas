@@ -383,7 +383,7 @@ typedef int (*tranger2_load_record_callback_t)(
     const char *key,
     const char *rt_id, // iterator or rt_list/rt_disk id
     json_int_t rowid,
-    md2_record_t *md2_record,
+    md2_record_t *md_record,
     json_t *jn_record  // must be owned
 );
 
@@ -412,12 +412,15 @@ typedef int (*tranger2_load_record_callback_t)(
         user_flag_mask_notset
 
 **rst**/
-PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDING: add real time data
+/*
+ *  LOADING: load data from disk, APPENDING: add real time data
+ */
+PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
     json_t *topic,
     const char *key,
     json_t *match_cond,  // owned
-    tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING new record
+    tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
     json_t *data    // JSON array, if not empty, fills it with the LOADING data, not owned
 );
