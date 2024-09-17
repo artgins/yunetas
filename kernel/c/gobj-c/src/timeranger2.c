@@ -3777,9 +3777,14 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
     }
 
+    json_int_t pages = total_rows / (json_int_t)limit;
+    if((total_rows%limit)!=0) {
+        pages++;
+    }
+    JSON_DECREF(match_cond)
     return json_pack("{s:I, s:I, s:o}",
         "total_rows", total_rows,
-        "pages", (json_int_t)0,
+        "pages", pages,
         "data", data
     );
 }

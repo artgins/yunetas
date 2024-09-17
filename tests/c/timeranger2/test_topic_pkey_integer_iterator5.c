@@ -48,6 +48,8 @@ PRIVATE int search_page(
     json_int_t from_rowid,
     size_t limit,
     size_t rows_expected,
+    size_t total_rows,
+    size_t pages,
     BOOL BACKWARD
 )
 {
@@ -66,6 +68,22 @@ PRIVATE int search_page(
         printf("%sERROR%s --> rows expected %d, found %d\n", On_Red BWhite, Color_Off,
             (int)rows_expected,
             (int)rows_found
+        );
+        result += -1;
+    }
+
+    if(total_rows != json_integer_value(json_object_get(page, "total_rows"))) {
+        printf("%sERROR%s --> total_rows expected %d, found %d\n", On_Red BWhite, Color_Off,
+            (int)total_rows,
+            (int)json_integer_value(json_object_get(page, "total_rows"))
+        );
+        result += -1;
+    }
+
+    if(pages != json_integer_value(json_object_get(page, "pages"))) {
+        printf("%sERROR%s --> pages expected %d, found %d\n", On_Red BWhite, Color_Off,
+            (int)pages,
+            (int)json_integer_value(json_object_get(page, "pages"))
         );
         result += -1;
     }
@@ -180,26 +198,37 @@ PRIVATE int do_test(void)
         json_int_t page_size = 41;
         size_t total_rows = tranger2_iterator_size(iterator);
 
+        size_t pages = total_rows / page_size;
+        size_t total_pages = pages + ((total_rows % page_size)?1:0);
+
         MT_START_TIME(time_measure)
 
+        int page;
         json_int_t from_rowid;
-        for(from_rowid=1; from_rowid<=total_rows; from_rowid += page_size) {
+        for(from_rowid=1, page=0; page<pages; page++, from_rowid += page_size) {
             result += search_page(
                 tranger,
                 iterator,
                 from_rowid,
                 page_size,
                 page_size,
+                MAX_RECORDS,
+                total_pages,
                 0
             );
+            if(result < 0) {
+                break;
+            }
         }
-        if(from_rowid <= total_rows) {
+        if(from_rowid <= total_rows) { // if((total_rows%page_size)!=0) {
             result += search_page(
                 tranger,
                 iterator,
                 from_rowid,
                 page_size,
                 total_rows % page_size,
+                MAX_RECORDS,
+                total_pages,
                 0
             );
         }
