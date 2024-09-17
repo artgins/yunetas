@@ -357,7 +357,7 @@ PRIVATE int list_topics(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int TODO_load_record_callback(
+PUBLIC int load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *match_cond, // not yours, don't own
@@ -375,7 +375,7 @@ PUBLIC int TODO_load_record_callback(
     int verbose = 0; // TODO (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
-// TODO review   tr2_print_md1_record(tranger, topic, key, md_record, title, sizeof(title));
+    tr2_print_md1_record(tranger, topic, key, md_record, title, sizeof(title));
 
     BOOL table_mode = FALSE;
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {

@@ -395,15 +395,9 @@ typedef int (*tranger2_load_record_callback_t)(
         backward
         only_md     (don't load jn_record on calling callbacks)
 
-        key     // TODO fuera de match_cond???
-        notkey
-        rkey    regular expression of key
-        filter  dict with fields to match
-
         rt_by_mem   if TRUE  => realtime by memory (list, master);
                     if FALSE => rt by disk (force to false if not master)
                     default: FALSE
-
 
         from_rowid  // if to_rowid && to_t && to_tm is 0 then there is realtime
         to_rowid
