@@ -1909,7 +1909,6 @@ PUBLIC int tranger2_append_record(
             md_record->__tm__ = 0; // No tkey value, mark with 0
         } else {
             if(json_is_string(jn_tval)) {
-                int offset;
                 timestamp_t timestamp;
                 timestamp = approxidate(json_string_value(jn_tval));
                 // TODO if(__system_flag__ & (sf2_tm_ms)) {
@@ -3940,7 +3939,6 @@ PRIVATE json_t *get_segments(
     json_t *jn_from_t = json_object_get(match_cond, "from_t");
     if(json_is_string(jn_from_t)) {
         if(strchr(json_string_value(jn_from_t), 'T')!=0) {
-            int offset;
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_t));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
@@ -3972,7 +3970,6 @@ PRIVATE json_t *get_segments(
     json_t *jn_to_t = json_object_get(match_cond, "to_t");
     if(json_is_string(jn_to_t)) {
         if(strchr(json_string_value(jn_to_t), 'T')!=0) {
-            int offset;
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_t));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
@@ -4010,7 +4007,6 @@ PRIVATE json_t *get_segments(
     json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
     if(json_is_string(jn_from_tm)) {
         if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
-            int offset;
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_tm));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {
@@ -4042,7 +4038,6 @@ PRIVATE json_t *get_segments(
     json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
     if(json_is_string(jn_to_tm)) {
         if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
-            int offset;
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_tm));
             // TODO if(__system_flag__ & (sf2_tm_ms)) {

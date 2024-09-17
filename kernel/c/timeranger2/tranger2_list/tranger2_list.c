@@ -372,7 +372,7 @@ PRIVATE int load_record_callback(
 
     total_counter++;
     partial_counter++;
-    int verbose = 0; // TODO (int)kw_get_int(gobj, list, "verbose", 0, KW_REQUIRED);
+    int verbose = arguments.verbose;
     char title[1024];
 
     tranger2_print_md1_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
@@ -392,7 +392,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 0) {
-        // TODO review tr2_print_md0_record(tranger, topic, md_record, title, sizeof(title));
+        tranger2_print_md0_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
@@ -405,7 +405,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 2) {
-        // TODO review tr2_print_md2_record(tranger, topic, md_record, title, sizeof(title));
+        tranger2_print_md2_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
         printf("%s\n", title);
         JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
@@ -436,7 +436,7 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-//            tr2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
+//            tranger2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
@@ -513,7 +513,6 @@ PRIVATE int list_messages(void)
     char *database = arguments.database;
     char *topic_name = arguments.topic;
     char *key = arguments.key;
-    // TODO int verbose = arguments.verbose;
 
     /*-------------------------------*
      *      Startup TimeRanger
@@ -542,13 +541,11 @@ PRIVATE int list_messages(void)
         exit(-1);
     }
 
-    JSON_INCREF(match_cond)
-
     json_t *tr_list = tranger2_open_iterator(
         tranger,
         topic,
         key,
-        match_cond,  // owned
+        json_incref(match_cond),  // owned
         load_record_callback, // called on LOADING and APPENDING
         "",     // iterator id, optional, if empty will be the key
         NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
@@ -877,48 +874,16 @@ int main(int argc, char *argv[])
     match_cond = json_object();
 
     if(arguments.from_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_t)) {
-            timestamp = atoll(arguments.from_t);
-        } else {
-            //int offset;
-            //parse_date_basic(arguments.from_t, &timestamp, &offset);
-            timestamp = approxidate(arguments.from_t);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_t", json_string(arguments.from_t));
     }
     if(arguments.to_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_t)) {
-            timestamp = atoll(arguments.to_t);
-        } else {
-            //int offset;
-            //parse_date_basic(arguments.to_t, &timestamp, &offset);
-            timestamp = approxidate(arguments.to_t);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_t", json_string(arguments.to_t));
     }
     if(arguments.from_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_tm)) {
-            timestamp = atoll(arguments.from_tm);
-        } else {
-            //int offset;
-            //parse_date_basic(arguments.from_tm, &timestamp, &offset);
-            timestamp = approxidate(arguments.from_tm);
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_tm", json_string(arguments.from_tm));
     }
     if(arguments.to_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_tm)) {
-            timestamp = atoll(arguments.to_tm);
-        } else {
-            //int offset;
-            //parse_date_basic(arguments.to_tm, &timestamp, &offset);
-            timestamp = approxidate(arguments.to_tm);
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_tm", json_string(arguments.to_tm));
     }
 
     if(arguments.from_rowid) {
