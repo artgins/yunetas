@@ -104,7 +104,7 @@ static char args_doc[] = "PATH";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
-{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
+//{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
 {0,                     0,      0,                  0,      "Presentation",     3},
@@ -501,21 +501,24 @@ PRIVATE int load_record_callback(
  ***************************************************************************/
 PRIVATE int list_messages(void)
 {
-    char *path = arguments.path;
-    char *database = arguments.database;
-    char *topic_name = arguments.topic;
+    if(empty_string(arguments.topic)) {
+        arguments.topic = pop_last_segment(arguments.path);
+        if(empty_string(arguments.database)) {
+            arguments.database = pop_last_segment(arguments.path);
+        }
+    }
 
     /*-------------------------------*
      *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
-        "path", path,
-        "database", database
+        "path", arguments.path,
+        "database", arguments.database
     );
 
     json_t * tranger = tranger2_startup(0, jn_tranger);
     if(!tranger) {
-        fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
+        fprintf(stderr, "Can't startup tranger %s/%s\n\n", arguments.path, arguments.database);
         exit(-1);
     }
 
@@ -524,11 +527,11 @@ PRIVATE int list_messages(void)
      *-------------------------------*/
     json_t *topic = tranger2_open_topic(
         tranger,
-        topic_name,
+        arguments.topic,
         FALSE
     );
     if(!topic) {
-        fprintf(stderr, "Can't open topic %s\n\n", topic_name);
+        fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
         exit(-1);
     }
     printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
@@ -560,7 +563,7 @@ PRIVATE int list_messages(void)
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/
-    tranger2_close_topic(tranger, topic_name);
+    tranger2_close_topic(tranger, arguments.topic);
     tranger2_shutdown(tranger);
 
     return 0;
@@ -799,6 +802,29 @@ PRIVATE int list_recursive_topic_messages(void)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void delete_right_slash(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
+            *(s+l)='\0';
+        else
+            break;
+    }
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -982,18 +1008,12 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
+    delete_right_slash(arguments.path);
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
         list_recursive_topic_messages();
     } else {
-        if(empty_string(arguments.topic)) {
-            arguments.topic = pop_last_segment(arguments.path);
-        }
-        if(empty_string(arguments.database)) {
-            arguments.database = pop_last_segment(arguments.path);
-        }
-
         list_topic_messages();
     }
 

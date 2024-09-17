@@ -2314,10 +2314,11 @@ PRIVATE int _walk_tree(
     level++;
 
     if (!(dir = opendir(root_dir))) {
+printf("%s\n", root_dir); // TODO
         // DO NOT take trace of:
         // EACCES Permission denied (when it is a file opened by another, for example)
         // ENOENT No such file or directory (Broken links, for example)
-        if(!(errno==EACCES ||errno==ENOENT)) {
+        if(!(errno==EACCES ||errno==ENOENT) || 1) { // TODO remove || 1
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
