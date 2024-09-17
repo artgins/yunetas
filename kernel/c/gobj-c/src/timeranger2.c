@@ -3424,7 +3424,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
         json_int_t cur_segment = first_segment_row(segments, total_rows, match_cond, &rowid);
-//            segments_last_row(segments);
 
         /*
          *  Save the pointer
@@ -3678,8 +3677,9 @@ PUBLIC size_t tranger2_iterator_size(
 PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *tranger,
     json_t *iterator,
-    uint64_t from_rowid,    // based 1
-    size_t limit
+    json_int_t from_rowid,    // based 1
+    size_t limit,
+    BOOL backward
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3697,17 +3697,47 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         kw_get_str(gobj, iterator, "topic_name", "", KW_REQUIRED)
     );
     const char *key = json_string_value(json_object_get(iterator, "key"));
-//    json_t *segments = json_object_get(iterator, "segments");
 
-    json_t *jn_list = json_array();
+    json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+    if(from_rowid <= 0 || from_rowid > total_rows || limit <= 0) {
+        return json_pack("{s:I, s:I, s:[]}",
+            "total_rows", total_rows,
+            "pages", (json_int_t)0,
+            "data"
+        );
+    }
+
+    json_t *match_cond = json_object();
+    json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    json_int_t to_rowid = from_rowid + (json_int_t)limit - 1;
+    json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    json_object_set_new(match_cond, "backward", json_boolean(backward));
+
+    json_t *segments = json_object_get(iterator, "segments");
     json_int_t rowid = 0;
+    json_int_t cur_segment = first_segment_row(segments, total_rows, match_cond, &rowid);
+
+    if(cur_segment < 0) {
+        JSON_DECREF(match_cond)
+        return json_pack("{s:I, s:I, s:[]}",
+            "total_rows", total_rows,
+            "pages", (json_int_t)0,
+            "data"
+        );
+    }
+
+    /*
+     *  Save the pointer
+     */
+    json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+    json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+
+    json_t *data = json_array();
     md2_record_t md_record;
 
-//    json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
-
     BOOL end = FALSE;
-    while(!end) {
-        json_t *segment = NULL; //json_array_get(segments, cur_segment);
+    while(!end && cur_segment >= 0) {
+        json_t *segment = json_array_get(segments, cur_segment);
         /*
          *  Get the metadata
          */
@@ -3723,25 +3753,35 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             break;
         }
 
-        json_t *record = read_record_content(
-            tranger,
-            topic,
-            key,
-            segment,
-            &md_record
-        );
-        json_array_append_new(jn_list, record);
+        if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
+            json_t *record = read_record_content(
+                tranger,
+                topic,
+                key,
+                segment,
+                &md_record
+            );
 
-//        cur_segment = next_segment_row(
-//            segments,
-//            match_cond,
-//            cur_segment,
-//            &rowid
-//        );
+            json_array_append_new(data, record);
+        }
+
+        cur_segment = next_segment_row(
+            segments,
+            match_cond,
+            cur_segment,
+            &rowid
+        );
+        if(cur_segment >= 0) {
+            json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
+            json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
+        }
     }
 
-
-    return jn_list;
+    return json_pack("{s:I, s:I, s:o}",
+        "total_rows", total_rows,
+        "pages", (json_int_t)0,
+        "data", data
+    );
 }
 
 
