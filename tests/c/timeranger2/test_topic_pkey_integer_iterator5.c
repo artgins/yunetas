@@ -319,7 +319,7 @@ PRIVATE int do_test(void)
 
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:b}",
-            "backward", 0
+            "backward", 1
         );
         json_t *iterator = tranger2_open_iterator(
             tranger,
