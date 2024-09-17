@@ -295,8 +295,6 @@ PRIVATE BOOL list_db_cb(
     char topic_path[PATH_MAX];
     snprintf(topic_path, sizeof(topic_path), "%s", fullpath);
     printf("TimeRanger ==> '%s'\n", fullpath);
-    printf("  TimeRanger database: '%s'\n", pop_last_segment(fullpath));
-    printf("  Path: '%s'\n", fullpath);
     list_topics(topic_path);
 
     return TRUE; // to continue
@@ -307,7 +305,7 @@ PRIVATE int list_databases(const char *path)
     walk_dir_tree(
         0,
         path,
-        "__timeranger__.json",
+        "__timeranger2__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_db_cb,
         0
@@ -387,27 +385,23 @@ PRIVATE int load_record_callback(
     }
 
     if(verbose < 0) {
-        JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 0) {
         tranger2_print_md0_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
         printf("%s\n", title);
-        JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 1) {
         printf("%s\n", title);
-        JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
         return 0;
     }
     if(verbose == 2) {
         tranger2_print_md2_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
         printf("%s\n", title);
-        JSON_DECREF(match_cond)
         JSON_DECREF(jn_record)
         return 0;
     }
@@ -427,7 +421,6 @@ PRIVATE int load_record_callback(
             total_counter--;
             partial_counter--;
             JSON_DECREF(record1)
-            JSON_DECREF(match_cond)
             JSON_DECREF(jn_record)
             return 0;
         }
@@ -498,7 +491,6 @@ PRIVATE int load_record_callback(
         print_json2(title, jn_record);
     }
 
-    JSON_DECREF(match_cond)
     JSON_DECREF(jn_record)
 
     return 0;
@@ -563,7 +555,7 @@ PRIVATE int list_messages(void)
             tranger2_close_iterator(tranger, tr_list);
         }
     }
-
+    JSON_DECREF(jn_keys)
 
     /*-------------------------------*
      *  Free resources
@@ -593,7 +585,7 @@ PRIVATE int list_topic_messages(void)
             fprintf(stderr, "Path not found: '%s'\n\n", path_topic);
             exit(-1);
         }
-        fprintf(stderr, "What Database/Topic?\n\nFound:\n\n");
+        fprintf(stderr, "What Topic? Found:\n\n");
         list_databases(arguments.path);
         exit(-1);
     }
@@ -728,7 +720,7 @@ PRIVATE int search_by_databases()
     walk_dir_tree(
         0,
         arguments.path,
-        "__timeranger__.json",
+        "__timeranger2__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         search_by_databases_cb,
         0
@@ -788,7 +780,7 @@ PRIVATE int list_recursive_topic_messages(void)
         NULL
     );
 
-    if(!file_exists(path_tranger, "__timeranger__.json")) {
+    if(!file_exists(path_tranger, "__timeranger2__.json")) {
         if(file_exists(path_tranger, "topic_desc.json")) {
             arguments.topic = pop_last_segment(path_tranger);
             arguments.database = pop_last_segment(path_tranger);
@@ -877,7 +869,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Log handlers
      *--------------------------------*/
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*----------------------------------*
      *  Match conditions
@@ -961,11 +953,11 @@ int main(int argc, char *argv[])
         );
     }
 
-    if(json_object_size(match_cond)>0) {
-        json_object_set_new(match_cond, "only_md", json_true());
-    } else {
-        JSON_DECREF(match_cond)
-    }
+//    if(json_object_size(match_cond)>0) {
+//        json_object_set_new(match_cond, "only_md", json_true());
+//    } else {
+//        JSON_DECREF(match_cond)
+//    }
 
     /*
      *  Do your work
@@ -1008,8 +1000,6 @@ int main(int argc, char *argv[])
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
-    JSON_DECREF(match_cond)
-
     clock_gettime (CLOCK_MONOTONIC, &et);
 
     /*-------------------------------------*
@@ -1024,6 +1014,7 @@ int main(int argc, char *argv[])
         (unsigned long)(((double)total_counter)/dt)
     );
 
+    JSON_DECREF(match_cond)
     gobj_end();
 
     return gobj_get_exit_code();
