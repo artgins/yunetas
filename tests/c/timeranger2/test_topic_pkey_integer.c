@@ -970,6 +970,7 @@ int do_test2(void)
 
         build_path(path_key, sizeof(path_key),
             path_topic,
+            "keys",
             "0000000000000000001",
             NULL
         );
@@ -981,6 +982,7 @@ int do_test2(void)
 
         build_path(path_key, sizeof(path_key),
             path_topic,
+            "keys",
             "0000000000000000002",
             NULL
         );
@@ -994,6 +996,7 @@ int do_test2(void)
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
+            "keys",
             "0000000000000000001",
             "2000-01-01.json",
             NULL
@@ -1006,6 +1009,7 @@ int do_test2(void)
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
+            "keys",
             "0000000000000000001",
             "2000-01-01.md2",
             NULL
@@ -1018,6 +1022,7 @@ int do_test2(void)
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
+            "keys",
             "0000000000000000001",
             "2000-01-02.json",
             NULL
@@ -1030,6 +1035,7 @@ int do_test2(void)
 
         build_path(path_key_file, sizeof(path_key_file),
             path_topic,
+            "keys",
             "0000000000000000001",
             "2000-01-02.md2",
             NULL

@@ -832,7 +832,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
  ***************************************************************************/
 PRIVATE int watch_topic_files(hgobj gobj, json_t *topic)
 {
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+//    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
     // "topic_desc.json" cannot never change
 //        "topic_var.json",
 //        "topic_cols.json",
@@ -883,7 +883,12 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
 
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, match_cond);
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/keys",
+        directory
+    );
+
+    json_t *jn_keys = find_keys_in_disk(gobj, full_path, match_cond);
     JSON_DECREF(match_cond)
     return jn_keys;
 }
@@ -3086,8 +3091,12 @@ PRIVATE int load_topic_metadata(
 ) {
     // TODO this cache must be update in tranger2_append_record() ???!!!
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/keys",
+        directory
+    );
 
-    json_t *jn_keys = find_keys_in_disk(gobj, directory, NULL);
+    json_t *jn_keys = find_keys_in_disk(gobj, full_path, NULL);
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
     if(!topic_cache) {
         json_decref(jn_keys);
@@ -3142,17 +3151,17 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
     uint64_t global_to_t = 0;
     uint64_t global_from_tm = (uint64_t)(-1);
     uint64_t global_to_tm = 0;
-    char path[PATH_MAX];
+    char full_path[PATH_MAX];
 
     json_t *t_range = json_object();
     json_t *t_range_files = kw_get_dict(gobj, t_range, "files", json_array(), KW_CREATE);
 
-    build_path(path, sizeof(path), directory, key, NULL);
+    build_path(full_path, sizeof(full_path), directory, "keys", key, NULL);
 
     int files_md_size;
     char **files_md = get_ordered_filename_array(
         gobj,
-        path,
+        full_path,
         ".*\\.md2",
         WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
         &files_md_size
@@ -3161,14 +3170,14 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         char *filename = files_md[i];
         md2_record_t md_first_record;
         md2_record_t md_last_record;
-        build_path(path, sizeof(path), directory, key, filename, NULL);
-        int fd = open(path, O_RDONLY|O_LARGEFILE, 0);
+        build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
+        int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
         if(fd<0) {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open md2 file",
-                "path",         "%s", path,
+                "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
             );
@@ -3190,7 +3199,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", path,
+                    "path",         "%s", full_path,
                     "errno",        "%s", strerror(errno),
                     NULL
                 );
@@ -3210,7 +3219,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Cannot read last record, md2 file corrupted",
-                "path",         "%s", path,
+                "path",         "%s", full_path,
                 "offset",       "%ld", (long)offset,
                 "errno",        "%s", strerror(errno),
                 NULL
@@ -3255,7 +3264,7 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", path,
+                    "path",         "%s", full_path,
                     "errno",        "%s", strerror(errno),
                     NULL
                 );
@@ -3871,7 +3880,7 @@ PRIVATE json_t *get_segments(
      *-------------------------------------*/
     char path[NAME_MAX];
     snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
+    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0); // Use `, don't use json_object_get()
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
