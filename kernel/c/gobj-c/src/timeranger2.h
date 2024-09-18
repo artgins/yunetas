@@ -478,7 +478,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
 
 /**rst**
-    Open realtime mem, valid when the yuno is the master writing,
+    Open realtime by mem, valid when the yuno is the master writing,
     realtime messages from append_message()
 **rst**/
 PUBLIC json_t *tranger2_open_rt_mem(
@@ -507,7 +507,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
 );
 
 /**rst**
-    Open realtime disk, valid when the yuno is the master writing or not-master reading,
+    Open realtime by disk, valid when the yuno is the master writing or not-master reading,
     realtime messages from events of disk
 **rst**/
 PUBLIC json_t *tranger2_open_rt_disk(
