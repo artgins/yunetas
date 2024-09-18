@@ -251,36 +251,19 @@ PRIVATE int close_all(json_t *tranger)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_timer_callback(yev_event_t *yev_event)
+PRIVATE int yev_timer_do_finish_callback(yev_event_t *yev_event)
+{
+    yev_loop->running = 0;
+    return 0;
+}
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_timer_do_test_callback(yev_event_t *yev_event)
 {
     json_t *tranger = yev_event->gobj;
 
-    if(yev_event->result > 0) {
-        global_result += do_test(tranger);
-
-    } else {
-        if(yev_event->result ==0 ||
-                yev_event->result == -ECANCELED ||
-                (yev_event->result == -ENOENT && !yev_event->yev_loop->running)
-        ) {
-            // Cases seen valid
-        } else {
-            json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "timer FAILED",
-                "type",         "%s", yev_event_type_name(yev_event),
-                "fd",           "%d", yev_event->fd,
-                "errno",        "%d", -yev_event->result,
-                "strerror",     "%s", strerror(-yev_event->result),
-                "p",            "%p", yev_event,
-                "flag",         "%j", jn_flags,
-                NULL
-            );
-            json_decref(jn_flags);
-        }
-    }
+    global_result += do_test(tranger);
     return 0;
 }
 
@@ -375,11 +358,17 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     json_t *tranger = open_all();
 
-    yev_event_t *yev_timer = yev_create_timer_event(yev_loop, yev_timer_callback, tranger);
-    yev_start_timer_event(yev_timer, 100, FALSE);
+    yev_event_t *yev_timer_test = yev_create_timer_event(
+        yev_loop, yev_timer_do_test_callback, tranger
+    );
+    yev_start_timer_event(yev_timer_test, 100, FALSE);
+
+    yev_event_t *yev_timer_finish = yev_create_timer_event(
+        yev_loop, yev_timer_do_finish_callback, tranger
+    );
+    yev_start_timer_event(yev_timer_finish, 5*1000, FALSE);
+
     yev_loop_run(yev_loop);
-    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
-    yev_destroy_event(yev_timer);
 
     int result = close_all(tranger);
     result += global_result;
@@ -387,6 +376,8 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *  Stop the event loop
      *--------------------------------*/
+    yev_destroy_event(yev_timer_test);
+    yev_destroy_event(yev_timer_finish);
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 

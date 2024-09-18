@@ -3612,7 +3612,7 @@ PUBLIC int tranger2_close_iterator(
 
     json_t *rt_mem = json_object_get(iterator, "rt_mem");
     if(rt_mem) {
-        tranger2_close_rt_disk(tranger, rt_mem);
+        tranger2_close_rt_mem(tranger, rt_mem);
     }
     json_t *rt_disk = json_object_get(iterator, "rt_disk");
     if(rt_disk) {
