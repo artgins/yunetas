@@ -253,6 +253,8 @@ PRIVATE int close_all(json_t *tranger)
  ***************************************************************************/
 PRIVATE int yev_timer_do_finish_callback(yev_event_t *yev_event)
 {
+    global_result += -1;
+    printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "finish by timeout");
     yev_loop->running = 0;
     return 0;
 }
@@ -366,12 +368,11 @@ int main(int argc, char *argv[])
     yev_event_t *yev_timer_finish = yev_create_timer_event(
         yev_loop, yev_timer_do_finish_callback, tranger
     );
-    yev_start_timer_event(yev_timer_finish, 5*1000, FALSE);
+    yev_start_timer_event(yev_timer_finish, 10*1000, FALSE);
 
     yev_loop_run(yev_loop);
 
     int result = close_all(tranger);
-    result += global_result;
 
     /*--------------------------------*
      *  Stop the event loop
@@ -384,9 +385,10 @@ int main(int argc, char *argv[])
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
-        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "system memory not free");
         result += -1;
     }
+    result += global_result;
 
     return result;
 }
