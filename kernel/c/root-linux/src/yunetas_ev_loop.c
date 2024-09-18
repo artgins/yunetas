@@ -254,7 +254,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
         return cqe->res;
     }
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
@@ -479,7 +479,7 @@ PUBLIC int yev_start_event(
     yev_event_t *yev_event_
 ) {
     yev_event_t *yev_event = yev_event_;
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -736,7 +736,7 @@ PUBLIC int yev_start_timer_event(
     BOOL periodic
 ) {
     yev_event_t *yev_event = yev_event_;
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
     struct io_uring_sqe *sqe;
 
     if(timeout_ms <= 0) {
@@ -814,7 +814,7 @@ PUBLIC int yev_start_timer_event(
 PUBLIC int yev_stop_event(yev_event_t *yev_event)
 {
     yev_loop_t *yev_loop = yev_event->yev_loop;
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
     struct io_uring_sqe *sqe;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -926,7 +926,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
  ***************************************************************************/
 PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
@@ -991,7 +991,7 @@ PRIVATE yev_event_t *create_event(
 ) {
     yev_event_t *yev_event = GBMEM_MALLOC(sizeof(yev_event_t));
     if(!yev_event) {
-        gobj_log_critical(gobj, 0,
+        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "No memory for yev event",    // use the same string
@@ -1012,11 +1012,11 @@ PRIVATE yev_event_t *create_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_timer_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -1025,7 +1025,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
     yev_event->type = YEV_TIMER_TYPE;
     yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
     if(yev_event->fd < 0) {
-        gobj_log_critical(gobj, 0,
+        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
@@ -1034,10 +1034,10 @@ PUBLIC yev_event_t *yev_create_timer_event(
         return NULL;
     }
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(yev_loop->yuno?gobj:0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_create_timer_event",
@@ -1059,11 +1059,11 @@ PUBLIC yev_event_t *yev_create_timer_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_connect_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -1071,7 +1071,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
 
     yev_event->type = YEV_CONNECT_TYPE;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_info(gobj, 0,
@@ -1100,10 +1100,10 @@ PUBLIC int yev_setup_connect_event(
     const char *dst_url,
     const char *src_url
 ) {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
 
     if(yev_event->fd >= 0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "fd ALREADY set",
@@ -1369,11 +1369,11 @@ PUBLIC int yev_setup_connect_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 ) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, -1);
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -1381,10 +1381,10 @@ PUBLIC yev_event_t *yev_create_accept_event(
 
     yev_event->type = YEV_ACCEPT_TYPE;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(yev_loop->yuno?gobj:0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_create_accept_event",
@@ -1411,7 +1411,7 @@ PUBLIC int yev_setup_accept_event(
     int backlog,
     BOOL shared
 ) {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
 
     if(yev_event->fd >= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1650,13 +1650,13 @@ PUBLIC int yev_setup_accept_event(
  *
  *********** ****************************************************************/
 PUBLIC yev_event_t *yev_create_read_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 ) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -1665,10 +1665,10 @@ PUBLIC yev_event_t *yev_create_read_event(
     yev_event->type = YEV_READ_TYPE;
     yev_event->gbuf = gbuf;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(yev_loop->yuno?gobj:0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_create_read_event",
@@ -1691,13 +1691,13 @@ PUBLIC yev_event_t *yev_create_read_event(
  *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_write_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 ) {
-    yev_event_t *yev_event = create_event(loop, callback, gobj, fd);
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
         return NULL;
@@ -1706,10 +1706,10 @@ PUBLIC yev_event_t *yev_create_write_event(
     yev_event->type = YEV_WRITE_TYPE;
     yev_event->gbuf = gbuf;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(yev_loop->yuno?gobj:0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_create_write_event",

@@ -21,7 +21,6 @@
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 PRIVATE int pinta_md = 1;
-PRIVATE int pinta_tiempos_intermedios = 0;
 PRIVATE int pinta_records = 0;
 
 /***************************************************************
@@ -80,111 +79,6 @@ PRIVATE int rt_mem_record_callback(
 
     JSON_DECREF(record)
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int search_page(
-    json_t *tranger,
-    json_t *iterator,
-    json_int_t from_rowid,
-    size_t limit,
-    size_t rows_expected,
-    size_t total_rows,
-    size_t pages,
-    BOOL BACKWARD
-)
-{
-    int result = 0;
-
-    json_t *page = tranger2_iterator_get_page(
-        tranger,
-        iterator,
-        from_rowid,
-        limit,
-        BACKWARD
-    );
-
-    if(pinta_records) {
-        print_json2("page", page);
-    }
-    uint64_t rows_found = json_array_size(json_object_get(page, "data"));
-    if(rows_found != rows_expected) {
-        printf("%sERROR%s --> rows expected %d, found %d\n", On_Red BWhite, Color_Off,
-            (int)rows_expected,
-            (int)rows_found
-        );
-        result += -1;
-    }
-
-    if(total_rows != json_integer_value(json_object_get(page, "total_rows"))) {
-        printf("%sERROR%s --> total_rows expected %d, found %d\n", On_Red BWhite, Color_Off,
-            (int)total_rows,
-            (int)json_integer_value(json_object_get(page, "total_rows"))
-        );
-        result += -1;
-    }
-
-    if(pages != json_integer_value(json_object_get(page, "pages"))) {
-        printf("%sERROR%s --> pages expected %d, found %d\n", On_Red BWhite, Color_Off,
-            (int)pages,
-            (int)json_integer_value(json_object_get(page, "pages"))
-        );
-        result += -1;
-    }
-
-    json_t *data = json_object_get(page, "data");
-
-    uint64_t t1, rowid;
-    if(!BACKWARD) {
-        t1 = 946684800 + from_rowid -1;
-        rowid = from_rowid;
-
-    } else {
-        t1 = 946684800 + from_rowid + rows_found - 2;
-        rowid = from_rowid + rows_found - 1;
-    }
-    int idx; json_t *row;
-    json_array_foreach(data, idx, row) {
-        uint64_t tm = json_integer_value(json_object_get(row, "tm"));
-        if(tm != t1) {
-            result += -1;
-            printf("%sERROR%s --> tm expected %d, found %d\n", On_Red BWhite, Color_Off,
-                (int)t1,
-                (int)tm
-            );
-        }
-        if(tm != t1) {
-            result += -1;
-            printf("%sERROR%s --> tm expected %d, found %d\n", On_Red BWhite, Color_Off,
-                (int)t1,
-                (int)tm
-            );
-        }
-
-        uint64_t rowid_ = json_integer_value(
-            json_object_get(json_object_get(row, "__md_tranger__"), "rowid")
-        );
-        if(rowid != rowid_) {
-            result += -1;
-            printf("%sERROR%s --> rowid expected %d, found %d\n", On_Red BWhite, Color_Off,
-                (int)rowid,
-                (int)rowid_
-            );
-        }
-
-        if(!BACKWARD) {
-            t1++;
-            rowid++;
-        } else {
-            t1--;
-            rowid--;
-        }
-    }
-
-    JSON_DECREF(page)
-    return result;
 }
 
 /***************************************************************************
@@ -268,24 +162,6 @@ PRIVATE int do_test(json_t *tranger)
      *-------------------------------*/
     // TODO old test in test_timeranger2.c
 
-    /*-------------------------------*
-     *      Shutdown timeranger
-     *-------------------------------*/
-    set_expected_results( // Check that no logs happen
-        "tranger_shutdown", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-
-    result += debug_json(tranger, FALSE);
-
-    tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-    result += global_result;
-
     return result;
 }
 
@@ -353,8 +229,61 @@ PRIVATE int close_all(json_t *tranger)
     );
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    result += debug_json(tranger, FALSE);
+
+    tranger2_shutdown(tranger);
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
     return result;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_timer_callback(yev_event_t *yev_event)
+{
+    json_t *tranger = yev_event->gobj;
+
+    if(yev_event->result > 0) {
+        global_result += do_test(tranger);
+
+    } else {
+        if(yev_event->result ==0 ||
+                yev_event->result == -ECANCELED ||
+                (yev_event->result == -ENOENT && !yev_event->yev_loop->running)
+        ) {
+            // Cases seen valid
+        } else {
+            json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "timer FAILED",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "fd",           "%d", yev_event->fd,
+                "errno",        "%d", -yev_event->result,
+                "strerror",     "%s", strerror(-yev_event->result),
+                "p",            "%p", yev_event,
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        }
+    }
+    return 0;
+}
+
 
 /***************************************************************************
  *              Main
@@ -446,9 +375,14 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     json_t *tranger = open_all();
 
-    int result = do_test(tranger);
+    yev_event_t *yev_timer = yev_create_timer_event(yev_loop, yev_timer_callback, tranger);
+    yev_start_timer_event(yev_timer, 100, FALSE);
+    yev_loop_run(yev_loop);
+    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
+    yev_destroy_event(yev_timer);
 
-    result += close_all(tranger);
+    int result = close_all(tranger);
+    result += global_result;
 
     /*--------------------------------*
      *  Stop the event loop
