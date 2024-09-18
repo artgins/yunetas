@@ -192,52 +192,17 @@ PRIVATE int search_page(
  *  Open as master, open iterator (realtime by disk) with callback
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
-PRIVATE int do_test(void)
+PRIVATE int do_test(json_t *tranger)
 {
     int result = 0;
-    global_result = 0;
-
-    /*
-     *  Write the tests in ~/tests_yuneta/
-     */
-    const char *home = getenv("HOME");
-    char path_root[PATH_MAX];
-    char path_database[PATH_MAX];
-    char path_topic[PATH_MAX];
-
-    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
-    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
-    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
-
-    /*-------------------------------------------------*
-     *      Startup the timeranger db
-     *-------------------------------------------------*/
-    set_expected_results( // Check that no logs happen
-        "tranger2_startup", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
-        "path", path_root,
-        "database", DATABASE,
-        "master", 1,
-        "on_critical_error", 0
-    );
-    json_t *tranger = tranger2_startup(0, jn_tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-    BOOL test_forward = 1;
-    BOOL test_backward = 1;
 
     /*-------------------------------------*
-     *
+     *  Monitoring a key, last 10 records
      *-------------------------------------*/
     if(1) {
         const char *KEY = "0000000000000000001";
         set_expected_results( // Check that no logs happen
-            "tranger2_open_iterator", // test name
+            "tranger2_open_iterator by mem", // test name
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
@@ -248,34 +213,24 @@ PRIVATE int do_test(void)
         MT_START_TIME(time_measure)
 
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-        json_t *match_cond = json_pack("{s:b}",
-            "backward", 0
+        json_t *match_cond = json_pack("{s:b, s:b, s:i}",
+            "backward", 0,
+            "rt_by_mem", 1,
+            "from_rowid", -10
         );
-        json_t *iterator = tranger2_open_iterator(
+        tranger2_open_iterator(
             tranger,
             topic,
             KEY,                    // key
             match_cond,             // match_cond, owned
-            rt_mem_record_callback,   // load_record_callback
-            NULL,                   // id
+            rt_mem_record_callback, // load_record_callback
+            "it_by_mem",            // id
             NULL                    // data
         );
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
-        MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
+        MT_PRINT_TIME(time_measure, "tranger2_open_iterator by mem")
         result += test_json(NULL, result);  // NULL: we want to check only the logs
 
-        /*-------------------------*
-         *  close
-         *-------------------------*/
-        set_expected_results( // Check that no logs happen
-            "tranger2_close_iterator", // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        result += tranger2_close_iterator(tranger, iterator);
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
     /*-------------------------------------*
@@ -330,6 +285,73 @@ PRIVATE int do_test(void)
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     result += global_result;
+
+    return result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *open_all(void)
+{
+    global_result = 0;
+    int result = 0;
+
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger2_startup", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0
+    );
+    json_t *tranger = tranger2_startup(0, jn_tranger);
+    global_result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+    return tranger;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_all(json_t *tranger)
+{
+    int result = 0;
+    /*-------------------------*
+     *  close
+     *-------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger2_close_iterator by mem", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    result += tranger2_close_iterator(
+        tranger,
+        tranger2_get_iterator_by_id(tranger,"it_by_mem")
+    );
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;
 }
@@ -422,7 +444,11 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    int result = do_test();
+    json_t *tranger = open_all();
+
+    int result = do_test(tranger);
+
+    result += close_all(tranger);
 
     /*--------------------------------*
      *  Stop the event loop
