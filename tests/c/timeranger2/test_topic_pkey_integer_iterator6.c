@@ -148,7 +148,7 @@ PRIVATE int do_test(json_t *tranger)
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {
                 json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-                   "id", i + last_rowid + 1,
+                   "id", i + 1,
                    "tm", tm+j,
                    "content",
                    "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."

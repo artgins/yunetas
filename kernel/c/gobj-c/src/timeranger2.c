@@ -1751,11 +1751,11 @@ PRIVATE int close_fd_opened_files(
  ***************************************************************************/
 PRIVATE json_t *md2json(
     md2_record_t *md_record,
-    json_int_t relative_rowid
+    json_int_t rowid
 )
 {
     json_t *jn_md = json_object();
-    json_object_set_new(jn_md, "rowid", json_integer(relative_rowid));
+    json_object_set_new(jn_md, "rowid", json_integer(rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record->__offset__));
@@ -2046,8 +2046,6 @@ PUBLIC int tranger2_append_record(
 
         jsonp_free(srecord);
     }
-
-    // TEST performance 170000
 
     /*--------------------------------------------*
      *  Write record metadata
@@ -2922,7 +2920,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
             topic,
             key,    // key
             "id", // TODO
-            rowid,   // relative_rowid
+            rowid,   // rowid
             &md_record,
             json_incref(record) // must be owned TODO decref
         );
@@ -3504,7 +3502,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         topic,
                         key,    // key
                         iterator_id,
-                        rowid,   // relative_rowid
+                        rowid,   // rowid
                         &md_record,
                         json_incref(record) // must be owned
                     );
@@ -5372,7 +5370,6 @@ PRIVATE int get_md_by_rowid(
             NULL
         );
         gobj_trace_json(gobj, segment,  "Cannot read record metadata, relative_rowid negative");
-        gobj_trace_json(gobj, topic,  "topic"); // TODO remove
         return -1;
 
     }
