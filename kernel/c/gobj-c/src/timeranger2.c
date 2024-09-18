@@ -2651,7 +2651,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
 /***************************************************************************
  *  Open realtime list
  ***************************************************************************/
-PUBLIC json_t *tranger2_open_rt_list(
+PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
@@ -2676,7 +2676,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_list: what topic?",
+            "msg",          "%s", "tranger2_open_rt_mem: what topic?",
             NULL
         );
         JSON_DECREF(match_cond)
@@ -2687,7 +2687,7 @@ PUBLIC json_t *tranger2_open_rt_list(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_list: what load_record_callback?",
+            "msg",          "%s", "tranger2_open_rt_mem: what load_record_callback?",
             NULL
         );
         JSON_DECREF(match_cond)
@@ -2701,11 +2701,11 @@ PUBLIC json_t *tranger2_open_rt_list(
         id = id_;
     }
 
-    if(tranger2_get_rt_list_by_id(tranger, id)) {
+    if(tranger2_get_rt_mem_by_id(tranger, id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_list(): List already exists",
+            "msg",          "%s", "tranger2_open_rt_mem(): List already exists",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
             "id",           "%s", id,
@@ -2738,7 +2738,7 @@ PUBLIC json_t *tranger2_open_rt_list(
 /***************************************************************************
  *  Close realtime list
  ***************************************************************************/
-PUBLIC int tranger2_close_rt_list(
+PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
     json_t *list
 )
@@ -2748,7 +2748,7 @@ PUBLIC int tranger2_close_rt_list(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_close_rt_list(): list NULL",
+            "msg",          "%s", "tranger2_close_rt_mem(): list NULL",
             NULL
         );
         return -1;
@@ -2762,7 +2762,7 @@ PUBLIC int tranger2_close_rt_list(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_close_rt_list(): lists not found",
+            "msg",          "%s", "tranger2_close_rt_mem(): lists not found",
             NULL
         );
         return -1;
@@ -2778,7 +2778,7 @@ PUBLIC int tranger2_close_rt_list(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_close_rt_list(): list not found",
+            "msg",          "%s", "tranger2_close_rt_mem(): list not found",
             NULL
         );
         return -1;
@@ -2790,7 +2790,7 @@ PUBLIC int tranger2_close_rt_list(
 /***************************************************************************
  *  Get realtime list by his id
  ***************************************************************************/
-PUBLIC json_t *tranger2_get_rt_list_by_id(
+PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *id
 )
@@ -3547,7 +3547,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
             json_t *rt;
             if(rt_by_mem) {
-                rt = tranger2_open_rt_list(
+                rt = tranger2_open_rt_mem(
                     tranger,
                     tranger2_topic_name(topic),
                     key,                    // if empty receives all keys, else only this key
@@ -3555,7 +3555,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     load_record_callback,   // called on append new record
                     iterator_id
                 );
-                json_object_set(iterator, "rt_list", rt);
+                json_object_set(iterator, "rt_mem", rt);
             } else {
                 rt = tranger2_open_rt_disk(
                     tranger,
@@ -3610,9 +3610,9 @@ PUBLIC int tranger2_close_iterator(
         return -1;
     }
 
-    json_t *rt_list = json_object_get(iterator, "rt_list");
-    if(rt_list) {
-        tranger2_close_rt_disk(tranger, rt_list);
+    json_t *rt_mem = json_object_get(iterator, "rt_mem");
+    if(rt_mem) {
+        tranger2_close_rt_disk(tranger, rt_mem);
     }
     json_t *rt_disk = json_object_get(iterator, "rt_disk");
     if(rt_disk) {

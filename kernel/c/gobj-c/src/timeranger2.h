@@ -394,7 +394,7 @@ typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id, // iterator or rt_list/rt_disk id
+    const char *rt_id, // iterator or rt_mem/rt_disk id
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *jn_record  // must be owned
@@ -478,10 +478,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
 
 /**rst**
-    Open realtime list, valid when the yuno is the master writing,
+    Open realtime mem, valid when the yuno is the master writing,
     realtime messages from append_message()
 **rst**/
-PUBLIC json_t *tranger2_open_rt_list(
+PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
     const char *topic_name,
     const char *key,        // if empty receives all keys, else only this key
@@ -491,17 +491,17 @@ PUBLIC json_t *tranger2_open_rt_list(
 );
 
 /**rst**
-    Close realtime list
+    Close realtime mem
 **rst**/
-PUBLIC int tranger2_close_rt_list(
+PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
     json_t *list
 );
 
 /**rst**
-    Get list by his id
+    Get mem by his id
 **rst**/
-PUBLIC json_t *tranger2_get_rt_list_by_id(
+PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *list_id
 );

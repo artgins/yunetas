@@ -428,7 +428,7 @@ PRIVATE int do_test(void)
 //    all_leidos = 0;
 //    one_leidos = 0;
 //
-//    json_t *tr_list = tranger2_open_rt_list(
+//    json_t *tr_list = tranger2_open_rt_mem(
 //        tranger,
 //        TOPIC_NAME,
 //        "",             // key
@@ -436,7 +436,7 @@ PRIVATE int do_test(void)
 //        ""              // list id
 //    );
 //
-//    tranger2_open_rt_list(
+//    tranger2_open_rt_mem(
 //        tranger,
 //        TOPIC_NAME,
 //        "0000000000000000001",       // key
@@ -486,16 +486,16 @@ PRIVATE int do_test(void)
 //        TRUE    // verbose
 //    );
 //
-//    tranger2_close_rt_list(
+//    tranger2_close_rt_mem(
 //        tranger,
 //        tr_list
 //    );
 //
-//    json_t *list2 =tranger2_get_rt_list_by_id(
+//    json_t *list2 =tranger2_get_rt_mem_by_id(
 //        tranger,
 //        "list2"
 //    );
-//    tranger2_close_rt_list(
+//    tranger2_close_rt_mem(
 //        tranger,
 //        list2
 //    );

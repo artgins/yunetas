@@ -312,7 +312,7 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "append records without open_rt_list", // test name
+        "append records without open_rt_mem", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -460,7 +460,7 @@ int do_test(void)
     all_leidos = 0;
     one_leidos = 0;
 
-    json_t *tr_list = tranger2_open_rt_list(
+    json_t *tr_list = tranger2_open_rt_mem(
         tranger,
         TOPIC_NAME,
         "",             // key
@@ -469,7 +469,7 @@ int do_test(void)
         "list1"
     );
 
-    tranger2_open_rt_list(
+    tranger2_open_rt_mem(
         tranger,
         TOPIC_NAME,
         "0000000000000000001",       // key
@@ -561,7 +561,7 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "append records with open_rt_list", // test name
+        "append records with open_rt_mem", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -692,16 +692,16 @@ int do_test(void)
         TRUE    // verbose
     );
 
-    tranger2_close_rt_list(
+    tranger2_close_rt_mem(
         tranger,
         tr_list
     );
 
-    json_t *list2 =tranger2_get_rt_list_by_id(
+    json_t *list2 =tranger2_get_rt_mem_by_id(
         tranger,
         "list2"
     );
-    tranger2_close_rt_list(
+    tranger2_close_rt_mem(
         tranger,
         list2
     );
