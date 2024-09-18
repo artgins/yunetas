@@ -2047,6 +2047,8 @@ PUBLIC int tranger2_append_record(
         jsonp_free(srecord);
     }
 
+    // TEST performance 170000
+
     /*--------------------------------------------*
      *  Write record metadata
      *--------------------------------------------*/
