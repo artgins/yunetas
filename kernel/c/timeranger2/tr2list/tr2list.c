@@ -1,5 +1,5 @@
 /****************************************************************************
- *          tranger2_list.c
+ *          tr2list.c
  *
  *          List messages of tranger database
  *

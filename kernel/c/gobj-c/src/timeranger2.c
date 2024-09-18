@@ -2705,7 +2705,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_mem(): List already exists",
+            "msg",          "%s", "tranger2_open_rt_mem(): Mem already exists",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
             "id",           "%s", id,
@@ -2904,29 +2904,6 @@ PUBLIC json_t *tranger2_open_rt_disk(
         kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED),
         disk
     );
-
-
-
-    if(0) {
-        // TODO get updated data from disk
-        //BOOL only_md = json_boolean_value(json_object_get(match_cond, "only_md"));
-        //BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-
-        json_int_t rowid = 0;
-        md2_record_t md_record = {0};
-        json_t *record = NULL;
-
-        // TODO
-        load_record_callback(
-            tranger,
-            topic,
-            key,    // key
-            "id", // TODO
-            rowid,   // rowid
-            &md_record,
-            json_incref(record) // must be owned TODO decref
-        );
-    }
 
     return disk;
 }

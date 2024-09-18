@@ -222,6 +222,8 @@ PRIVATE int do_test(json_t *tranger)
             TRUE    // verbose
         );
 
+        MT_START_TIME(time_measure)
+
         uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
@@ -238,6 +240,9 @@ PRIVATE int do_test(json_t *tranger)
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
             }
         }
+
+        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_PRINT_TIME(time_measure, "append records")
 
         if(by_mem) {
             if(last_t_by_mem != 946864799) {
