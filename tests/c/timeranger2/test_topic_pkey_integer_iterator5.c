@@ -146,8 +146,8 @@ PRIVATE int search_page(
 
 /***************************************************************************
  *              Test
- *  Open as master, open iterator (realtime by disk) with callback
- *  HACK: return -1 to fail, 0 to ok
+ *  - Open as master, open iterator to search with callback and data
+ *  - Do search of pages
  ***************************************************************************/
 PRIVATE int do_test(void)
 {
