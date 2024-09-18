@@ -387,7 +387,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
     int list_size;
     const char **names = split2(system_flag, "|, ", &list_size);
 
-    // TODO check, no hay una funcion ya para esto?
+    // TODO check, no hay ya una función para esto?
     for(int i=0; i<list_size; i++) {
         int idx = idx_in_list(sf_names, *(names +i), TRUE);
         if(idx > 0) {
@@ -601,10 +601,10 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             NULL
         );
 
-    } else {
+    } else if (master) {
         /*---------------------------------------------*
          *  Exists the directory but check
-         *      topic_var.json
+         *      topic_var.json (USE TO CHANGE VERSION)
          *      topic_version
          *      topic_cols.json
          *---------------------------------------------*/
@@ -624,7 +624,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 gobj,
                 directory,
                 "topic_var.json",
-                0 // TODO review
+                0
             );
             topic_old_version = kw_get_int(gobj, topic_var, "topic_version", 0, KW_WILD_NUMBER);
             JSON_DECREF(topic_var)
