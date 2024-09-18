@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(tr2list C)
+project(tr2keys C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -22,7 +22,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 
 SET (YUNO_SRCS
-    tranger2_list.c
+    tr2keys.c
 )
 SET (YUNO_HDRS
 )

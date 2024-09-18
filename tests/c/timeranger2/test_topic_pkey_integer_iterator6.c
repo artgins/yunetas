@@ -140,8 +140,10 @@ PRIVATE int do_test(json_t *tranger)
             TRUE    // verbose
         );
 
-        uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
-        t1 = last_t + 1;
+        //uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
+        last_rowid = 90000;
+        last_t = 946774799;
+        uint64_t t1 = last_t + 1;
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {

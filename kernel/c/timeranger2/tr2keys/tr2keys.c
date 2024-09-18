@@ -1,9 +1,9 @@
 /****************************************************************************
- *          TRANGER_LIST.C
+ *          tranger2_keys.C
  *
  *          List messages of tranger database
  *
- *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -27,8 +27,8 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "tranger_list"
-#define DOC         "List messages of TimeRanger2 database.\n Examples TIME:\n  1.seconds (minutes,hours,days,weeks,months,years)"
+#define NAME        "tranger_keys"
+#define DOC         "List keys of a topic"
 
 #define VERSION     "1.0" // __ghelpers_version__
 #define SUPPORT     "<niyamaka at yuneta.io>"
@@ -108,30 +108,30 @@ static struct argp_option options[] = {
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
 {0,                     0,      0,                  0,      "Presentation",     3},
-{"verbose",             'l',    "LEVEL",            0,      "Verbose level (empty=total, 0=metadata, 1=metadata, 2=metadata+path, 3=metadata+record)", 3},
-{"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
-{"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
-
-{0,                     0,      0,                  0,      "Search conditions", 4},
-{"from-t",              1,      "TIME",             0,      "From time.",       4},
-{"to-t",                2,      "TIME",             0,      "To time.",         4},
-{"from-rowid",          4,      "TIME",             0,      "From rowid.",      5},
-{"to-rowid",            5,      "TIME",             0,      "To rowid.",        5},
-
-{"user-flag-set",       9,      "MASK",             0,      "Mask of User Flag set.",   6},
-{"user-flag-not-set",   10,     "MASK",             0,      "Mask of User Flag not set.",6},
-
-{"system-flag-set",     13,     "MASK",             0,      "Mask of System Flag set.",   7},
-{"system-flag-not-set", 14,     "MASK",             0,      "Mask of System Flag not set.",7},
-
-{"key",                 15,     "KEY",              0,      "Key.",             9},
-{"not-key",             16,     "KEY",              0,      "Not key.",         9},
-
-{"from-tm",             17,     "TIME",             0,      "From msg time.",       10},
-{"to-tm",               18,     "TIME",             0,      "To msg time.",         10},
-
-{"rkey",                19,     "RKEY",             0,      "Regular expression of Key.", 11},
-{"filter",              20,     "FILTER",           0,      "Filter of fields in json dict string", 11},
+//{"verbose",             'l',    "LEVEL",            0,      "Verbose level (empty=total, 0=metadata, 1=metadata, 2=metadata+path, 3=metadata+record)", 3},
+//{"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
+//{"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
+//
+//{0,                     0,      0,                  0,      "Search conditions", 4},
+//{"from-t",              1,      "TIME",             0,      "From time.",       4},
+//{"to-t",                2,      "TIME",             0,      "To time.",         4},
+//{"from-rowid",          4,      "TIME",             0,      "From rowid.",      5},
+//{"to-rowid",            5,      "TIME",             0,      "To rowid.",        5},
+//
+//{"user-flag-set",       9,      "MASK",             0,      "Mask of User Flag set.",   6},
+//{"user-flag-not-set",   10,     "MASK",             0,      "Mask of User Flag not set.",6},
+//
+//{"system-flag-set",     13,     "MASK",             0,      "Mask of System Flag set.",   7},
+//{"system-flag-not-set", 14,     "MASK",             0,      "Mask of System Flag not set.",7},
+//
+//{"key",                 15,     "KEY",              0,      "Key.",             9},
+//{"not-key",             16,     "KEY",              0,      "Not key.",         9},
+//
+//{"from-tm",             17,     "TIME",             0,      "From msg time.",       10},
+//{"to-tm",               18,     "TIME",             0,      "To msg time.",         10},
+//
+//{"rkey",                19,     "RKEY",             0,      "Regular expression of Key.", 11},
+//{"filter",              20,     "FILTER",           0,      "Filter of fields in json dict string", 11},
 
 {0,                     0,      0,                  0,      "Print", 12},
 {"list-databases",      21,     0,                  0,      "List databases.",  12},
@@ -355,150 +355,6 @@ PRIVATE int list_topics(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int load_record_callback(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const char *rt_id, // iterator or rt_list/rt_disk id
-    json_int_t rowid,
-    md2_record_t *md_record,
-    json_t *jn_record  // must be owned
-)
-{
-    static BOOL first_time = TRUE;
-    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-
-    total_counter++;
-    partial_counter++;
-    int verbose = arguments.verbose;
-    char title[1024];
-
-    tranger2_print_md1_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
-
-    BOOL table_mode = FALSE;
-    if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
-        verbose = 3;
-        table_mode = TRUE;
-    }
-    if(kw_has_key(match_cond, "filter")) {
-        verbose = 3;
-    }
-
-    if(verbose < 0) {
-        JSON_DECREF(jn_record)
-        return 0;
-    }
-    if(verbose == 0) {
-        tranger2_print_md0_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
-        printf("%s\n", title);
-        JSON_DECREF(jn_record)
-        return 0;
-    }
-    if(verbose == 1) {
-        printf("%s\n", title);
-        JSON_DECREF(jn_record)
-        return 0;
-    }
-    if(verbose == 2) {
-        tranger2_print_md2_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
-        printf("%s\n", title);
-        JSON_DECREF(jn_record)
-        return 0;
-    }
-
-//    if(!jn_record) {
-//        jn_record = tranger2_read_record_content(tranger, topic, key, md_record);
-//    }
-
-    if(kw_has_key(match_cond, "filter")) {
-        verbose = 3;
-        json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
-        json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
-        if(!json_equal(
-            record1,        // NOT owned
-            fields2match    // NOT owned
-        )) {
-            total_counter--;
-            partial_counter--;
-            JSON_DECREF(record1)
-            JSON_DECREF(jn_record)
-            return 0;
-        }
-        JSON_DECREF(record1);
-    }
-
-    if(table_mode) {
-        if(!empty_string(arguments.fields)) {
-//            tranger2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
-            const char ** keys = 0;
-            keys = split2(arguments.fields, ", ", 0);
-            json_t *jn_record_with_fields = kw_clone_by_path(
-                gobj,
-                jn_record,   // owned
-                keys
-            );
-            split_free2(keys);
-            jn_record = jn_record_with_fields;
-
-        }
-        if(json_object_size(jn_record)>0) {
-            const char *key;
-            json_t *jn_value;
-            int len;
-            int col;
-            if(first_time) {
-                first_time = FALSE;
-                col = 0;
-                json_object_foreach(jn_record, key, jn_value) {
-                    len = (int)strlen(key);
-                    if(col == 0) {
-                        printf("%*.*s", len, len, key);
-                    } else {
-                        printf(" %*.*s", len, len, key);
-                    }
-                    col++;
-                }
-                printf("\n");
-                col = 0;
-                json_object_foreach(jn_record, key, jn_value) {
-                    len = strlen(key);
-                    if(col == 0) {
-                        printf("%*.*s", len, len, "=======================================");
-                    } else {
-                        printf(" %*.*s", len, len, "=======================================");
-                    }
-                    col++;
-                }
-                printf("\n");
-            }
-            col = 0;
-
-            printf("%s ", title);
-            json_object_foreach(jn_record, key, jn_value) {
-                char *s = json2uglystr(jn_value);
-                if(col == 0) {
-                    printf("%s", s);
-                } else {
-                    printf(" %s", s);
-                }
-                GBMEM_FREE(s);
-                col++;
-            }
-            printf("\n");
-        }
-
-    } else {
-        print_json2(title, jn_record);
-    }
-
-    JSON_DECREF(jn_record)
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int list_messages(void)
 {
     if(empty_string(arguments.topic)) {
@@ -541,26 +397,8 @@ PRIVATE int list_messages(void)
         topic,
         json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
-print_json2("XXX", jn_keys);
-
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        json_t *tr_list = tranger2_open_iterator(
-            tranger,
-            topic,
-            key,
-            json_incref(match_cond),  // owned
-            load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id, optional, if empty will be the key
-            NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
-        );
-        if(tr_list) {
-            tranger2_close_iterator(tranger, tr_list);
-        }
-    }
+    print_json2("Keys", jn_keys);
     JSON_DECREF(jn_keys)
-
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/

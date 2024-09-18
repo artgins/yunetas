@@ -6,7 +6,8 @@ cmake_minimum_required(VERSION 3.5)
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(tranger2_list)
+add_subdirectory(tr2list)
+add_subdirectory(tr2keys)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
