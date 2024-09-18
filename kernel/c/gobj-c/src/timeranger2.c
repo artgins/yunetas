@@ -152,6 +152,7 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
+PRIVATE int watch_topic_files(hgobj gobj, json_t *topic);
 
 /***************************************************************
  *              Data
@@ -601,6 +602,24 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             NULL
         );
 
+        /*----------------------------------------*
+         *      Create data directory
+         *----------------------------------------*/
+        char full_path[PATH_MAX];
+        snprintf(full_path, sizeof(full_path), "%s/keys",
+            directory
+        );
+        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", full_path,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+
     } else if (master) {
         /*---------------------------------------------*
          *  Exists the directory but check
@@ -797,7 +816,28 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
 
+    /*
+     *  Monitor the disk if it's not master
+     */
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    if(!master) {
+        watch_topic_files(gobj, topic);
+    }
+
     return topic;
+}
+
+/***************************************************************************
+
+ ***************************************************************************/
+PRIVATE int watch_topic_files(hgobj gobj, json_t *topic)
+{
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    // "topic_desc.json" cannot never change
+//        "topic_var.json",
+//        "topic_cols.json",
+
+    return 0;
 }
 
 /***************************************************************************
@@ -1408,7 +1448,7 @@ PRIVATE int create_file(
      *      create it not exist
      *------------------------------*/
     char path_key[PATH_MAX];
-    snprintf(path_key, sizeof(path_key), "%s/%s",
+    snprintf(path_key, sizeof(path_key), "%s/keys/%s",
         topic_dir,
         key
     );
@@ -1546,7 +1586,7 @@ PRIVATE int get_topic_wr_fd( // optimized
     if(fd<=0) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-        snprintf(full_path, sizeof(full_path), "%s/%s/%s", topic_dir, key, filename);
+        snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
 
         if(master) {
             fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
@@ -1629,7 +1669,7 @@ PRIVATE int get_topic_rd_fd(
 
     if(fd<=0) {
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-        build_path(full_path, sizeof(full_path), topic_dir, key, filename, NULL);
+        snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
 
         /*-----------------------------*
          *      Open content file
