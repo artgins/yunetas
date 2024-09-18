@@ -541,6 +541,7 @@ PRIVATE int list_messages(void)
         topic,
         json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
+print_json2("XXX", jn_keys);
 
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {

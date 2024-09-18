@@ -3028,7 +3028,7 @@ PRIVATE json_t *find_keys_in_disk(
      */
     const char *key = json_string_value(json_object_get(match_cond, "key"));
     if(!empty_string(key)) {
-        if(file_exists(directory, key)) {
+        if(subdir_exists(directory, key)) {
             json_array_append_new(jn_keys, json_string(key));
             return jn_keys;
         }

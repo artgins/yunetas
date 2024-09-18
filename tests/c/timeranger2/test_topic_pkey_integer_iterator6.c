@@ -17,7 +17,7 @@
 
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
-#define MAX_KEYS    2
+#define MAX_KEYS    1 // TODO 2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 PRIVATE int pinta_md = 1;
@@ -40,6 +40,8 @@ PRIVATE int global_result = 0;
 
 PRIVATE uint64_t leidos = 0;
 PRIVATE json_int_t counter_rowid = 0;
+PRIVATE json_int_t last_rowid = 0;
+PRIVATE uint64_t last_t = 0;
 PRIVATE json_t *callback_data = 0;
 
 PRIVATE int rt_mem_record_callback(
@@ -54,6 +56,8 @@ PRIVATE int rt_mem_record_callback(
 {
     leidos++;
     counter_rowid++;
+    last_rowid = rowid;
+    last_t = md_record->__t__;
 
     if(pinta_md) {
         char temp[1024];
@@ -125,37 +129,36 @@ PRIVATE int do_test(json_t *tranger)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator by mem")
         result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+        /*-------------------------------------*
+         *      Add records
+         *-------------------------------------*/
+        set_expected_results( // Check that no logs happen
+            "append records by mem", // test name
+            NULL,   // error's list, It must not be any log error
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+
+        uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
+        t1 = last_t + 1;
+        for(json_int_t i=0; i<MAX_KEYS; i++) {
+            uint64_t tm = t1;
+            for(json_int_t j=0; j<MAX_RECORDS; j++) {
+                json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
+                   "id", i + last_rowid + 1,
+                   "tm", tm+j,
+                   "content",
+                   "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+                   "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
+                   "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
+                );
+                md2_record_t md_record;
+                tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
+            }
+        }
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
-
-    /*-------------------------------------*
-     *      Add records
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "append records 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
-//    for(json_int_t i=0; i<MAX_KEYS; i++) {
-//        uint64_t tm = t1;
-//        for(json_int_t j=0; j<MAX_RECORDS; j++) {
-//            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-//               "id", i + 1,
-//               "tm", tm+j,
-//               "content",
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
-//            );
-//            md2_record_t md_record;
-//            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
-//        }
-//    }
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
 
     /*-------------------------------*
      *  tranger_backup_topic

@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(tranger2_list C)
+project(tr2list C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -76,6 +76,15 @@ install(
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${BIN_DEST_DIR}
 )
+install(
+    TARGETS ${PROJECT_NAME}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    DESTINATION "/yuneta/bin"
+)
+
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
