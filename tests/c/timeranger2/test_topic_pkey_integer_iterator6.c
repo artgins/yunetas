@@ -38,13 +38,59 @@ PRIVATE yev_loop_t *yev_loop;
  ***************************************************************************/
 PRIVATE int global_result = 0;
 
-PRIVATE uint64_t leidos = 0;
-PRIVATE json_int_t counter_rowid = 0;
-PRIVATE json_int_t last_rowid = 0;
-PRIVATE uint64_t last_t = 0;
-PRIVATE json_t *callback_data = 0;
+PRIVATE uint64_t leidos_by_mem = 0;
+PRIVATE uint64_t leidos_by_disk = 0;
+PRIVATE json_int_t counter_rowid_by_mem = 0;
+PRIVATE json_int_t counter_rowid_by_disk = 0;
+PRIVATE json_int_t last_rowid_by_mem = 0;
+PRIVATE json_int_t last_rowid_by_disk = 0;
+PRIVATE uint64_t last_t_by_mem = 0;
+PRIVATE uint64_t last_t_by_disk = 0;
+PRIVATE json_t *callback_data_by_mem = 0;
+PRIVATE json_t *callback_data_by_disk = 0;
 
 PRIVATE int rt_mem_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *rt_id,
+    json_int_t relative_rowid,
+    md2_record_t *md_record,
+    json_t *record      // must be owned
+)
+{
+    leidos_by_mem++;
+    counter_rowid_by_mem++;
+    last_rowid_by_mem = relative_rowid;
+    last_t_by_mem = md_record->__t__;
+
+    if(pinta_md) {
+        char temp[1024];
+        tranger2_print_md1_record(
+            tranger,
+            topic,
+            md_record,
+            key,
+            relative_rowid,
+            temp,
+            sizeof(temp)
+        );
+        printf("BY MEM: %s\n", temp);
+    }
+    if(pinta_records) {
+        print_json2("MEM record", record);
+    }
+
+    json_t *md = json_object();
+    json_object_set_new(md, "rowid", json_integer(relative_rowid));
+    json_object_set_new(md, "t", json_integer((json_int_t)md_record->__t__));
+    json_array_append_new(callback_data_by_mem, md);
+
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int rt_disk_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -54,10 +100,10 @@ PRIVATE int rt_mem_record_callback(
     json_t *record      // must be owned
 )
 {
-    leidos++;
-    counter_rowid++;
-    last_rowid = rowid;
-    last_t = md_record->__t__;
+    leidos_by_disk++;
+    counter_rowid_by_disk++;
+    last_rowid_by_disk = rowid;
+    last_t_by_disk = md_record->__t__;
 
     if(pinta_md) {
         char temp[1024];
@@ -70,16 +116,16 @@ PRIVATE int rt_mem_record_callback(
             temp,
             sizeof(temp)
         );
-        printf("%s\n", temp);
+        printf("BY DISK: %s\n", temp);
     }
     if(pinta_records) {
-        print_json2("record", record);
+        print_json2("DISK record", record);
     }
 
     json_t *md = json_object();
     json_object_set_new(md, "rowid", json_integer(rowid));
     json_object_set_new(md, "t", json_integer((json_int_t)md_record->__t__));
-    json_array_append_new(callback_data, md);
+    json_array_append_new(callback_data_by_disk, md);
 
     JSON_DECREF(record)
     return 0;
@@ -106,44 +152,77 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // ignore_keys
             TRUE    // verbose
         );
-
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
-        json_t *match_cond = json_pack("{s:b, s:b, s:i}",
-            "backward", 0,
-            "rt_by_mem", 1,
-            "from_rowid", -10
-        );
-        tranger2_open_iterator(
-            tranger,
-            topic,
-            KEY,                    // key
-            match_cond,             // match_cond, owned
-            rt_mem_record_callback, // load_record_callback
-            "it_by_mem",            // id
-            NULL                    // data
-        );
-        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
-        MT_PRINT_TIME(time_measure, "tranger2_open_iterator by mem")
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        time_measure_t time_measure;
+        json_t *match_cond;
+
+        BOOL by_mem = 0;
+        BOOL by_disk = 1;
+
+        /*-----------------------*
+         *      By mem
+         *-----------------------*/
+        if(by_mem) {
+            MT_START_TIME(time_measure)
+
+            match_cond = json_pack("{s:b, s:b, s:i}",
+                "backward", 0,
+                "rt_by_mem", 1,
+                "from_rowid", -10
+            );
+            tranger2_open_iterator(
+                tranger,
+                topic,
+                KEY,                    // key
+                match_cond,             // match_cond, owned
+                rt_mem_record_callback, // load_record_callback
+                "it_by_mem",            // id
+                NULL                    // data
+            );
+
+            MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+            MT_PRINT_TIME(time_measure, "tranger2_open_iterator by mem")
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
+        }
+
+        /*-----------------------*
+         *      By disk
+         *-----------------------*/
+        if(by_disk) {
+            MT_START_TIME(time_measure)
+
+            match_cond = json_pack("{s:b, s:b, s:i}",
+                "backward", 0,
+                "rt_by_mem", 0,
+                "from_rowid", -10
+            );
+            tranger2_open_iterator(
+                tranger,
+                topic,
+                KEY,                    // key
+                match_cond,             // match_cond, owned
+                rt_disk_record_callback, // load_record_callback
+                "it_by_disk",           // id
+                NULL                    // data
+            );
+
+            MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+            MT_PRINT_TIME(time_measure, "tranger2_open_iterator by disk")
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
+        }
 
         /*-------------------------------------*
          *      Add records
          *-------------------------------------*/
         set_expected_results( // Check that no logs happen
-            "append records by mem", // test name
+            "append records", // test name
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
         );
 
-        //uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
-        last_rowid = 90000;
-        last_t = 946774799;
-        uint64_t t1 = last_t + 1;
+        uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {
@@ -159,6 +238,21 @@ PRIVATE int do_test(json_t *tranger)
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
             }
         }
+
+        if(by_mem) {
+            if(last_t_by_mem != 946864799) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "bad time by mem");
+            }
+        }
+
+        if(by_disk) {
+            if(last_t_by_disk != 946864799) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "bad time by mem");
+            }
+        }
+
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
