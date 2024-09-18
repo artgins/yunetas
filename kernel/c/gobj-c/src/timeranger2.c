@@ -898,8 +898,6 @@ PUBLIC int tranger2_close_topic(
         return -1;
     }
 
-    // TODO no debería chequear si hay alguna lista abierta usando el topic???
-
     close_fd_opened_files(gobj, topic, NULL);
 
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
