@@ -176,14 +176,14 @@ int main(int argc, char *argv[]) {
     char path[PATH_MAX];
     build_path(path, sizeof(path), argv[1], NULL);
     if(!is_directory(path)) {
-        printf("%sERROR%s --> path not found '%s'\n", On_Red BWhite, Color_Off, path);
+        printf("%sERROR%s path not found '%s'\n", On_Red BWhite, Color_Off, path);
         exit(EXIT_FAILURE);
     }
 
     // Initialize inotify
     inotify_fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
     if (inotify_fd == -1) {
-        printf("%sERROR%s --> inotify_init1() failed '%s'\n", On_Red BWhite, Color_Off, strerror(errno));
+        printf("%sERROR%s inotify_init1() '%s'\n", On_Red BWhite, Color_Off, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
     // Initialize io_uring
     struct io_uring ring;
     if (io_uring_queue_init(32, &ring, 0) < 0) {
-        perror("io_uring_queue_init");
+        printf("%sERROR%s io_uring_queue_init() '%s'\n", On_Red BWhite, Color_Off, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
         if (!sqe) {
-            fprintf(stderr, "Could not get SQE\n");
+            printf("%sERROR%s io_uring_get_sqe() '%s'\n", On_Red BWhite, Color_Off, strerror(errno));
             break;
         }
 
@@ -229,7 +229,8 @@ int main(int argc, char *argv[]) {
             }
             printf("<==\n");
         } else if (cqe->res < 0) {
-            fprintf(stderr, "Error reading from inotify fd: %s\n", strerror(-cqe->res));
+            printf("%sERROR%s io_uring cqe '%s'\n", On_Red BWhite, Color_Off, strerror(-cqe->res));
+            exit(EXIT_FAILURE);
         }
 
         io_uring_cqe_seen(&ring, cqe);

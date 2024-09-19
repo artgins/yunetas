@@ -36,6 +36,9 @@ target_link_libraries(${PROJECT_NAME}
     libyunetas-gobj.a
     libjansson.a
     liburing.a
+
+    m
+    uuid
 )
 
 
