@@ -3,7 +3,7 @@
  *
  *          Command parser
  *
- *          Copyright (c) 2017-2023 Niyamaka.
+ *          Copyright (c) 2017-2023 Niyamaka, 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

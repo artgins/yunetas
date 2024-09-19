@@ -3,7 +3,7 @@
  *
  *              kw helpers
  *
- *              Copyright (c) 2014,2023 Niyamaka.
+ *              Copyright (c) 2014,2023 Niyamaka, 2024 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <sys/stat.h>

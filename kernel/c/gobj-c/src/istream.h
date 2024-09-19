@@ -3,7 +3,7 @@
  *          Input stream
  *
  *          Mixin: process-data & emit events
- *          Copyright (c) 2013-2023 Niyamaka.
+ *          Copyright (c) 2013-2023 Niyamaka, 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

@@ -4,7 +4,7 @@
  *          GClass Uart: work with tty ports
  *          Low level linux
  *
- *          Copyright (c) 2023 Niyamaka.
+ *          Copyright (c) 2023 Niyamaka, 2024 ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

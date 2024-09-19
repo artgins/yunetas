@@ -2,7 +2,7 @@
  *              YUNETA_ENVIRONMENT.C
  *              Yuneta
  *
- *              Copyright (c) 2014-2023 Niyamaka.
+ *              Copyright (c) 2014-2023 Niyamaka, 2024 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <unistd.h>
