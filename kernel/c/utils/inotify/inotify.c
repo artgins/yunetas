@@ -65,7 +65,12 @@ int add_watch(const char *path)
         return -1;
     }
 
-    int wd = inotify_add_watch(inotify_fd, path, IN_ALL_EVENTS | IN_DONT_FOLLOW | IN_EXCL_UNLINK);
+    BOOL all = 0;
+    uint32_t mask = all? IN_ALL_EVENTS:
+        IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE;
+    mask |= IN_DONT_FOLLOW | IN_EXCL_UNLINK;
+
+    int wd = inotify_add_watch(inotify_fd, path, mask);
     if (wd == -1) {
         printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
     } else {
@@ -82,7 +87,10 @@ int remove_watch(int wd)
         int wd_ = (int)json_integer_value(jn_wd);
         if(wd_ == wd) {
             if(inotify_rm_watch(inotify_fd, wd)<0) {
-                printf("%sERROR%s inotify_rm_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
+                if(errno != EINVAL) { // Han borrado el directorio
+                    printf("%sERROR%s inotify_rm_watch %d '%s' %s\n", On_Red BWhite, Color_Off, wd, path,
+                           strerror(errno));
+                }
             }
             printf("  Unwatching directory: %s\n", path);
             json_object_del(jn_tracked_paths, path);
@@ -109,11 +117,30 @@ const char *get_path(int wd, BOOL verbose)
     return NULL;
 }
 
+int get_wd(const char *path, BOOL verbose)
+{
+    const char *path_; json_t *jn_wd;
+    json_object_foreach(jn_tracked_paths, path_, jn_wd) {
+        if(strcmp(path, path_)==0) {
+            int wd = (int)json_integer_value(jn_wd);
+            return wd;
+        }
+
+    }
+    if(verbose) {
+        printf("%sERROR%s path not found '%s'\n", On_Red BWhite, Color_Off, path);
+    }
+    return -1;
+}
+
 
 // Function to handle inotify events
 void handle_inotify_event(struct inotify_event *event)
 {
-    printf("  ev: '%s',", event->len? event->name:"");
+    const char *path;
+    char full_path[PATH_MAX];
+
+    printf("  ev: %d '%s',", event->wd, event->len? event->name:"");
     for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
         bits_table_t entry = bits_table[i];
         if(entry.bit & event->mask) {
@@ -122,42 +149,88 @@ void handle_inotify_event(struct inotify_event *event)
     }
     printf("\n");
 
-    const char *path;
-    if(event->mask & (IN_IGNORED)) {
-        // The Watch was removed
-        if((path=get_path(event->wd, FALSE)) != NULL) {
-            printf("%sERROR%s wd yet found '%s'\n", On_Red BWhite, Color_Off, path);
+    /*
+     *  being:
+     *      "tr_topic_pkey_integer/topic_pkey_integer/keys": 7,
+     *      "tr_topic_pkey_integer/topic_pkey_integer/keys/0000000000000000002": 8,
+     *
+     *  TRICK when a watched directory .../keys/0000000000000000002 is deleted, the events are:
+     *
+     *      - IN_DELETE_SELF 8  ""  with the wd you can know what directory is. !!!HACK use this!!!
+     *      - IN_IGNORED     8  ""  the wd of deleted directory has been removed of watchers
+     *
+     *      - IN_DELETE      7  "0000000000000000002"
+     *                          comes with the wd of the directory parent (keys),
+     *                          informing that his child has been deleted (0000000000000000002).
+     *                          but in a tree, in the final first subdirectories deleting
+     *                          this event is not arriving.
+     *
+     *      HACK don't use IN_MODIFY in intense writing, cause IN_Q_OVERFLOW and event lost.
+     */
+
+
+    if(event->mask & (IN_DELETE_SELF)) {
+        // The directory is removed or moved
+        if((path=get_path(event->wd, TRUE)) != NULL) {
+            printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
+
+            remove_watch(event->wd);
+            print_json2("PATHS", jn_tracked_paths);
         }
         return;
     }
-    path = get_path(event->wd, TRUE);
 
-    char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+    if(event->mask & (IN_IGNORED)) {
+        // The Watch was removed
+        if((path=get_path(event->wd, FALSE)) != NULL) {
+            printf("%sERROR%s wd yet found %d %s '%s'\n", On_Red BWhite, Color_Off,
+                event->wd,
+                event->len? event->name:"",
+                path
+            );
+        }
+        return;
+    }
+
+    path = get_path(event->wd, TRUE);
 
     if(event->mask & (IN_ISDIR)) {
         /*
          *  Directory
          */
         if (event->mask & (IN_CREATE)) {
-            printf("  -> Directory created: %s\n", event->len ? event->name : "???");
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> Directory created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             add_watch(full_path);
             print_json2("PATHS", jn_tracked_paths);
         }
         if (event->mask & (IN_DELETE)) {
-            printf("  -> Directory deleted: %s\n", event->len ? event->name : "???");
-            remove_watch(event->wd);
-            print_json2("PATHS", jn_tracked_paths);
+            /*
+             *  Is deleted in IN_DELETE_SELF event
+             */
+//            path = get_path(event->wd, TRUE);
+//            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+//
+//            printf("  %s-> Directory deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+//
+//            int wd = get_wd(full_path, TRUE);
+//            remove_watch(wd);
+//            print_json2("PATHS", jn_tracked_paths);
         }
     } else {
         /*
          *  File
          */
+        path = get_path(event->wd, TRUE);
+        snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
         if (event->mask & (IN_CREATE)) {
-            printf("  -> File created: %s\n", event->len ? event->name : "???");
+            printf("  %s-> File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
         }
         if (event->mask & (IN_DELETE)) {
-            printf("  -> File deleted: %s\n", event->len ? event->name : "???");
+            printf("  %s-> File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+        }
+        if (event->mask & (IN_MODIFY)) {
+            printf("  %s-> File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
         }
     }
 
@@ -181,6 +254,7 @@ PRIVATE BOOL search_by_paths_cb(
 
 void add_watch_recursive(const char *path)
 {
+    add_watch(path);
     walk_dir_tree(
         0,
         path,
