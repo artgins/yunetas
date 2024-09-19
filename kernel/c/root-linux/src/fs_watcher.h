@@ -48,6 +48,8 @@ struct fs_event_s {
     volatile char *filename;
     hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
     fs_callback_t callback;
+    gbuffer_t *gbuf;
+    int fd;
 } ;
 
 
