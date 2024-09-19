@@ -100,9 +100,10 @@ file(WRITE ${INC_DEST_DIR}/yuneta_version.h ${CONFIG_H_CONTENT})
 #   Source
 ##############################################
 add_subdirectory(kernel/c/gobj-c)
-add_subdirectory(kernel/c/timeranger2)
 add_subdirectory(kernel/c/root-linux)
 add_subdirectory(kernel/c/root-esp32)
+add_subdirectory(kernel/c/timeranger2)
+add_subdirectory(kernel/c/utils)
 add_subdirectory(modules/c/c_prot)
 #add_subdirectory(yunos/c)
 

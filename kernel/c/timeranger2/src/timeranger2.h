@@ -75,9 +75,9 @@
 
 #pragma once
 
-#include "gobj.h"
-#include "helpers.h"
-#include "kwid.h"
+#include <gobj.h>
+#include <helpers.h>
+#include <kwid.h>
 
 #ifdef __cplusplus
 extern "C"{

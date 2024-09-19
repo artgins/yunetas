@@ -23,7 +23,7 @@ cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
 
 ##########################################
-#       core-linux
+#       root-linux
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/root-linux"
 rm -rf build; mkdir build
@@ -31,9 +31,25 @@ cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
 
 ##########################################
-#       core-linux
+#       root-esp32
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/root-esp32"
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+make install
+
+##########################################
+#       timeranger2
+##########################################
+cd "${YUNETAS_BASE_DIR}/kernel/c/timeranger2"
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+make install
+
+##########################################
+#       utils
+##########################################
+cd "${YUNETAS_BASE_DIR}/kernel/c/utils"
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install

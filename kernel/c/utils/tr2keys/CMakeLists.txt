@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(tr2list C)
+project(tr2keys C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -22,7 +22,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 
 SET (YUNO_SRCS
-    tr2list.c
+    tr2keys.c
 )
 SET (YUNO_HDRS
 )
@@ -35,6 +35,7 @@ add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 target_link_libraries(${PROJECT_NAME}
     libyunetas-core-linux.a
     libyunetas-gobj.a
+    libtimeranger2.a
 
     libjansson.a
     liburing.a

@@ -41,6 +41,7 @@ foreach(test ${SRCS})
         libyunetas-c_prot.a
         libyunetas-core-linux.a
         libyunetas-gobj.a
+        libtimeranger2.a
 
         libjansson.a
         liburing.a
