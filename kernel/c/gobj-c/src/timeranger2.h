@@ -37,9 +37,9 @@
  *                              'user_flag' data
  *
  *          /{topic}            Topic directory
- *          /{topic}/{key}          A directory for each key
- *          /{topic}/{key}/data     Directory containing the topic's records: {format-file}.json
- *          /{topic}/{key}/md2      Directory containing the topic's metadata: {format-file}.json
+ *          /{topic}/keys/{key}          A directory for each key
+ *          /{topic}/keys/{key}/fmt.json   Files containing the topic's records: {format-file}.json
+ *          /{topic}/keys/{key}/fmt.md2    Files containing the topic's metadata: {format-file}.json
  *
  *          {format-file}.json  Data files
  *                              It should never be modified externally.
@@ -51,6 +51,25 @@
  *              __tm__
  *              __offset__
  *              __size__
+ *
+ *  Realtime by disk
+ *  ----------------
+ *
+ *  C   create
+ *  MI  Monitor Inotify
+ *  D   Delete
+ *
+ *      /{topic}
+ *          /keys
+ *              /{key}
+ *                  {format-file}.json
+ *                  {format-file}.md2
+ *
+ *          /disks                                          C master, MI master
+ *              /{rt_id}                                    C non-m, MI non-m, D non-m (all tree)
+ *                  /{key}                                  C master, MI non-m
+ *                      {format-file}.json  (hard link)     C master, D non-m (when read)
+ *                      {format-file}.md2   (hard link)     C master, D non-m (when read)
  *
  ****************************************************************************/
 

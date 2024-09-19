@@ -14,6 +14,8 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/inotify.h>
+#include <yunetas_ev_loop.h>
 #include "helpers.h"
 #include "timeranger2.h"
 
@@ -152,7 +154,7 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
-PRIVATE int watch_topic_files(hgobj gobj, json_t *topic);
+PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic);
 
 /***************************************************************
  *              Data
@@ -620,6 +622,23 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
         }
 
+        /*----------------------------------------*
+         *      Create data directory
+         *----------------------------------------*/
+        snprintf(full_path, sizeof(full_path), "%s/disks",
+            directory
+        );
+        if(mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", full_path,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+
     } else if (master) {
         /*---------------------------------------------*
          *  Exists the directory but check
@@ -817,22 +836,48 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
 
     /*
+     *  Initialize inotify
+     */
+    int inotify_fd = inotify_init1(IN_NONBLOCK);
+    if(inotify_fd == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "tranger_open_topic(): inotify_init1() FAILED",
+            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            "topic_name",   "%s", topic_name,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    } else {
+        json_object_set_new(topic, "inotify_disks", json_integer((json_int_t)(size_t)inotify_fd));
+    }
+
+    /*
      *  Monitor the disk if it's not master
      */
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-    if(!master) {
-        watch_topic_files(gobj, topic);
+    if(master) {
+        monitor_disks_directory(gobj, topic);
     }
 
     return topic;
 }
 
 /***************************************************************************
-
+ *  Watch create/delete subdirectories of disk realtime id's
+ *      that creates/deletes non-master
  ***************************************************************************/
-PRIVATE int watch_topic_files(hgobj gobj, json_t *topic)
+PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic)
 {
-//    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    char full_path[PATH_MAX];
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    snprintf(full_path, sizeof(full_path), "%s/disks",
+        directory
+    );
+
+
     // "topic_desc.json" cannot never change
 //        "topic_var.json",
 //        "topic_cols.json",
@@ -2863,7 +2908,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
  *  Open realtime disk,
  *  valid when the yuno is the master writing or not-master reading,
  *  realtime messages from events of disk
- *  WARNING can arrive the last message
+ *  WARNING could arrives the last message
  *      or an middle message (by example, a deleted message or md changed)
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_rt_disk(
@@ -3450,7 +3495,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
 
     json_object_set_new(
-        iterator, ""
+        iterator,
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
