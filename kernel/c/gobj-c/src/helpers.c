@@ -2314,11 +2314,10 @@ PRIVATE int _walk_tree(
     level++;
 
     if (!(dir = opendir(root_dir))) {
-printf("%s\n", root_dir); // TODO
         // DO NOT take trace of:
         // EACCES Permission denied (when it is a file opened by another, for example)
         // ENOENT No such file or directory (Broken links, for example)
-        if(!(errno==EACCES ||errno==ENOENT) || 1) { // TODO remove || 1
+        if(!(errno==EACCES ||errno==ENOENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2432,6 +2431,9 @@ PUBLIC int walk_dir_tree(
            NULL
         );
         return -1;
+    }
+    if(!pattern) {
+        pattern = ".*";
     }
     int ret = regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB);
     if(ret!=0) {

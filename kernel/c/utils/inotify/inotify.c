@@ -61,13 +61,13 @@ int add_watch(const char *path)
 {
     json_t *watch = json_object_get(jn_tracked_paths, path);
     if(watch) {
-        printf("ERROR Watch directory EXISTS: %s\n", path);
+        printf("%sERROR%s Watch directory EXISTS '%s'\n", On_Red BWhite, Color_Off, path);
         return -1;
     }
 
     int wd = inotify_add_watch(inotify_fd, path, IN_ALL_EVENTS | IN_DONT_FOLLOW | IN_EXCL_UNLINK);
     if (wd == -1) {
-        printf("ERROR inotify_add_watch %s\n", strerror(errno));
+        printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
     } else {
         printf("Watching directory: %s\n", path);
     }
@@ -82,7 +82,7 @@ int remove_watch(int wd)
         int wd_ = (int)json_integer_value(jn_wd);
         if(wd_ == wd) {
             if(inotify_rm_watch(inotify_fd, wd)<0) {
-                printf("ERROR inotify_rm_watch %s\n", strerror(errno));
+                printf("%sERROR%s inotify_rm_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
             }
             json_object_del(jn_tracked_paths, path);
             return 0;
@@ -102,6 +102,7 @@ const char *get_path(int wd)
         }
 
     }
+    printf("%sERROR%s wd not found '%d'\n", On_Red BWhite, Color_Off, wd);
     return NULL;
 }
 
@@ -111,7 +112,7 @@ void handle_inotify_event(struct inotify_event *event)
 {
     const char *path = get_path(event->wd);
     char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", path, event->name);
+    snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
     printf("==> %s\n",full_path);
     for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
         bits_table_t entry = bits_table[i];
@@ -121,50 +122,41 @@ void handle_inotify_event(struct inotify_event *event)
     }
 
     if (event->mask & (IN_CREATE|IN_ISDIR)) {
-        printf("Directory created: %s\n", event->name);
+        printf("Directory created: %s\n", event->len? event->name:"???");
         add_watch(full_path);
     }
     if (event->mask & (IN_DELETE|IN_ISDIR)) {
-        printf("Directory deleted: %s\n", event->name);
+        printf("Directory deleted: %s\n", event->len? event->name:"???");
         remove_watch(event->wd);
     }
 }
 
 // Recursively add inotify watches to all subdirectories
-void add_watch_recursive(const char *base_path) {
-    DIR *dir;
-    struct dirent *entry;
+PRIVATE BOOL search_by_paths_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    add_watch(fullpath);
+    return TRUE; // to continue
+}
 
-    if ((dir = opendir(base_path)) == NULL) {
-        perror("opendir");
-        return;
-    }
-
-    // Add watch for the base directory
-    int wd = add_watch(base_path);
-    if (wd == -1) {
-        perror("ERROR inotify_add_watch");
-        return;
-    } else {
-        printf("Watching directory: %s\n", base_path);
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-
-        // Construct full path
-        char path[PATH_MAX];
-        snprintf(path, PATH_MAX, "%s/%s", base_path, entry->d_name);
-
-        // Check if entry is a directory and add watch recursively
-        struct stat statbuf;
-        if (stat(path, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
-            add_watch_recursive(path);
-        }
-
-    }
-    closedir(dir);
+void add_watch_recursive(const char *path)
+{
+    walk_dir_tree(
+        0,
+        path,
+        0,
+        WD_RECURSIVE|WD_MATCH_DIRECTORY,
+        search_by_paths_cb,
+        0
+    );
 }
 
 int main(int argc, char *argv[]) {
@@ -187,8 +179,12 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    jn_tracked_paths = json_object();
+
     // Add watch recursively on the root directory and its subdirectories
     add_watch_recursive(path);
+
+    print_json2("PATHS", jn_tracked_paths);
 
     // Initialize io_uring
     struct io_uring ring;
