@@ -26,9 +26,12 @@
  *
  ***************************************************************************/
 PUBLIC fs_handler_h fs_open_watcher(
-    const char *path,
+    yev_loop_t *yev_loop,
+    const char *directory,
     fs_type_t fs_type,
-    fs_callback_t callback
+    fs_flag_t fs_flag,
+    fs_callback_t callback,
+    void *user_data
 )
 {
     fs_handler_h fs_handler = 0;

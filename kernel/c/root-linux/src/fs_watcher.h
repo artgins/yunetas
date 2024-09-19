@@ -24,12 +24,17 @@ typedef enum  {
     // There are more fs events available with io_uring, but this code only manages this events.
 } fs_type_t;
 
+typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
+    FS_FLAG_RECURSIVE   = 0x01,
+} fs_flag_t;
+
 
 /***************************************************************
  *              Structures
  ***************************************************************/
 typedef struct {
     uint8_t type;           // fs_type_t
+    uint8_t flag;           // fs_flag_t
     volatile char *directory;
     volatile char *filename;
     void *user_data;
@@ -45,9 +50,12 @@ typedef void *fs_handler_h;
  *  Prototypes
  *********************************************************************/
 PUBLIC fs_handler_h fs_open_watcher(
-    const char *path,
+    yev_loop_t *yev_loop,
+    const char *directory,
     fs_type_t fs_type,
-    fs_callback_t callback
+    fs_flag_t fs_flag,
+    fs_callback_t callback,
+    void *user_data
 );
 
 PUBLIC void fs_close_watcher(
