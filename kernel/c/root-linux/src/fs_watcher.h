@@ -21,7 +21,9 @@ typedef enum  {
     FS_FILE_CREATED_TYPE,
     FS_FILE_DELETED_TYPE,
     FS_FILE_MODIFIED_TYPE,      // Don't use if the files are hardly modified. Overflow and event loss.
+    // There are more fs events available with io_uring, but this code only manages this events.
 } fs_type_t;
+
 
 /***************************************************************
  *              Structures
