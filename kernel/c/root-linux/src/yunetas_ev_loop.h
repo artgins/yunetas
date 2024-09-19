@@ -156,13 +156,19 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event);
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
 PUBLIC yev_event_t *yev_create_timer_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
+    yev_callback_t callback,
+    hgobj gobj
+);
+
+PUBLIC yev_event_t *yev_create_inotify_event(
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 );
 
 PUBLIC yev_event_t *yev_create_connect_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 );
@@ -173,7 +179,7 @@ PUBLIC int yev_setup_connect_event(
 );
 
 PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj
 );
@@ -185,14 +191,14 @@ PUBLIC int yev_setup_accept_event(
 );
 
 PUBLIC yev_event_t *yev_create_read_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 );
 PUBLIC yev_event_t *yev_create_write_event(
-    yev_loop_t *loop,
+    yev_loop_t *yev_loop,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
