@@ -14,7 +14,6 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/inotify.h>
 #include <yunetas_ev_loop.h>
 
 #include "timeranger2.h"

@@ -58,7 +58,7 @@ struct yev_event_s {
     int fd;
     uint64_t timer_bf;
     gbuffer_t *gbuf;
-    hgobj gobj;             // if yev_loop→yuno is null, this can be used as an any user data pointer
+    hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
     yev_callback_t callback;
 
     int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv

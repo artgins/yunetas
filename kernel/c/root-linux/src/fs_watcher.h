@@ -32,34 +32,40 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef struct {
-    uint8_t type;           // fs_type_t
-    uint8_t flag;           // fs_flag_t
-    volatile char *directory;
-    volatile char *filename;
-    void *user_data;
-} fs_event_t;
+typedef struct fs_event_s fs_event_t;
 
 typedef int (*fs_callback_t)(
     volatile fs_event_t *event
 );
 
-typedef void *fs_handler_h;
+struct fs_event_s {
+    yev_loop_t *yev_loop;
+    yev_event_t *yev_event;
+    uint8_t type;           // fs_type_t
+    uint8_t flag;           // fs_flag_t
+    const char *path;
+    volatile char *directory;
+    volatile char *filename;
+    hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
+    fs_callback_t callback;
+} ;
+
+
 
 /*********************************************************************
  *  Prototypes
  *********************************************************************/
-PUBLIC fs_handler_h fs_open_watcher(
+PUBLIC fs_event_t *fs_open_watcher(
     yev_loop_t *yev_loop,
-    const char *directory,
+    const char *path,
     fs_type_t fs_type,
     fs_flag_t fs_flag,
     fs_callback_t callback,
-    void *user_data
+    hgobj gobj   // If yev_loop→yuno is null, it can be used as a generic user data pointer
 );
 
 PUBLIC void fs_close_watcher(
-    fs_handler_h fs
+    fs_event_t *fs_event
 );
 
 #ifdef __cplusplus
