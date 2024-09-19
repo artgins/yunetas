@@ -164,7 +164,9 @@ PUBLIC yev_event_t *yev_create_timer_event(
 PUBLIC yev_event_t *yev_create_inotify_event(
     yev_loop_t *yev_loop,
     yev_callback_t callback,
-    hgobj gobj
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
 );
 
 PUBLIC yev_event_t *yev_create_connect_event(

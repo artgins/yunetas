@@ -1,0 +1,78 @@
+##############################################
+#   CMake
+##############################################
+cmake_minimum_required(VERSION 3.11)
+project(inotify C)
+
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE_DIR $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE_DIR "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
+
+
+##############################################
+#   Source
+##############################################
+
+SET (YUNO_SRCS
+    inotify.c
+)
+SET (YUNO_HDRS
+)
+
+##############################################
+#   yuno
+##############################################
+add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+
+target_link_libraries(${PROJECT_NAME}
+    libjansson.a
+    liburing.a
+)
+
+
+target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+
+# Add a custom command to generate assembler .lst file
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND objdump -SlF ${PROJECT_NAME} > ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.lst
+    COMMENT "Generating assembler"
+)
+
+##############################################
+#   Installation
+##############################################
+install(
+    TARGETS ${PROJECT_NAME}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    DESTINATION ${BIN_DEST_DIR}
+)
+install(
+    TARGETS ${PROJECT_NAME}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    DESTINATION "/yuneta/bin"
+)
+
+
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# or compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
