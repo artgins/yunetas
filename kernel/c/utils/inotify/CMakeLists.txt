@@ -33,6 +33,7 @@ SET (YUNO_HDRS
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
+    libyunetas-gobj.a
     libjansson.a
     liburing.a
 )

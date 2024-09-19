@@ -8,6 +8,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <jansson.h>
+#include <helpers.h>
+#include <ansi_escape_codes.h>
 
 typedef struct {
     uint32_t bit;
@@ -171,20 +173,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char *watched_dir = argv[1];
-    if(access(watched_dir, 0)!=0) {
-        printf("path not found %s\n", watched_dir);
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), argv[1], NULL);
+    if(!is_directory(path)) {
+        printf("%sERROR%s --> path not found '%s'\n", On_Red BWhite, Color_Off, path);
         exit(EXIT_FAILURE);
     }
+
     // Initialize inotify
     inotify_fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
     if (inotify_fd == -1) {
-        perror("inotify_init1");
+        printf("%sERROR%s --> inotify_init1() failed '%s'\n", On_Red BWhite, Color_Off, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     // Add watch recursively on the root directory and its subdirectories
-    add_watch_recursive(watched_dir);
+    add_watch_recursive(path);
 
     // Initialize io_uring
     struct io_uring ring;
