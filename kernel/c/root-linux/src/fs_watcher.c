@@ -10,6 +10,8 @@
 #include <string.h>
 #include <limits.h>
 #include <helpers.h>
+
+#include "yunetas_ev_loop.h"
 #include "fs_watcher.h"
 
 /***************************************************************************
@@ -23,3 +25,23 @@
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC fs_handler_h fs_open_watcher(
+    const char *path,
+    fs_type_t fs_type,
+    fs_callback_t callback
+)
+{
+    fs_handler_h fs_handler = 0;
+
+    return fs_handler;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void fs_close_watcher(
+    fs_handler_h fs
+)
+{
+
+}
