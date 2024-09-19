@@ -69,7 +69,7 @@ int add_watch(const char *path)
     if (wd == -1) {
         printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
     } else {
-        printf("Watching directory: %s\n", path);
+        printf("  Watching directory: %s\n", path);
     }
     json_object_set_new(jn_tracked_paths, path, json_integer(wd));
     return wd;
@@ -84,6 +84,7 @@ int remove_watch(int wd)
             if(inotify_rm_watch(inotify_fd, wd)<0) {
                 printf("%sERROR%s inotify_rm_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
             }
+            printf("  Unwatching directory: %s\n", path);
             json_object_del(jn_tracked_paths, path);
             return 0;
         }
@@ -92,7 +93,7 @@ int remove_watch(int wd)
     return -1;
 }
 
-const char *get_path(int wd)
+const char *get_path(int wd, BOOL verbose)
 {
     const char *path; json_t *jn_wd; void *n;
     json_object_foreach_safe(jn_tracked_paths, n, path, jn_wd) {
@@ -102,7 +103,9 @@ const char *get_path(int wd)
         }
 
     }
-    printf("%sERROR%s wd not found '%d'\n", On_Red BWhite, Color_Off, wd);
+    if(verbose) {
+        printf("%sERROR%s wd not found '%d'\n", On_Red BWhite, Color_Off, wd);
+    }
     return NULL;
 }
 
@@ -110,25 +113,54 @@ const char *get_path(int wd)
 // Function to handle inotify events
 void handle_inotify_event(struct inotify_event *event)
 {
-    const char *path = get_path(event->wd);
-    char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
-    printf("==> %s\n",full_path);
+    printf("  ev: '%s',", event->len? event->name:"");
     for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
         bits_table_t entry = bits_table[i];
         if(entry.bit & event->mask) {
-            printf("    - %s (%s)\n", entry.name, entry.description);
+            printf(" - %s (%s)", entry.name, entry.description);
+        }
+    }
+    printf("\n");
+
+    const char *path;
+    if(event->mask & (IN_IGNORED)) {
+        // The Watch was removed
+        if((path=get_path(event->wd, FALSE)) != NULL) {
+            printf("%sERROR%s wd yet found '%s'\n", On_Red BWhite, Color_Off, path);
+        }
+        return;
+    }
+    path = get_path(event->wd, TRUE);
+
+    char full_path[PATH_MAX];
+    snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+
+    if(event->mask & (IN_ISDIR)) {
+        /*
+         *  Directory
+         */
+        if (event->mask & (IN_CREATE)) {
+            printf("  -> Directory created: %s\n", event->len ? event->name : "???");
+            add_watch(full_path);
+            print_json2("PATHS", jn_tracked_paths);
+        }
+        if (event->mask & (IN_DELETE)) {
+            printf("  -> Directory deleted: %s\n", event->len ? event->name : "???");
+            remove_watch(event->wd);
+            print_json2("PATHS", jn_tracked_paths);
+        }
+    } else {
+        /*
+         *  File
+         */
+        if (event->mask & (IN_CREATE)) {
+            printf("  -> File created: %s\n", event->len ? event->name : "???");
+        }
+        if (event->mask & (IN_DELETE)) {
+            printf("  -> File deleted: %s\n", event->len ? event->name : "???");
         }
     }
 
-    if (event->mask & (IN_CREATE|IN_ISDIR)) {
-        printf("Directory created: %s\n", event->len? event->name:"???");
-        add_watch(full_path);
-    }
-    if (event->mask & (IN_DELETE|IN_ISDIR)) {
-        printf("Directory deleted: %s\n", event->len? event->name:"???");
-        remove_watch(event->wd);
-    }
 }
 
 // Recursively add inotify watches to all subdirectories
@@ -215,6 +247,7 @@ int main(int argc, char *argv[]) {
         if (cqe->res > 0) {
             int len = cqe->res;
             char *ptr = buffer;
+            printf("==>\n");
             while (ptr < buffer + len) {
                 struct inotify_event *event = (struct inotify_event *) ptr;
 
@@ -223,7 +256,7 @@ int main(int argc, char *argv[]) {
 
                 ptr += sizeof(struct inotify_event) + event->len;
             }
-            printf("<==\n");
+            printf("<==\n\n");
         } else if (cqe->res < 0) {
             printf("%sERROR%s io_uring cqe '%s'\n", On_Red BWhite, Color_Off, strerror(-cqe->res));
             exit(EXIT_FAILURE);

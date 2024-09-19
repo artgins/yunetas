@@ -838,21 +838,21 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  Initialize inotify
      */
-    int inotify_fd = inotify_init1(IN_NONBLOCK);
-    if(inotify_fd == -1) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "tranger_open_topic(): inotify_init1() FAILED",
-            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-            "topic_name",   "%s", topic_name,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    } else {
-        json_object_set_new(topic, "inotify_disks", json_integer((json_int_t)(size_t)inotify_fd));
-    }
+//    int inotify_fd = inotify_init1(IN_NONBLOCK);
+//    if(inotify_fd == -1) {
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//            "msg",          "%s", "tranger_open_topic(): inotify_init1() FAILED",
+//            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+//            "topic_name",   "%s", topic_name,
+//            "errno",        "%d", errno,
+//            "serrno",       "%s", strerror(errno),
+//            NULL
+//        );
+//    } else {
+//        json_object_set_new(topic, "inotify_disks", json_integer((json_int_t)(size_t)inotify_fd));
+//    }
 
     /*
      *  Monitor the disk if it's not master
