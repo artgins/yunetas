@@ -53,12 +53,12 @@ typedef int (*yev_callback_t)(
 
 struct yev_event_s {
     yev_loop_t *yev_loop;
-    uint8_t type;               // yev_type_t
-    uint8_t flag;               // yev_flag_t
+    uint8_t type;           // yev_type_t
+    uint8_t flag;           // yev_flag_t
     int fd;
     uint64_t timer_bf;
     gbuffer_t *gbuf;
-    hgobj gobj;
+    hgobj gobj;             // if yev_loop→yuno is null, this can be used as an any user data pointer
     yev_callback_t callback;
 
     int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
