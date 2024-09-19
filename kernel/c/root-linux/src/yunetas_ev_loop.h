@@ -60,6 +60,7 @@ struct yev_event_s {
     gbuffer_t *gbuf;
     hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
     yev_callback_t callback;
+    void *user_data;
 
     int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
@@ -98,6 +99,11 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
+);
+
+PUBLIC int yev_set_user_data(
+    yev_event_t *yev_event,
+    void *user_data
 );
 
 static inline void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()

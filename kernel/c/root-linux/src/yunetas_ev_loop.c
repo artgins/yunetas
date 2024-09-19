@@ -475,6 +475,18 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int yev_set_user_data(
+    yev_event_t *yev_event,
+    void *user_data
+)
+{
+    yev_event->user_data = user_data;
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_start_event(
     yev_event_t *yev_event_
 ) {
