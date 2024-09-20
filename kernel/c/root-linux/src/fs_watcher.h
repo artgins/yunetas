@@ -33,9 +33,10 @@ typedef enum  {
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;
 
-typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
-    FS_FLAG_RECURSIVE_PATHS     = 0x01,     // add path and all his subdirectories
-    FS_FLAG_MODIFIED_FILES      = 0x02,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
+typedef enum  {
+    FS_FLAG_RECURSIVE_PATHS     = 0x0001,     // add path and all his subdirectories
+    FS_FLAG_MODIFIED_FILES      = 0x0002,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
+    FS_FLAG_DEBUG               = 0x8000,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
 } fs_flag_t;
 
 

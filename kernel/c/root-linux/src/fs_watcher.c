@@ -91,6 +91,17 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     void *user_data
 )
 {
+    if(!is_directory(path)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "No is a directory",
+            "path",         "%s", path?path:"",
+            NULL
+        );
+        return NULL;
+
+    }
     int fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
     if(fd < 0) {
         gobj_log_critical(yev_loop->yuno?gobj:0, 0,
@@ -172,6 +183,9 @@ PUBLIC int fs_start_watcher_event(
     fs_event_t *fs_event
 )
 {
+    if(!fs_event) {
+        return -1;
+    }
     return yev_start_event(fs_event->yev_event);
 }
 
@@ -182,6 +196,9 @@ PUBLIC int fs_stop_watcher_event(
     fs_event_t *fs_event
 )
 {
+    if(!fs_event) {
+        return -1;
+    }
     return yev_stop_event(fs_event->yev_event);
 }
 
@@ -192,6 +209,9 @@ PUBLIC void fs_destroy_watcher_event(
     fs_event_t *fs_event
 )
 {
+    if(!fs_event) {
+        return;
+    }
     yev_set_fd(fs_event->yev_event, -1);
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
     if(fs_event->fd != -1) {
@@ -313,7 +333,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     const char *path;
     char full_path[PATH_MAX];
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(fs_event->fs_flag & FS_FLAG_DEBUG) {
         gobj_trace_msg(gobj, "ev: %d '%s',", event->wd, event->len? event->name:"");
         for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
             bits_table_t entry = bits_table[i];

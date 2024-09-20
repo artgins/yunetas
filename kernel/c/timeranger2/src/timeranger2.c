@@ -154,6 +154,11 @@ PRIVATE json_t *find_keys_in_disk(
 );
 PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic);
 PRIVATE int fs_master_callback(fs_event_t *fs_event);
+PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
+    hgobj gobj, yev_loop_t *yev_loop, json_t *tranger, json_t *topic, const char *id
+);
+PRIVATE int fs_client_callback(fs_event_t *fs_event);
+
 
 /***************************************************************
  *              Data
@@ -860,7 +865,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
  *  Watch create/delete subdirectories of disk realtime id's
  *      that creates/deletes non-master
  ***************************************************************************/
-PRIVATE fs_event_t * monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
+PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
 {
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
@@ -868,25 +873,33 @@ PRIVATE fs_event_t * monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *y
         directory
     );
 
-    // TODO antes hay que mirar qué directorios hay YA en disks/
+    // TODO antes hay que mirar qué directorios hay YA en disks ???
 
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
-        0,      // fs_flag,
+        FS_FLAG_DEBUG,      // fs_flag,
         fs_master_callback,
         gobj,
         NULL    // user_data
     );
+    if(!fs_event) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "fs_create_watcher_event() FAILED",
+            NULL
+        );
+        return NULL;
+    }
     fs_start_watcher_event(fs_event);
     return fs_event;
 }
 
 /***************************************************************************
- *  Callback that will be executed when the timer period lapses.
- *  Posts the timer expiry event to the default event loop.
+ *  Clients will create a rt disk directory in /disks when open a rt disk
  ***************************************************************************/
-#include <ansi_escape_codes.h>
+#include <ansi_escape_codes.h> // TODO remove
 PRIVATE int fs_master_callback(fs_event_t *fs_event)
 {
     char full_path[PATH_MAX];
@@ -3019,7 +3032,103 @@ PUBLIC json_t *tranger2_open_rt_disk(
         disk
     );
 
+    /*
+     *  Create in disk the realtime disk directory and monitor
+     */
+    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    if(yev_loop) {
+        // Master can operate as a non-master and operate through the disk (NOT SENSE, only to test)
+        // BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        if(1) {
+            fs_event_t *fs_event_client = monitor_rt_disk_by_non_master(
+                gobj, yev_loop, tranger, topic, id
+            );
+            kw_set_dict_value(
+                gobj,
+                disk,
+                "fs_event_client",
+                json_integer((json_int_t)(size_t)fs_event_client)
+            );
+        }
+    }
+
     return disk;
+}
+
+/***************************************************************************
+ *  Watch create/delete subdirectories and files of disk realtime id's
+ *      that creates/deletes master
+ ***************************************************************************/
+PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
+    hgobj gobj, yev_loop_t *yev_loop, json_t *tranger, json_t *topic, const char *id
+)
+{
+    char full_path[PATH_MAX];
+    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    snprintf(full_path, sizeof(full_path), "%s/disks/%s",
+        directory,
+        id
+    );
+
+    if(!is_directory(full_path)) {
+        if(mkdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+            gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", directory,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot create Keys subdir. mkdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+
+    fs_event_t *fs_event = fs_create_watcher_event(
+        yev_loop,
+        full_path,
+        FS_FLAG_RECURSIVE_PATHS|FS_FLAG_DEBUG,      // fs_flag,
+        fs_client_callback,
+        gobj,
+        NULL    // user_data
+    );
+    if(!fs_event) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "fs_create_watcher_event() FAILED",
+            NULL
+        );
+        return NULL;
+    }
+    fs_start_watcher_event(fs_event);
+    return fs_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int fs_client_callback(fs_event_t *fs_event)
+{
+    char full_path[PATH_MAX];
+    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+
+    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
+        printf("  %sCLIENT Dire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
+        printf("  %sCLIENT Dire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
+        printf("  %sCLIENT File created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
+        printf("  %sCLIENT File deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
+        printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -3509,6 +3618,15 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         match_cond, // NOT owned but can be modified
         &realtime
     );
+
+// TODO hay que borrar el directorio de disks/ que pertenezca a este rt
+//        if(realtime) {
+//            BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+//            BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
+//            if(!master) {
+//                rt_by_mem = FALSE;
+//            }
+
 
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
