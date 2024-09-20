@@ -7,6 +7,7 @@ project(c-utils C)
 ##############################################
 #   Source
 ##############################################
+add_subdirectory(fs_watcher)
 add_subdirectory(inotify)
 add_subdirectory(tr2list)
 add_subdirectory(tr2keys)

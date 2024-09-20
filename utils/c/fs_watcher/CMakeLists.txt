@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(perf_yev_timer C)
+project(fs_watcher C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -23,7 +23,7 @@ include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/proje
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/perf_yev_timer.c
+    src/main_fs_watcher.c
 )
 SET (YUNO_HDRS
 )
