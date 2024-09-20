@@ -145,13 +145,6 @@ PRIVATE int do_test(json_t *tranger)
      *-------------------------------------*/
     if(1) {
         const char *KEY = "0000000000000000001";
-        set_expected_results( // Check that no logs happen
-            "tranger2_open_iterator by mem", // test name
-            NULL,   // error's list, It must not be any log error
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
         json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         time_measure_t time_measure;
         json_t *match_cond;
@@ -163,6 +156,13 @@ PRIVATE int do_test(json_t *tranger)
          *      By mem
          *-----------------------*/
         if(by_mem) {
+            set_expected_results( // Check that no logs happen
+                "tranger2_open_iterator by mem", // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
             MT_START_TIME(time_measure)
 
             match_cond = json_pack("{s:b, s:b, s:i}",
@@ -189,6 +189,13 @@ PRIVATE int do_test(json_t *tranger)
          *      By disk
          *-----------------------*/
         if(by_disk) {
+            set_expected_results( // Check that no logs happen
+                "tranger2_open_iterator by disk", // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
             MT_START_TIME(time_measure)
 
             match_cond = json_pack("{s:b, s:b, s:i}",
@@ -210,6 +217,8 @@ PRIVATE int do_test(json_t *tranger)
             MT_PRINT_TIME(time_measure, "tranger2_open_iterator by disk")
             result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
+
+        yev_loop_run_once(yev_loop);
 
         /*-------------------------------------*
          *      Add records
@@ -341,7 +350,7 @@ PRIVATE int close_all(json_t *tranger)
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
-    //yev_loop_run_once(yev_loop);
+    yev_loop_run_once(yev_loop);
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -378,7 +387,8 @@ PRIVATE int yev_timer_do_finish_callback(yev_event_t *yev_event)
 PRIVATE int yev_timer_do_test_callback(yev_event_t *yev_event)
 {
     json_t *tranger = yev_event->gobj;
-
+    yev_stop_event(yev_event);
+    yev_destroy_event(yev_event);
     global_result += do_test(tranger);
     return 0;
 }
@@ -491,7 +501,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *  Stop the event loop
      *--------------------------------*/
-    //yev_loop_run_once(yev_loop);
+    yev_loop_run_once(yev_loop);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

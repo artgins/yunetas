@@ -1033,12 +1033,16 @@ PUBLIC int tranger2_close_topic(
     close_fd_opened_files(gobj, topic, NULL);
 
     // MONITOR Unwatch master
-    fs_event_t *fs_event_master = (fs_event_t *)kw_get_int(
-        gobj, topic, "fs_event_master", 0, KW_REQUIRED
-    );
-    if(fs_event_master) {
-        fs_stop_watcher_event(fs_event_master);
-        fs_destroy_watcher_event(fs_event_master);
+    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+    if(yev_loop && master) {
+        fs_event_t *fs_event_master = (fs_event_t *)kw_get_int(
+            gobj, topic, "fs_event_master", 0, KW_REQUIRED
+        );
+        if(fs_event_master) {
+            fs_stop_watcher_event(fs_event_master);
+            fs_destroy_watcher_event(fs_event_master);
+        }
     }
 
     json_t *jn_topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
@@ -3158,23 +3162,26 @@ PUBLIC int tranger2_close_rt_disk(
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
-    // MONITOR Unwatch client
-    fs_event_t *fs_event_client = (fs_event_t *)kw_get_int(
-        gobj, disk, "fs_event_client", 0, KW_REQUIRED
-    );
-    if(fs_event_client) {
-        fs_stop_watcher_event(fs_event_client);
-        fs_destroy_watcher_event(fs_event_client);
-    }
+    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    if(yev_loop) {
+        // MONITOR Unwatch client
+        fs_event_t *fs_event_client = (fs_event_t *)kw_get_int(
+            gobj, disk, "fs_event_client", 0, KW_REQUIRED
+        );
+        if(fs_event_client) {
+            fs_stop_watcher_event(fs_event_client);
+            fs_destroy_watcher_event(fs_event_client);
+        }
 
-    // MONITOR (D)
-    char full_path[PATH_MAX];
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-    snprintf(full_path, sizeof(full_path), "%s/disks/%s",
-        directory,
-        kw_get_str(gobj, disk, "id", "", KW_REQUIRED)
-    );
-    rmrdir(full_path); // TODO para testear quita y pon
+        // MONITOR (D)
+        char full_path[PATH_MAX];
+        const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+        snprintf(full_path, sizeof(full_path), "%s/disks/%s",
+            directory,
+            kw_get_str(gobj, disk, "id", "", KW_REQUIRED)
+        );
+        rmrdir(full_path); // TODO para testear quita y pon
+    }
 
     json_t *disks = kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED);
     if(!disks) {
