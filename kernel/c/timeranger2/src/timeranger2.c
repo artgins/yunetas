@@ -152,7 +152,8 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
-PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic);
+PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic);
+PRIVATE int fs_master_callback(fs_event_t *fs_event);
 
 /***************************************************************
  *              Data
@@ -836,11 +837,14 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
 
     /*
-     *  Monitor the disk if it's not master
+     *  Monitoring the disk to realtime disk lists
      */
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-    if(master) {
-        monitor_disks_directory(gobj, topic);
+    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    if(yev_loop) {
+        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        if(master) {
+            monitor_disks_directory_by_master(gobj, yev_loop, topic);
+        }
     }
 
     return topic;
@@ -850,7 +854,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
  *  Watch create/delete subdirectories of disk realtime id's
  *      that creates/deletes non-master
  ***************************************************************************/
-PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic)
+PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
 {
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
@@ -858,10 +862,46 @@ PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic)
         directory
     );
 
+    // TODO antes hay que mirar qué directorios hay YA en disks/
 
-    // "topic_desc.json" cannot never change
-//        "topic_var.json",
-//        "topic_cols.json",
+    fs_event_t *fs_event_h = fs_create_watcher_event(
+        yev_loop,
+        full_path,
+        0,      // fs_flag,
+        fs_master_callback,
+        gobj,
+        NULL    // user_data
+    );
+    fs_start_watcher_event(fs_event_h);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Callback that will be executed when the timer period lapses.
+ *  Posts the timer expiry event to the default event loop.
+ ***************************************************************************/
+#include <ansi_escape_codes.h>
+PRIVATE int fs_master_callback(fs_event_t *fs_event)
+{
+    char full_path[PATH_MAX];
+    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+
+    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
+        printf("  %sMASTER Dire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
+        printf("  %sMASTER Dire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
+        printf("  %sMASTER File created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
+        printf("  %sMASTER File deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
+        printf("  %sMASTER File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
 
     return 0;
 }

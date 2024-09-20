@@ -305,7 +305,7 @@ PRIVATE json_t *open_all(void)
         "master", 1,
         "on_critical_error", 0
     );
-    json_t *tranger = tranger2_startup(0, jn_tranger, 0); // TODO
+    json_t *tranger = tranger2_startup(0, jn_tranger, yev_loop);
     global_result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return tranger;
