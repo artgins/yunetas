@@ -16,10 +16,8 @@
 #include <limits.h>
 #include <sys/inotify.h>
 
-#include <ansi_escape_codes.h>
 #include <helpers.h>
 #include <kwid.h>
-#include "yunetas_ev_loop.h"
 #include "fs_watcher.h"
 
 /***************************************************************************

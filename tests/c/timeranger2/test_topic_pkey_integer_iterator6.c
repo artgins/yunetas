@@ -353,7 +353,7 @@ PRIVATE int close_all(json_t *tranger)
 }
 
 /***************************************************************************
- *
+ *  Finish by timeout if test don't end in time
  ***************************************************************************/
 PRIVATE int yev_timer_do_finish_callback(yev_event_t *yev_event)
 {
@@ -363,7 +363,7 @@ PRIVATE int yev_timer_do_finish_callback(yev_event_t *yev_event)
     return 0;
 }
 /***************************************************************************
- *
+ *  Here do all test
  ***************************************************************************/
 PRIVATE int yev_timer_do_test_callback(yev_event_t *yev_event)
 {
