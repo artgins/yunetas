@@ -3,6 +3,11 @@
  *
  *              Monitoring of directories and files with io_uring
  *
+ *              We only monitor:
+ *                  - create/delete of sub-directories (recursive optionally)
+ *                  - create/delete of files in these directories,
+ *              and optionally modification of files.
+ *
  *              Copyright (c) 2024 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
@@ -18,6 +23,12 @@
 #include "fs_watcher.h"
 
 /***************************************************************************
+ *  Constants
+ ***************************************************************************/
+
+#define DEFAULT_MASK (IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE | IN_DONT_FOLLOW|IN_EXCL_UNLINK)
+
+/***************************************************************************
  *  Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(
@@ -28,6 +39,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
 PRIVATE int remove_watch(fs_event_t *fs_event, int fd);
 PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
+PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 
 /***************************************************************************
  *  Data
@@ -75,10 +87,10 @@ PRIVATE bits_table_t bits_table[] = {
 PUBLIC fs_event_t *fs_open_watcher(
     yev_loop_t *yev_loop,
     const char *path,
-    fs_type_t fs_type,
     fs_flag_t fs_flag,
     fs_callback_t callback,
-    hgobj gobj
+    hgobj gobj,
+    void *user_data
 )
 {
     int fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
@@ -106,12 +118,13 @@ PUBLIC fs_event_t *fs_open_watcher(
     }
 
     fs_event->yev_loop = yev_loop;
-    fs_event->type = fs_type;
-    fs_event->flag = fs_flag;
     fs_event->path = GBMEM_STRDUP(path);
+    fs_event->fs_flag = fs_flag;
+    fs_event->fs_type = 0;
     fs_event->directory = NULL;
     fs_event->filename = NULL;
     fs_event->gobj = gobj;
+    fs_event->user_data = user_data;
     fs_event->callback = callback;
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
@@ -130,7 +143,6 @@ PUBLIC fs_event_t *fs_open_watcher(
         );
         fs_close_watcher(fs_event);
         return NULL;
-
     }
 
     fs_event->yev_event = yev_create_read_event(
@@ -146,7 +158,7 @@ PUBLIC fs_event_t *fs_open_watcher(
     }
     yev_set_user_data(fs_event->yev_event, fs_event);
 
-    if(fs_flag & FS_FLAG_RECURSIVE) {
+    if(fs_flag & FS_FLAG_RECURSIVE_PATHS) {
         add_watch_recursive(fs_event, path);
     } else {
         add_watch(fs_event, path);
@@ -174,6 +186,19 @@ PUBLIC void fs_close_watcher(
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
     GBMEM_FREE(fs_event)
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event)
+{
+    uint32_t inotify_mask = DEFAULT_MASK;
+    if(fs_event->fs_flag & FS_FLAG_MODIFIED_FILES) {
+        inotify_mask |= IN_MODIFY;
+    }
+
+    return inotify_mask;
 }
 
 /***************************************************************************
@@ -388,12 +413,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         return -1;
     }
 
-    BOOL all = 0; // TODO
-    uint32_t mask = all? IN_ALL_EVENTS:
-        IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE;
-    mask |= IN_DONT_FOLLOW | IN_EXCL_UNLINK;
-
-    int wd = inotify_add_watch(fs_event->fd, path, mask);
+    int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
         printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
     } else {
