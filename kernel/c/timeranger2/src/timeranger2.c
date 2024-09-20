@@ -348,8 +348,8 @@ PUBLIC json_t *tranger2_startup(
      */
     kw_set_dict_value(gobj, tranger, "fd_opened_files", json_object());
     kw_set_dict_value(gobj, tranger, "topics", json_object());
-    kw_set_dict_value(gobj, tranger, "yev_loop", json_integer((json_int_t)(size_t)yev_loop));
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
+    kw_set_dict_value(gobj, tranger, "yev_loop", json_integer((json_int_t)(size_t)yev_loop));
 
     return tranger;
 }

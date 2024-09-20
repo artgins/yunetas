@@ -210,6 +210,7 @@ int do_test(void)
             'fd_opened_files': { \
                 '__timeranger2__.json': 9999 \
             }, \
+            'yev_loop': 0, \
             'topics': { \
                 '%s': { \
                     'topic_name': '%s', \
@@ -284,6 +285,7 @@ int do_test(void)
             'fd_opened_files': { \
                 '__timeranger2__.json': 9999 \
             }, \
+            'yev_loop': 0, \
             'topics': {} \
         } \
         ", path_root, path_database);
@@ -324,6 +326,7 @@ int do_test(void)
             'fd_opened_files': { \
                 '__timeranger2__.json': -1 \
             }, \
+            'yev_loop': 0, \
             'topics': {} \
         } \
         ", path_root, path_database);
