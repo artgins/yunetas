@@ -8,6 +8,8 @@
  ****************************************************************************/
 #pragma once
 
+#include <gobj.h>
+
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -49,6 +51,7 @@ struct fs_event_s {
     hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
     fs_callback_t callback;
     int fd;
+    json_t *jn_tracked_paths;
 } ;
 
 

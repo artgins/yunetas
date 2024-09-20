@@ -11,7 +11,9 @@
 #include <limits.h>
 #include <sys/inotify.h>
 
+#include <ansi_escape_codes.h>
 #include <helpers.h>
+#include <kwid.h>
 #include "yunetas_ev_loop.h"
 #include "fs_watcher.h"
 
@@ -21,10 +23,51 @@
 PRIVATE int yev_callback(
     yev_event_t *event
 );
+PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
+PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
+PRIVATE int remove_watch(fs_event_t *fs_event, int fd);
+PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose);
+PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
 
 /***************************************************************************
  *  Data
  ***************************************************************************/
+
+typedef struct {
+    uint32_t bit;
+    char *name;
+    char *description;
+} bits_table_t;
+
+PRIVATE bits_table_t bits_table[] = {
+{IN_ACCESS,         "IN_ACCESS",        "File was accessed"},
+{IN_MODIFY,         "IN_MODIFY",        "File was modified"},
+{IN_ATTRIB,         "IN_ATTRIB",        "Metadata changed"},
+{IN_CLOSE_WRITE,    "IN_CLOSE_WRITE",   "Writtable file was closed"},
+{IN_CLOSE_NOWRITE,  "IN_CLOSE_NOWRITE", "Unwrittable file closed"},
+{IN_OPEN,           "IN_OPEN",          "File was opened"},
+{IN_MOVED_FROM,     "IN_MOVED_FROM",    "File was moved from X"},
+{IN_MOVED_TO,       "IN_MOVED_TO",      "File was moved to Y"},
+{IN_CREATE,         "IN_CREATE",        "Subfile was created"},
+{IN_DELETE,         "IN_DELETE",        "Subfile was deleted"},
+{IN_DELETE_SELF,    "IN_DELETE_SELF",   "Self was deleted"},
+{IN_MOVE_SELF,      "IN_MOVE_SELF",     "Self was moved"},
+
+//" Events sent by the kernel"
+{IN_UNMOUNT,        "IN_UNMOUNT",       "Backing fs was unmounted"},
+{IN_Q_OVERFLOW,     "IN_Q_OVERFLOW",    "Event queued overflowed"},
+{IN_IGNORED,        "IN_IGNORED",       "File was ignored"},
+
+// " Special flags"
+{IN_ONLYDIR,        "IN_ONLYDIR",       "Only watch the path if it is a directory"},
+{IN_DONT_FOLLOW,    "IN_DONT_FOLLOW",   "Do not follow a sym link"},
+{IN_EXCL_UNLINK,    "IN_EXCL_UNLINK",   "Exclude events on unlinked objects"},
+{IN_MASK_CREATE,    "IN_MASK_CREATE",   "Only create watches"},
+{IN_MASK_ADD,       "IN_MASK_ADD",      "Add to the mask of an already existing watch"},
+{IN_ISDIR,          "IN_ISDIR",         "Event occurred against dir"},
+{IN_ONESHOT,        "IN_ONESHOT",       "Only send event once"},
+{0,0,0}
+};
 
 /***************************************************************************
  *
@@ -52,7 +95,7 @@ PUBLIC fs_event_t *fs_open_watcher(
 
     fs_event_t *fs_event = GBMEM_MALLOC(sizeof(fs_event_t));
     if(!fs_event) {
-        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
+        gobj_log_error(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "No memory for yev event",    // use the same string
@@ -71,6 +114,7 @@ PUBLIC fs_event_t *fs_open_watcher(
     fs_event->gobj = gobj;
     fs_event->callback = callback;
     fs_event->fd = fd;
+    fs_event->jn_tracked_paths = json_object();
 
     /*
      *  Alloc buffer to read
@@ -78,7 +122,7 @@ PUBLIC fs_event_t *fs_open_watcher(
     size_t len = sizeof(struct inotify_event) + NAME_MAX + 1;
     gbuffer_t *gbuf = gbuffer_create(len, len);
     if(!gbuf) {
-        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
+        gobj_log_error(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "No memory for fs_event gbuf",
@@ -102,11 +146,11 @@ PUBLIC fs_event_t *fs_open_watcher(
     }
     yev_set_user_data(fs_event->yev_event, fs_event);
 
-
-
-    // Add watch recursively on the root directory and its subdirectories
-    add_watch_recursive(path);
-
+    if(fs_flag & FS_FLAG_RECURSIVE) {
+        add_watch_recursive(fs_event, path);
+    } else {
+        add_watch(fs_event, path);
+    }
 
     yev_start_event(fs_event->yev_event);
 
@@ -128,6 +172,7 @@ PUBLIC void fs_close_watcher(
         fs_event->fd = -1;
     }
     GBMEM_FREE(fs_event->path)
+    JSON_DECREF(fs_event->jn_tracked_paths)
     GBMEM_FREE(fs_event)
 }
 
@@ -139,7 +184,6 @@ PRIVATE int yev_callback(
 )
 {
     fs_event_t *fs_event = yev_event->user_data;
-
     hgobj gobj = fs_event->gobj;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -183,15 +227,17 @@ PRIVATE int yev_callback(
                     }
 
                 } else {
-//                    GBUFFER_INCREF(yev_event->gbuf)
-//                    json_t *kw = json_pack("{s:I}",
-//                        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-//                    );
-//                    if(gobj_is_pure_child(gobj)) {
-//                        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-//                    } else {
-//                        gobj_publish_event(gobj, EV_RX_DATA, kw);
-//                    }
+                    size_t len = gbuffer_leftbytes(yev_event->gbuf);
+                    char *buffer = gbuffer_cur_rd_pointer(yev_event->gbuf);
+                    char *ptr = buffer;
+                    while (ptr < buffer + len) {
+                        struct inotify_event *event = (struct inotify_event *) ptr;
+
+                        // Handle the file modification event
+                        handle_inotify_event(fs_event, event);
+
+                        ptr += sizeof(struct inotify_event) + event->len;
+                    }
 
                     /*
                      *  Clear buffer
@@ -218,20 +264,24 @@ PRIVATE int yev_callback(
     return 0;
 }
 
-// Function to handle inotify events
-void handle_inotify_event(struct inotify_event *event)
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event)
 {
+    hgobj gobj = fs_event->gobj;
     const char *path;
     char full_path[PATH_MAX];
 
-    printf("  ev: %d '%s',", event->wd, event->len? event->name:"");
-    for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
-        bits_table_t entry = bits_table[i];
-        if(entry.bit & event->mask) {
-            printf(" - %s (%s)", entry.name, entry.description);
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        gobj_trace_msg(gobj, "ev: %d '%s',", event->wd, event->len? event->name:"");
+        for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
+            bits_table_t entry = bits_table[i];
+            if(entry.bit & event->mask) {
+                gobj_trace_msg(gobj, "  - %s (%s)", entry.name, entry.description);
+            }
         }
     }
-    printf("\n");
 
     /*
      *  being:
@@ -252,31 +302,35 @@ void handle_inotify_event(struct inotify_event *event)
      *      HACK don't use IN_MODIFY in intense writing, cause IN_Q_OVERFLOW and event lost.
      */
 
-
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
-        if((path=get_path(event->wd, TRUE)) != NULL) {
-            printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
-
-            remove_watch(event->wd);
-            print_json2("PATHS", jn_tracked_paths);
+        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE)) != NULL) {
+            remove_watch(fs_event, event->wd);
+            // TODO inform
+            int x;
+            //printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
+            //print_json2("PATHS", fs_event->jn_tracked_paths);
         }
         return;
     }
 
     if(event->mask & (IN_IGNORED)) {
         // The Watch was removed
-        if((path=get_path(event->wd, FALSE)) != NULL) {
-            printf("%sERROR%s wd yet found %d %s '%s'\n", On_Red BWhite, Color_Off,
-                event->wd,
-                event->len? event->name:"",
-                path
+        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, FALSE)) != NULL) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "wd yet found",
+                "path" ,        "%s", path,
+                "wd",           "%d", event->wd,
+                "event",        "%s", event->len? event->name:"",
+                NULL
             );
         }
         return;
     }
 
-    path = get_path(event->wd, TRUE);
+    path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
 
     if(event->mask & (IN_ISDIR)) {
         /*
@@ -285,27 +339,19 @@ void handle_inotify_event(struct inotify_event *event)
         if (event->mask & (IN_CREATE)) {
             snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
             printf("  %s-> Directory created:%s %s\n", On_Green BWhite, Color_Off, full_path);
-            add_watch(full_path);
-            print_json2("PATHS", jn_tracked_paths);
+            add_watch(fs_event, full_path);
+            print_json2("PATHS", fs_event->jn_tracked_paths);
         }
         if (event->mask & (IN_DELETE)) {
             /*
-             *  Is deleted in IN_DELETE_SELF event
+             *  Is deleted above in IN_DELETE_SELF event
              */
-//            path = get_path(event->wd, TRUE);
-//            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
-//
-//            printf("  %s-> Directory deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
-//
-//            int wd = get_wd(full_path, TRUE);
-//            remove_watch(wd);
-//            print_json2("PATHS", jn_tracked_paths);
         }
     } else {
         /*
          *  File
          */
-        path = get_path(event->wd, TRUE);
+        path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
         snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
         if (event->mask & (IN_CREATE)) {
             printf("  %s-> File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
@@ -318,9 +364,91 @@ void handle_inotify_event(struct inotify_event *event)
         }
     }
 
+// TODO inform by gobj
+//    GBUFFER_INCREF(yev_event->gbuf)
+//    json_t *kw = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+//    );
+//    if(gobj_is_pure_child(gobj)) {
+//        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+//    } else {
+//        gobj_publish_event(gobj, EV_RX_DATA, kw);
+//    }
+
 }
 
-// Recursively add inotify watches to all subdirectories
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
+{
+    json_t *watch = json_object_get(fs_event->jn_tracked_paths, path);
+    if(watch) {
+        printf("%sERROR%s Watch directory EXISTS '%s'\n", On_Red BWhite, Color_Off, path);
+        return -1;
+    }
+
+    BOOL all = 0; // TODO
+    uint32_t mask = all? IN_ALL_EVENTS:
+        IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE;
+    mask |= IN_DONT_FOLLOW | IN_EXCL_UNLINK;
+
+    int wd = inotify_add_watch(fs_event->fd, path, mask);
+    if (wd == -1) {
+        printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
+    } else {
+        printf("  Watching directory: %s\n", path);
+    }
+    json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
+    return wd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int remove_watch(fs_event_t *fs_event, int wd)
+{
+    const char *path; json_t *jn_wd; void *n;
+    json_object_foreach_safe(fs_event->jn_tracked_paths, n, path, jn_wd) {
+        int wd_ = (int)json_integer_value(jn_wd);
+        if(wd_ == wd) {
+            if(inotify_rm_watch(fs_event->fd, wd)<0) {
+                if(errno != EINVAL) { // Han borrado el directorio
+                    printf("%sERROR%s inotify_rm_watch %d '%s' %s\n", On_Red BWhite, Color_Off, wd, path,
+                           strerror(errno));
+                }
+            }
+            printf("  Unwatching directory: %s\n", path);
+            json_object_del(fs_event->jn_tracked_paths, path);
+            return 0;
+        }
+
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose)
+{
+    const char *path; json_t *jn_wd; void *n;
+    json_object_foreach_safe(jn_tracked_paths, n, path, jn_wd) {
+        int wd_ = (int)json_integer_value(jn_wd);
+        if(wd_ == wd) {
+            return path;
+        }
+
+    }
+    if(verbose) {
+        printf("%sERROR%s wd not found '%d'\n", On_Red BWhite, Color_Off, wd);
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Recursively add inotify watches to all subdirectories
+ ***************************************************************************/
 PRIVATE BOOL search_by_paths_cb(
     hgobj gobj,
     void *user_data,
@@ -332,19 +460,20 @@ PRIVATE BOOL search_by_paths_cb(
     wd_option opt           // option parameter
 )
 {
-    add_watch(fullpath);
+    fs_event_t *fs_event = user_data;
+    add_watch(fs_event, fullpath);
     return TRUE; // to continue
 }
 
-void add_watch_recursive(const char *path)
+PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)
 {
-    add_watch(path);
+    add_watch(fs_event, path);
     walk_dir_tree(
         0,
         path,
         0,
         WD_RECURSIVE|WD_MATCH_DIRECTORY,
         search_by_paths_cb,
-        0
+        fs_event
     );
 }
