@@ -152,7 +152,7 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
-PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic);
+PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic);
 PRIVATE int fs_master_callback(fs_event_t *fs_event);
 
 /***************************************************************
@@ -843,7 +843,13 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     if(yev_loop) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         if(master) {
-            monitor_disks_directory_by_master(gobj, yev_loop, topic);
+            fs_event_t *fs_event_master = monitor_disks_directory_by_master(gobj, yev_loop, topic);
+            kw_set_dict_value(
+                gobj,
+                tranger,
+                "fs_event_master",
+                json_integer((json_int_t)(size_t)fs_event_master)
+            );
         }
     }
 
@@ -854,7 +860,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
  *  Watch create/delete subdirectories of disk realtime id's
  *      that creates/deletes non-master
  ***************************************************************************/
-PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
+PRIVATE fs_event_t * monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
 {
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
@@ -864,7 +870,7 @@ PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, 
 
     // TODO antes hay que mirar qué directorios hay YA en disks/
 
-    fs_event_t *fs_event_h = fs_create_watcher_event(
+    fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
         0,      // fs_flag,
@@ -872,9 +878,8 @@ PRIVATE int monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, 
         gobj,
         NULL    // user_data
     );
-    fs_start_watcher_event(fs_event_h);
-
-    return 0;
+    fs_start_watcher_event(fs_event);
+    return fs_event;
 }
 
 /***************************************************************************

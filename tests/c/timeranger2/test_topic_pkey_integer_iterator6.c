@@ -321,16 +321,24 @@ PRIVATE int close_all(json_t *tranger)
      *  close
      *-------------------------*/
     set_expected_results( // Check that no logs happen
-        "tranger2_close_iterator by mem", // test name
+        "tranger2_close_iterator", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    result += tranger2_close_iterator(
-        tranger,
-        tranger2_get_iterator_by_id(tranger,"it_by_mem")
-    );
+    if(tranger2_get_iterator_by_id(tranger,"it_by_mem")) {
+        result += tranger2_close_iterator(
+            tranger,
+            tranger2_get_iterator_by_id(tranger,"it_by_mem")
+        );
+    }
+    if(tranger2_get_iterator_by_id(tranger,"it_by_disk")) {
+        result += tranger2_close_iterator(
+            tranger,
+            tranger2_get_iterator_by_id(tranger,"it_by_disk")
+        );
+    }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------*
