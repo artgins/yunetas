@@ -36,7 +36,7 @@ PRIVATE int yev_callback(
 );
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
-PRIVATE int remove_watch(fs_event_t *fs_event, int fd);
+PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
 PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
@@ -107,7 +107,7 @@ PUBLIC fs_event_t *fs_open_watcher(
 
     fs_event_t *fs_event = GBMEM_MALLOC(sizeof(fs_event_t));
     if(!fs_event) {
-        gobj_log_error(yev_loop->yuno?gobj:0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "No memory for yev event",    // use the same string
@@ -135,9 +135,9 @@ PUBLIC fs_event_t *fs_open_watcher(
     size_t len = sizeof(struct inotify_event) + NAME_MAX + 1;
     gbuffer_t *gbuf = gbuffer_create(len, len);
     if(!gbuf) {
-        gobj_log_error(yev_loop->yuno?gobj:0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "No memory for fs_event gbuf",
             NULL
         );
@@ -277,9 +277,9 @@ PRIVATE int yev_callback(
             break;
 
         default:
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 NULL
             );
@@ -329,12 +329,17 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
-        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE)) != NULL) {
-            remove_watch(fs_event, event->wd);
-            // TODO inform
-            int x;
-            //printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
-            //print_json2("PATHS", fs_event->jn_tracked_paths);
+        path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+        if(path != NULL) {
+            char path_[PATH_MAX];
+            snprintf(path_, sizeof(path_), "%s", path);
+            char *filename = pop_last_segment(path_);
+
+            fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
+            fs_event->directory = path_;
+            fs_event->filename = filename;
+            fs_event->callback(fs_event);
+            remove_watch(fs_event, path, event->wd);
         }
         return;
     }
@@ -362,10 +367,14 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          *  Directory
          */
         if (event->mask & (IN_CREATE)) {
-            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
-            printf("  %s-> Directory created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            char *filename = event->len? event->name:"";
+            snprintf(full_path, PATH_MAX, "%s/%s", path, filename);
             add_watch(fs_event, full_path);
-            print_json2("PATHS", fs_event->jn_tracked_paths);
+
+            fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
+            fs_event->directory = (volatile char *)path;
+            fs_event->filename = filename;
+            fs_event->callback(fs_event);
         }
         if (event->mask & (IN_DELETE)) {
             /*
@@ -377,15 +386,24 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          *  File
          */
         path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
-        snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+        char *filename = event->len? event->name:"";
         if (event->mask & (IN_CREATE)) {
-            printf("  %s-> File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            fs_event->fs_type = FS_FILE_CREATED_TYPE;
+            fs_event->directory = (volatile char *)path;
+            fs_event->filename = filename;
+            fs_event->callback(fs_event);
         }
         if (event->mask & (IN_DELETE)) {
-            printf("  %s-> File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            fs_event->fs_type = FS_FILE_DELETED_TYPE;
+            fs_event->directory = (volatile char *)path;
+            fs_event->filename = filename;
+            fs_event->callback(fs_event);
         }
         if (event->mask & (IN_MODIFY)) {
-            printf("  %s-> File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            fs_event->fs_type = FS_FILE_MODIFIED_TYPE;
+            fs_event->directory = (volatile char *)path;
+            fs_event->filename = filename;
+            fs_event->callback(fs_event);
         }
     }
 
@@ -409,15 +427,27 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 {
     json_t *watch = json_object_get(fs_event->jn_tracked_paths, path);
     if(watch) {
-        printf("%sERROR%s Watch directory EXISTS '%s'\n", On_Red BWhite, Color_Off, path);
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Watch directory EXISTS",
+            "path" ,        "%s", path,
+            NULL
+        );
         return -1;
     }
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
-        printf("%sERROR%s inotify_add_watch '%s' %s\n", On_Red BWhite, Color_Off, path, strerror(errno));
-    } else {
-        printf("  Watching directory: %s\n", path);
+        gobj_log_error(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "inotify_add_watch() FAILED",
+            "path" ,        "%s", path,
+            "serrno" ,      "%s", strerror(errno),
+            NULL
+        );
+        return -1;
     }
     json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
     return wd;
@@ -426,25 +456,24 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int remove_watch(fs_event_t *fs_event, int wd)
+PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
-    const char *path; json_t *jn_wd; void *n;
-    json_object_foreach_safe(fs_event->jn_tracked_paths, n, path, jn_wd) {
-        int wd_ = (int)json_integer_value(jn_wd);
-        if(wd_ == wd) {
-            if(inotify_rm_watch(fs_event->fd, wd)<0) {
-                if(errno != EINVAL) { // Han borrado el directorio
-                    printf("%sERROR%s inotify_rm_watch %d '%s' %s\n", On_Red BWhite, Color_Off, wd, path,
-                           strerror(errno));
-                }
-            }
-            printf("  Unwatching directory: %s\n", path);
-            json_object_del(fs_event->jn_tracked_paths, path);
-            return 0;
-        }
+    json_object_del(fs_event->jn_tracked_paths, path);
 
+    if(inotify_rm_watch(fs_event->fd, wd)<0) {
+        if(errno != EINVAL) { // Han borrado el directorio
+            gobj_log_error(fs_event->gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "inotify_rm_watch() FAILED",
+                "path" ,        "%s", path,
+                "serrno" ,      "%s", strerror(errno),
+                NULL
+            );
+        }
+        return -1;
     }
-    return -1;
+    return 0;
 }
 
 /***************************************************************************
@@ -461,7 +490,14 @@ PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL 
 
     }
     if(verbose) {
-        printf("%sERROR%s wd not found '%d'\n", On_Red BWhite, Color_Off, wd);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "wd not found",
+            "wd" ,          "%d", wd,
+            NULL
+        );
+        gobj_trace_json(gobj, jn_tracked_paths, "wd not found");
     }
     return NULL;
 }

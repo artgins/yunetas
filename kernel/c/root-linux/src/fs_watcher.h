@@ -23,11 +23,11 @@ extern "C"{
  *              Constants
  ***************************************************************/
 typedef enum  {
-    FS_SUBDIR_CREATED_TYPE  = 1,
-    FS_SUBDIR_DELETED_TYPE,
-    FS_FILE_CREATED_TYPE,
-    FS_FILE_DELETED_TYPE,
-    FS_FILE_MODIFIED_TYPE,  // WARNING Don't use in files hardly modified. Overflow and event loss.
+    FS_SUBDIR_CREATED_TYPE  = 1,    // use directory / filename
+    FS_SUBDIR_DELETED_TYPE,         // use directory / filename
+    FS_FILE_CREATED_TYPE,           // use directory / filename
+    FS_FILE_DELETED_TYPE,           // use directory / filename
+    FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;

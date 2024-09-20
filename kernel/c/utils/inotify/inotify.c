@@ -1,12 +1,18 @@
+/****************************************************************************
+ *              inotify.c
+ *
+ *              Utility to test inotify
+ *
+ *              Copyright (c) 2024 ArtGins.
+ *              All Rights Reserved.
+ ****************************************************************************/
 #include <liburing.h>
 #include <sys/inotify.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include <sys/stat.h>
 #include <jansson.h>
 #include <helpers.h>
 #include <ansi_escape_codes.h>
