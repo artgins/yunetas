@@ -84,7 +84,7 @@ PRIVATE bits_table_t bits_table[] = {
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC fs_event_t *fs_open_watcher(
+PUBLIC fs_event_t *fs_create_watcher_event(
     yev_loop_t *yev_loop,
     const char *path,
     fs_flag_t fs_flag,
@@ -141,7 +141,7 @@ PUBLIC fs_event_t *fs_open_watcher(
             "msg",          "%s", "No memory for fs_event gbuf",
             NULL
         );
-        fs_close_watcher(fs_event);
+        fs_destroy_watcher_event(fs_event);
         return NULL;
     }
 
@@ -153,7 +153,7 @@ PUBLIC fs_event_t *fs_open_watcher(
         gbuf
     );
     if(!fs_event->yev_event) {
-        fs_close_watcher(fs_event);
+        fs_destroy_watcher_event(fs_event);
         return NULL;
     }
     yev_set_user_data(fs_event->yev_event, fs_event);
@@ -164,20 +164,37 @@ PUBLIC fs_event_t *fs_open_watcher(
         add_watch(fs_event, path);
     }
 
-    yev_start_event(fs_event->yev_event);
-
     return fs_event;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void fs_close_watcher(
+PUBLIC int fs_start_watcher_event(
+    fs_event_t *fs_event
+)
+{
+    return yev_start_event(fs_event->yev_event);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int fs_stop_watcher_event(
+    fs_event_t *fs_event
+)
+{
+    return yev_stop_event(fs_event->yev_event);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void fs_destroy_watcher_event(
     fs_event_t *fs_event
 )
 {
     yev_set_fd(fs_event->yev_event, -1);
-    yev_stop_event(fs_event->yev_event);
     EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
     if(fs_event->fd != -1) {
         close(fs_event->fd);

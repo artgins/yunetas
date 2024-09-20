@@ -47,17 +47,17 @@ cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
 
 ##########################################
-#       utils
+#       c_prot
 ##########################################
-cd "${YUNETAS_BASE_DIR}/kernel/c/utils"
+cd "${YUNETAS_BASE_DIR}/modules/c/c_prot"
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
 
 ##########################################
-#       c_prot
+#       utils
 ##########################################
-cd "${YUNETAS_BASE_DIR}/modules/c/c_prot"
+cd "${YUNETAS_BASE_DIR}/utils/c"
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install

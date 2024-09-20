@@ -44,7 +44,7 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
 typedef struct fs_event_s fs_event_t;
 
 typedef int (*fs_callback_t)(
-    volatile fs_event_t *event
+    fs_event_t *fs_event
 );
 
 struct fs_event_s {
@@ -69,7 +69,7 @@ struct fs_event_s {
  *      Be careful with IN_MODIFY in intense writing/reading,
  *      will cause IN_Q_OVERFLOW and event lost.
  *************************************************************************/
-PUBLIC fs_event_t *fs_open_watcher(
+PUBLIC fs_event_t *fs_create_watcher_event(
     yev_loop_t *yev_loop,
     const char *path,
     fs_flag_t fs_flag,
@@ -78,9 +78,16 @@ PUBLIC fs_event_t *fs_open_watcher(
     void *user_data
 );
 
-PUBLIC void fs_close_watcher(
+PUBLIC int fs_start_watcher_event(
     fs_event_t *fs_event
 );
+PUBLIC int fs_stop_watcher_event(
+    fs_event_t *fs_event
+);
+PUBLIC void fs_destroy_watcher_event(
+    fs_event_t *fs_event
+);
+
 
 #ifdef __cplusplus
 }
