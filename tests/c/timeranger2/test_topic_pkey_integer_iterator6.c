@@ -501,6 +501,9 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *  Stop the event loop
      *--------------------------------*/
+    yev_stop_event(yev_timer_finish);
+    yev_destroy_event(yev_timer_finish);
+
     yev_loop_run_once(yev_loop);
 
     yev_loop_stop(yev_loop);
