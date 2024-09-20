@@ -341,6 +341,8 @@ PRIVATE int close_all(json_t *tranger)
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
+    //yev_loop_run_once(yev_loop);
+
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
@@ -489,8 +491,8 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *  Stop the event loop
      *--------------------------------*/
-    yev_destroy_event(yev_timer_test);
-    yev_destroy_event(yev_timer_finish);
+    //yev_loop_run_once(yev_loop);
+
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
