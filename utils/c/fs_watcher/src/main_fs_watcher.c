@@ -9,6 +9,7 @@
 #include <gobj.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
+#include <ansi_escape_codes.h>
 #include <fs_watcher.h>
 
 /***************************************************************
@@ -22,12 +23,12 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event);
  ***************************************************************/
 yev_loop_t *yev_loop;
 yev_event_t *yev_event_periodic;
-fs_event_t *fs_event;
+fs_event_t *fs_event_h;
 
 /***************************************************************************
  *              Test
  ***************************************************************************/
-int do_test(void)
+int do_test(char *path)
 {
     /*--------------------------------*
      *  Create the event loop
@@ -41,8 +42,7 @@ int do_test(void)
     /*--------------------------------*
      *      Create fs event
      *--------------------------------*/
-    const char *path = ""; // TODO
-    fs_event = fs_open_watcher(
+    fs_event_h = fs_create_watcher_event(
         yev_loop,
         path,
         FS_FLAG_RECURSIVE_PATHS,
@@ -51,12 +51,17 @@ int do_test(void)
         NULL
     );
 
+    fs_start_watcher_event(fs_event_h);
+
     yev_loop_run(yev_loop);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
+    print_json2("tracked_paths", fs_event_h->jn_tracked_paths);
+
+    fs_stop_watcher_event(fs_event_h);
     yev_loop_run_once(yev_loop);
 
-    fs_close_watcher(fs_event);
+    fs_destroy_watcher_event(fs_event_h);
 
     yev_loop_destroy(yev_loop);
 
@@ -69,59 +74,25 @@ int do_test(void)
  ***************************************************************************/
 PRIVATE int fs_event_callback(fs_event_t *fs_event)
 {
-    if(yev_event->result < 0) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_info(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "timeout got",
-            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
-            NULL
-        );
-        json_decref(jn_flags);
+    char full_path[PATH_MAX];
+    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
 
-        if(yev_event->result == -EAGAIN) {
-            return 0;
-        }
-        // cancel timer-once and stop loop, next cancels ignored
-        if(yev_loop->running) {
-            if(!(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) && yev_event->result == -ECANCELED) {
-                yev_stop_event(yev_event_periodic);
-                yev_loop_stop(yev_loop);
-            }
-        }
-        return 0;
+    if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
+        printf("  %sDire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_SUBDIR_DELETED_TYPE)) {
+        printf("  %sDire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_CREATED_TYPE)) {
+        printf("  %sFile created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_DELETED_TYPE)) {
+        printf("  %sFile deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+    }
+    if (fs_event->fs_type & (FS_FILE_MODIFIED_TYPE)) {
+        printf("  %sFile modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
     }
 
-    if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
-        times_periodic++;
-        if(times_periodic == 2) {
-            gobj_trace_msg(0, "re-start time-periodic %d seconds, will provoke -11 error", 1);
-            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
-        }
-        if(times_periodic == 4) {
-            gobj_trace_msg(0, "return no-realm and re-start time-periodic %d seconds", 1);
-            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
-            return -1; // On return -1 the timer will be not rearmed
-        }
-        if(times_once > 5) {
-            printf("got timer-periodic, STOP timer ONCE\n");
-            if(yev_event_in_ring(yev_event_once)) {
-                yev_stop_event(yev_event_once);
-            }
-        }
-    } else {
-        times_once++;
-        printf("got timer-once %d, set in %d seconds\n", times_once, (int)wait_time*times_once);
-        yev_start_timer_event(yev_event, times_once*wait_time*1000, FALSE);
-    }
     return 0;
 }
 
@@ -130,6 +101,17 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    if (argc < 2) {
+        printf("Usage: %s <directory>\n", argv[0]);
+        return 1;
+    }
+
+    char path[PATH_MAX];
+    build_path(path, sizeof(path), argv[1], NULL);
+    if(!is_directory(path)) {
+        printf("%sERROR%s path not found '%s'\n", On_Red BWhite, Color_Off, path);
+        exit(EXIT_FAILURE);
+    }
     /*----------------------------------*
      *      Startup gobj system
      *----------------------------------*/
@@ -181,13 +163,12 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Log handlers
      *--------------------------------*/
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
-
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    do_test();
+    do_test(path);
 
     gobj_end();
 
