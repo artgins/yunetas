@@ -273,7 +273,7 @@ PRIVATE int do_test(void)
         "master", 1,
         "on_critical_error", 0
     );
-    json_t *tranger = tranger2_startup(0, jn_tranger);
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     BOOL test_forward = 1;

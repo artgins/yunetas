@@ -516,7 +516,7 @@ PRIVATE int list_messages(void)
         "database", arguments.database
     );
 
-    json_t * tranger = tranger2_startup(0, jn_tranger);
+    json_t * tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s/%s\n\n", arguments.path, arguments.database);
         exit(-1);

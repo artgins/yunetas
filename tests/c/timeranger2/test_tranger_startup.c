@@ -77,7 +77,7 @@ int do_test(void)
         "master", 1,
         "on_critical_error", 0
     );
-    json_t *tranger = tranger2_startup(0, jn_tranger);
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
 
     /*------------------------------------*
      *  Check __timeranger2__.json file
@@ -348,7 +348,7 @@ int do_test(void)
             "master", 1,
             "on_critical_error", 0
         );
-        json_t *tr = tranger2_startup(0, jn_tr);
+        json_t *tr = tranger2_startup(0, jn_tr, 0);
 
         result += test_json(json_incref(tr), result);
 

@@ -78,6 +78,7 @@
 #include <gobj.h>
 #include <helpers.h>
 #include <kwid.h>
+#include <fs_watcher.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -177,7 +178,8 @@ static const json_desc_t topic_json_desc[] = {
 
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
-    json_t *jn_tranger // owned, See tranger2_json_desc for parameters
+    json_t *jn_tranger, // owned, See tranger2_json_desc for parameters
+    yev_loop_t *yev_loop
 );
 
 /**rst**

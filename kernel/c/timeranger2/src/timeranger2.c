@@ -14,7 +14,6 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
-#include <fs_watcher.h>
 
 #include "timeranger2.h"
 
@@ -164,7 +163,8 @@ PRIVATE int monitor_disks_directory(hgobj gobj, json_t *topic);
  ***************************************************************************/
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
-    json_t *jn_tranger // owned, See tranger2_json_desc for parameters
+    json_t *jn_tranger, // owned, See tranger2_json_desc for parameters
+    yev_loop_t *yev_loop
 )
 {
     json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
@@ -348,6 +348,7 @@ PUBLIC json_t *tranger2_startup(
      */
     kw_set_dict_value(gobj, tranger, "fd_opened_files", json_object());
     kw_set_dict_value(gobj, tranger, "topics", json_object());
+    kw_set_dict_value(gobj, tranger, "yev_loop", json_integer((json_int_t)(size_t)yev_loop));
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
 
     return tranger;
@@ -833,25 +834,6 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
-
-    /*
-     *  Initialize inotify
-     */
-//    int inotify_fd = inotify_init1(IN_NONBLOCK);
-//    if(inotify_fd == -1) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "tranger_open_topic(): inotify_init1() FAILED",
-//            "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-//            "topic_name",   "%s", topic_name,
-//            "errno",        "%d", errno,
-//            "serrno",       "%s", strerror(errno),
-//            NULL
-//        );
-//    } else {
-//        json_object_set_new(topic, "inotify_disks", json_integer((json_int_t)(size_t)inotify_fd));
-//    }
 
     /*
      *  Monitor the disk if it's not master
