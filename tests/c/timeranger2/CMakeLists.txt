@@ -39,9 +39,9 @@ foreach(test ${SRCS})
 
     target_link_libraries(${binary}
         libyunetas-c_prot.a
+        libtimeranger2.a
         libyunetas-core-linux.a
         libyunetas-gobj.a
-        libtimeranger2.a
 
         libjansson.a
         liburing.a
