@@ -247,13 +247,12 @@ PRIVATE int do_test(json_t *tranger)
                 );
                 md2_record_t md_record;
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
+                yev_loop_run_once(yev_loop);
             }
         }
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
-
-        yev_loop_run_once(yev_loop);
 
         if(by_mem) {
             if(last_t_by_mem != 946864799) {
@@ -367,16 +366,16 @@ PRIVATE int close_all(json_t *tranger)
             tranger,
             tranger2_get_iterator_by_id(tranger,"it_by_mem")
         );
+        yev_loop_run_once(yev_loop);
     }
     if(tranger2_get_iterator_by_id(tranger,"it_by_disk")) {
         result += tranger2_close_iterator(
             tranger,
             tranger2_get_iterator_by_id(tranger,"it_by_disk")
         );
+        yev_loop_run_once(yev_loop);
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-    yev_loop_run_once(yev_loop);
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -392,6 +391,7 @@ PRIVATE int close_all(json_t *tranger)
     result += debug_json(tranger, FALSE);
 
     tranger2_shutdown(tranger);
+    yev_loop_run_once(yev_loop);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;

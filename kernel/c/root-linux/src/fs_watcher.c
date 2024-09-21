@@ -442,18 +442,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->callback(fs_event);
         }
     }
-
-// TODO inform by gobj
-//    GBUFFER_INCREF(yev_event->gbuf)
-//    json_t *kw = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-//    );
-//    if(gobj_is_pure_child(gobj)) {
-//        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-//    } else {
-//        gobj_publish_event(gobj, EV_RX_DATA, kw);
-//    }
-
 }
 
 /***************************************************************************
@@ -472,6 +460,9 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         );
         return -1;
     }
+
+printf("====> add watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
+print_json2("add_watch", fs_event->jn_tracked_paths);
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
@@ -495,6 +486,9 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
     json_object_del(fs_event->jn_tracked_paths, path);
+
+printf("====> remove watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
+print_json2("remove_watch", fs_event->jn_tracked_paths);
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
         if(errno != EINVAL) { // Han borrado el directorio

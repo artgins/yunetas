@@ -959,17 +959,14 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                 char *topic_name = pop_last_segment(full_path);
 
                 if(strcmp(disks, "disks")!=0) {
-                    /*
-                     *  Ignore, must be a key, i.e. /disks/rt_id/key
-                     */
-                    //gobj_log_error(gobj, 0,
-                    //    "function",     "%s", __FUNCTION__,
-                    //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    //    "msg",          "%s", "Bad path 1 /disks/rt_id/",
-                    //    "directory",    "%s", fs_event->directory,
-                    //    "filename",     "%s", fs_event->filename,
-                    //    NULL
-                    //);
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path master 1 /disks/rt_id/",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
                     break;
                 }
 
@@ -1004,7 +1001,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "Bad path 2 /disks/rt_id/",
+                        "msg",          "%s", "Bad path master 2 /disks/rt_id/",
                         "directory",    "%s", fs_event->directory,
                         "filename",     "%s", fs_event->filename,
                         NULL
@@ -1021,7 +1018,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "FS_FILE_CREATED_TYPE fs_event NOT processed",
+                "msg",          "%s", "FS_FILE_CREATED_TYPE master fs_event NOT processed",
                 NULL
             );
             break;
@@ -1030,7 +1027,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "FS_FILE_DELETED_TYPE fs_event NOT processed",
+                "msg",          "%s", "FS_FILE_DELETED_TYPE master fs_event NOT processed",
                 NULL
             );
             break;
@@ -1039,7 +1036,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "FS_FILE_MODIFIED_TYPE fs_event NOT processed",
+                "msg",          "%s", "FS_FILE_MODIFIED_TYPE master fs_event NOT processed",
                 NULL
             );
             break;
@@ -3312,24 +3309,88 @@ PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
  ***************************************************************************/
 PRIVATE int fs_client_callback(fs_event_t *fs_event)
 {
+    hgobj gobj = fs_event->gobj;
+
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+
+    // (5) MONITOR notify of update directory /disks/rt_id/ on new records
+    // Delete the hard link of md2 file when read
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
             printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            {
+                char *key = pop_last_segment(full_path);
+                char *rt_id = pop_last_segment(full_path);
+                char *disks = pop_last_segment(full_path);
+                char *topic_name = pop_last_segment(full_path);
+
+                if(strcmp(disks, "disks")!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path client 1 /disks/rt_id/key",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
+                    break;
+                }
+
+            }
             break;
         case FS_SUBDIR_DELETED_TYPE:
             printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_SUBDIR_DELETED_TYPE client fs_event NOT processed",
+                NULL
+            );
             break;
         case FS_FILE_CREATED_TYPE:
             printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            {
+                char *md2 = pop_last_segment(full_path);
+                char *key = pop_last_segment(full_path);
+                char *rt_id = pop_last_segment(full_path);
+                char *disks = pop_last_segment(full_path);
+                char *topic_name = pop_last_segment(full_path);
+
+                if(strcmp(disks, "disks")!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path client 2 /disks/rt_id/key/md2",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
+                    break;
+                }
+                snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+                unlink(full_path);
+                // TODO read md2
+            }
             break;
         case FS_FILE_DELETED_TYPE:
             printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_DELETED_TYPE client fs_event NOT processed",
+                NULL
+            );
             break;
         case FS_FILE_MODIFIED_TYPE:
             printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_MODIFIED_TYPE client fs_event NOT processed",
+                NULL
+            );
             break;
     }
 
