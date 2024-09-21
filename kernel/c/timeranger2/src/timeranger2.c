@@ -3363,7 +3363,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
 }
 
 /***************************************************************************
- *
+ *  The master signalize a new record appended
  ***************************************************************************/
 PRIVATE int fs_client_callback(fs_event_t *fs_event)
 {
@@ -3456,6 +3456,48 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     break;
                 }
                 // TODO read md2
+
+                /*
+                    The last record of files  - {topic}/cache/{key}/files/[{r}] -
+                    has the last record appended.
+                        {
+                            "id": "2000-01-03",
+                            "fr_t": 946857600,
+                            "to_t": 946864799,
+                            "fr_tm": 946857600,
+                            "to_tm": 946864799,
+                            "rows": 226651,
+                            "wr_time": 1726943703371895964
+                        }
+
+                    Here, with the information of master in the file, we know:
+                        - {topic} (topic_name)
+                        - {key}
+                        - md2 (filename .md2) without his extension is the id of the [{r}]
+
+                    Find the segment, normally will be the last segment:
+                        - If the id of the last segment matchs with the md2,
+                            see the rows of the new md2,
+                            see the difference and load the new records and publish.
+                        - If the id of the last segment doesn't match with md2,
+                            do a full reload of the cache segments
+                            (or only news segments, see how to use the wr_time to
+                            tpdate only what is necessary)
+
+                            IT'S necessary to load and publish only the new records!
+                            !!! How are you going to repeats records to the client? You fool? !!!
+
+                 */
+
+                // Open the .md2 and .json file
+
+
+                // See in the segments of iterator the segment matching the file .md2
+                // Calculate the difference and publish
+
+                // Update the cache
+                // Publish to all iterators that are new data.
+
             }
             break;
         case FS_FILE_DELETED_TYPE:
