@@ -3310,15 +3310,16 @@ PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
 PRIVATE int fs_client_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
+    json_t *tranger = fs_event->user_data;
 
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
 
-    // (5) MONITOR notify of update directory /disks/rt_id/ on new records
-    // Delete the hard link of md2 file when read
-
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
+            // (5) MONITOR notify of update directory /disks/rt_id/ on new records
+            // Key directory created, ignore
+
             printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
                 char *key = pop_last_segment(full_path);
@@ -3341,6 +3342,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             }
             break;
         case FS_SUBDIR_DELETED_TYPE:
+            // Key directory deleted, ignore, it's me
             printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -3350,8 +3352,22 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             );
             break;
         case FS_FILE_CREATED_TYPE:
+            // (5) MONITOR notify of update directory /disks/rt_id/ on new records
+            // Record to key added, read
+            // Delete the hard link of md2 file when read
+
             printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
+                if(unlink(full_path)<0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "unlink() FAILED",
+                        "errno",        "%s", strerror(errno),
+                        NULL
+                    );
+                }
+
                 char *md2 = pop_last_segment(full_path);
                 char *key = pop_last_segment(full_path);
                 char *rt_id = pop_last_segment(full_path);
@@ -3369,19 +3385,11 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     );
                     break;
                 }
-                snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
-                unlink(full_path);
                 // TODO read md2
             }
             break;
         case FS_FILE_DELETED_TYPE:
             printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "FS_FILE_DELETED_TYPE client fs_event NOT processed",
-                NULL
-            );
             break;
         case FS_FILE_MODIFIED_TYPE:
             printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
