@@ -474,7 +474,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
-        gobj_log_error(fs_event->gobj, 0,
+        gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "inotify_add_watch() FAILED",

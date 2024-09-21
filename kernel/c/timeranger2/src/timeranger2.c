@@ -176,6 +176,14 @@ PRIVATE int mater_to_update_client_load_record_callback(
     md2_record_t *md_record,
     json_t *record      // must be owned
 );
+static inline char *get_t_filename(
+    char *bf,
+    int bfsize,
+    json_t *tranger,
+    json_t *topic,
+    BOOL for_data,  // TRUE for data, FALSE for md2
+    uint64_t __t__ // WARNING must be in seconds!
+);
 
 
 /***************************************************************
@@ -935,6 +943,8 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
 
+    print_json2("fs_master_callback", fs_event->jn_tracked_paths); // TODO TEST
+
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
 
@@ -949,14 +959,17 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                 char *topic_name = pop_last_segment(full_path);
 
                 if(strcmp(disks, "disks")!=0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "Bad path 1 /disks/rt_id/",
-                        "directory",    "%s", fs_event->directory,
-                        "filename",     "%s", fs_event->filename,
-                        NULL
-                    );
+                    /*
+                     *  Ignore, must be a key, i.e. /disks/rt_id/key
+                     */
+                    //gobj_log_error(gobj, 0,
+                    //    "function",     "%s", __FUNCTION__,
+                    //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    //    "msg",          "%s", "Bad path 1 /disks/rt_id/",
+                    //    "directory",    "%s", fs_event->directory,
+                    //    "filename",     "%s", fs_event->filename,
+                    //    NULL
+                    //);
                     break;
                 }
 
@@ -964,10 +977,14 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     tranger,
                     topic_name,
                     "",         // key, if empty receives all keys, else only this key
-                    NULL,       // match_cond, all records
+                    json_pack("{s:b}",  // match_cond, all records, only_md
+                        "only_md", 1
+                    ),
                     mater_to_update_client_load_record_callback,   // called on append new record
                     rt_id
                 );
+
+                snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
                 json_object_set_new(rt, "disk_path", json_string(full_path));
             }
             break;
@@ -981,14 +998,17 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                 //char *topic_name = pop_last_segment(full_path);
 
                 if(strcmp(disks, "disks")!=0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "Bad path 2 /disks/rt_id/",
-                        "directory",    "%s", fs_event->directory,
-                        "filename",     "%s", fs_event->filename,
-                        NULL
-                    );
+                    /*
+                     *  Ignore, must be a key, i.e. /disks/rt_id/key
+                     */
+                    //gobj_log_error(gobj, 0,
+                    //    "function",     "%s", __FUNCTION__,
+                    //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    //    "msg",          "%s", "Bad path 2 /disks/rt_id/",
+                    //    "directory",    "%s", fs_event->directory,
+                    //    "filename",     "%s", fs_event->filename,
+                    //    NULL
+                    //);
                     break;
                 }
 
@@ -1041,7 +1061,57 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *record      // must be owned
 )
 {
+    char full_path_dest[PATH_MAX];
+    char full_path_orig[PATH_MAX];
+
     // (4) MONITOR update directory /disks/rt_id/ on new records
+    // Create a hard link of md2 file
+    json_t *rt = tranger2_get_rt_mem_by_id(tranger, rt_id);
+    const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
+
+    /*
+     *  Create the directory for the key
+     */
+    snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key);
+    if(!is_directory(full_path_dest)) {
+        mkdir(full_path_dest, json_integer_value(json_object_get(tranger, "xpermission")));
+    }
+
+    /*
+     *  Create the hard link for the md2 file
+     */
+    char filename[NAME_MAX];
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if((system_flag & sf2_no_record_disk)) {
+        return -1;
+    }
+    get_t_filename(
+        filename,
+        sizeof(filename),
+        tranger,
+        topic,
+        FALSE,
+        (system_flag & sf2_t_ms)? md_record->__t__/1000 : md_record->__t__
+    );
+    snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
+
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+    snprintf(full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename);
+
+    if(!is_regular_file(full_path_dest)) {
+        if(link(full_path_orig, full_path_dest)<0) {
+            hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "link() FAILED",
+                "src",          "%s", full_path_orig,
+                "dst",          "%s", full_path_dest,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
 
     JSON_DECREF(record)
     return 0;
@@ -3212,8 +3282,9 @@ PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
         id
     );
 
-    // Can be already exists, don't worry
-    mkdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED));
+    if(!is_directory(full_path)) {
+        mkdir(full_path, json_integer_value(json_object_get(tranger, "xpermission")));
+    }
 
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,

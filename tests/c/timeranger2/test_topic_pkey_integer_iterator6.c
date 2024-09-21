@@ -253,6 +253,8 @@ PRIVATE int do_test(json_t *tranger)
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
 
+        yev_loop_run_once(yev_loop);
+
         if(by_mem) {
             if(last_t_by_mem != 946864799) {
                 result += -1;
@@ -268,6 +270,8 @@ PRIVATE int do_test(json_t *tranger)
         }
 
         result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+//        print_json2("iterator by disk opened 2", tranger);
     }
 
     /*-------------------------------------*
@@ -289,6 +293,8 @@ PRIVATE int do_test(json_t *tranger)
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     yev_loop_run_once(yev_loop);
+
+//    print_json2("iterator by disk closed", tranger);
 
     /*-------------------------------*
      *  tranger_backup_topic
