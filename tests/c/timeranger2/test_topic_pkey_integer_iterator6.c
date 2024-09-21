@@ -231,6 +231,8 @@ PRIVATE int do_test(json_t *tranger)
             TRUE    // verbose
         );
 
+print_json2("ANTES", tranger); // TODO TEST
+
         MT_START_TIME(time_measure)
 
         uint64_t t1 = 946774800; // 2000-01-01T00:00:00+0000 2000-01-02T01:00:00+0000
@@ -250,6 +252,8 @@ PRIVATE int do_test(json_t *tranger)
                 yev_loop_run_once(yev_loop);
             }
         }
+
+print_json2("DESPUES", tranger); // TODO TEST
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
