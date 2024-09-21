@@ -1001,14 +1001,14 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     /*
                      *  Ignore, must be a key, i.e. /disks/rt_id/key
                      */
-                    //gobj_log_error(gobj, 0,
-                    //    "function",     "%s", __FUNCTION__,
-                    //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    //    "msg",          "%s", "Bad path 2 /disks/rt_id/",
-                    //    "directory",    "%s", fs_event->directory,
-                    //    "filename",     "%s", fs_event->filename,
-                    //    NULL
-                    //);
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path 2 /disks/rt_id/",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
                     break;
                 }
 
