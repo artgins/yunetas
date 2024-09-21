@@ -3498,6 +3498,8 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                 // Update the cache
                 // Publish to all iterators that are new data.
 
+                // NEW function: update_cache(),    load_cache(), update_cache()
+
             }
             break;
         case FS_FILE_DELETED_TYPE:
