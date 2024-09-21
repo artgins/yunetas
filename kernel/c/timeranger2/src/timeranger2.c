@@ -895,6 +895,64 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL find_rt_disk_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *full_path,        // directory+filename found
+    const char *directory,  // directory of found filename
+    char *filename,         // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    json_t *tranger = user_data;
+    char *rt_id = pop_last_segment(full_path);
+    char *disks = pop_last_segment(full_path);
+    char *topic_name = pop_last_segment(full_path);
+
+    if(strcmp(disks, "disks")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Bad path master 0 /disks/rt_id/",
+            "directory",    "%s", directory,
+            "filename",     "%s", filename,
+            NULL
+        );
+        return TRUE; // continue
+    }
+
+    json_t *rt = tranger2_open_rt_mem(
+        tranger,
+        topic_name,
+        "",         // key, if empty receives all keys, else only this key
+        json_pack("{s:b}",  // match_cond, all records, only_md
+            "only_md", 1
+        ),
+        mater_to_update_client_load_record_callback,   // called on append new record
+        rt_id
+    );
+
+    snprintf(full_path, PATH_MAX, "%s/%s", directory, filename);
+    json_object_set_new(rt, "disk_path", json_string(full_path));
+    return TRUE; // to continue
+}
+PRIVATE void find_rt_disk(json_t *tranger, const char *path)
+{
+    walk_dir_tree(
+        0,
+        path,
+        0,
+        WD_MATCH_DIRECTORY,
+        find_rt_disk_cb,
+        tranger
+    );
+}
+
+/***************************************************************************
  *  Watch create/delete subdirectories of disk realtime id's
  *      that creates/deletes non-master
  ***************************************************************************/
@@ -911,7 +969,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         directory
     );
 
-    // TODO antes hay que mirar qué directorios hay YA en disks ???
+    find_rt_disk(tranger, full_path);
 
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
@@ -3289,7 +3347,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
         FS_FLAG_RECURSIVE_PATHS,      // fs_flag,
         fs_client_callback,
         gobj,
-        NULL    // user_data
+        tranger    // user_data
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -3383,6 +3441,19 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                         "filename",     "%s", fs_event->filename,
                         NULL
                     );
+                    break;
+                }
+                json_t *rt = tranger2_get_rt_disk_by_id(tranger, rt_id);
+                if(!rt) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "rt disk NOT FOUND",
+                        "topic_name",   "%s", topic_name,
+                        "rt_id",        "%s", rt_id,
+                        NULL
+                    );
+                    print_json2("rt disk NOT FOUND", tranger);
                     break;
                 }
                 // TODO read md2
