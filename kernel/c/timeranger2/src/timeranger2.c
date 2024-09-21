@@ -159,7 +159,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
     json_t *topic
 );
 PRIVATE int fs_master_callback(fs_event_t *fs_event);
-PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
+PRIVATE fs_event_t *monitor_rt_disk_by_client(
     hgobj gobj,
     yev_loop_t *yev_loop,
     json_t *tranger,
@@ -3303,7 +3303,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         if(1) {
             // (2) MONITOR (C) (MI)r /disks/rt_id/
             // The directory is created inside this function
-            fs_event_t *fs_event_client = monitor_rt_disk_by_non_master(
+            fs_event_t *fs_event_client = monitor_rt_disk_by_client(
                 gobj, yev_loop, tranger, topic, id
             );
             kw_set_dict_value(
@@ -3322,7 +3322,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
  *  Watch create/delete subdirectories and files of disk realtime id's
  *      that creates/deletes master
  ***************************************************************************/
-PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
+PRIVATE fs_event_t *monitor_rt_disk_by_client(
     hgobj gobj,
     yev_loop_t *yev_loop,
     json_t *tranger,
@@ -3413,7 +3413,6 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
             // Record to key added, read
             // Delete the hard link of md2 file when read
-
             {
                 printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 if(unlink(full_path)<0) {
