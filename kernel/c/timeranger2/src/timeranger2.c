@@ -152,12 +152,30 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
-PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic);
+PRIVATE fs_event_t *monitor_disks_directory_by_master(
+    hgobj gobj,
+    yev_loop_t *yev_loop,
+    json_t *tranger,
+    json_t *topic
+);
 PRIVATE int fs_master_callback(fs_event_t *fs_event);
 PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
-    hgobj gobj, yev_loop_t *yev_loop, json_t *tranger, json_t *topic, const char *id
+    hgobj gobj,
+    yev_loop_t *yev_loop,
+    json_t *tranger,
+    json_t *topic,
+    const char *id
 );
 PRIVATE int fs_client_callback(fs_event_t *fs_event);
+PRIVATE int mater_to_update_client_load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *rt_id,
+    json_int_t rowid,
+    md2_record_t *md_record,
+    json_t *record      // must be owned
+);
 
 
 /***************************************************************
@@ -849,7 +867,13 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         if(master) {
             // (1) MONITOR (MI) /disks/
-            fs_event_t *fs_event_master = monitor_disks_directory_by_master(gobj, yev_loop, topic);
+            // Master to monitor the (topic) directory where clients will mark their rt disks.
+            fs_event_t *fs_event_master = monitor_disks_directory_by_master(
+                gobj,
+                yev_loop,
+                tranger,
+                topic
+            );
             kw_set_dict_value(
                 gobj,
                 topic,
@@ -866,7 +890,12 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
  *  Watch create/delete subdirectories of disk realtime id's
  *      that creates/deletes non-master
  ***************************************************************************/
-PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *yev_loop, json_t *topic)
+PRIVATE fs_event_t *monitor_disks_directory_by_master(
+    hgobj gobj,
+    yev_loop_t *yev_loop,
+    json_t *tranger,
+    json_t *topic
+)
 {
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
@@ -882,7 +911,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *ye
         0,      // fs_flag,
         fs_master_callback,
         gobj,
-        NULL    // user_data
+        tranger    // user_data
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -903,27 +932,118 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(hgobj gobj, yev_loop_t *ye
 #include <ansi_escape_codes.h> // TODO remove
 PRIVATE int fs_master_callback(fs_event_t *fs_event)
 {
+    hgobj gobj = fs_event->gobj;
+    json_t *tranger = fs_event->user_data;
+
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
-            printf("  %sMASTER Dire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            {
+                printf("  %sMASTER Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                // (3) MONITOR Client has opened a rt disk for the topic,
+                // Master to open a mem rt to update /disks/rt_id/
+                char *rt_id = pop_last_segment(full_path);
+                char *disks = pop_last_segment(full_path);
+                char *topic_name = pop_last_segment(full_path);
+
+                if(strcmp(disks, "disks")!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path 1 /disks/rt_id/",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
+                    break;
+                }
+
+                json_t *rt = tranger2_open_rt_mem(
+                    tranger,
+                    topic_name,
+                    "",         // key, if empty receives all keys, else only this key
+                    NULL,       // match_cond, all records
+                    mater_to_update_client_load_record_callback,   // called on append new record
+                    rt_id
+                );
+                json_object_set_new(rt, "disk_path", json_string(full_path));
+            }
             break;
         case FS_SUBDIR_DELETED_TYPE:
-            printf("  %sMASTER Dire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            {
+                printf("  %sMASTER Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                // MONITOR Client has closed a rt disk for the topic,
+                // Master to close the mem rt
+                char *rt_id = pop_last_segment(full_path);
+                char *disks = pop_last_segment(full_path);
+                //char *topic_name = pop_last_segment(full_path);
+
+                if(strcmp(disks, "disks")!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Bad path 2 /disks/rt_id/",
+                        "directory",    "%s", fs_event->directory,
+                        "filename",     "%s", fs_event->filename,
+                        NULL
+                    );
+                    break;
+                }
+
+                json_t *rt = tranger2_get_rt_mem_by_id(tranger, rt_id);
+                tranger2_close_rt_mem(tranger, rt);
+            }
             break;
         case FS_FILE_CREATED_TYPE:
-            printf("  %sMASTER File created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sMASTER File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_CREATED_TYPE fs_event NOT processed",
+                NULL
+            );
             break;
         case FS_FILE_DELETED_TYPE:
-            printf("  %sMASTER File deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sMASTER File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_DELETED_TYPE fs_event NOT processed",
+                NULL
+            );
             break;
         case FS_FILE_MODIFIED_TYPE:
             printf("  %sMASTER File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_MODIFIED_TYPE fs_event NOT processed",
+                NULL
+            );
             break;
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *  Master mem rt callback to update /disks/rt_id/
+ ***************************************************************************/
+PRIVATE int mater_to_update_client_load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *rt_id,
+    json_int_t rowid,
+    md2_record_t *md_record,
+    json_t *record      // must be owned
+)
+{
+    // (4) MONITOR update directory /disks/rt_id/ on new records
+
+    JSON_DECREF(record)
     return 0;
 }
 
@@ -1032,7 +1152,7 @@ PUBLIC int tranger2_close_topic(
 
     close_fd_opened_files(gobj, topic, NULL);
 
-    // MONITOR Unwatch master
+    // MONITOR Master Unwatching (MI) topic /disks/
     yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     if(yev_loop && master) {
@@ -3057,6 +3177,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         // BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         if(1) {
             // (2) MONITOR (C) (MI)r /disks/rt_id/
+            // The directory is created inside this function
             fs_event_t *fs_event_client = monitor_rt_disk_by_non_master(
                 gobj, yev_loop, tranger, topic, id
             );
@@ -3077,7 +3198,11 @@ PUBLIC json_t *tranger2_open_rt_disk(
  *      that creates/deletes master
  ***************************************************************************/
 PRIVATE fs_event_t *monitor_rt_disk_by_non_master(
-    hgobj gobj, yev_loop_t *yev_loop, json_t *tranger, json_t *topic, const char *id
+    hgobj gobj,
+    yev_loop_t *yev_loop,
+    json_t *tranger,
+    json_t *topic,
+    const char *id
 )
 {
     char full_path[PATH_MAX];
@@ -3121,16 +3246,16 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
-            printf("  %sCLIENT Dire created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             break;
         case FS_SUBDIR_DELETED_TYPE:
-            printf("  %sCLIENT Dire deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             break;
         case FS_FILE_CREATED_TYPE:
-            printf("  %sCLIENT File created :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             break;
         case FS_FILE_DELETED_TYPE:
-            printf("  %sCLIENT File deleted :%s %s\n", On_Green BWhite, Color_Off, full_path);
+            printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             break;
         case FS_FILE_MODIFIED_TYPE:
             printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
@@ -3164,7 +3289,7 @@ PUBLIC int tranger2_close_rt_disk(
 
     yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     if(yev_loop) {
-        // MONITOR Unwatch client
+        // MONITOR Client Unwatching (MI) topic /disks/rt_id/
         fs_event_t *fs_event_client = (fs_event_t *)kw_get_int(
             gobj, disk, "fs_event_client", 0, KW_REQUIRED
         );
@@ -3173,7 +3298,7 @@ PUBLIC int tranger2_close_rt_disk(
             fs_destroy_watcher_event(fs_event_client);
         }
 
-        // MONITOR (D)
+        // MONITOR (D) /disks/rt_id/
         char full_path[PATH_MAX];
         const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
         snprintf(full_path, sizeof(full_path), "%s/disks/%s",
@@ -3779,9 +3904,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
         }
 
-        /*---------------------------*
-         *      Realtime
-         *---------------------------*/
+        /*-------------------------------*
+         *  Open realtime for iterator
+         *-------------------------------*/
         if(realtime) {
             BOOL master = json_boolean_value(json_object_get(tranger, "master"));
             BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));

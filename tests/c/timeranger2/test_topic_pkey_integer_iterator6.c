@@ -176,7 +176,7 @@ PRIVATE int do_test(json_t *tranger)
                 KEY,                    // key
                 match_cond,             // match_cond, owned
                 rt_mem_record_callback, // load_record_callback
-                "it_by_mem",            // id
+                "it_by_mem2",            // id
                 NULL                    // data
             );
 
@@ -269,6 +269,26 @@ PRIVATE int do_test(json_t *tranger)
 
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
+
+    /*-------------------------------------*
+     *      Close disk iterator
+     *-------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "close disk iterator", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    if(tranger2_get_iterator_by_id(tranger,"it_by_disk")) {
+        result += tranger2_close_iterator(
+            tranger,
+            tranger2_get_iterator_by_id(tranger,"it_by_disk")
+        );
+    }
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+    yev_loop_run_once(yev_loop);
 
     /*-------------------------------*
      *  tranger_backup_topic
