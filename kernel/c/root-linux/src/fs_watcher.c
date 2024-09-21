@@ -403,9 +403,10 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          */
         if (event->mask & (IN_CREATE)) {
             char *filename = event->len? event->name:"";
-            snprintf(full_path, PATH_MAX, "%s/%s", path, filename);
-            add_watch(fs_event, full_path);
-
+            if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
+                snprintf(full_path, PATH_MAX, "%s/%s", path, filename);
+                add_watch(fs_event, full_path);
+            }
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;

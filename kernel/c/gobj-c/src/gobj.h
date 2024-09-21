@@ -2005,6 +2005,7 @@ PUBLIC void gobj_log_clear_counters(void);
 PUBLIC const char *gobj_log_last_message(void);
 PUBLIC void gobj_log_set_last_message(const char *msg, ...) JANSSON_ATTRS((format(printf, 1, 2)));
 PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
+PUBLIC void print_backtrace(void);
 
 PUBLIC void trace_vjson(
     hgobj gobj,

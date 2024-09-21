@@ -690,6 +690,17 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC void print_backtrace(void)
+{
+    if(show_backtrace_fn) {
+        show_backtrace_fn(stdout_fwrite, stdout);
+    }
+}
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC void gobj_trace_msg(hgobj gobj, const char *fmt, ... )
 {
     va_list ap;
