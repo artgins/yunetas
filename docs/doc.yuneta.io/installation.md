@@ -7,13 +7,13 @@
 
 ## Install system dependencies
 
-Use `apt` to install the required dependencies::
+Use `apt` to install the required dependencies
 
     sudo apt install --no-install-recommends \
       git mercurial make cmake ninja-build \
       gcc musl musl-dev musl-tools clang \
       python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-      libjansson-dev libpcre2-dev perl dos2unix
+      libjansson-dev libpcre2-dev perl dos2unix liburing-dev
 
 ## Install `yunetas`
 
@@ -148,8 +148,12 @@ Go to the yunetas directory in your project and activate:
 
 Install additional Python dependencies (`scripts` directory will be added to path):
 
+    # this don't work
     cd ./scripts
     pip install -r requirements.txt
+
+    # use this
+    pipx install kconfiglib
 
 ## Configure .bashrc
 
@@ -182,7 +186,15 @@ Use this utility to edit the Kconfig file:
 
 ## Compiling and Installing
 
-To build and install, with debug and tests::
+Firstly, install dependencies:
+
+    cd ~/yunetaprojects/yunetas/kernel/c/root-linux-ext-libs/
+    ./extrae.sh
+    ./configure-libs.sh
+
+
+
+To build and install, with debug and tests:
 
     cd ~/yunetaprojects/yunetas
     mkdir build 
@@ -193,7 +205,7 @@ To build and install, with debug and tests::
     ctest    # to run tests
 
 
-To build without debug::
+To build without debug:
 
     mkdir build && cd build
     cmake -GNinja ..
