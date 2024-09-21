@@ -3356,8 +3356,8 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             // Record to key added, read
             // Delete the hard link of md2 file when read
 
-            printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
+                printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 if(unlink(full_path)<0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
