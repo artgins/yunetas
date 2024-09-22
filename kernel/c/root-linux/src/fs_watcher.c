@@ -520,7 +520,7 @@ PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL 
 
     }
     if(verbose) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "wd not found",
