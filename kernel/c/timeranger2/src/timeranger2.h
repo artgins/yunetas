@@ -118,12 +118,20 @@ typedef struct { // Size: 96 bytes
 #pragma pack()
 
 #define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
-#define USER_FLAG_MASK  0x0ffff00000000000ULL
+#define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
-#define get_user_flag(md_record) (((md_record->__t__) & USER_FLAG_MASK) >> 44)
-#define get_system_flag(md_record) (((md_record->__tm__) & USER_FLAG_MASK) >> 44)
-#define get_time_t(md_record) ((md_record->__t__) & TIME_FLAG_MASK)
-#define get_time_tm(md_record) ((md_record->__tm__) & TIME_FLAG_MASK)
+static inline uint64_t get_user_flag(const md2_record_t *md_record) {
+    return (md_record->__t__ & USER_FLAG_MASK) >> 44;
+}
+static inline uint64_t get_system_flag(const md2_record_t *md_record) {
+    return (md_record->__tm__ & USER_FLAG_MASK) >> 44;
+}
+static inline uint64_t get_time_t(const md2_record_t *md_record) {
+    return md_record->__t__ & TIME_FLAG_MASK;
+}
+static inline uint64_t get_time_tm(const md2_record_t *md_record) {
+    return md_record->__tm__ & TIME_FLAG_MASK;
+}
 
 static inline void set_user_flag(md2_record_t *md_record, uint64_t user_flag) {
     // Clear the user flag bits (44-59) in md_record->__t__
