@@ -39,31 +39,23 @@ PRIVATE const char *topic_fields[] = {
     0
 };
 
-PRIVATE const char *sf_names[24+1] = {
-    "sf2_string_key",           // 0x000001
-    "",                         // 0x000002
-    "sf2_int_key",              // 0x000004
-    "",                         // 0x000008
-    "sf2_zip_record",           // 0x000010
-    "sf2_cipher_record",        // 0x000020
-    "sf2_save_md_in_record",    // 0x000040
-    "",                         // 0x000080
-    "sf2_t_ms",                 // 0x000100
-    "sf2_tm_ms",                // 0x000200
-    "",                         // 0x000400
-    "",                         // 0x000800
-    "sf2_no_record_disk",       // 0x001000
-    "",                         // 0x002000
-    "",                         // 0x004000
-    "",                         // 0x008000
-    "sf2_loading_from_disk",    // 0x010000
-    "sf2_soft_deleted_record",  // 0x020000
-    "",                         // 0x040000
-    "",                         // 0x080000
-    "",                         // 0x100000
-    "",                         // 0x200000
-    "",                         // 0x400000
-    "sf2_hard_deleted_record",  // 0x800000
+PRIVATE const char *sf_names[16+1] = {
+    "sf2_string_key",           // 0x0001
+    "",                         // 0x0002
+    "sf2_int_key",              // 0x0004
+    "",                         // 0x0008
+    "sf2_zip_record",           // 0x0010
+    "sf2_cipher_record",        // 0x0020
+    "sf2_save_md_in_record",    // 0x0040
+    "",                         // 0x0080
+    "sf2_t_ms",                 // 0x0100
+    "sf2_tm_ms",                // 0x0200
+    "",                         // 0x0400
+    "",                         // 0x0800
+    "sf2_no_record_disk",       // 0x1000
+    "",                         // 0x2000
+    "",                         // 0x4000
+    "",                         // 0x8000
     0
 };
 
@@ -627,7 +619,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         kw_get_str(gobj, jn_topic_desc, "pkey", pkey, KW_CREATE);
         kw_get_str(gobj, jn_topic_desc, "tkey", tkey, KW_CREATE);
 
-        system_flag &= ~NOT_INHERITED_MASK2;
         system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {

@@ -91,28 +91,22 @@ extern "C"{
 /***************************************************************
  *              Structures  timeranger2
  ***************************************************************/
-#define TIME_MASK   0x0000000FFFFFFFFF  /* Maximum date: UTC 4147-08-20T07:32:15+0000 */
-#define MD2_MASK    0x0ffffff000000000
+#define TIME_MASK   0x00000FFFFFFFFFFF  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 
-#define KEY_TYPE_MASK2        0x00000F
-#define NOT_INHERITED_MASK2   0xFF0000 /* Remains will set to all records of topic */
+#define KEY_TYPE_MASK2        0x000F
 
 typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
-    sf2_string_key          = 0x000001,
-    sf2_int_key             = 0x000004,
-    sf2_zip_record          = 0x000010,
-    sf2_cipher_record       = 0x000020,
-    sf2_save_md_in_record   = 0x000040,     // save md in record file too
-    sf2_t_ms                = 0x000100,     // record time in miliseconds
-    sf2_tm_ms               = 0x000200,     // message time in miliseconds
-    sf2_no_record_disk      = 0x001000,
-    sf2_loading_from_disk   = 0x010000,
-    sf2_soft_deleted_record = 0x020000,     // old sf_mark1
-    sf2_hard_deleted_record = 0x800000,
+    sf2_string_key          = 0x0001,
+    sf2_int_key             = 0x0004,
+    sf2_zip_record          = 0x0010,
+    sf2_cipher_record       = 0x0020,
+    sf2_save_md_in_record   = 0x0040,     // save md in record's file too
+    sf2_t_ms                = 0x0100,     // record time in miliseconds
+    sf2_tm_ms               = 0x0200,     // message time in miliseconds
+    sf2_no_record_disk      = 0x1000,
 } system_flag2_t;
 
-#define get_system_flag(md_record) (((md_record->__tm__) & 0x0ffffff000000000ULL) >> 36)
-#define get_user_flag(md_record) (((md_record->__t__) & 0x0ffffff000000000ULL) >> 36)
+#define get_user_flag(md_record) (((md_record->__t__) & 0x0ffff00000000000ULL) >> 44)
 #define get_time_t(md_record) ((md_record->__t__) & TIME_MASK)
 #define get_time_tm(md_record) ((md_record->__tm__) & TIME_MASK)
 
