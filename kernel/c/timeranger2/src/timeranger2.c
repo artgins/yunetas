@@ -893,9 +893,9 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
     kw_get_dict(gobj, topic, "wr_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
-    kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
+    //kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
-    kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
+    kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE); // TODO sobra?
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
 
     /*
@@ -3751,18 +3751,26 @@ PRIVATE int load_cache(
     );
 
     json_t *jn_keys = find_keys_in_disk(gobj, full_path, NULL);
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, KW_REQUIRED);
+    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
     if(!topic_cache) {
-        json_decref(jn_keys);
-        return -1;
+        /*
+         *  Create cache
+         */
+        topic_cache = kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
+
+        int idx; json_t *jn_key;
+        json_array_foreach(jn_keys, idx, jn_key) {
+            const char *key = json_string_value(jn_key);
+            json_t *t_range = get_time_range(gobj, directory, key);
+            json_object_set_new(topic_cache, key, t_range);
+        }
+    } else {
+        /*
+         *  Update cache
+         */
+        // TODO
     }
 
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        json_t *t_range = get_time_range(gobj, directory, key);
-        json_object_set_new(topic_cache, key, t_range);
-    }
 
     JSON_DECREF(jn_keys)
     return 0;
