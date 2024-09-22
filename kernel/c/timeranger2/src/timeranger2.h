@@ -120,11 +120,11 @@ typedef struct { // Size: 96 bytes
 #define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
 #define USER_FLAG_MASK  0x0FFFF00000000000ULL
 
-static inline uint64_t get_user_flag(const md2_record_t *md_record) {
-    return (md_record->__t__ & USER_FLAG_MASK) >> 44;
+static inline uint32_t get_user_flag(const md2_record_t *md_record) {
+    return (uint32_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
 }
-static inline uint64_t get_system_flag(const md2_record_t *md_record) {
-    return (md_record->__tm__ & USER_FLAG_MASK) >> 44;
+static inline uint32_t get_system_flag(const md2_record_t *md_record) {
+    return (uint32_t)((md_record->__tm__ & USER_FLAG_MASK) >> 44);
 }
 static inline uint64_t get_time_t(const md2_record_t *md_record) {
     return md_record->__t__ & TIME_FLAG_MASK;
@@ -138,7 +138,7 @@ static inline void set_user_flag(md2_record_t *md_record, uint64_t user_flag) {
     md_record->__t__ &= ~USER_FLAG_MASK;
 
     // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
-    md_record->__t__ |= (user_flag & 0xFFFFF) << 44;
+    md_record->__t__ |= (user_flag & 0xFFFF) << 44;
 }
 
 static inline void set_system_flag(md2_record_t *md_record, uint64_t user_flag) {
@@ -146,7 +146,7 @@ static inline void set_system_flag(md2_record_t *md_record, uint64_t user_flag) 
     md_record->__tm__ &= ~USER_FLAG_MASK;
 
     // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
-    md_record->__tm__ |= (user_flag & 0xFFFFF) << 44;
+    md_record->__tm__ |= (user_flag & 0xFFFF) << 44;
 }
 
 static inline void set_time_t(md2_record_t *md_record, uint64_t time_val) {

@@ -41,7 +41,10 @@ PRIVATE int global_result = 0;
 PRIVATE uint64_t leidos_by_disk = 0;
 PRIVATE json_int_t counter_rowid_by_disk = 0;
 PRIVATE json_int_t last_rowid_by_disk = 0;
+PRIVATE uint64_t first_t_by_disk = 0;
+PRIVATE uint64_t first_tm_by_disk = 0;
 PRIVATE uint64_t last_t_by_disk = 0;
+PRIVATE uint64_t last_tm_by_disk = 0;
 PRIVATE json_t *callback_data_by_disk = 0;
 
 PRIVATE yev_event_t *yev_timer_finish_error = 0;
@@ -61,6 +64,13 @@ PRIVATE int rt_disk_record_callback(
     counter_rowid_by_disk++;
     last_rowid_by_disk = rowid;
     last_t_by_disk = get_time_t(md_record);
+    last_tm_by_disk = get_time_tm(md_record);
+
+    system_flag2_t system_flag = get_system_flag(md_record);
+    if(system_flag & sf2_loading_from_disk) {
+        first_t_by_disk = get_time_t(md_record);
+        first_tm_by_disk = get_time_tm(md_record);
+    }
 
     if(pinta_md) {
         char temp[1024];
@@ -163,7 +173,7 @@ PRIVATE int do_test(json_t *tranger)
 
         MT_START_TIME(time_measure)
 
-        uint64_t t1 = 946774800; // TODO coge el ultimo t1, identifica en el callback si es from-disk
+        uint64_t t1 = first_t_by_disk; // coge el ultimo t1 de disco
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {

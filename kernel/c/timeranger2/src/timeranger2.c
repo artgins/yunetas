@@ -2633,7 +2633,7 @@ PUBLIC int tranger2_append_record(
                     json_object_get(list, "load_record_callback")
                 );
 
-            set_user_flag(md_record, sf2_loading_from_disk);
+            set_system_flag(md_record, sf2_loading_from_disk);
 
             if(load_record_callback) {
                 // Inform to the user list: record from memory in real time
