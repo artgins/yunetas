@@ -127,7 +127,13 @@ PRIVATE int close_fd_wr_files(
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
 PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *key);
-PRIVATE json_t *update_key_cache_totals(hgobj gobj, json_t *topic_cache);
+PRIVATE json_t *create_file_cache(
+    hgobj gobj,
+    const char *directory,
+    const char *key,
+    const char *filename
+);
+PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic_cache);
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
@@ -3889,168 +3895,8 @@ PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *
     );
     for(int i=0; i<files_md_size; i++) {
         char *filename = files_md[i];
-        md2_record_t md_first_record;
-        md2_record_t md_last_record;
-        build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
-        int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
-        if(fd<0) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open md2 file",
-                "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            continue;
-        }
-
-        /*
-         *  Read first record
-         */
-        ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
-        if(ln == sizeof(md_first_record)) {
-            md_first_record.__t__ = ntohll(md_first_record.__t__);
-            md_first_record.__tm__ = ntohll(md_first_record.__tm__);
-            md_first_record.__offset__ = ntohll(md_first_record.__offset__);
-            md_first_record.__size__ = ntohll(md_first_record.__size__);
-        } else {
-            if(ln<0) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", full_path,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            } else if(ln==0) {
-                // No data
-            }
-            close(fd);
-            continue;
-        }
-
-        /*
-         *  Seek the last record
-         */
-        off64_t offset = lseek64(fd, 0, SEEK_END);
-        if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot read last record, md2 file corrupted",
-                "path",         "%s", full_path,
-                "offset",       "%ld", (long)offset,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            close(fd);
-            continue;
-        }
-        if(offset == 0) {
-            // No records
-            close(fd);
-            continue;
-        }
-
-        uint64_t partial_rows = offset/sizeof(md2_record_t);
-
-        /*
-         *  Read last record
-         */
-        offset -= sizeof(md2_record_t);
-        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
-        if(offset2 < 0 || offset2 != offset) {
-            gobj_log_critical(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-            close(fd);
-            continue;
-        }
-
-        ln = read(fd, &md_last_record, sizeof(md_last_record));
-        if(ln == sizeof(md_last_record)) {
-            md_last_record.__t__ = ntohll(md_last_record.__t__);
-            md_last_record.__tm__ = ntohll(md_last_record.__tm__);
-            md_last_record.__offset__ = ntohll(md_last_record.__offset__);
-            md_last_record.__size__ = ntohll(md_last_record.__size__);
-        } else {
-            if(ln<0) {
-                gobj_log_critical(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot read md2 file",
-                    "path",         "%s", full_path,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            } else if(ln==0) {
-                // No data
-            }
-            close(fd);
-            continue;
-        }
-
-        uint64_t partial_from_t = (uint64_t)(-1);
-        uint64_t partial_to_t = 0;
-        uint64_t partial_from_tm = (uint64_t)(-1);
-        uint64_t partial_to_tm = 0;
-
-        if(md_first_record.__t__ < partial_from_t) {
-            partial_from_t = md_first_record.__t__;
-        }
-        if(md_first_record.__t__ > partial_to_t) {
-            partial_to_t = md_first_record.__t__;
-        }
-
-        if(md_first_record.__tm__ < partial_from_tm) {
-            partial_from_tm = md_first_record.__tm__;
-        }
-        if(md_first_record.__tm__ > partial_to_tm) {
-            partial_to_tm = md_first_record.__tm__;
-        }
-
-        if(md_last_record.__t__ < partial_from_t) {
-            partial_from_t = md_last_record.__t__;
-        }
-        if(md_last_record.__t__ > partial_to_t) {
-            partial_to_t = md_last_record.__t__;
-        }
-
-        if(md_last_record.__tm__ < partial_from_tm) {
-            partial_from_tm = md_last_record.__tm__;
-        }
-        if(md_last_record.__tm__ > partial_to_tm) {
-            partial_to_tm = md_last_record.__tm__;
-        }
-
-        char *p = strrchr(filename, '.');    // save file name without extension
-        if(p) {
-            *p = 0;
-        }
-        json_t *partial_range = json_object();
-        json_object_set_new(partial_range, "id", json_string(filename));
-        if(p) {
-            *p = '.';
-        }
-
-        json_object_set_new(partial_range, "fr_t", json_integer((json_int_t)partial_from_t));
-        json_object_set_new(partial_range, "to_t", json_integer((json_int_t)partial_to_t));
-        json_object_set_new(partial_range, "fr_tm", json_integer((json_int_t)partial_from_tm));
-        json_object_set_new(partial_range, "to_tm", json_integer((json_int_t)partial_to_tm));
-        json_object_set_new(partial_range, "rows", json_integer((json_int_t)partial_rows));
-
-        uint64_t modify_time = get_modify_time_ns(gobj, fd);
-        json_object_set_new(partial_range, "wr_time", json_integer((json_int_t)modify_time));
-
-        json_array_append_new(cache_files, partial_range);
-
-        close(fd);
+        json_t *file_cache = create_file_cache(gobj, directory, key, filename);
+        json_array_append_new(cache_files, file_cache);
     }
 
     free_ordered_filename_array(files_md, files_md_size);
@@ -4061,9 +3907,184 @@ PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *create_file_cache(
+    hgobj gobj,
+    const char *directory,
+    const char *key,
+    const char *filename
+)
+{
+    char full_path[PATH_MAX];
+
+    md2_record_t md_first_record;
+    md2_record_t md_last_record;
+    build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
+    int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+    if(fd<0) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot open md2 file",
+            "path",         "%s", full_path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return NULL;
+    }
+
+    /*
+     *  Read first record
+     */
+    ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
+    if(ln == sizeof(md_first_record)) {
+        md_first_record.__t__ = ntohll(md_first_record.__t__);
+        md_first_record.__tm__ = ntohll(md_first_record.__tm__);
+        md_first_record.__offset__ = ntohll(md_first_record.__offset__);
+        md_first_record.__size__ = ntohll(md_first_record.__size__);
+    } else {
+        if(ln<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read md2 file",
+                "path",         "%s", full_path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        } else if(ln==0) {
+            // No data
+        }
+        close(fd);
+        return NULL;
+    }
+
+    /*
+     *  Seek the last record
+     */
+    off64_t offset = lseek64(fd, 0, SEEK_END);
+    if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot read last record, md2 file corrupted",
+            "path",         "%s", full_path,
+            "offset",       "%ld", (long)offset,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        close(fd);
+        return NULL;
+    }
+    if(offset == 0) {
+        // No records
+        close(fd);
+        return NULL;
+    }
+
+    uint64_t file_rows = offset/sizeof(md2_record_t);
+
+    /*
+     *  Read last record
+     */
+    offset -= sizeof(md2_record_t);
+    off64_t offset2 = lseek64(fd, offset, SEEK_SET);
+    if(offset2 < 0 || offset2 != offset) {
+        gobj_log_critical(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read last record, lseek64() FAILED",
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        close(fd);
+        return NULL;
+    }
+
+    ln = read(fd, &md_last_record, sizeof(md_last_record));
+    if(ln == sizeof(md_last_record)) {
+        md_last_record.__t__ = ntohll(md_last_record.__t__);
+        md_last_record.__tm__ = ntohll(md_last_record.__tm__);
+        md_last_record.__offset__ = ntohll(md_last_record.__offset__);
+        md_last_record.__size__ = ntohll(md_last_record.__size__);
+    } else {
+        if(ln<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read md2 file",
+                "path",         "%s", full_path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        } else if(ln==0) {
+            // No data
+        }
+        close(fd);
+        return NULL;
+    }
+
+    uint64_t file_from_t = (uint64_t)(-1);
+    uint64_t file_to_t = 0;
+    uint64_t file_from_tm = (uint64_t)(-1);
+    uint64_t file_to_tm = 0;
+
+    if(md_first_record.__t__ < file_from_t) {
+        file_from_t = md_first_record.__t__;
+    }
+    if(md_first_record.__t__ > file_to_t) {
+        file_to_t = md_first_record.__t__;
+    }
+
+    if(md_first_record.__tm__ < file_from_tm) {
+        file_from_tm = md_first_record.__tm__;
+    }
+    if(md_first_record.__tm__ > file_to_tm) {
+        file_to_tm = md_first_record.__tm__;
+    }
+
+    if(md_last_record.__t__ < file_from_t) {
+        file_from_t = md_last_record.__t__;
+    }
+    if(md_last_record.__t__ > file_to_t) {
+        file_to_t = md_last_record.__t__;
+    }
+
+    if(md_last_record.__tm__ < file_from_tm) {
+        file_from_tm = md_last_record.__tm__;
+    }
+    if(md_last_record.__tm__ > file_to_tm) {
+        file_to_tm = md_last_record.__tm__;
+    }
+
+    char *p = strrchr(filename, '.');    // save file name without extension
+    if(p) {
+        *p = 0;
+    }
+    json_t *file_cache = json_object();
+    json_object_set_new(file_cache, "id", json_string(filename));
+    if(p) {
+        *p = '.';
+    }
+
+    json_object_set_new(file_cache, "fr_t", json_integer((json_int_t)file_from_t));
+    json_object_set_new(file_cache, "to_t", json_integer((json_int_t)file_to_t));
+    json_object_set_new(file_cache, "fr_tm", json_integer((json_int_t)file_from_tm));
+    json_object_set_new(file_cache, "to_tm", json_integer((json_int_t)file_to_tm));
+    json_object_set_new(file_cache, "rows", json_integer((json_int_t)file_rows));
+
+    uint64_t modify_time = get_modify_time_ns(gobj, fd);
+    json_object_set_new(file_cache, "wr_time", json_integer((json_int_t)modify_time));
+    close(fd);
+
+    return file_cache;
+}
+
+/***************************************************************************
  *  Update totals of a key
  ***************************************************************************/
-PRIVATE json_t *update_key_cache_totals(hgobj gobj, json_t *key_cache)
+PRIVATE int update_key_cache_totals(hgobj gobj, json_t *key_cache)
 {
     uint64_t total_rows = 0;
     uint64_t global_from_t = (uint64_t)(-1);
@@ -4118,7 +4139,7 @@ PRIVATE json_t *update_key_cache_totals(hgobj gobj, json_t *key_cache)
     json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
     json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
 
-    return total_range;
+    return 0;
 }
 
 /***************************************************************************
