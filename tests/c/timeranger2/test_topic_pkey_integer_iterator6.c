@@ -60,7 +60,7 @@ PRIVATE int rt_disk_record_callback(
     leidos_by_disk++;
     counter_rowid_by_disk++;
     last_rowid_by_disk = rowid;
-    last_t_by_disk = md_record->__t__;
+    last_t_by_disk = get_time_t(md_record);
 
     if(pinta_md) {
         char temp[1024];

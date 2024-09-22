@@ -1209,7 +1209,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
         tranger,
         topic,
         FALSE,
-        (system_flag & sf2_t_ms)? md_record->__t__/1000 : md_record->__t__
+        (system_flag & sf2_t_ms)? get_time_t(md_record)/1000 : get_time_t(md_record)
     );
     snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
 
@@ -2210,8 +2210,8 @@ PRIVATE json_t *md2json(
 {
     json_t *jn_md = json_object();
     json_object_set_new(jn_md, "rowid", json_integer(rowid));
-    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
-    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)get_time_t(md_record)));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
     json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record->__offset__));
     json_object_set_new(jn_md, "size", json_integer((json_int_t)md_record->__size__));
 //  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(user_flag));
@@ -6513,7 +6513,7 @@ PRIVATE json_t *read_record_content(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Bad data, anystring2json() FAILED.",
                 "topic",        "%s", tranger2_topic_name(topic),
-                "__t__",        "%lu", (unsigned long)md_record->__t__,
+                "__t__",        "%lu", (unsigned long)get_time_t(md_record),
                 "__size__",     "%lu", (unsigned long)md_record->__size__,
                 "__offset__",   "%lu", (unsigned long)md_record->__offset__,
                 NULL
@@ -6544,23 +6544,25 @@ PUBLIC void tranger2_print_md0_record(
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
 
     if(system_flag & sf2_t_ms) {
-        time_t t = (time_t)md_record->__t__;
+        time_t t = (time_t)get_time_t(md_record);
         t /= 1000;
         strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
     } else {
+        uint64_t t = get_time_t(md_record);
         strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z",
-            localtime((time_t *)&md_record->__t__)
+            localtime((time_t *)&t)
         );
     }
 
     char fecha_tm[80];
     if(system_flag & sf2_tm_ms) {
-        time_t t_m = (time_t)md_record->__tm__;
+        time_t t_m = (time_t)get_time_tm(md_record);
         t_m /= 1000;
         strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S%z", gmtime(&t_m));
     } else {
+        uint64_t t = get_time_t(md_record);
         strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%S%z",
-            gmtime((time_t *)&md_record->__tm__)
+            gmtime((time_t *)&t)
         );
     }
 
@@ -6573,9 +6575,9 @@ PUBLIC void tranger2_print_md0_record(
             "tm:%"PRIu64" %s, "
             "key: %s",
             (uint64_t)rowid,
-            (uint64_t)md_record->__t__,
+            (uint64_t)get_time_t(md_record),
             fecha,
-            (uint64_t)md_record->__tm__,
+            (uint64_t)get_time_tm(md_record),
             fecha_tm,
             key
         );
@@ -6612,26 +6614,28 @@ PUBLIC void tranger2_print_md1_record(
     unsigned user_flag = 0; // TODO
 
     if(system_flag & sf2_t_ms) {
-        time_t t = (time_t)md_record->__t__;
+        time_t t = (time_t)get_time_t(md_record);
         unsigned ms = t % 1000;
         t /= 1000;
         tm = gmtime(&t);
         strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
         snprintf(fecha, sizeof(fecha), "%s.%03uZ", stamp, ms);
     } else {
-        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&md_record->__t__));
+        uint64_t t = get_time_t(md_record);
+        strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&t));
     }
 
     char fecha_tm[80];
     if(system_flag & sf2_tm_ms) {
-        time_t t_m = (time_t)md_record->__tm__;
+        time_t t_m = (time_t)get_time_tm(md_record);
         unsigned ms = t_m % 1000;
         time_t t_m_ = t_m/1000;
         tm = gmtime(&t_m_);
         strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S", tm);
         snprintf(fecha_tm, sizeof(fecha_tm), "%s.%03uZ", stamp, ms);
     } else {
-        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&md_record->__tm__));
+        uint64_t tm_ = get_time_tm(md_record);
+        strftime(fecha_tm, sizeof(fecha_tm), "%Y-%m-%dT%H:%M:%SZ", gmtime((time_t *)&tm_));
     }
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
@@ -6646,9 +6650,9 @@ PUBLIC void tranger2_print_md1_record(
             (uint64_t)rowid,
             user_flag,
             system_flag,
-            (uint64_t)md_record->__t__,
+            (uint64_t)get_time_t(md_record),
             fecha,
-            (uint64_t)md_record->__tm__,
+            (uint64_t)get_time_tm(md_record),
             fecha_tm,
             key
         );
@@ -6679,7 +6683,7 @@ PUBLIC void tranger2_print_md2_record(
 {
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
 
-    time_t t = (time_t)md_record->__t__;
+    time_t t = (time_t)get_time_t(md_record);
     uint64_t offset = md_record->__offset__;
     uint64_t size = md_record->__size__;
 
@@ -6718,7 +6722,7 @@ PUBLIC void tranger2_print_record_filename(
 {
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
 
-    time_t t = (time_t)md_record->__t__;
+    time_t t = (time_t)get_time_t(md_record);
     get_t_filename(
         bf,
         bfsize,
