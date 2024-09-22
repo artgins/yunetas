@@ -208,7 +208,7 @@ PRIVATE int update_new_records(
     const char *key,
     const char *md2
 );
-PRIVATE json_t *find_cache_segment(
+PRIVATE json_t *find_cache_file(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3563,16 +3563,25 @@ PRIVATE int update_new_records(
         FALSE
     );
     if(fd<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot update cache and publish new records",
+            NULL
+        );
         return -1;
     }
 
-    json_t *cache_segment = find_cache_segment(
+    json_t *cache_file = find_cache_file(
         gobj,
         tranger,
         topic,
         key,
         file_id
     );
+    if(!cache_file) {
+        // Update cache
+    }
 
     // See in the segments of iterator the segment matching the file .md2
     // Calculate the difference and publish
@@ -3777,9 +3786,9 @@ PRIVATE int load_cache(
 }
 
 /***************************************************************************
- *  Get modify time of a file in nanoseconds
+ *
  ***************************************************************************/
-PRIVATE json_t *find_cache_segment(
+PRIVATE json_t *find_cache_file(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3787,7 +3796,45 @@ PRIVATE json_t *find_cache_segment(
     const char *file_id
 )
 {
+    json_t *topic_cache = json_object_get(topic, "cache");
+    if(!topic_cache) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "cache NULL",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return NULL;
+    }
 
+    // "cache`%s`files", key
+    json_t *cache_files = json_object_get(json_object_get(topic_cache, key), "files");
+    if(!cache_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache files",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return NULL;
+    }
+
+    if (json_array_size(cache_files) == 0) {
+        return NULL;
+    }
+
+    json_int_t cur_file = (json_int_t)json_array_size(cache_files) - 1;
+    json_t *cache_file = json_array_get(cache_files, cur_file);
+
+    const char *file_id_ = json_string_value(json_object_get(cache_file, "id"));
+    if(strcmp(file_id, file_id_)!=0) {
+        return NULL;
+    }
+    return cache_file;
 }
 
 /***************************************************************************
