@@ -81,6 +81,30 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
+PRIVATE int get_topic_rd_fd(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    BOOL for_data
+);
+PRIVATE int get_topic_wr_fd( // optimized
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    BOOL for_data,
+    uint64_t __t__
+);
+static inline char *get_t_filename(
+    char *bf,
+    int bfsize,
+    json_t *tranger,
+    json_t *topic,
+    BOOL for_data,  // TRUE for data, FALSE for md2
+    uint64_t __t__ // WARNING must be in seconds!
+);
 PRIVATE int get_md_record_for_wr(
     hgobj gobj,
     json_t *tranger,
@@ -176,13 +200,13 @@ PRIVATE int mater_to_update_client_load_record_callback(
     md2_record_t *md_record,
     json_t *record      // must be owned
 );
-static inline char *get_t_filename(
-    char *bf,
-    int bfsize,
+PRIVATE int update_new_records(
+    hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    BOOL for_data,  // TRUE for data, FALSE for md2
-    uint64_t __t__ // WARNING must be in seconds!
+    json_t *iterator,
+    const char *key,
+    const char *md2
 );
 
 
@@ -1743,13 +1767,6 @@ static inline char *get_t_filename(
     struct tm *tm = gmtime((time_t *)&__t__);
 
     char format[NAME_MAX];
-    //const char *filename_mask = kw_get_str(
-    //    gobj,
-    //    topic,
-    //    "filename_mask",
-    //    kw_get_str(gobj, tranger, "filename_mask", "%Y-%m-%d", KW_REQUIRED),
-    //    0
-    //);
     const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
     if(empty_string(filename_mask)) {
         filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
@@ -1985,7 +2002,7 @@ PRIVATE int get_topic_rd_fd(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *segment,
+    const char *file_id,
     BOOL for_data
 )
 {
@@ -2001,8 +2018,8 @@ PRIVATE int get_topic_rd_fd(
     /*-----------------------------*
      *      Check file
      *-----------------------------*/
-    const char *name = json_string_value(json_object_get(segment, "id"));
-    snprintf(filename, sizeof(filename), "%s.%s", name, for_data?"json":"md2");
+    //const char *file_id = json_string_value(json_object_get(segment, "id"));
+    snprintf(filename, sizeof(filename), "%s.%s", file_id, for_data?"json":"md2");
 
     int fd = (int)json_integer_value(
         json_object_get(
@@ -3380,10 +3397,10 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
 
             printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
-                char *key = pop_last_segment(full_path);
-                char *rt_id = pop_last_segment(full_path);
+                pop_last_segment(full_path);    // char *key =
+                pop_last_segment(full_path);    // char *rt_id =
                 char *disks = pop_last_segment(full_path);
-                char *topic_name = pop_last_segment(full_path);
+                //pop_last_segment(full_path);    // char *topic_name =
 
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
@@ -3430,6 +3447,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
                 char *topic_name = pop_last_segment(full_path);
+                json_t *topic = tranger2_topic(tranger,topic_name);
 
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
@@ -3442,64 +3460,28 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     );
                     break;
                 }
-                json_t *rt = tranger2_get_rt_disk_by_id(tranger, rt_id);
-                if(!rt) {
+                json_t *iterator = tranger2_get_iterator_by_id(tranger, rt_id);
+                if(!iterator) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "rt disk NOT FOUND",
+                        "msg",          "%s", "iterator NOT FOUND",
                         "topic_name",   "%s", topic_name,
                         "rt_id",        "%s", rt_id,
                         NULL
                     );
-                    print_json2("rt disk NOT FOUND", tranger);
+                    print_json2("iterator NOT FOUND", tranger);
                     break;
                 }
-                // TODO read md2
 
-                /*
-                    The last record of files  - {topic}/cache/{key}/files/[{r}] -
-                    has the last record appended.
-                        {
-                            "id": "2000-01-03",
-                            "fr_t": 946857600,
-                            "to_t": 946864799,
-                            "fr_tm": 946857600,
-                            "to_tm": 946864799,
-                            "rows": 226651,
-                            "wr_time": 1726943703371895964
-                        }
-
-                    Here, with the information of master in the file, we know:
-                        - {topic} (topic_name)
-                        - {key}
-                        - md2 (filename .md2) without his extension is the id of the [{r}]
-
-                    Find the segment, normally will be the last segment:
-                        - If the id of the last segment matchs with the md2,
-                            see the rows of the new md2,
-                            see the difference and load the new records and publish.
-                        - If the id of the last segment doesn't match with md2,
-                            do a full reload of the cache segments
-                            (or only news segments, see how to use the wr_time to
-                            tpdate only what is necessary)
-
-                            IT'S necessary to load and publish only the new records!
-                            !!! How are you going to repeats records to the client? You fool? !!!
-
-                 */
-
-                // Open the .md2 and .json file
-
-
-                // See in the segments of iterator the segment matching the file .md2
-                // Calculate the difference and publish
-
-                // Update the cache
-                // Publish to all iterators that are new data.
-
-                // NEW function: update_cache(),    load_cache(), update_cache()
-
+                update_new_records(
+                    gobj,
+                    tranger,
+                    topic,
+                    iterator,
+                    key,
+                    md2
+                );
             }
             break;
         case FS_FILE_DELETED_TYPE:
@@ -3516,6 +3498,71 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             break;
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *
+    The last record of files  - {topic}/cache/{key}/files/[{r}] -
+    has the last record appended.
+        {
+            "id": "2000-01-03",
+            "fr_t": 946857600,
+            "to_t": 946864799,
+            "fr_tm": 946857600,
+            "to_tm": 946864799,
+            "rows": 226651,
+            "wr_time": 1726943703371895964
+        }
+
+    Here, with the information of master in the file, we know:
+        - {topic} (topic_name)
+        - {key}
+        - md2 (filename .md2) without his extension is the id of the [{r}]
+
+    Find the segment, normally will be the last segment:
+        - If the id of the last segment matchs with the md2,
+            see the rows of the new md2,
+            see the difference and load the new records and publish.
+        - If the id of the last segment doesn't match with md2,
+            do a full reload of the cache segments
+            (or only news segments, see how to use the wr_time to
+            tpdate only what is necessary)
+
+            IT'S necessary to load and publish only the new records!
+            !!! How are you going to repeats records to the client? You fool? !!!
+
+ ***************************************************************************/
+PRIVATE int update_new_records(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    json_t *iterator,
+    const char *key,
+    const char *md2
+)
+{
+    // Open the .md2 and .json file
+    int fd = get_topic_rd_fd(
+        gobj,
+        tranger,
+        topic,
+        key,
+        0, // TODO segment,
+        FALSE
+    );
+    if(fd<0) {
+        return -1;
+    }
+
+
+    // See in the segments of iterator the segment matching the file .md2
+    // Calculate the difference and publish
+
+    // Update the cache
+    // Publish to all iterators that are new data.
+
+    // NEW function: update_cache(),    load_cache(), update_cache()
     return 0;
 }
 
@@ -5967,12 +6014,13 @@ PRIVATE int get_md_by_rowid(
     /*
      *  Get file handler
      */
+    const char *file_id = json_string_value(json_object_get(segment, "id"));
     int fd = get_topic_rd_fd(
         gobj,
         tranger,
         topic,
         key,
-        segment,
+        file_id,
         FALSE
     );
     if(fd<0) {
@@ -6062,12 +6110,13 @@ PRIVATE json_t *read_record_content(
     /*
      *  Get file handler
      */
+    const char *file_id = json_string_value(json_object_get(segment, "id"));
     int fd = get_topic_rd_fd(
         gobj,
         tranger,
         topic,
         key,
-        segment,
+        file_id,
         TRUE
     );
     if(fd<0) {

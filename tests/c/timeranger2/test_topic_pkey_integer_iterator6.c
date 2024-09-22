@@ -253,7 +253,7 @@ print_json2("ANTES", tranger); // TODO TEST
             }
         }
 
-print_json2("DESPUES", tranger); // TODO TEST
+//print_json2("DESPUES", tranger); // TODO TEST
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
