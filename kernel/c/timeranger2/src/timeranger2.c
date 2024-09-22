@@ -53,7 +53,7 @@ PRIVATE const char *sf_names[16+1] = {
     "",                         // 0x0400
     "",                         // 0x0800
     "sf2_no_record_disk",       // 0x1000
-    "",                         // 0x2000
+    "sf2_loading_from_disk",    // 0x2000
     "",                         // 0x4000
     "",                         // 0x8000
     0
@@ -2623,8 +2623,10 @@ PUBLIC int tranger2_append_record(
                     json_object_get(list, "load_record_callback")
                 );
 
+            set_user_flag(md_record, sf2_loading_from_disk);
+
             if(load_record_callback) {
-                // Inform to the user list: record in real time
+                // Inform to the user list: record from memory in real time
                 load_record_callback(
                     tranger,
                     topic,
@@ -3681,8 +3683,11 @@ PRIVATE int publish_new_rt_disk_records(
                     (tranger2_load_record_callback_t)(size_t)json_integer_value(
                         json_object_get(disk, "load_record_callback")
                     );
+
+                set_user_flag(&md_record, sf2_loading_from_disk);
+
                 if(load_record_callback) {
-                    // Inform to the user list: record in real time
+                    // Inform to the user list: record from disk in real time
                     const char *id = json_string_value(json_object_get(disk, "id"));
                     load_record_callback(
                         tranger,
@@ -4414,7 +4419,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     }
                 }
 
-                // Inform to the user list
+                // Inform to the user list, historic
                 if(load_record_callback) {
                     int ret = load_record_callback(
                         tranger,

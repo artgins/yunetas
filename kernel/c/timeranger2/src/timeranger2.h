@@ -91,8 +91,6 @@ extern "C"{
 /***************************************************************
  *              Structures  timeranger2
  ***************************************************************/
-#define TIME_MASK   0x00000FFFFFFFFFFF  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
-
 #define KEY_TYPE_MASK2        0x000F
 
 typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
@@ -104,11 +102,8 @@ typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf2_t_ms                = 0x0100,     // record time in miliseconds
     sf2_tm_ms               = 0x0200,     // message time in miliseconds
     sf2_no_record_disk      = 0x1000,
+    sf2_loading_from_disk   = 0x2000,
 } system_flag2_t;
-
-#define get_user_flag(md_record) (((md_record->__t__) & 0x0ffff00000000000ULL) >> 44)
-#define get_time_t(md_record) ((md_record->__t__) & TIME_MASK)
-#define get_time_tm(md_record) ((md_record->__tm__) & TIME_MASK)
 
 #pragma pack(1)
 
@@ -121,6 +116,37 @@ typedef struct { // Size: 96 bytes
 } md2_record_t;
 
 #pragma pack()
+
+#define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
+#define USER_FLAG_MASK  0x0ffff00000000000ULL
+
+#define get_user_flag(md_record) (((md_record->__t__) & USER_FLAG_MASK) >> 44)
+#define get_time_t(md_record) ((md_record->__t__) & TIME_FLAG_MASK)
+#define get_time_tm(md_record) ((md_record->__tm__) & TIME_FLAG_MASK)
+
+static inline void set_user_flag(md2_record_t *md_record, uint64_t user_flag) {
+    // Clear the user flag bits (44-59) in md_record->__t__
+    md_record->__t__ &= ~USER_FLAG_MASK;
+
+    // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
+    md_record->__t__ |= (user_flag & 0xFFFFF) << 44;
+}
+
+static inline void set_time_t(md2_record_t *md_record, uint64_t time_val) {
+    // Clear the bits corresponding to TIME_FLAG_MASK in md_record->__t__
+    md_record->__t__ &= ~TIME_FLAG_MASK;
+
+    // Set the new time value (masked) into __t__
+    md_record->__t__ |= (time_val & TIME_FLAG_MASK);
+}
+static inline void set_time_tm(md2_record_t *md_record, uint64_t time_val) {
+    // Clear the bits corresponding to TIME_FLAG_MASK in md_record->__tm__
+    md_record->__tm__ &= ~TIME_FLAG_MASK;
+
+    // Set the new time value (masked) into __tm__
+    md_record->__tm__ |= (time_val & TIME_FLAG_MASK);
+}
+
 
 /***************************************************************
  *              Prototypes
