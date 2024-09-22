@@ -147,6 +147,14 @@ PRIVATE int update_key_cache_totals(
 );
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
+PRIVATE json_t *get_segments(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *match_cond, // NOT owned but can be modified
+    BOOL *realtime
+);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
     json_t *tranger,
@@ -156,19 +164,20 @@ PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     uint64_t rowid,
     md2_record_t *md_record
 );
-PRIVATE json_t *get_segments(
+PRIVATE int read_md(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *match_cond, // NOT owned but can be modified
-    BOOL *realtime
+    const char *file_id,
+    uint64_t rowid,
+    md2_record_t *md_record
 );
 PRIVATE json_t *read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *segment,
+    const char *file_id,
     md2_record_t *md_record
 );
 PRIVATE json_int_t first_segment_row(
@@ -238,7 +247,7 @@ PRIVATE int update_new_records(
     const char *key,
     const char *md2
 );
-PRIVATE int publish_disk_records(
+PRIVATE int publish_new_rt_disk_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3602,7 +3611,7 @@ PRIVATE int update_new_records(
     );
 
     // Publish new data to iterator
-    publish_disk_records(gobj, tranger, topic, key, cur_cache_file, new_cache_file);
+    publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_file, new_cache_file);
 
     /*
      *  Update cache
@@ -3634,7 +3643,7 @@ PRIVATE int update_new_records(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int publish_disk_records(
+PRIVATE int publish_new_rt_disk_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3648,9 +3657,33 @@ PRIVATE int publish_disk_records(
     json_array_foreach(disks, idx, disk) {
         const char *key_ = kw_get_str(gobj, disk, "key", "", 0);
         if(empty_string(key_) || strcmp(key_, key)==0) {
-            json_int_t from_rowid = json_integer_value(json_object_get(old_cache_file, "rows")) + 1;
+            json_int_t from_rowid = json_integer_value(json_object_get(old_cache_file, "rows"));
             json_int_t to_rowid = json_integer_value(json_object_get(new_cache_file, "rows"));
-            printf("PUBLISH from %d to %d\n", (int)from_rowid, (int)to_rowid);
+            const char *file_id = json_string_value(json_object_get(new_cache_file, "id"));
+
+            for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {
+                md2_record_t md_record;
+                read_md(
+                    gobj,
+                    tranger,
+                    topic,
+                    key,
+                    file_id,
+                    rowid,
+                    &md_record
+                );
+                json_t *record = read_record_content(
+                    tranger,
+                    topic,
+                    key,
+                    file_id,
+                    &md_record
+                );
+
+                // TODO Callback to iterators
+
+                JSON_DECREF(record)
+            }
         }
     }
 
@@ -4357,13 +4390,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
 
             if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
+                const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
                 if(!only_md) {
                     record = read_record_content(
                         tranger,
                         topic,
                         key,
-                        segment,
+                        file_id,
                         &md_record
                     );
                     if(record) {
@@ -4667,11 +4701,12 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
         }
 
         if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
+            const char *file_id = json_string_value(json_object_get(segment, "id"));
             json_t *record = read_record_content(
                 tranger,
                 topic,
                 key,
-                segment,
+                file_id,
                 &md_record
             );
             if(record) {
@@ -5712,11 +5747,12 @@ PUBLIC int tranger2_iterator_first(
     }
 
     if(record) {
+        const char *file_id = json_string_value(json_object_get(segment, "id"));
         *record = read_record_content(
             tranger,
             topic,
             key,
-            segment,
+            file_id,
             md_record
         );
     }
@@ -5863,11 +5899,12 @@ PUBLIC int tranger2_iterator_next(
     }
 
     if(record) {
+        const char *file_id = json_string_value(json_object_get(segment, "id"));
         *record = read_record_content(
             tranger,
             topic,
             key,
-            segment,
+            file_id,
             md_record
         );
     }
@@ -6019,11 +6056,12 @@ PUBLIC int tranger2_iterator_prev(
     }
 
     if(record) {
+        const char *file_id = json_string_value(json_object_get(segment, "id"));
         *record = read_record_content(
             tranger,
             topic,
             key,
-            segment,
+            file_id,
             md_record
         );
     }
@@ -6135,11 +6173,12 @@ PUBLIC int tranger2_iterator_last(
     }
 
     if(record) {
+        const char *file_id = json_string_value(json_object_get(segment, "id"));
         *record = read_record_content(
             tranger,
             topic,
             key,
-            segment,
+            file_id,
             md_record
         );
     }
@@ -6221,22 +6260,6 @@ PRIVATE int get_md_by_rowid(
         return -1;
     }
 
-    /*
-     *  Get file handler
-     */
-    const char *file_id = json_string_value(json_object_get(segment, "id"));
-    int fd = get_topic_rd_fd(
-        gobj,
-        tranger,
-        topic,
-        key,
-        file_id,
-        FALSE
-    );
-    if(fd<0) {
-        return -1;
-    }
-
     json_int_t relative_rowid = (json_int_t)rowid - first_rowid;
     if(relative_rowid < 0) {
         gobj_log_critical(gobj, 0,
@@ -6253,9 +6276,62 @@ PRIVATE int get_md_by_rowid(
         );
         gobj_trace_json(gobj, segment,  "Cannot read record metadata, relative_rowid negative");
         return -1;
-
     }
-    off64_t offset = (off64_t) (relative_rowid * sizeof(md2_record_t));
+
+    /*
+     *  Get file handler
+     */
+    const char *file_id = json_string_value(json_object_get(segment, "id"));
+
+    return read_md(
+        gobj,
+        tranger,
+        topic,
+        key,
+        file_id,
+        relative_rowid,
+        md_record
+    );
+}
+
+/***************************************************************************
+ *  Get md record by rowid
+ *  A segment represents a file .json / .md2
+ *
+ *  Requirements:
+ *      rowid belongs to the segment
+ *  Internally
+ ***************************************************************************/
+PRIVATE int read_md(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id,
+    uint64_t rowid,
+    md2_record_t *md_record
+)
+{
+    /*
+     *  TODO Find in the cache the range md
+     */
+
+    /*
+     *  Get file handler
+     */
+    int fd = get_topic_rd_fd(
+        gobj,
+        tranger,
+        topic,
+        key,
+        file_id,
+        FALSE
+    );
+    if(fd<0) {
+        return -1;
+    }
+
+    off64_t offset = (off64_t) (rowid * sizeof(md2_record_t));
     off64_t offset_ = lseek64(fd, offset, SEEK_SET);
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
@@ -6288,8 +6364,6 @@ PRIVATE int get_md_by_rowid(
             "errno",        "%s", strerror(errno),
             NULL
         );
-        gobj_trace_json(gobj, segment,  "Cannot read record metadata, read FAILED");
-        gobj_trace_json(gobj, topic,  "topic"); // TODO remove
         return -1;
     }
 
@@ -6308,7 +6382,7 @@ PRIVATE json_t *read_record_content(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *segment,
+    const char *file_id,
     md2_record_t *md_record
 )
 {
@@ -6320,7 +6394,7 @@ PRIVATE json_t *read_record_content(
     /*
      *  Get file handler
      */
-    const char *file_id = json_string_value(json_object_get(segment, "id"));
+    //const char *file_id = json_string_value(json_object_get(segment, "id"));
     int fd = get_topic_rd_fd(
         gobj,
         tranger,
