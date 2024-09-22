@@ -83,7 +83,7 @@ PRIVATE int rt_disk_record_callback(
             temp,
             sizeof(temp)
         );
-        printf("BY DISK: %s\n", temp);
+        //printf("BY DISK: %s\n", temp);
     }
     if(pinta_records) {
         print_json2("DISK record", record);
@@ -174,6 +174,15 @@ PRIVATE int do_test(json_t *tranger)
         MT_START_TIME(time_measure)
 
         uint64_t t1 = first_t_by_disk; // coge el ultimo t1 de disco
+        if(last_t_by_disk != 946774799 || last_tm_by_disk != 946774799 ) {
+            result += -1;
+            printf("%sERROR%s --> bad first t, expected %lu, found %lu\n", On_Red BWhite, Color_Off,
+                (unsigned long)946774799,
+                (unsigned long)last_t_by_disk
+            );
+        }
+        t1++;   // begin by the next
+
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {
@@ -196,9 +205,12 @@ PRIVATE int do_test(json_t *tranger)
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
 
-        if(last_t_by_disk != 946864799) {
+        if(last_t_by_disk != 946864799 || last_tm_by_disk != 946864799 ) {
             result += -1;
-            printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "bad time by disk");
+            printf("%sERROR%s --> bad last t, expected %lu, found %lu\n", On_Red BWhite, Color_Off,
+                (unsigned long)946864799,
+                (unsigned long)last_t_by_disk
+            );
         } else {
             printf("%sOK%s --> %s\n", On_Green BWhite, Color_Off, "times by disk");
 
