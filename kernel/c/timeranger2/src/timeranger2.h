@@ -121,6 +121,7 @@ typedef struct { // Size: 96 bytes
 #define USER_FLAG_MASK  0x0ffff00000000000ULL
 
 #define get_user_flag(md_record) (((md_record->__t__) & USER_FLAG_MASK) >> 44)
+#define get_system_flag(md_record) (((md_record->__tm__) & USER_FLAG_MASK) >> 44)
 #define get_time_t(md_record) ((md_record->__t__) & TIME_FLAG_MASK)
 #define get_time_tm(md_record) ((md_record->__tm__) & TIME_FLAG_MASK)
 
@@ -130,6 +131,14 @@ static inline void set_user_flag(md2_record_t *md_record, uint64_t user_flag) {
 
     // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
     md_record->__t__ |= (user_flag & 0xFFFFF) << 44;
+}
+
+static inline void set_system_flag(md2_record_t *md_record, uint64_t user_flag) {
+    // Clear the user flag bits (44-59) in md_record->__t__
+    md_record->__tm__ &= ~USER_FLAG_MASK;
+
+    // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
+    md_record->__tm__ |= (user_flag & 0xFFFFF) << 44;
 }
 
 static inline void set_time_t(md2_record_t *md_record, uint64_t time_val) {

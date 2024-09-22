@@ -1804,6 +1804,16 @@ static inline char *get_t_filename(
 )
 {
     struct tm *tm = gmtime((time_t *)&__t__);
+    if(!tm) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gmtime() FAILED",
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return NULL;
+    }
 
     char format[NAME_MAX];
     const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
