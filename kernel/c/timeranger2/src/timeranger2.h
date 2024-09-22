@@ -493,7 +493,8 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *match_cond,  // owned
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
-    json_t *data    // JSON array, if not empty, fills it with the LOADING data, not owned
+    json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
+    json_t *options     // "Disk-exclusive" the output is only for us. Don't broadcast to others.
 );
 
 /**rst**
