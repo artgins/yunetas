@@ -126,7 +126,9 @@ PRIVATE int close_fd_wr_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key);
+PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *key);
+PRIVATE json_t *update_key_cache_totals(hgobj gobj, json_t *topic_cache);
+
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
@@ -3770,8 +3772,8 @@ PRIVATE int load_cache(
         int idx; json_t *jn_key;
         json_array_foreach(jn_keys, idx, jn_key) {
             const char *key = json_string_value(jn_key);
-            json_t *t_range = get_time_range(gobj, directory, key);
-            json_object_set_new(topic_cache, key, t_range);
+            json_t *key_cache = create_key_cache(gobj, directory, key);
+            json_object_set_new(topic_cache, key, key_cache);
         }
     } else {
         /*
@@ -3867,17 +3869,13 @@ PRIVATE uint64_t get_modify_time_ns(hgobj gobj, int fd)
 /***************************************************************************
  *  Get range time of a key
  ***************************************************************************/
-PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *key)
+PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *key)
 {
-    uint64_t total_rows = 0;
-    uint64_t global_from_t = (uint64_t)(-1);
-    uint64_t global_to_t = 0;
-    uint64_t global_from_tm = (uint64_t)(-1);
-    uint64_t global_to_tm = 0;
     char full_path[PATH_MAX];
 
-    json_t *t_range = json_object();
-    json_t *t_range_files = kw_get_dict(gobj, t_range, "files", json_array(), KW_CREATE);
+    json_t *key_cache = json_object();
+    json_t *cache_files = kw_get_list(gobj, key_cache, "files", json_array(), KW_CREATE);
+    kw_get_dict(gobj, key_cache, "total", json_object(), KW_CREATE);
 
     build_path(full_path, sizeof(full_path), directory, "keys", key, NULL);
 
@@ -3998,34 +3996,6 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
             continue;
         }
 
-        if(md_first_record.__t__ < global_from_t) {
-            global_from_t = md_first_record.__t__;
-        }
-        if(md_first_record.__t__ > global_to_t) {
-            global_to_t = md_first_record.__t__;
-        }
-
-        if(md_first_record.__tm__ < global_from_tm) {
-            global_from_tm = md_first_record.__tm__;
-        }
-        if(md_first_record.__tm__ > global_to_tm) {
-            global_to_tm = md_first_record.__tm__;
-        }
-
-        if(md_last_record.__t__ < global_from_t) {
-            global_from_t = md_last_record.__t__;
-        }
-        if(md_last_record.__t__ > global_to_t) {
-            global_to_t = md_last_record.__t__;
-        }
-
-        if(md_last_record.__tm__ < global_from_tm) {
-            global_from_tm = md_last_record.__tm__;
-        }
-        if(md_last_record.__tm__ > global_to_tm) {
-            global_to_tm = md_last_record.__tm__;
-        }
-
         uint64_t partial_from_t = (uint64_t)(-1);
         uint64_t partial_to_t = 0;
         uint64_t partial_from_tm = (uint64_t)(-1);
@@ -4078,23 +4048,77 @@ PRIVATE json_t *get_time_range(hgobj gobj, const char *directory, const char *ke
         uint64_t modify_time = get_modify_time_ns(gobj, fd);
         json_object_set_new(partial_range, "wr_time", json_integer((json_int_t)modify_time));
 
-        json_array_append_new(t_range_files, partial_range);
-
-        total_rows += partial_rows;
+        json_array_append_new(cache_files, partial_range);
 
         close(fd);
     }
 
     free_ordered_filename_array(files_md, files_md_size);
 
-    json_t *total_range = kw_get_dict(gobj, t_range, "total", json_object(), KW_CREATE);
+    update_key_cache_totals(gobj, key_cache);
+
+    return key_cache;
+}
+
+/***************************************************************************
+ *  Update totals of a key
+ ***************************************************************************/
+PRIVATE json_t *update_key_cache_totals(hgobj gobj, json_t *key_cache)
+{
+    uint64_t total_rows = 0;
+    uint64_t global_from_t = (uint64_t)(-1);
+    uint64_t global_to_t = 0;
+    uint64_t global_from_tm = (uint64_t)(-1);
+    uint64_t global_to_tm = 0;
+
+
+    // "cache`%s`files", key
+    json_t *cache_files = json_object_get(key_cache, "files");
+
+    int idx; json_t *cache_file;
+    json_array_foreach(cache_files, idx, cache_file) {
+        json_int_t fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
+        json_int_t to_t = json_integer_value(json_object_get(cache_file, "to_t"));
+        json_int_t fr_tm = json_integer_value(json_object_get(cache_file, "fr_tm"));
+        json_int_t to_tm = json_integer_value(json_object_get(cache_file, "to_tm"));
+        json_int_t rows = json_integer_value(json_object_get(cache_file, "rows"));
+
+        if(fr_t < global_from_t) {
+            global_from_t = fr_t;
+        }
+        if(fr_t > global_to_t) {
+            global_to_t = fr_t;
+        }
+        if(fr_tm < global_from_tm) {
+            global_from_tm = fr_tm;
+        }
+        if(fr_tm > global_to_tm) {
+            global_to_tm = fr_tm;
+        }
+        if(to_t < global_from_t) {
+            global_from_t = to_t;
+        }
+        if(to_t > global_to_t) {
+            global_to_t = to_t;
+        }
+        if(to_tm < global_from_tm) {
+            global_from_tm = to_tm;
+        }
+        if(to_tm > global_to_tm) {
+            global_to_tm = to_tm;
+        }
+
+        total_rows += rows;
+    }
+
+    json_t *total_range = json_object_get(key_cache, "total");
     json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
     json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
     json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
     json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
     json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
 
-    return t_range;
+    return total_range;
 }
 
 /***************************************************************************
