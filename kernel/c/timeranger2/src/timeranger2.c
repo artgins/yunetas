@@ -126,12 +126,12 @@ PRIVATE int close_fd_wr_files(
 );
 
 PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *key);
-PRIVATE json_t *create_file_cache(
+PRIVATE json_t *load_key_cache(hgobj gobj, const char *directory, const char *key);
+PRIVATE json_t *load_file_cache(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *filename
+    const char *filename    // md2 filename with extension
 );
 PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic_cache);
 
@@ -216,7 +216,7 @@ PRIVATE int update_new_records(
     const char *key,
     const char *md2
 );
-PRIVATE json_t *find_cache_file(
+PRIVATE json_t *find_file_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3546,7 +3546,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
         - If the id of the last segment doesn't match with md2,
             do a full reload of the cache segments
             (or only news segments, see how to use the wr_time to
-            tpdate only what is necessary)
+            update only what is necessary)
 
             IT'S necessary to load and publish only the new records!
             !!! How are you going to repeats records to the client? You fool? !!!
@@ -3561,43 +3561,68 @@ PRIVATE int update_new_records(
     const char *file_id
 )
 {
-    // Open the .md2
-    int fd = get_topic_rd_fd(
-        gobj,
-        tranger,
-        topic,
-        key,
-        file_id,
-        FALSE
-    );
-    if(fd<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Cannot update cache and publish new records",
-            NULL
-        );
-        return -1;
-    }
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
+//    // Open the .md2
+//    int fd = get_topic_rd_fd(
+//        gobj,
+//        tranger,
+//        topic,
+//        key,
+//        file_id,
+//        FALSE
+//    );
+//    if(fd<0) {
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//            "msg",          "%s", "Cannot update cache and publish new records",
+//            NULL
+//        );
+//        return -1;
+//    }
 
-    json_t *cache_file = find_cache_file(
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.md2", file_id);
+    json_t *new_cache_file = load_file_cache(
+        gobj,
+        directory,
+        key,
+        filename
+    );
+
+    json_t *cur_cache_file = find_file_cache(
         gobj,
         tranger,
         topic,
         key,
         file_id
     );
-    if(!cache_file) {
-        // Update cache
-    }
 
+    // Publish to all iterators that are new data.
+    // TODO callback all
     // See in the segments of iterator the segment matching the file .md2
     // Calculate the difference and publish
 
-    // Update the cache
-    // Publish to all iterators that are new data.
+    /*
+     *  Update cache
+     */
+    if(!cur_cache_file) {
+        // Update cache
+        json_t *cache_files = json_object_get(
+            json_object_get(
+                json_object_get(
+                    topic,
+                    "cache"
+                ),
+                key
+            ),
+            "files"
+        );
+        json_array_append_new(cache_files, new_cache_file);
+    } else {
+        json_object_update_new(cur_cache_file, new_cache_file);
+    }
 
-    // NEW function: update_cache(),    load_cache(), update_cache()
     return 0;
 }
 
@@ -3755,13 +3780,12 @@ PRIVATE json_t *find_keys_in_disk(
  *      keys with its range of time available
  *  IDEMPOTENT
  ***************************************************************************/
-PRIVATE int load_cache(
+PRIVATE int load_topic_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic
 ) {
-    // TODO this cache must be update in tranger2_append_record() ???!!!
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
     char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/keys",
         directory
@@ -3778,7 +3802,7 @@ PRIVATE int load_cache(
         int idx; json_t *jn_key;
         json_array_foreach(jn_keys, idx, jn_key) {
             const char *key = json_string_value(jn_key);
-            json_t *key_cache = create_key_cache(gobj, directory, key);
+            json_t *key_cache = load_key_cache(gobj, directory, key);
             json_object_set_new(topic_cache, key, key_cache);
         }
     } else {
@@ -3796,7 +3820,7 @@ PRIVATE int load_cache(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *find_cache_file(
+PRIVATE json_t *find_file_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -3804,21 +3828,17 @@ PRIVATE json_t *find_cache_file(
     const char *file_id
 )
 {
-    json_t *topic_cache = json_object_get(topic, "cache");
-    if(!topic_cache) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "cache NULL",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
-        return NULL;
-    }
-
     // "cache`%s`files", key
-    json_t *cache_files = json_object_get(json_object_get(topic_cache, key), "files");
+    json_t *cache_files = json_object_get(
+        json_object_get(
+            json_object_get(
+                topic,
+                "cache"
+            ),
+            key
+        ),
+        "files"
+    );
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3875,7 +3895,7 @@ PRIVATE uint64_t get_modify_time_ns(hgobj gobj, int fd)
 /***************************************************************************
  *  Get range time of a key
  ***************************************************************************/
-PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *key)
+PRIVATE json_t *load_key_cache(hgobj gobj, const char *directory, const char *key)
 {
     char full_path[PATH_MAX];
 
@@ -3895,7 +3915,7 @@ PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *
     );
     for(int i=0; i<files_md_size; i++) {
         char *filename = files_md[i];
-        json_t *file_cache = create_file_cache(gobj, directory, key, filename);
+        json_t *file_cache = load_file_cache(gobj, directory, key, filename);
         json_array_append_new(cache_files, file_cache);
     }
 
@@ -3909,11 +3929,11 @@ PRIVATE json_t *create_key_cache(hgobj gobj, const char *directory, const char *
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *create_file_cache(
+PRIVATE json_t *load_file_cache(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *filename
+    const char *filename    // md2 filename with extension
 )
 {
     char full_path[PATH_MAX];
@@ -4024,6 +4044,8 @@ PRIVATE json_t *create_file_cache(
         close(fd);
         return NULL;
     }
+    uint64_t modify_time = get_modify_time_ns(gobj, fd);
+    close(fd);
 
     uint64_t file_from_t = (uint64_t)(-1);
     uint64_t file_to_t = 0;
@@ -4074,9 +4096,7 @@ PRIVATE json_t *create_file_cache(
     json_object_set_new(file_cache, "to_tm", json_integer((json_int_t)file_to_tm));
     json_object_set_new(file_cache, "rows", json_integer((json_int_t)file_rows));
 
-    uint64_t modify_time = get_modify_time_ns(gobj, fd);
     json_object_set_new(file_cache, "wr_time", json_integer((json_int_t)modify_time));
-    close(fd);
 
     return file_cache;
 }
@@ -4093,7 +4113,6 @@ PRIVATE int update_key_cache_totals(hgobj gobj, json_t *key_cache)
     uint64_t global_to_tm = 0;
 
 
-    // "cache`%s`files", key
     json_t *cache_files = json_object_get(key_cache, "files");
 
     int idx; json_t *cache_file;
@@ -4195,7 +4214,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
-    load_cache(gobj, tranger, topic);  // idempotent
+    load_topic_cache(gobj, tranger, topic);  // idempotent
 
     BOOL realtime;
     json_t *segments = get_segments(
