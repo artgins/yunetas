@@ -125,15 +125,26 @@ PRIVATE int close_fd_wr_files(
     const char *key
 );
 
-PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item);
-PRIVATE json_t *load_key_cache(hgobj gobj, const char *directory, const char *key);
+PRIVATE int json_array_find_idx(
+    json_t *jn_list,
+    json_t *item
+);
+PRIVATE json_t *load_key_cache(
+    hgobj gobj,
+    const char *directory,
+    const char *key
+);
 PRIVATE json_t *load_file_cache(
     hgobj gobj,
     const char *directory,
     const char *key,
     const char *filename    // md2 filename with extension
 );
-PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic_cache);
+PRIVATE int update_key_cache_totals(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+);
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
@@ -224,7 +235,6 @@ PRIVATE int update_new_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    json_t *iterator,
     const char *key,
     const char *md2
 );
@@ -233,8 +243,8 @@ PRIVATE int publish_disk_records(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *iterator,
-    json_t *updated_cache_file
+    json_t *old_cache_file,
+    json_t *new_cache_file
 );
 
 
@@ -1172,6 +1182,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     char full_path_orig[PATH_MAX];
 
     // (4) MONITOR update directory /disks/rt_id/ on new records
+    // TODO perhaps /rt_id/ is not necessary ?
     // Create a hard link of md2 file
     json_t *rt = tranger2_get_rt_mem_by_id(tranger, rt_id);
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
@@ -3510,7 +3521,6 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     gobj,
                     tranger,
                     topic,
-                    iterator,
                     key,
                     md2
                 );
@@ -3569,7 +3579,6 @@ PRIVATE int update_new_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    json_t *iterator,
     const char *key,
     const char *file_id
 )
@@ -3592,6 +3601,9 @@ PRIVATE int update_new_records(
         file_id
     );
 
+    // Publish new data to iterator
+    publish_disk_records(gobj, tranger, topic, key, cur_cache_file, new_cache_file);
+
     /*
      *  Update cache
      */
@@ -3608,17 +3620,13 @@ PRIVATE int update_new_records(
             "files"
         );
         json_array_append_new(cache_files, new_cache_file);
-        cur_cache_file = new_cache_file;
     } else {
         json_object_update_new(cur_cache_file, new_cache_file);
     }
-
-    // Publish new data to iterator
-    publish_disk_records(gobj, tranger, topic, key, iterator, cur_cache_file);
+    update_key_cache_totals(gobj, topic, key);
 
     // Mark cache as new data available to others iterators.
     // TODO
-
 
     return 0;
 }
@@ -3631,10 +3639,21 @@ PRIVATE int publish_disk_records(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *iterator,
-    json_t *updated_cache_file
+    json_t *old_cache_file,
+    json_t *new_cache_file
 )
 {
+    json_t *disks = json_object_get(topic, "disks");
+    int idx; json_t *disk;
+    json_array_foreach(disks, idx, disk) {
+        const char *key_ = kw_get_str(gobj, disk, "key", "", 0);
+        if(empty_string(key_) || strcmp(key_, key)==0) {
+            json_int_t from_rowid = json_integer_value(json_object_get(old_cache_file, "rows")) + 1;
+            json_int_t to_rowid = json_integer_value(json_object_get(new_cache_file, "rows"));
+            printf("PUBLISH from %d to %d\n", (int)from_rowid, (int)to_rowid);
+        }
+    }
+
     return 0;
 }
 
@@ -3816,6 +3835,7 @@ PRIVATE int load_topic_cache(
             const char *key = json_string_value(jn_key);
             json_t *key_cache = load_key_cache(gobj, directory, key);
             json_object_set_new(topic_cache, key, key_cache);
+            update_key_cache_totals(gobj, topic, key);
         }
     } else {
         /*
@@ -3823,7 +3843,6 @@ PRIVATE int load_topic_cache(
          */
         // TODO
     }
-
 
     JSON_DECREF(jn_keys)
     return 0;
@@ -3930,10 +3949,7 @@ PRIVATE json_t *load_key_cache(hgobj gobj, const char *directory, const char *ke
         json_t *file_cache = load_file_cache(gobj, directory, key, filename);
         json_array_append_new(cache_files, file_cache);
     }
-
     free_ordered_filename_array(files_md, files_md_size);
-
-    update_key_cache_totals(gobj, key_cache);
 
     return key_cache;
 }
@@ -4116,16 +4132,37 @@ PRIVATE json_t *load_file_cache(
 /***************************************************************************
  *  Update totals of a key
  ***************************************************************************/
-PRIVATE int update_key_cache_totals(hgobj gobj, json_t *key_cache)
+PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic, const char *key)
 {
+    // "cache`%s`files", key
+    json_t *cache_files = json_object_get(
+        json_object_get(
+            json_object_get(
+                topic,
+                "cache"
+            ),
+            key
+        ),
+        "files"
+    );
+    if(!cache_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache files",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
+    }
+
     uint64_t total_rows = 0;
     uint64_t global_from_t = (uint64_t)(-1);
     uint64_t global_to_t = 0;
     uint64_t global_from_tm = (uint64_t)(-1);
     uint64_t global_to_tm = 0;
 
-
-    json_t *cache_files = json_object_get(key_cache, "files");
 
     int idx; json_t *cache_file;
     json_array_foreach(cache_files, idx, cache_file) {
@@ -4163,7 +4200,17 @@ PRIVATE int update_key_cache_totals(hgobj gobj, json_t *key_cache)
         total_rows += rows;
     }
 
-    json_t *total_range = json_object_get(key_cache, "total");
+    json_t *total_range = json_object_get(
+        json_object_get(
+            json_object_get(
+                topic,
+                "cache"
+            ),
+            key
+        ),
+        "total"
+    );
+
     json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
     json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
     json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
