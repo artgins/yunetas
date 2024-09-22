@@ -208,6 +208,13 @@ PRIVATE int update_new_records(
     const char *key,
     const char *md2
 );
+PRIVATE json_t *find_cache_segment(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+);
 
 
 /***************************************************************
@@ -3474,6 +3481,10 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     break;
                 }
 
+                char *p = strrchr(md2, '.'); // pass file_id
+                if(p) {
+                    *p =0;
+                }
                 update_new_records(
                     gobj,
                     tranger,
@@ -3539,22 +3550,29 @@ PRIVATE int update_new_records(
     json_t *topic,
     json_t *iterator,
     const char *key,
-    const char *md2
+    const char *file_id
 )
 {
-    // Open the .md2 and .json file
+    // Open the .md2
     int fd = get_topic_rd_fd(
         gobj,
         tranger,
         topic,
         key,
-        0, // TODO segment,
+        file_id,
         FALSE
     );
     if(fd<0) {
         return -1;
     }
 
+    json_t *cache_segment = find_cache_segment(
+        gobj,
+        tranger,
+        topic,
+        key,
+        file_id
+    );
 
     // See in the segments of iterator the segment matching the file .md2
     // Calculate the difference and publish
@@ -3720,7 +3738,7 @@ PRIVATE json_t *find_keys_in_disk(
  *      keys with its range of time available
  *  IDEMPOTENT
  ***************************************************************************/
-PRIVATE int load_topic_metadata(
+PRIVATE int load_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic
@@ -3748,6 +3766,20 @@ PRIVATE int load_topic_metadata(
 
     JSON_DECREF(jn_keys)
     return 0;
+}
+
+/***************************************************************************
+ *  Get modify time of a file in nanoseconds
+ ***************************************************************************/
+PRIVATE json_t *find_cache_segment(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+)
+{
+
 }
 
 /***************************************************************************
@@ -4063,7 +4095,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     /*-----------------------------------------*
      *      Load keys and metadata from disk
      *-----------------------------------------*/
-    load_topic_metadata(gobj, tranger, topic);  // idempotent
+    load_cache(gobj, tranger, topic);  // idempotent
 
     BOOL realtime;
     json_t *segments = get_segments(
