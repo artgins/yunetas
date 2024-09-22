@@ -2619,14 +2619,19 @@ PUBLIC int tranger2_append_record(
         const char *key_ = json_string_value(json_object_get(list, "key"));
         if(empty_string(key_) || strcmp(key_, key_value)==0) {
             const char *id = json_string_value(json_object_get(list, "id"));
+//            tranger2_load_record_callback_t load_record_callback =
+//                (tranger2_load_record_callback_t)(size_t)kw_get_int(
+//                gobj,
+//                list,
+//                "load_record_callback",
+//                0,
+//                KW_REQUIRED
+//            );
             tranger2_load_record_callback_t load_record_callback =
-                (tranger2_load_record_callback_t)(size_t)kw_get_int(
-                gobj,
-                list,
-                "load_record_callback",
-                0,
-                KW_REQUIRED
-            );
+                (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                    json_object_get(list, "load_record_callback")
+                );
+
             if(load_record_callback) {
                 // Inform to the user list: record in real time
                 load_record_callback(
@@ -3653,38 +3658,55 @@ PRIVATE int publish_new_rt_disk_records(
 )
 {
     json_t *disks = json_object_get(topic, "disks");
-    int idx; json_t *disk;
-    json_array_foreach(disks, idx, disk) {
-        const char *key_ = kw_get_str(gobj, disk, "key", "", 0);
-        if(empty_string(key_) || strcmp(key_, key)==0) {
-            json_int_t from_rowid = json_integer_value(json_object_get(old_cache_file, "rows"));
-            json_int_t to_rowid = json_integer_value(json_object_get(new_cache_file, "rows"));
-            const char *file_id = json_string_value(json_object_get(new_cache_file, "id"));
 
-            for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {
-                md2_record_t md_record;
-                read_md(
-                    gobj,
-                    tranger,
-                    topic,
-                    key,
-                    file_id,
-                    rowid,
-                    &md_record
-                );
-                json_t *record = read_record_content(
-                    tranger,
-                    topic,
-                    key,
-                    file_id,
-                    &md_record
-                );
+    json_int_t from_rowid = json_integer_value(json_object_get(old_cache_file, "rows"));
+    json_int_t to_rowid = json_integer_value(json_object_get(new_cache_file, "rows"));
+    const char *file_id = json_string_value(json_object_get(new_cache_file, "id"));
 
-                // TODO Callback to iterators
+    for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {
+        md2_record_t md_record;
+        read_md(
+            gobj,
+            tranger,
+            topic,
+            key,
+            file_id,
+            rowid,
+            &md_record
+        );
+        json_t *record = read_record_content(
+            tranger,
+            topic,
+            key,
+            file_id,
+            &md_record
+        );
 
-                JSON_DECREF(record)
+        int idx; json_t *disk;
+        json_array_foreach(disks, idx, disk) {
+            const char *key_ = json_string_value(json_object_get(disk, "key"));
+            if(empty_string(key_) || strcmp(key_, key)==0) {
+                tranger2_load_record_callback_t load_record_callback =
+                    (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                        json_object_get(disk, "load_record_callback")
+                    );
+                if(load_record_callback) {
+                    // Inform to the user list: record in real time
+                    const char *id = json_string_value(json_object_get(disk, "id"));
+                    load_record_callback(
+                        tranger,
+                        topic,
+                        key,
+                        id,
+                        rowid,
+                        &md_record,
+                        json_incref(record)
+                    );
+                }
             }
         }
+
+        JSON_DECREF(record)
     }
 
     return 0;
@@ -3780,11 +3802,11 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
-        json_t *lists = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
+        json_t *disks = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
         int idx; json_t *disk;
-        json_array_foreach(lists, idx, disk) {
-            const char *list_id = kw_get_str(gobj, disk, "id", "", 0);
-            if(strcmp(id, list_id)==0) {
+        json_array_foreach(disks, idx, disk) {
+            const char *disk_id = kw_get_str(gobj, disk, "id", "", 0);
+            if(strcmp(id, disk_id)==0) {
                 return disk;
             }
         }
