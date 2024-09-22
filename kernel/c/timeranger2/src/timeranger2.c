@@ -4340,15 +4340,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         &realtime
     );
 
-// TODO hay que borrar el directorio de disks/ que pertenezca a este rt
-//        if(realtime) {
-//            BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-//            BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-//            if(!master) {
-//                rt_by_mem = FALSE;
-//            }
-
-
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
     json_object_set_new(iterator, "key", json_string(key));
@@ -4439,7 +4430,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         topic,
                         key,    // key
                         iterator_id,
-                        rowid,   // rowid
+                        rowid,  // rowid
                         &md_record,
                         json_incref(record) // must be owned
                     );
