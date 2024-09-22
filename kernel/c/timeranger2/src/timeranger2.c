@@ -184,6 +184,18 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     json_t *match_cond  // not owned, uses "key" and "rkey"
 );
+PRIVATE int load_topic_cache(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic
+);
+PRIVATE json_t *find_file_cache(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    const char *file_id
+);
 PRIVATE fs_event_t *monitor_disks_directory_by_master(
     hgobj gobj,
     yev_loop_t *yev_loop,
@@ -216,12 +228,13 @@ PRIVATE int update_new_records(
     const char *key,
     const char *md2
 );
-PRIVATE json_t *find_file_cache(
+PRIVATE int publish_disk_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *file_id
+    json_t *iterator,
+    json_t *updated_cache_file
 );
 
 
@@ -3562,25 +3575,6 @@ PRIVATE int update_new_records(
 )
 {
     const char *directory = json_string_value(json_object_get(topic, "directory"));
-//    // Open the .md2
-//    int fd = get_topic_rd_fd(
-//        gobj,
-//        tranger,
-//        topic,
-//        key,
-//        file_id,
-//        FALSE
-//    );
-//    if(fd<0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "Cannot update cache and publish new records",
-//            NULL
-//        );
-//        return -1;
-//    }
-
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.md2", file_id);
     json_t *new_cache_file = load_file_cache(
@@ -3598,11 +3592,6 @@ PRIVATE int update_new_records(
         file_id
     );
 
-    // Publish to all iterators that are new data.
-    // TODO callback all
-    // See in the segments of iterator the segment matching the file .md2
-    // Calculate the difference and publish
-
     /*
      *  Update cache
      */
@@ -3619,10 +3608,33 @@ PRIVATE int update_new_records(
             "files"
         );
         json_array_append_new(cache_files, new_cache_file);
+        cur_cache_file = new_cache_file;
     } else {
         json_object_update_new(cur_cache_file, new_cache_file);
     }
 
+    // Publish new data to iterator
+    publish_disk_records(gobj, tranger, topic, key, iterator, cur_cache_file);
+
+    // Mark cache as new data available to others iterators.
+    // TODO
+
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int publish_disk_records(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *iterator,
+    json_t *updated_cache_file
+)
+{
     return 0;
 }
 
