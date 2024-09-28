@@ -215,7 +215,8 @@ PRIVATE int do_test(void)
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
             NULL,                   // id
-            NULL                    // data
+            NULL,                   // data
+            NULL                    // options
         );
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
@@ -328,7 +329,8 @@ PRIVATE int do_test(void)
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
             NULL,                   // id
-            NULL                    // data
+            NULL,                   // data
+            NULL                    // options
         );
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")

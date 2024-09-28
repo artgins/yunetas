@@ -131,7 +131,8 @@ PRIVATE int search_data(
         match_cond,             // match_cond, owned
         load_rango_callback,    // load_record_callback
         NULL,                   // id
-        data                    // data
+        data,                   // data
+        NULL                    // options
     );
 
     MT_INCREMENT_COUNT(time_measure, ROWS_EXPECTED)

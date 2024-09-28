@@ -142,6 +142,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
         "it1",
+        NULL,
         NULL
     );
 
@@ -169,7 +170,8 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
         NULL,   // id
-        NULL    // data
+        NULL,   // data
+        NULL    // options
     );
 
     if(tm != 946774799) {
@@ -216,7 +218,8 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // id
-        NULL    // data
+        NULL,   // data
+        NULL    // options
     );
     if(iterator22) {
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Repeat iterator must be null");

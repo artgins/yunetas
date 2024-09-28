@@ -494,7 +494,7 @@ PUBLIC json_t *tranger2_open_iterator(
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
-    json_t *options     // TODO "Disk-exclusive" the output is only for us. Don't broadcast to others.
+    json_t *options     // owned TODO "Disk-exclusive" the output is only for us. Don't broadcast to others.
     // TODO check the return equal like append_record, break if return -1???
 );
 

@@ -118,7 +118,8 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // iterator id
-        NULL    // data
+        NULL,   // data
+        NULL    // options
     );
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)

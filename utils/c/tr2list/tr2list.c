@@ -552,7 +552,8 @@ PRIVATE int list_messages(void)
             json_incref(match_cond),  // owned
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key
-            NULL    // JSON array, if not empty, fills it with the LOADING data, not owned
+            NULL,   // JSON array, if not empty, fills it with the LOADING data, not owned
+            NULL    // options
         );
         if(tr_list) {
             tranger2_close_iterator(tranger, tr_list);

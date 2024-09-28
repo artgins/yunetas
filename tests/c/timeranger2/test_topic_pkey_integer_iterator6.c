@@ -149,7 +149,8 @@ PRIVATE int do_test(json_t *tranger)
             match_cond,             // match_cond, owned
             rt_disk_record_callback, // load_record_callback
             "it_by_disk",           // id
-            NULL                    // data
+            NULL,                   // data
+            NULL                    // options
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
@@ -213,17 +214,17 @@ PRIVATE int do_test(json_t *tranger)
             );
         } else {
             printf("%sOK%s --> %s\n", On_Green BWhite, Color_Off, "times by disk");
-
-            yev_stop_event(yev_timer_finish_error);
-            yev_destroy_event(yev_timer_finish_error);
-            yev_timer_finish_error = 0;
-            yev_timer_finish_ok = yev_create_timer_event(
-                yev_loop, yev_timer_finish_ok_callback, tranger
-            );
-            yev_start_timer_event(yev_timer_finish_ok, 100, FALSE);
         }
 
         result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+        yev_stop_event(yev_timer_finish_error);
+        yev_destroy_event(yev_timer_finish_error);
+        yev_timer_finish_error = 0;
+        yev_timer_finish_ok = yev_create_timer_event(
+            yev_loop, yev_timer_finish_ok_callback, tranger
+        );
+        yev_start_timer_event(yev_timer_finish_ok, 100, FALSE);
 
 //        print_json2("iterator by disk opened 2", tranger);
     }
