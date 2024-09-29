@@ -60,7 +60,7 @@ set(CONFIG_H_CONTENT
  *  Automatically generated file. DO NOT EDIT.
  *  Use 'kconfig-mconf Kconfig' or 'kconfig-nconf Kconfig' in Yuneta source code directory.
  *
- *  Copyright (c) 2013, Niyamaka <niyamaka@yuneta.io>
+ *  Copyright (c) 2024, ArtGins
  */
 #pragma once
 
@@ -77,13 +77,13 @@ file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${CONFIG_H_CONTENT})
 #   Generate yuneta_version.h from YUNETA_VERSION
 #-----------------------------------------------------#
 set(CONFIG_H_CONTENT
-    [=[
+[=[
 /*
  *  Yuneta Version
  *  Automatically generated file. DO NOT EDIT.
  *  Set version in YUNETA_VERSION file
  *
- *  Copyright (c) 2013, Niyamaka <niyamaka@yuneta.io>
+ *  Copyright (c) 2024, ArtGins
  */
 #pragma once
 

@@ -37,6 +37,7 @@ set (HDRS
     src/yunetas_environment.h
     src/yunetas_ev_loop.h
     src/fs_watcher.h
+    src/yunetas.h
 )
 
 
