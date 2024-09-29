@@ -228,6 +228,10 @@ typedef void (*fnfree)(void *);
 #define MSGSET_OPERATIONAL_ERROR        "Operational error"
 #define MSGSET_SMACHINE_ERROR           "SMachine error"
 #define MSGSET_PROTOCOL_ERROR           "Protocol error"
+#define MSGSET_APP_ERROR                "App error"
+#define MSGSET_SERVICE_ERROR            "Service error"
+#define MSGSET_TASK_ERROR               "Task error"
+#define MSGSET_CONFIGURATION_ERROR      "Configuration error"
 
 // Info/Debug MSGSETs
 #define MSGSET_STATISTICS               "Statistics"

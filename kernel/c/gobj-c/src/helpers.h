@@ -323,6 +323,12 @@ PUBLIC int get_real_precision(void);
 
 
 /**rst**
+    Any json to indented string
+    Remember gbmem_free the returned string
+**rst**/
+PUBLIC char *json2str(const json_t *jn); // jn not owned
+
+/**rst**
     Any json to ugly (non-tabular) string
     Remember gbmem_free the returned string
 **rst**/

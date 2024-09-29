@@ -2273,6 +2273,19 @@ PUBLIC int get_real_precision(void)
 }
 
 /***************************************************************************
+ *  Any json to string
+ *  Remember gbmem_free the returned string
+ ***************************************************************************/
+PUBLIC char *json2str(const json_t *jn) // jn not owned
+{
+    if(!jn) {
+        return 0;
+    }
+    size_t flags = JSON_ENCODE_ANY | JSON_INDENT(4) | JSON_REAL_PRECISION(get_real_precision());
+    return json_dumps(jn, flags);
+}
+
+/***************************************************************************
  *  Any json to ugly (non-tabular) string
  *  Remember gbmem_free the returned string
  ***************************************************************************/
