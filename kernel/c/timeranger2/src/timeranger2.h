@@ -164,6 +164,13 @@ static inline void set_time_tm(md2_record_t *md_record, uint64_t time_val) {
     md_record->__tm__ |= (time_val & TIME_FLAG_MASK);
 }
 
+typedef struct {
+    const char *topic_name;
+    const char *pkey;   // Primary key
+    const system_flag2_t system_flag;
+    const char *tkey;   // Time key
+    const json_desc_t *json_desc;
+} topic_desc_t;
 
 /***************************************************************
  *              Prototypes
