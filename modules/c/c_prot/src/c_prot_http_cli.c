@@ -17,6 +17,7 @@
     #include <c_linux_transport.h>
 #endif
 #include <kwid.h>
+#include <yuneta_version.h>
 #include "c_prot_http_cli.h"
 
 /***************************************************************

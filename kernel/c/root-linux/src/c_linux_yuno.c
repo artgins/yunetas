@@ -20,6 +20,7 @@
 #include <kwid.h>
 #include <command_parser.h>
 #include <log_udp_handler.h>
+#include <yuneta_version.h>
 #include "yunetas_ev_loop.h"
 #include "yunetas_environment.h"
 #include "c_timer.h"
