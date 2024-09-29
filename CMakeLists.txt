@@ -53,7 +53,7 @@ endif()
 #-----------------------------------------------------#
 #   Generate yuneta_config.h from .config (Kconfig)
 #-----------------------------------------------------#
-set(CONFIG_H_CONTENT
+set(FILE_H_CONTENT
 [=[
 /*
  *  Yuneta Configuration
@@ -67,16 +67,16 @@ set(CONFIG_H_CONTENT
 ]=]
 )
 
-# Read file and append definitions to CONFIG_H_CONTENT
+# Read file and append definitions to FILE_H_CONTENT
 file(STRINGS ${CONFIG_FILE} CONFIG_LINES)
-kconfig2include("${CONFIG_H_CONTENT}" "${CONFIG_LINES}")
+kconfig2include("${FILE_H_CONTENT}" "${CONFIG_LINES}")
 # Write the content to .h
-file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${CONFIG_H_CONTENT})
+file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${FILE_H_CONTENT})
 
 #-----------------------------------------------------#
 #   Generate yuneta_version.h from YUNETA_VERSION
 #-----------------------------------------------------#
-set(CONFIG_H_CONTENT
+set(FILE_H_CONTENT
 [=[
 /*
  *  Yuneta Version
@@ -90,11 +90,11 @@ set(CONFIG_H_CONTENT
 ]=]
 )
 
-# Read file and append definitions to CONFIG_H_CONTENT
+# Read file and append definitions to FILE_H_CONTENT
 file(STRINGS ${CMAKE_SOURCE_DIR}/YUNETA_VERSION CONFIG_LINES)
-kconfig2include("${CONFIG_H_CONTENT}" "${CONFIG_LINES}")
+kconfig2include("${FILE_H_CONTENT}" "${CONFIG_LINES}")
 # Write the content to .h
-file(WRITE ${INC_DEST_DIR}/yuneta_version.h ${CONFIG_H_CONTENT})
+file(WRITE ${INC_DEST_DIR}/yuneta_version.h ${FILE_H_CONTENT})
 
 ##############################################
 #   Source

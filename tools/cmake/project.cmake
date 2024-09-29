@@ -61,7 +61,7 @@ endif()
 #MESSAGE(STATUS "COMPILER_ID ${CMAKE_C_COMPILER_ID}")
 #MESSAGE(STATUS "COMPILER ${CMAKE_C_COMPILER}")
 
-function(kconfig2include CONFIG_H_CONTENT CONFIG_LINES)
+function(kconfig2include FILE_H_CONTENT CONFIG_LINES)
     foreach(line ${CONFIG_LINES})
         if(line MATCHES "^#.*" OR line MATCHES "^$")
             # Skip comments and empty lines
@@ -75,11 +75,11 @@ function(kconfig2include CONFIG_H_CONTENT CONFIG_LINES)
 
             # Append the configuration to the header content
             if("${CONFIG_VALUE}" STREQUAL "y")
-                set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} 1\n" PARENT_SCOPE)
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} 1\n" PARENT_SCOPE)
             elseif("${CONFIG_VALUE}" MATCHES "^[0-9]+$")
-                set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n" PARENT_SCOPE)
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n" PARENT_SCOPE)
             else()
-                set(CONFIG_H_CONTENT "${CONFIG_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n" PARENT_SCOPE)
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n" PARENT_SCOPE)
             endif()
         endif()
     endforeach()
