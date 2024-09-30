@@ -553,7 +553,7 @@ PUBLIC void gobj_shutdown(void)
 
     if(__yuno__ && !(__yuno__->obflag & obflag_destroying)) {
         if(gobj_is_playing(__yuno__)) {
-            gobj_pause(__yuno__);
+            gobj_pause(__yuno__); // It will pause default_service
         }
         if(gobj_is_running(__yuno__)) {
             gobj_stop(__yuno__);

@@ -36,6 +36,7 @@ target_link_libraries(${PROJECT_NAME}
     libyunetas-gobj.a
     libjansson.a
     liburing.a
+    libpcre2-8.a
 
     m
     uuid

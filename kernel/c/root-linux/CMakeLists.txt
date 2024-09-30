@@ -31,7 +31,6 @@ set (SRCS
     src/entry_point.c
     src/yunetas_register.c
     src/ydaemon.c
-    src/replace_string.c
     src/rotatory.c
 )
 
@@ -47,7 +46,6 @@ set (HDRS
     src/entry_point.h
     src/yunetas_register.h
     src/ydaemon.h
-    src/replace_string.h
     src/rotatory.h
 
     src/yunetas.h

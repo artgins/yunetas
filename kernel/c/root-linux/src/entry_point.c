@@ -22,12 +22,15 @@
 #include <kwid.h>
 #include <log_udp_handler.h>
 #include <gobj_environment.h>
+#include <stacktrace_with_bfd.h>
+#include <yuneta_version.h>
 
 #include "yunetas_register.h"
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "ydaemon.h"
 #include "rotatory.h"
+#include "yunetas_register.h"
 #include "c_linux_yuno.h"         // the grandmother
 #include "entry_point.h"
 
@@ -128,15 +131,15 @@ PRIVATE char args_doc[] = "[{json config}]";
 
 /* The options we understand. */
 PRIVATE struct argp_option options[] = {
-{"start",                   'S',    0,      0,  "Start the yuno (as daemon)"},
-{"stop",                    'K',    0,      0,  "Stop the yuno (as daemon)"},
-{"config-file",             'f',    "FILE", 0,  "Load settings from json config file or [files]"},
-{"print-config",            'p',    0,      0,  "Print the final json config"},
-{"print-verbose-config",    'P',    0,      0,  "Print verbose json config"},
-{"print-role",              'r',    0,      0,  "Print the basic yuno's information"},
-{"version",                 'v',    0,      0,  "Print yuno version"},
-{"yuneta-version",          'V',    0,      0,  "Print yuneta version"},
-{"verbose-log",             'l',    "LEVEL",0,  "Verbose log level"},
+{"start",                   'S',    0,      0,  "Start the yuno (as daemon)",   0},
+{"stop",                    'K',    0,      0,  "Stop the yuno (as daemon)",    0},
+{"config-file",             'f',    "FILE", 0,  "Load settings from json config file or [files]", 0},
+{"print-config",            'p',    0,      0,  "Print the final json config", 0},
+{"print-verbose-config",    'P',    0,      0,  "Print verbose json config", 0},
+{"print-role",              'r',    0,      0,  "Print the basic yuno's information", 0},
+{"version",                 'v',    0,      0,  "Print yuno version", 0},
+{"yuneta-version",          'V',    0,      0,  "Print yuneta version", 0},
+{"verbose-log",             'l',    "LEVEL",0,  "Verbose log level", 0},
 {0}
 };
 
@@ -145,7 +148,8 @@ PRIVATE struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    __app_doc__
+    __app_doc__,
+    0, 0, 0
 };
 
 /***************************************************************************
@@ -170,7 +174,7 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
         printf("%s\n", argp_program_version);
         exit(0);
     case 'V':
-        // TODO printf("%s\n", __yuneta_long_version__);
+        printf("%s\n", YUNETA_VERSION);
         exit(0);
     case 'f':
         arguments->config_json_file = arg;
@@ -429,12 +433,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     int rpermission = 0664;
     const char *work_dir = 0;           /* by default total silence */
     const char *domain_dir = 0;         /* by default total silence */
-    size_t buffer_uv_read = 8*1024;
     json_int_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
     json_int_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
     json_int_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
     json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
-    BOOL use_system_memory = FALSE;
 
     json_t *jn_temp_environment = kw_get_dict(0, jn_temp_config, "environment", 0, 0);
     if(jn_temp_environment && !__print__) {
@@ -443,7 +445,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
          *  In this point json config is temporal.
          *  Be care with pointers!
          */
-        buffer_uv_read = kw_get_int(0, jn_temp_environment, "buffer_uv_read", buffer_uv_read, 0);
         xpermission = (int)kw_get_int(0, jn_temp_environment, "xpermission", xpermission, 0);
         rpermission = (int)kw_get_int(0, jn_temp_environment, "rpermission", rpermission, 0);
         work_dir = kw_get_str(0, jn_temp_environment, "work_dir", 0, 0);
@@ -555,55 +556,38 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             MEM_MAX_SYSTEM_MEMORY,
             0
         );
-        use_system_memory = kw_get_bool(0, jn_temp_environment, "use_system_memory", 0, 0);
-        BOOL log_gbmem_info = kw_get_bool(0, jn_temp_environment, "log_gbmem_info", 0, 0);
-        // TODO gbmem_enable_log_info(log_gbmem_info);
         jn_temp_environment = 0; // protect, no more use
     }
-    JSON_DECREF(jn_temp_config); // free allocated with default free
+    JSON_DECREF(jn_temp_config) // free allocated with default free
 
     /*------------------------------------------------*
      *          Setup memory
      *------------------------------------------------*/
-    if(!__print__ && !use_system_memory) {
-        gbmem_startup( /* Create memory core */
-            MEM_MIN_BLOCK,
-            MEM_MAX_BLOCK,
-            MEM_SUPERBLOCK,
-            MEM_MAX_SYSTEM_MEMORY,
-            NULL,               /* system memory functions */
-            0
-        );
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
 
-    } else {
-        gbmem_startup_system(
-            MEM_MAX_BLOCK,
-            MEM_MAX_SYSTEM_MEMORY
-        );
-    }
+    gobj_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifdef DEBUG
+    init_backtrace_with_bfd(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_bfd);
+#endif
 
     /*
      *  WARNING now all json is gbmem allocated
      */
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
-    );
-    uv_replace_allocator(
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_calloc,
-        gbmem_free
-    );
-    if(buffer_uv_read > gbmem_get_maximum_block()) {
-        buffer_uv_read = gbmem_get_maximum_block();
-    }
-    init_growbf(
-        buffer_uv_read,
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_free
-    );
 
     /*------------------------------------------------*
      *          Re-alloc with gbmem
@@ -723,7 +707,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             "version", __yuno_version__,
             "date", __app_datetime__,
             "description", __app_doc__,
-            "yuneta_version", "__yuneta_version__" // TODO
+            "yuneta_version", YUNETA_VERSION
         );
         if(jn_basic_info) {
             size_t flags = JSON_INDENT(4);
@@ -758,7 +742,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *  Init ginsfsm and yuneta
      *------------------------------------------------*/
-    // TODO init_ginsfsm_library();
     json_t *jn_global = kw_get_dict(0, __jn_config__, "global", 0, 0);
 
     gobj_start_up(
@@ -775,11 +758,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         __global_stats_parser_fn__,
         __global_authz_checker_fn__,
         __global_authenticate_parser_fn__,
-        60*1024L,   // TODO max_block, largest memory block
-        120*1024L   // max_system_memory, maximum system memory
+        MEM_MAX_BLOCK,          // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY   // max_system_memory, maximum system memory
     );
 
-    // TODO yuneta_register_c_core();
+    yunetas_register_c_core();
+
     if(register_yuno_and_more) {
         register_yuno_and_more();
     }
@@ -801,7 +785,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    // TODO end_ginsfsm_library();
     gobj_log_debug(0,0,
         "gobj",         "%s", __FILE__,
         "msgset",       "%s", MSGSET_START_STOP,
@@ -813,26 +796,20 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         NULL
     );
     JSON_DECREF(__jn_config__);
-    // TODO gbmem_shutdown();
     register_yuneta_environment(0, 0, 0, 0, 0);
     gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped\n",
         __yuno_role__,
         __yuno_name__,
         __yuno_id__
     );
-    // TODO end_ghelpers_library();
+
+    gobj_end();
 
     /*
      *  Restore default memory in jansson
      */
     json_set_alloc_funcs(
         malloc,
-        free
-    );
-    uv_replace_allocator(
-        malloc,
-        realloc,
-        calloc,
         free
     );
 
@@ -906,8 +883,8 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     );
     json_object_update_missing(kw_yuno, jn_yuno);
 
-    hgobj gobj = __yuno_gobj__ = gobj_create_yuno(__yuno_name__, __yuno_role__, kw_yuno);
-    if(!gobj) {
+    hgobj yuno = __yuno_gobj__ = gobj_create_yuno(__yuno_name__, __yuno_role__, kw_yuno);
+    if(!yuno) {
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
@@ -933,8 +910,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
         json_t *jn_service_tree;
         json_array_foreach(jn_services, index, jn_service_tree) {
             if(!json_is_object(jn_service_tree)) {
-                gobj_log_error(0,0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "service config MUST BE an json object",
@@ -945,8 +921,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
             }
             const char *service_name = kw_get_str(0, jn_service_tree, "name", 0, 0);
             if(empty_string(service_name)) {
-                gobj_log_error(0,0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "service without name",
@@ -957,8 +932,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
             }
             json_incref(jn_service_tree);
             if(!gobj_service_factory(service_name, jn_service_tree)) {
-                gobj_log_error(0,0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "gobj_service_factory() FAILED",
@@ -972,7 +946,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*------------------------*
      *      Start main
      *------------------------*/
-    gobj_start(gobj);
+    gobj_start(yuno);
 
     /*---------------------------------*
      *      Auto services
@@ -983,8 +957,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*-----------------------------------*
      *      Run main event loop
      *-----------------------------------*/
-// TODO   mt_run(gobj);       // Forever loop. Returning is because someone order to stop
-//    mt_clean(gobj);     // Before destroying check that uv handlers are closed.
+    gobj_play(yuno);    // It will play default_service ==> WARNING: infinite loop
 
     /*---------------------------*
      *      Destroy all
