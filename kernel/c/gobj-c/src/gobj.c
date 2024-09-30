@@ -254,6 +254,12 @@ PRIVATE json_t *extract_json_config_variables_mine(
     const char *gobj_name,
     json_t *kw     // not own
 );
+PRIVATE int json2item(
+    gobj_t *gobj,
+    json_t *sdata,
+    const sdata_desc_t *it,
+    json_t *jn_value // now owned
+);
 
 /***************************************************************
  *              Data
@@ -1885,7 +1891,7 @@ PRIVATE int json2sdata(
         if(!(flag == -1 || (it->flag & flag))) {
             continue;
         }
-        ret += json2item(hsdata, it->name, jn_value);
+        ret += json2item(gobj, hsdata, it, jn_value);
     }
 
     return ret;
