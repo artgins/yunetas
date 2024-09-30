@@ -9091,6 +9091,23 @@ PUBLIC int dl_add(dl_list_t *dl, void *item)
 }
 
 /***************************************************************
+ *      dl_find - find forward
+ ***************************************************************/
+PUBLIC void * dl_find(dl_list_t *dl, void *item)
+{
+    register dl_item_t * curr;
+
+    curr = dl->head;
+
+    while(curr != 0)  {
+        if(curr==item)
+            return item;
+        curr = curr->__next__;
+    }
+    return (void *)0; /* not found */
+}
+
+/***************************************************************
  *    Delete current item
  ***************************************************************/
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))

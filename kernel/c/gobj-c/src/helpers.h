@@ -635,6 +635,7 @@ PUBLIC uint64_t htonll(uint64_t value); /* Convert a 64-bit integer to network b
 PUBLIC uint64_t ntohll(uint64_t value); /* Convert a 64-bit integer to host byte order */
 PUBLIC void list_open_files(void);
 
+PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format);
 
 #ifdef __cplusplus
 }

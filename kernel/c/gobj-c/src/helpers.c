@@ -4633,3 +4633,31 @@ PUBLIC void list_open_files(void)
     // Close the directory
     closedir(dir);
 }
+
+/***********************************************************************
+ *   Get a string with some now! date formatted
+ *   DEPRECATED use strftime()
+ ***********************************************************************/
+PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
+{
+    char sfechahora[64];
+
+    struct tm *tm;
+    tm = localtime(&t);
+
+    /* Pon en formato DD/MM/CCYY-W-ZZZ */
+    snprintf(sfechahora, sizeof(sfechahora), "%02d/%02d/%4d-%d-%03d",
+             tm->tm_mday,            // 01-31
+             tm->tm_mon+1,           // 01-12
+             tm->tm_year + 1900,
+             tm->tm_wday+1,          // 1-7
+             tm->tm_yday+1           // 001-365
+    );
+    if(empty_string(format)) {
+        format = "DD/MM/CCYY-W-ZZZ";
+    }
+
+    translate_string(bf, bfsize, sfechahora, format, "DD/MM/CCYY-W-ZZZ");
+
+    return bf;
+}

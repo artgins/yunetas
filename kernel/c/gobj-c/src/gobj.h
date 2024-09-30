@@ -2124,6 +2124,7 @@ PUBLIC void *dl_next(void *curr);
 PUBLIC void *dl_prev(void *curr);
 PUBLIC int dl_insert(dl_list_t *dl, void *item);
 PUBLIC int dl_add(dl_list_t *dl, void *item);
+PUBLIC void * dl_find(dl_list_t *dl, void *item);
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
 PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
 PUBLIC size_t dl_size(dl_list_t *dl);

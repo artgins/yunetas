@@ -13,15 +13,13 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#ifdef WIN32
-    #include  <io.h>
-#else
-    #include <libgen.h>
-    #include <dirent.h>
-    #include <sys/statvfs.h>
-    #include <unistd.h>
-#endif
-#include "03_rotatory.h"
+#include <libgen.h>
+#include <dirent.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+
+#include <helpers.h>
+#include "rotatory.h"
 
 /*****************************************************************
  *          Constants
@@ -132,8 +130,7 @@ PUBLIC hrotatory_t rotatory_open(
 
     if(!__initialized__) {
         print_error(
-            PEF_CONTINUE,
-            "ERROR YUNETA",
+            PEF_SYSLOG,
             "rotatory_open(): rotatory not initialized"
         );
         return 0;
@@ -144,8 +141,7 @@ PUBLIC hrotatory_t rotatory_open(
      *-------------------------------------*/
     if(!path || !*path) {
         print_error(
-            PEF_SILENCE,
-            "ERROR YUNETA",
+            PEF_SYSLOG,
             "path EMPTY"
         );
         return 0;
@@ -174,9 +170,8 @@ PUBLIC hrotatory_t rotatory_open(
     if(!hr) {
         print_error(
             PEF_ABORT,
-            "ERROR YUNETA",
             "rotatory_open(): No MEMORY for %d",
-            sizeof(rotatory_log_t)
+            (int)sizeof(rotatory_log_t)
         );
         return 0;
     }
@@ -186,15 +181,14 @@ PUBLIC hrotatory_t rotatory_open(
     hr->min_free_disk_percentage = min_free_disk_percentage;
     hr->xpermission = xpermission;
     hr->rpermission = rpermission;
-    hr->pe_flag = exit_on_fail?PEF_EXIT:PEF_CONTINUE;
+    hr->pe_flag = exit_on_fail?PEF_EXIT:PEF_SYSLOG;
 
     hr->buffer = calloc(1, hr->buffer_size);
     if(!hr->buffer) {
         print_error(
             PEF_ABORT,
-            "ERROR YUNETA",
             "rotatory_open(): No MEMORY for %d",
-            bf_size
+            (int)bf_size
         );
         free(hr);
         return 0;
@@ -225,10 +219,9 @@ PUBLIC hrotatory_t rotatory_open(
      *  Create the log directory
      *-----------------------------*/
     if(access(hr->log_directory, 0)!=0) {
-        if(mkrdir(hr->log_directory, 0, hr->xpermission)<0) {
+        if(mkrdir(hr->log_directory, hr->xpermission)<0) {
             print_error(
                 hr->pe_flag,
-                "YUNETA ERROR",
                 "rotatory_open(): Cannot create '%s' directory, %s",
                 hr->log_directory,
                 strerror(errno)
@@ -247,7 +240,6 @@ PUBLIC hrotatory_t rotatory_open(
         if(fd < 0) {
             print_error(
                 hr->pe_flag,
-                "YUNETA ERROR",
                 "rotatory_open(): Cannot create '%s' file, %s",
                 hr->path,
                 strerror(errno)
@@ -261,7 +253,6 @@ PUBLIC hrotatory_t rotatory_open(
     if(!hr->flog) {
         print_error(
             hr->pe_flag,
-            "YUNETA ERROR",
             "rotatory_open(): Cannot open '%s' file, %s",
             hr->path,
             strerror(errno)
@@ -418,7 +409,6 @@ PRIVATE void _rotatory_trunk(rotatory_log_t *hr)
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
-                "YUNETA ERROR",
                 "_rotatory_trunk(): Cannot open '%s' file, %s",
                 hr->path,
                 strerror(errno)
@@ -499,8 +489,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
                 if(access(filename_old, 0)==0) {
                     if(unlink(filename_old)<0) {
                         print_error(
-                            PEF_CONTINUE,
-                            "YUNETA ERROR",
+                            PEF_SYSLOG,
                             "_rotatory(): Cannot remove '%s', %s",
                             filename_old,
                             strerror(errno)
@@ -509,8 +498,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
                 }
                 if(rename(hr->path, filename_old) < 0) {
                     print_error(
-                        PEF_CONTINUE,
-                        "YUNETA ERROR",
+                        PEF_SYSLOG,
                         "_rotatory(): Cannot rename '%s' to '%s', %s",
                         hr->path,
                         filename_old,
@@ -530,10 +518,9 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
         }
         if(access(hr->log_directory, 0)!=0) {
             // Creat the directory
-            if(mkrdir(hr->log_directory, 0, hr->xpermission)<0) {
+            if(mkrdir(hr->log_directory, hr->xpermission)<0) {
                 print_error(
                     hr->pe_flag,
-                    "YUNETA ERROR",
                     "_rotatory(): Cannot create '%s' directory, %s",
                     hr->log_directory,
                     strerror(errno)
@@ -550,7 +537,6 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
             if(fd < 0) {
                 print_error(
                     hr->pe_flag,
-                    "YUNETA ERROR",
                     "_rotatory(): Cannot create '%s' file, %s",
                     hr->path,
                     strerror(errno)
@@ -563,7 +549,6 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
-                "YUNETA ERROR",
                 "_rotatory(): Cannot open '%s' file, %s",
                 hr->path,
                 strerror(errno)
@@ -590,11 +575,10 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
                 // No escribo nada con %free menor que x
                 if(!disk_full_informed) {
                     print_error(
-                        PEF_CONTINUE,
-                        "YUNETA ERROR",
+                        PEF_SYSLOG,
                         "rotatory(): stop logging because full disk: %d%% free (<%d%%)",
                         free_percent,
-                        hr->min_free_disk_percentage
+                        (int)hr->min_free_disk_percentage
                     );
                     rotatory_flush(hr);
                     disk_full_informed = 1;
@@ -617,8 +601,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
 #endif
         if(ret <= 0) {
             print_error(
-                PEF_CONTINUE,
-                "YUNETA ERROR",
+                PEF_SYSLOG,
                 "_rotatory(): vfprintf() FAILED, %s",
                 strerror(errno)
             );
@@ -636,7 +619,11 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
  *****************************************************************/
 PRIVATE int _translate_mask(rotatory_log_t *hr)
 {
-    formatnowdate(
+    time_t t;
+    time(&t);
+
+    formatdate(
+        t,
         hr->filename,
         sizeof(hr->filename),
         hr->filenamemask

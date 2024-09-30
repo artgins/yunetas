@@ -6,16 +6,11 @@
  ****************************************************************************/
 #pragma once
 
-#include <stdio.h>
+#include <gobj.h>
 
 /*
  *  Dependencies
  */
-#include "01_gstrings.h"
-#include "01_print_error.h"
-#include "02_dirs.h"
-#include "02_dl_list.h"
-#include "02_time_helper.h"
 
 #ifdef __cplusplus
 extern "C"{
