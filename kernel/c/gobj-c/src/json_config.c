@@ -16,6 +16,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 
+#include "replace_string.h"
 #include "json_config.h"
 
 // From jannson_private.h
@@ -167,7 +168,6 @@ PRIVATE json_t * nonx_legalstring2json(const char *reference, const char *bf, pe
     if(!jn_msg) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "Cannot convert non-legal json string to json binary.\n"
             "Reference: '%s'\n"
             "Json string:\n'%s'\n"
@@ -272,9 +272,8 @@ PRIVATE json_t * x_legalstring2json(dl_list_t* dl_op, char* reference, const cha
     if(!op) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "No memory for %d bytes.\n",
-            sizeof(op_t)
+            (int)sizeof(op_t)
         );
         free(lines);
         return 0;
@@ -312,7 +311,6 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
     if(access(path, 0)!=0) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "File '%s' not found.\n",
             path
         );
@@ -321,7 +319,6 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
     if(!file) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "Cannot open '%s' file.\n",
             path
         );
@@ -335,9 +332,8 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
     if(!op) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "No memory for %d bytes.\n",
-            sizeof(op_t)
+            (int)sizeof(op_t)
         );
         fclose(file);
         return 0;
@@ -350,7 +346,6 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
     if(!jn_msg) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "json_load_file_callback() failed.\n"
             "File: '%s'\n"
             "Error: '%s'\n in line %d, column %d, position %d.\n",
@@ -378,7 +373,6 @@ PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overw
     if(!json_is_object(object) || !json_is_object(other)) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "json_dict_recursive_update(): parameters must be objects\n"
         );
         return -1;
@@ -446,7 +440,6 @@ PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set, pe_flag_t
     if(!json_is_array(list) || !json_is_array(other)) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "json_list_update(): parameters must be lists\n"
         );
         return -1;
@@ -479,7 +472,6 @@ PRIVATE json_t *json_listsrange2set(json_t *listsrange, pe_flag_t quit)
     if(!json_is_array(listsrange)) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "json_listsrange2set(): parameters must be lists\n"
         );
         return 0;
@@ -560,7 +552,6 @@ PRIVATE json_t *expand_matched_dict_group_key(json_t *kw, pe_flag_t quit)
     if(!__range__ || !__vars__ || !__content__) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "Expand a dict needs of __range__, __vars__ and __content__ keys\n"
         );
         return 0;
@@ -682,7 +673,6 @@ PRIVATE int expand_dict(json_t *jn_dict, pe_flag_t quit)
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
-            "YUNETA ERROR",
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
             buffer
@@ -714,7 +704,6 @@ PRIVATE json_t *expand_matched_list_group_key(json_t *kw, pe_flag_t quit)
     if(!__range__ || !__vars__ || !__content__) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "Expand a dict needs of __range__, __vars__ and __content__ keys\n"
         );
         return 0;
@@ -830,7 +819,6 @@ PRIVATE int expand_list(json_t *jn_dict, pe_flag_t quit)
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
-            "YUNETA ERROR",
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
             buffer
@@ -878,7 +866,6 @@ PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
-            "YUNETA ERROR",
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
             buffer
