@@ -1113,33 +1113,3 @@ PUBLIC char *json_config(
     }
     return final_sconfig;
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *helper_quote2doublequote(char *str)
-{
-    register int len = strlen(str);
-    register char *p = str;
-
-    for(int i=0; i<len; i++, p++) {
-        if(*p== '\'')
-            *p = '"';
-    }
-    return str;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *helper_doublequote2quote(char *str)
-{
-    register int len = strlen(str);
-    register char *p = str;
-
-    for(int i=0; i<len; i++, p++) {
-        if(*p== '"')
-            *p = '\'';
-    }
-    return str;
-}

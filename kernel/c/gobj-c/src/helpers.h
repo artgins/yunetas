@@ -56,8 +56,21 @@ PUBLIC char *delete_left_char(char *s, char x);
 PUBLIC char *build_path(char *bf, size_t bfsize, ...);
 PUBLIC char *get_last_segment(char *path);
 PUBLIC char *pop_last_segment(char *path); // WARNING path modified
+
+/**rst**
+   Change ' by ".
+   Useful for easier json representation in C strings,
+   **BUT** you cannot use true '
+**rst**/
 PUBLIC char *helper_quote2doublequote(char *str);
+
+/**rst**
+   Change " by '.
+   Useful for easier json representation in C strings,
+   **BUT** you cannot use true "
+**rst**/
 PUBLIC char *helper_doublequote2quote(char *str);
+
 /**rst**
     Return TRUE if all characters (not empty) are numbers
 **rst**/
