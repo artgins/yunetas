@@ -18,11 +18,14 @@
     #include <unistd.h>
 #endif
 
+#include "json_config.h"
 #include "ansi_escape_codes.h"
 #include "gobj_environment.h"
 #include "kwid.h"
 #include "helpers.h"
 #include "gobj.h"
+
+extern void jsonp_free(void *ptr);
 
 /***************************************************************
  *              Constants
@@ -241,6 +244,16 @@ PRIVATE uint32_t level2bit(
     const char *level
 );
 PRIVATE void print_track_mem(void);
+PRIVATE json_t *extract_all_mine(
+    const char *gclass_name,
+    const char *gobj_name,
+    json_t *kw     // not own
+);
+PRIVATE json_t *extract_json_config_variables_mine(
+    const char *gclass_name,
+    const char *gobj_name,
+    json_t *kw     // not own
+);
 
 /***************************************************************
  *              Data
@@ -1077,6 +1090,132 @@ PRIVATE int add_event_type(
 
 
 /***************************************************************************
+ *  ATTR:
+    HACK el eslabón perdido.
+    Return a new kw applying __json_config_variables__
+ ***************************************************************************/
+PUBLIC json_t *kw_apply_json_config_variables(
+    json_t *kw,          // not owned
+    json_t *jn_global    // not owned
+)
+{
+    char *kw_ = json2str(kw);
+    char *jn_global_ = json2str(jn_global);
+    char *config = json_config(
+        0,
+        0,
+        0,              // fixed_config
+        kw_,            // variable_config
+        0,              // config_json_file
+        jn_global_,     // parameter_config
+        PEF_CONTINUE
+    );
+    jsonp_free(kw_);
+    jsonp_free(jn_global_);
+    if(!config) {
+        return 0;
+    }
+    json_t *kw_new = legalstring2json(config, TRUE);
+    jsonp_free(config);
+
+    if(!kw_new) {
+        return 0;
+    }
+    return kw_new;
+}
+
+/***************************************************************************
+ *  Factory to create service gobj
+ *  Used in entry_point, to run services
+ *  Internally it uses gobj_create_tree()
+ ***************************************************************************/
+PUBLIC hgobj gobj_service_factory(
+    const char *name,
+    json_t * jn_service_config  // owned
+)
+{
+    const char *gclass_name = kw_get_str(0, jn_service_config, "gclass", 0, 0);
+    if(empty_string(gclass_name)) {
+        gobj_log_error(0,0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "service gclass EMPTY",
+            "service",      "%s", name?name:"",
+            NULL
+        );
+        JSON_DECREF(jn_service_config)
+        return 0;
+    }
+
+    gclass_t *gclass = gclass_find_by_name(gclass_name);
+    if(!gclass) {
+        gobj_log_error(0, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gclass NOT FOUND",
+            "service",      "%s", name?name:"",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        JSON_DECREF(jn_service_config)
+        return 0;
+    }
+    const char *gobj_name = kw_get_str(0, jn_service_config, "name", 0, 0);
+
+    json_t *jn_global = extract_json_config_variables_mine(
+        gclass_name,
+        gobj_name,
+        __jn_global_settings__
+    );
+    json_t *__json_config_variables__ = kw_get_dict(0,
+        jn_global,
+        "__json_config_variables__",
+        json_object(),
+        KW_CREATE
+    );
+    json_object_update_new(
+        __json_config_variables__,
+        gobj_global_variables()
+    );
+
+    if(__trace_gobj_create_delete2__(__yuno__)) {
+        trace_machine("🌞 %s^%s => service global",
+            gclass_name,
+            gobj_name
+        );
+        gobj_trace_json(0, jn_global, "service global");
+    }
+
+    json_t *kw_service_config = kw_apply_json_config_variables(
+        jn_service_config,  // not owned
+        jn_global           // not owned
+    );
+    json_decref(jn_global);
+
+    json_object_set_new(kw_service_config, "service", json_true()); // Mark as service
+
+    if(__trace_gobj_create_delete2__(__yuno__)) {
+        trace_machine("🌞🌞 %s^%s => service final",
+            gclass_name,
+            gobj_name
+        );
+        gobj_trace_json(0, kw_service_config, "service final");
+    }
+
+    hgobj gobj = gobj_create_tree0(
+        __yuno__,
+        kw_service_config,  // owned
+        0,
+        0
+    );
+
+    JSON_DECREF(jn_service_config);
+    return gobj;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC hgobj gobj_create_gobj(
@@ -1603,90 +1742,154 @@ PRIVATE int deregister_named_gobj(gobj_t *gobj)
  *  Contain the key my gobj-name or my gclass-name?
  *  Return NULL if not, or the key cleaned of prefix.
  ***************************************************************************/
-// PRIVATE const char * is_for_me(
-//     const char *gclass_name,
-//     const char *gobj_name,
-//     const char *key)
-// {
-//     char *p = strchr(key, '.');
-//     if(p) {
-//         char temp[256]; // if your names are longer than 256 bytes, you are ...
-//         int ln = p - key;
-//         if (ln >= sizeof(temp))
-//             return 0; // ... very intelligent!
-//         strncpy(temp, key, ln);
-//         temp[ln]=0;
-//
-//         if(gobj_name && strcmp(gobj_name, temp)==0) {
-//             // match the name
-//             return p+1;
-//         }
-//         if(gclass_name && strcasecmp(gclass_name, temp)==0) {
-//             // match the gclass name
-//             return p+1;
-//         }
-//     }
-//     return 0;
-// }
+PRIVATE const char *is_for_me(
+    const char *gclass_name,
+    const char *gobj_name,
+    const char *key)
+{
+    char *p = strchr(key, '.');
+    if(p) {
+        char temp[256]; // if your names are longer than 256 bytes, you are ...
+        int ln = p - key;
+        if (ln >= sizeof(temp))
+            return 0; // ... very inteligent!
+        strncpy(temp, key, ln);
+        temp[ln]=0;
+
+        if(gobj_name && strcmp(gobj_name, temp)==0) {
+            // match the name
+            return p+1;
+        }
+        if(gclass_name && strcasecmp(gclass_name, temp)==0) {
+            // match the gclass name
+            return p+1;
+        }
+    }
+    return 0;
+}
 
 /***************************************************************************
  *  ATTR:
  ***************************************************************************/
-// PRIVATE json_t *extract_all_mine(
-//     const char *gclass_name,
-//     const char *gobj_name,
-//     json_t *kw)     // not own
-// {
-//     json_t *kw_mine = json_object();
-//     const char *key;
-//     json_t *jn_value;
-//
-//     json_object_foreach(kw, key, jn_value) {
-//         const char *pk = is_for_me(
-//             gclass_name,
-//             gobj_name,
-//             key
-//         );
-//         if(!pk)
-//             continue;
-//         if(strcasecmp(pk, "kw")==0) {
-//             json_object_update(kw_mine, jn_value);
-//         } else {
-//             json_object_set(kw_mine, pk, jn_value);
-//         }
-//     }
-//
-//     return kw_mine;
-// }
+PRIVATE json_t *extract_all_mine(
+    const char *gclass_name,
+    const char *gobj_name,
+    json_t *kw)     // not own
+{
+    json_t *kw_mine = json_object();
+    const char *key;
+    json_t *jn_value;
+
+    json_object_foreach(kw, key, jn_value) {
+        const char *pk = is_for_me(
+            gclass_name,
+            gobj_name,
+            key
+        );
+        if(!pk)
+            continue;
+        if(strcasecmp(pk, "kw")==0) {
+            json_object_update(kw_mine, jn_value);
+        } else {
+            json_object_set(kw_mine, pk, jn_value);
+        }
+    }
+
+    return kw_mine;
+}
 
 /***************************************************************************
  *  ATTR:
  ***************************************************************************/
-// PRIVATE json_t *extract_json_config_variables_mine(
-//     const char *gclass_name,
-//     const char *gobj_name,
-//     json_t *kw     // not own
-// )
-// {
-//     json_t *kw_mine = json_object();
-//     const char *key;
-//     json_t *jn_value;
-//
-//     json_object_foreach(kw, key, jn_value) {
-//         const char *pk = is_for_me(
-//             gclass_name,
-//             gobj_name,
-//             key
-//         );
-//         if(!pk)
-//             continue;
-//         if(strcasecmp(pk, "__json_config_variables__")==0) {
-//             json_object_set(kw_mine, pk, jn_value);
-//         }
-//     }
-//
-//     return kw_mine;
-// }
+PRIVATE json_t *extract_json_config_variables_mine(
+    const char *gclass_name,
+    const char *gobj_name,
+    json_t *kw     // not own
+)
+{
+    json_t *kw_mine = json_object();
+    const char *key;
+    json_t *jn_value;
+
+    json_object_foreach(kw, key, jn_value) {
+        const char *pk = is_for_me(
+            gclass_name,
+            gobj_name,
+            key
+        );
+        if(!pk)
+            continue;
+        if(strcasecmp(pk, "__json_config_variables__")==0) {
+            json_object_set(kw_mine, pk, jn_value);
+        }
+    }
+
+    return kw_mine;
+}
+
+PRIVATE int print_attr_not_found(hgobj gobj, const char *attr)
+{
+    if(strcasecmp(attr, "__json_config_variables__")!=0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "GClass Attribute NOT FOUND",
+            "gclass",       "%s", gobj_gclass_name(gobj),
+            "attr",         "%s", attr,
+            NULL
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Update sdata fields from a json dict.
+ *  Constraint: if flag is -1
+ *                  => all fields!
+ *              else
+ *                  => matched flag
+ ***************************************************************************/
+/*
+ *  Not found callback
+ */
+typedef int (*not_found_cb_t)(hgobj gobj, const char *name);
+
+PRIVATE int json2sdata(
+    json_t *hsdata,
+    json_t *kw,  // not owned
+    sdata_flag_t flag,
+    not_found_cb_t not_found_cb, // Called when the key not exist in hsdata
+    gobj_t *gobj)
+{
+    int ret = 0;
+    if(!hsdata || !kw) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hsdata or schema or kw NULL",
+            NULL
+        );
+        return -1;
+    }
+    const char *key;
+    json_t *jn_value;
+    json_object_foreach(kw, key, jn_value) {
+        const sdata_desc_t *it = gclass_attr_desc(gobj->gclass, key, FALSE);
+        if(!it) {
+            if(not_found_cb) {
+                not_found_cb(gobj, key);
+                ret--;
+            }
+            continue;
+        }
+        if(!(flag == -1 || (it->flag & flag))) {
+            continue;
+        }
+        ret += json2item(hsdata, it->name, jn_value);
+    }
+
+    return ret;
+}
 
 /***************************************************************************
  *  ATTR:
@@ -1700,90 +1903,97 @@ PRIVATE int deregister_named_gobj(gobj_t *gobj)
  *
  ***************************************************************************/
 PRIVATE int write_json_parameters(
-    gobj_t * gobj,
+    gobj_t *gobj,
     json_t *kw,     // not own
     json_t *jn_global) // not own
 {
     json_t *hs = gobj_hsdata(gobj);
+    json_t *jn_global_mine = extract_all_mine(
+        gobj->gclass->gclass_name,
+        gobj->gobj_name,
+        jn_global
+    );
 
-    json_object_update_existing(hs, kw);    // TODO review below code
+    if(__trace_gobj_create_delete2__(gobj)) {
+        trace_machine("🔰 %s^%s => global_mine",
+            gobj->gclass->gclass_name,
+            gobj->gobj_name
+        );
+        gobj_trace_json(0, jn_global, "global all");
+        gobj_trace_json(0, jn_global_mine, "global_mine");
+    }
 
-//    json_t *jn_global_mine = extract_all_mine(
-//        gobj->gclass->gclass_name,
-//        gobj->gobj_name,
-//        jn_global
-//    );
+    json_t *__json_config_variables__ = kw_get_dict(0,
+        jn_global_mine,
+        "__json_config_variables__",
+        json_object(),
+        KW_CREATE
+    );
 
-//    if(__trace_gobj_create_delete2__(gobj)) {
-//        trace_machine("🔰 %s^%s => global_mine",
-//            gobj->gclass->gclass_name,
-//            gobj->gobj_name
-//        );
-//        gobj_trace_json(0, jn_global, "global all");
-//        gobj_trace_json(0, jn_global_mine, "global_mine");
-//    }
+    json_object_update_new(
+        __json_config_variables__,
+        gobj_global_variables()
+    );
+    if(gobj_yuno()) {
+        json_object_update_new(
+            __json_config_variables__,
+            json_pack("{s:s, s:b}",
+                "__bind_ip__", gobj_read_str_attr(gobj_yuno(), "bind_ip"),
+                "__multiple__", gobj_read_bool_attr(gobj_yuno(), "yuno_multiple")
+            )
+        );
+    }
 
-//    json_t *__json_config_variables__ = json_object_get(
-//        jn_global_mine,
-//        "__json_config_variables__"
-//    );
-//    if(__json_config_variables__) {
-//        __json_config_variables__ = json_object();
-//    }
-//
-//    json_object_update_new(
-//        __json_config_variables__,
-//        gobj_global_variables()
-//    );
-//    if(gobj_yuno()) {
-//        json_object_update_new(
-//            __json_config_variables__,
-//            json_pack("{s:s, s:b}",
-//                "__bind_ip__", gobj_read_str_attr(gobj_yuno(), "bind_ip"),
-//                "__multiple__", gobj_read_bool_attr(gobj_yuno(), "yuno_multiple")
-//            )
-//        );
-//    }
+    if(__trace_gobj_create_delete2__(gobj)) {
+        trace_machine("🔰🔰 %s^%s => __json_config_variables__",
+            gobj->gclass->gclass_name,
+            gobj->gobj_name
+        );
+        gobj_trace_json(gobj, __json_config_variables__, "__json_config_variables__");
+    }
 
-//    if(__trace_gobj_create_delete2__(gobj)) {
-//        trace_machine("🔰🔰 %s^%s => __json_config_variables__",
-//            gobj->gclass->gclass_name,
-//            gobj->name
-//        );
-//        gobj_trace_json(0, __json_config_variables__, "__json_config_variables__");
-//    }
+    json_t * new_kw = kw_apply_json_config_variables(kw, jn_global_mine);
+    json_decref(jn_global_mine);
+    if(!new_kw) {
+        return -1;
+    }
 
-//    json_t * new_kw = kw_apply_json_config_variables(kw, jn_global_mine);
-//    json_decref(jn_global_mine);
-//    if(!new_kw) {
-//        return -1;
-//    }
+    if(__trace_gobj_create_delete2__(gobj)) {
+        trace_machine("🔰🔰🔰 %s^%s => final kw",
+            gobj->gclass->gclass_name,
+            gobj->gobj_name
+        );
+        gobj_trace_json(gobj, new_kw, "final kw");
+    }
 
-//    if(__trace_gobj_create_delete2__(gobj)) {
-//        trace_machine("🔰🔰🔰 %s^%s => final kw",
-//            gobj->gclass->gclass_name,
-//            gobj->name
-//        );
-//        gobj_trace_json(0, new_kw, "final kw");
-//    }
+    json_t *__user_data__ = kw_get_dict(gobj, new_kw, "__user_data__", 0, KW_EXTRACT);
 
-//    json_t *__user_data__ = kw_get_dict(new_kw, "__user_data__", 0, KW_EXTRACT);
-//
-//    int ret = json2sdata(
-//        hs,
-//        new_kw,
-//        -1,
-//        (gobj->gclass->gclass_flag & gcflag_ignore_unknown_attrs)?0:print_attr_not_found,
-//        gobj
-//    );
-//
-//    if(__user_data__) {
-//        json_object_update(((gobj_t *)gobj)->jn_user_data, __user_data__);
-//        json_decref(__user_data__);
-//    }
-//    json_decref(new_kw);
-    return 0;
+    int ret = json2sdata(
+        hs,
+        new_kw,
+        -1,
+        (gobj->gclass->gclass_flag & gcflag_ignore_unknown_attrs)?0:print_attr_not_found,
+        gobj
+    );
+
+    if(__user_data__) {
+        json_object_update(((gobj_t *)gobj)->jn_user_data, __user_data__);
+        json_decref(__user_data__);
+    }
+    json_decref(new_kw);
+    return ret;
 }
+
+//PRIVATE int write_json_parameters(
+//    gobj_t * gobj,
+//    json_t *kw,     // not own
+//    json_t *jn_global) // not own
+//{
+//    json_t *hs = gobj_hsdata(gobj);
+//
+//    json_object_update_existing(hs, kw);    // TODO review below code
+//    return 0;
+//}
 
 /***************************************************************************
  *  save now persistent and writable attrs
@@ -6545,7 +6755,7 @@ PUBLIC BOOL gobj_user_has_authz(
     if(gobj->gclass->gmt->mt_authz_checker) {
         BOOL has_permission = gobj->gclass->gmt->mt_authz_checker(gobj, authz, kw, src);
         if(__trace_gobj_authzs__(gobj)) {
-//TODO            log_debug_json(0, kw,
+//TODO            gobj_trace_json(0, kw,
 //                "local authzs 🔑🔑 %s => %s",
 //                gobj_short_name(gobj),
 //                has_permission?"👍":"🚫"
@@ -6560,7 +6770,7 @@ PUBLIC BOOL gobj_user_has_authz(
     if(__global_authz_checker_fn__) {
         BOOL has_permission = __global_authz_checker_fn__(gobj, authz, kw, src);
         if(__trace_gobj_authzs__(gobj)) {
-//  TODO          log_debug_json(0, kw,
+//  TODO          gobj_trace_json(0, kw,
 //                "global authzs 🔑🔑 %s => %s",
 //                gobj_short_name(gobj),
 //                has_permission?"👍":"🚫"

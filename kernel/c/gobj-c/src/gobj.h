@@ -1085,6 +1085,16 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 /*---------------------------------*
  *      Create functions
  *---------------------------------*/
+/*
+ *  Factory to create service gobj
+ *  Used in entry_point, to run services
+ *  Internally it uses gobj_create_tree()
+ */
+PUBLIC hgobj gobj_service_factory(
+    const char *name,
+    json_t * jn_service_config // owned
+);
+
 PUBLIC hgobj gobj_create_gobj(
     const char *gobj_name,
     gclass_name_t gclass_name,
@@ -1115,6 +1125,49 @@ PUBLIC hgobj gobj_create_gobj(
 
 #define gobj_create2(name, gclass, kw, parent, gobj_flag) \
     gobj_create_gobj(name, gclass, kw, parent, gobj_flag)
+
+PUBLIC hgobj gobj_create_tree0(
+    hgobj parent,
+    json_t *jn_tree,
+    const char *ev_on_setup,
+    const char *ev_on_setup_complete
+);
+
+/*
+ * Json config of tree
+ *
+{
+    'name': 'x',
+    'gclass': 'X',
+    'autostart': true,
+    'autoplay': true,
+    'kw': {
+    }
+    'zchilds': [
+        {
+            'name': 'xx',
+            'gclass': 'Xx',
+            'autostart': true,
+            'kw': {
+            }
+            'zchilds': [
+            ]
+        }
+    ]
+}
+
+When a child is created a EV_ON_SETUP event is sended to parent, if admitted.
+When all children are created a EV_ON_SETUP_COMPLETE is sended to parent, if admitted.
+(if admitted = if event is in the input_event_list)
+*/
+PUBLIC hgobj gobj_create_tree( // TOO implicit: if no subscriber key is given, the parent is the subscriber.
+    hgobj parent,
+    const char *tree_config,    // It can be json_config.
+    const char *json_config_variables,
+    const char *ev_on_setup,
+    const char *ev_on_setup_complete
+);
+
 
 PUBLIC void gobj_destroy(hgobj gobj);
 

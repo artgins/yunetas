@@ -21,6 +21,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <log_udp_handler.h>
+#include <gobj_environment.h>
 
 #include "yunetas_register.h"
 #include "yunetas_environment.h"
@@ -677,7 +678,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     snprintf(__yuno_name__, sizeof(__yuno_name__), "%s", yuno_name);
     snprintf(__yuno_tag__, sizeof(__yuno_tag__), "%s", yuno_tag);
 
-    // TODO set_process_name2(__yuno_role__, __yuno_name__);
+    set_process_name2(__yuno_role__, __yuno_name__);
 
     /*----------------------------------------------*
      *  Check executable name versus yuno_role
@@ -707,7 +708,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     /*------------------------------------------------*
-     *  Print basic infom
+     *  Print basic inform
      *------------------------------------------------*/
     if(arguments.print_role) {
         json_t *jn_tags = kw_get_dict_value(0, jn_yuno, "tags", 0, 0);
@@ -869,42 +870,54 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*------------------------------------------------*
      *          Create main process yuno
      *------------------------------------------------*/
+    json_t *kw_yuno = json_pack(
+        "{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "pid",          getpid(),
+        "process",      get_process_name(),
+        "hostname",     get_hostname(),
+        "node_uuid",    node_uuid(),
+        "node_owner",   __node_owner__,
+        "realm_id",     __realm_id__,
+        "realm_owner",  __realm_owner__,
+        "realm_role",   __realm_role__,
+        "realm_name",   __realm_name__,
+        "realm_env",    __realm_env__,
+        "yuno_id",      __yuno_id__,
+        "yuno_tag",     __yuno_tag__,
+        "yuno_role",    __yuno_role__,
+        "yuno_name",    __yuno_name__,
+        "yuno_version", __yuno_version__
+    );
+
+    json_object_update_new(kw_yuno,
+        json_pack("{s:s, s:s, s:s, s:s, s:s}",
+            "work_dir",     work_dir,
+            "domain_dir",   domain_dir,
+            "appName",      __app_name__,
+            "appDesc",      __app_doc__,
+            "appDate",      __app_datetime__
+        )
+    );
     json_t *jn_yuno = kw_get_dict(0,
         __jn_config__,
         "yuno",
         0,
         0
     );
-    json_incref(jn_yuno);
-    hgobj gobj = __yuno_gobj__ = gobj_yuno_factory(
-        __node_owner__,
-        __realm_id__,
-        __realm_owner__,
-        __realm_role__,
-        __realm_name__,
-        __realm_env__,
-        __yuno_id__,
-        __yuno_name__,
-        __yuno_tag__,
-        jn_yuno
-    );
+    json_object_update_missing(kw_yuno, jn_yuno);
+
+    hgobj gobj = __yuno_gobj__ = gobj_create_yuno(__yuno_name__, __yuno_role__, kw_yuno);
     if(!gobj) {
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_RUNTIME_ERROR,
-            "msg",          "%s", "gobj_yuno_factory() FAILED",
+            "msg",          "%s", "gobj_create_yuno() FAILED",
             "role",         "%s", __yuno_role__,
             NULL
         );
         exit(0); // Exit with 0 to avoid that watcher restart yuno.
     }
-    gobj_write_str_attr(gobj, "appName", __app_name__);
-    gobj_write_str_attr(gobj, "appDesc", __app_doc__);
-    gobj_write_str_attr(gobj, "appDate", __app_datetime__);
-    gobj_write_str_attr(gobj, "work_dir", work_dir);
-    gobj_write_str_attr(gobj, "domain_dir", domain_dir);
-    gobj_write_str_attr(gobj, "yuno_version", __yuno_version__);
 
     /*------------------------------------------------*
      *          Create services

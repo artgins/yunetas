@@ -32,7 +32,6 @@ set (SRCS
     src/yunetas_register.c
     src/ydaemon.c
     src/replace_string.c
-    src/json_config.c
     src/rotatory.c
 )
 
@@ -49,7 +48,6 @@ set (HDRS
     src/yunetas_register.h
     src/ydaemon.h
     src/replace_string.h
-    src/json_config.h
     src/rotatory.h
 
     src/yunetas.h

@@ -35,6 +35,7 @@ set (SRCS
     src/command_parser.c
     src/stats_parser.c
     src/testing.c
+    src/json_config.c
 
     src/stacktrace_with_bfd.c
 )
@@ -55,6 +56,7 @@ set (HDRS
     src/command_parser.h
     src/stats_parser.h
     src/testing.h
+    src/json_config.h
 
     src/stacktrace_with_bfd.h
 )
