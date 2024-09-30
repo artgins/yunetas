@@ -20,11 +20,6 @@ extern "C"{
 /*****************************************************************
  *     Constants
  *****************************************************************/
-#define KW_GET(__name__, __default__, __func__) \
-    __name__ = __func__(gobj, kw, #__name__, __default__, 0);
-
-#define KW_GET_REQUIRED(gobj, __name__, __default__, __func__) \
-__name__ = __func__(kw, #__name__, __default__, KW_REQUIRED);
 
 /*****************************************************************
  *     Prototypes

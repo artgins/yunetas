@@ -29,6 +29,12 @@
 #include "entry_point.h"
 
 /***************************************************************************
+ *      Constants
+ ***************************************************************************/
+#define KW_GET(__name__, __default__, __func__) \
+    __name__ = __func__(0, kw, #__name__, __default__, 0);
+
+/***************************************************************************
  *      Data
  ***************************************************************************/
 PRIVATE hgobj __yuno_gobj__ = 0;
@@ -59,7 +65,6 @@ PRIVATE BOOL __quick_death__ = 0;
 PRIVATE BOOL __ordered_death__ = 1;  // WARNING Vamos a probar otra vez las muertes ordenadas 22/03/2017
 
 PRIVATE int __print__ = 0;
-PRIVATE int __deep_trace__ = 0;
 
 PRIVATE void *(*__global_startup_persistent_attrs_fn__)(void) = 0;
 PRIVATE void (*__global_end_persistent_attrs_fn__)(void) = 0;
@@ -432,7 +437,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             0
         );
 
-        json_t *jn_log_handlers = kw_get_dict(
+        json_t *jn_log_handlers = kw_get_dict(0,
             jn_temp_environment,
             __as_daemon__? "daemon_log_handlers":"console_log_handlers",
             0,
@@ -441,21 +446,17 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         const char *key;
         json_t *kw;
         json_object_foreach(jn_log_handlers, key, kw) {
-            const char *handler_type = kw_get_str(kw, "handler_type", "", 0);
+            const char *handler_type = kw_get_str(0, kw, "handler_type", "", 0);
             log_handler_opt_t handler_options = LOG_OPT_LOGGER;
             KW_GET(handler_options, handler_options, kw_get_int)
             if(strcmp(handler_type, "stdout")==0) {
                 if(arguments.verbose_log) {
                     handler_options = arguments.verbose_log;
                 }
-                log_add_handler(key, handler_type, handler_options, 0); // HACK until now: no output
-
-                if(handler_options & LOG_HND_OPT_DEEP_TRACE) {
-                    __deep_trace__ = 1;
-                }
+                gobj_log_add_handler(key, handler_type, handler_options, 0); // HACK until now: no output
 
             } else if(strcmp(handler_type, "file")==0) {
-                const char *filename_mask = kw_get_str(kw, "filename_mask", 0, 0);
+                const char *filename_mask = kw_get_str(0, kw, "filename_mask", 0, 0);
                 if(!empty_string(filename_mask)) {
                     char temp[NAME_MAX];
                     char *path = yuneta_log_file(temp, sizeof(temp), filename_mask, TRUE);
@@ -483,7 +484,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 
             } else if(strcmp(handler_type, "udp")==0 ||
                     strcmp(handler_type, "upd")==0) { // "upd" is a sintax bug in all versions <= 2.2.5
-                const char *url = kw_get_str(kw, "url", 0, 0);
+                const char *url = kw_get_str(0, kw, "url", 0, 0);
                 if(!empty_string(url)) {
                     size_t bf_size = 0;                 // 0 = default 64K
                     size_t udp_frame_size = 0;          // 0 = default 1500
@@ -510,32 +511,32 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             }
         }
 
-        MEM_MIN_BLOCK = kw_get_int(
+        MEM_MIN_BLOCK = kw_get_int(0,
             jn_temp_environment,
             "MEM_MIN_BLOCK",
             MEM_MIN_BLOCK,
             0
         );
-        MEM_MAX_BLOCK = kw_get_int(
+        MEM_MAX_BLOCK = kw_get_int(0,
             jn_temp_environment,
             "MEM_MAX_BLOCK",
             MEM_MAX_BLOCK,
             0
         );
-        MEM_SUPERBLOCK = kw_get_int(
+        MEM_SUPERBLOCK = kw_get_int(0,
             jn_temp_environment,
             "MEM_SUPERBLOCK",
             MEM_SUPERBLOCK,
             0
         );
-        MEM_MAX_SYSTEM_MEMORY = kw_get_int(
+        MEM_MAX_SYSTEM_MEMORY = kw_get_int(0,
             jn_temp_environment,
             "MEM_MAX_SYSTEM_MEMORY",
             MEM_MAX_SYSTEM_MEMORY,
             0
         );
-        use_system_memory = kw_get_bool(jn_temp_environment, "use_system_memory", 0, 0);
-        BOOL log_gbmem_info = kw_get_bool(jn_temp_environment, "log_gbmem_info", 0, 0);
+        use_system_memory = kw_get_bool(0, jn_temp_environment, "use_system_memory", 0, 0);
+        BOOL log_gbmem_info = kw_get_bool(0, jn_temp_environment, "log_gbmem_info", 0, 0);
         gbmem_enable_log_info(log_gbmem_info);
         jn_temp_environment = 0; // protect, no more use
     }
@@ -600,14 +601,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *      Re-read
      *------------------------------------------------*/
-    work_dir = kw_get_str(__jn_config__, "environment`work_dir", "", 0);
-    domain_dir = kw_get_str(__jn_config__, "environment`domain_dir", "", 0);
-    const char *realm_id  = kw_get_str(__jn_config__, "environment`realm_id", "", 0);
-    const char *realm_owner  = kw_get_str(__jn_config__, "environment`realm_owner", "", 0);
-    const char *realm_role  = kw_get_str(__jn_config__, "environment`realm_role", "", 0);
-    const char *realm_name  = kw_get_str(__jn_config__, "environment`realm_name", "", 0);
-    const char *realm_env  = kw_get_str(__jn_config__, "environment`realm_env", "", 0);
-    const char *node_owner  = kw_get_str(__jn_config__, "environment`node_owner", "", 0);
+    work_dir = kw_get_str(0, __jn_config__, "environment`work_dir", "", 0);
+    domain_dir = kw_get_str(0, __jn_config__, "environment`domain_dir", "", 0);
+    const char *realm_id  = kw_get_str(0, __jn_config__, "environment`realm_id", "", 0);
+    const char *realm_owner  = kw_get_str(0, __jn_config__, "environment`realm_owner", "", 0);
+    const char *realm_role  = kw_get_str(0, __jn_config__, "environment`realm_role", "", 0);
+    const char *realm_name  = kw_get_str(0, __jn_config__, "environment`realm_name", "", 0);
+    const char *realm_env  = kw_get_str(0, __jn_config__, "environment`realm_env", "", 0);
+    const char *node_owner  = kw_get_str(0, __jn_config__, "environment`node_owner", "", 0);
 
     register_yuneta_environment(
         work_dir,
@@ -620,7 +621,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *      Get yuno attributes.
      *------------------------------------------------*/
-    json_t *jn_yuno = kw_get_dict(__jn_config__, "yuno", 0, 0);
+    json_t *jn_yuno = kw_get_dict(0, __jn_config__, "yuno", 0, 0);
     if(!jn_yuno) {
         print_error(
             PEF_EXIT,
@@ -628,10 +629,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         );
     }
 
-    const char *yuno_role  = kw_get_str(jn_yuno, "yuno_role", "", 0);
-    const char *yuno_id  = kw_get_str(jn_yuno, "yuno_id", "", 0);
-    const char *yuno_name  = kw_get_str(jn_yuno, "yuno_name", "", 0);
-    const char *yuno_tag  = kw_get_str(jn_yuno, "yuno_tag", "", 0);
+    const char *yuno_role  = kw_get_str(0, jn_yuno, "yuno_role", "", 0);
+    const char *yuno_id  = kw_get_str(0, jn_yuno, "yuno_id", "", 0);
+    const char *yuno_name  = kw_get_str(0, jn_yuno, "yuno_name", "", 0);
+    const char *yuno_tag  = kw_get_str(0, jn_yuno, "yuno_tag", "", 0);
     if(empty_string(yuno_role)) {
         print_error(
             PEF_EXIT,
@@ -690,10 +691,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *  Print basic infom
      *------------------------------------------------*/
     if(arguments.print_role) {
-        json_t *jn_tags = kw_get_dict_value(jn_yuno, "tags", 0, 0);
-        json_t *jn_required_services = kw_get_dict_value(jn_yuno, "required_services", 0, 0);
-        json_t *jn_public_services = kw_get_dict_value(jn_yuno, "public_services", 0, 0);
-        json_t *jn_service_descriptor = kw_get_dict_value(jn_yuno, "service_descriptor", 0, 0);
+        json_t *jn_tags = kw_get_dict_value(0, jn_yuno, "tags", 0, 0);
+        json_t *jn_required_services = kw_get_dict_value(0, jn_yuno, "required_services", 0, 0);
+        json_t *jn_public_services = kw_get_dict_value(0, jn_yuno, "public_services", 0, 0);
+        json_t *jn_service_descriptor = kw_get_dict_value(0, jn_yuno, "service_descriptor", 0, 0);
 
         json_t *jn_basic_info = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
             "role", __yuno_role__,
@@ -702,7 +703,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             "version", __yuno_version__,
             "date", __app_datetime__,
             "description", __app_doc__,
-            "yuneta_version", __yuneta_version__
+            "yuneta_version", "__yuneta_version__" // TODO
         );
         if(jn_basic_info) {
             size_t flags = JSON_INDENT(4);
@@ -817,7 +818,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
  ***************************************************************************/
 PRIVATE void process(const char *process_name, const char *work_dir, const char *domain_dir)
 {
-    log_debug(0,
+    gobj_log_debug(0,0,
         "msgset",       "%s", MSGSET_START_STOP,
         "msg",          "%s", "Starting yuno",
         "work_dir",     "%s", work_dir,
@@ -843,7 +844,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*------------------------------------------------*
      *          Create main process yuno
      *------------------------------------------------*/
-    json_t *jn_yuno = kw_get_dict(
+    json_t *jn_yuno = kw_get_dict(0,
         __jn_config__,
         "yuno",
         0,
@@ -863,7 +864,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
         jn_yuno
     );
     if(!gobj) {
-        log_error(0,
+        gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_RUNTIME_ERROR,
@@ -883,7 +884,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*------------------------------------------------*
      *          Create services
      *------------------------------------------------*/
-    json_t *jn_services = kw_get_list(
+    json_t *jn_services = kw_get_list(0,
         __jn_config__,
         "services",
         0,
@@ -894,7 +895,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
         json_t *jn_service_tree;
         json_array_foreach(jn_services, index, jn_service_tree) {
             if(!json_is_object(jn_service_tree)) {
-                log_error(0,
+                gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -904,9 +905,9 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
                 );
                 continue;
             }
-            const char *service_name = kw_get_str(jn_service_tree, "name", 0, 0);
+            const char *service_name = kw_get_str(0, jn_service_tree, "name", 0, 0);
             if(empty_string(service_name)) {
-                log_error(0,
+                gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -918,7 +919,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
             }
             json_incref(jn_service_tree);
             if(!gobj_service_factory(service_name, jn_service_tree)) {
-                log_error(0,
+                gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -928,10 +929,6 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
                 );
             }
         }
-    }
-
-    if(__deep_trace__) {
-        gobj_set_deep_tracing(__deep_trace__);
     }
 
     /*------------------------*
@@ -948,8 +945,8 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     /*-----------------------------------*
      *      Run main event loop
      *-----------------------------------*/
-    mt_run(gobj);       // Forever loop. Returning is because someone order to stop
-    mt_clean(gobj);     // Before destroying check that uv handlers are closed.
+// TODO   mt_run(gobj);       // Forever loop. Returning is because someone order to stop
+//    mt_clean(gobj);     // Before destroying check that uv handlers are closed.
 
     /*---------------------------*
      *      Destroy all

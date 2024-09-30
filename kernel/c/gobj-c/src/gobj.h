@@ -245,6 +245,17 @@ typedef void (*fnfree)(void *);
 #define MSGSET_YEV_LOOP                 "Yev_loop"
 #define MSGSET_TRACK_MEM                "TrackMem"
 
+#define MSGSET_START_STOP               "Start Stop"
+#define MSGSET_PERSISTENT_IEVENTS       "Persistent IEvents"
+#define MSGSET_OPEN_CLOSE               "Open Close"
+#define MSGSET_DATABASE                 "Database"
+#define MSGSET_CREATION_DELETION_GOBJS  "Creation Deletion GObjs"
+#define MSGSET_SUBSCRIPTIONS            "Creation Deletion Subscriptions"
+#define MSGSET_BAD_BEHAVIOUR            "Bad Behaviour"
+#define MSGSET_PROTOCOL_INFO            "Protocol info"
+#define MSGSET_TASK_INFO                "Task info"
+
+
 /*
  *  Options for handlers
  */
