@@ -883,7 +883,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     );
     json_object_update_missing(kw_yuno, jn_yuno);
 
-    hgobj yuno = __yuno_gobj__ = gobj_create_yuno(__yuno_name__, __yuno_role__, kw_yuno);
+    hgobj yuno = __yuno_gobj__ = gobj_create_yuno(__yuno_name__, C_YUNO, kw_yuno);
     if(!yuno) {
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
