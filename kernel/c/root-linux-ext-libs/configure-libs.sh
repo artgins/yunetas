@@ -28,7 +28,7 @@ else
 fi
 
 PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
-YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs"
+YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext"
 
 #------------------------------------------
 #   Jansson
