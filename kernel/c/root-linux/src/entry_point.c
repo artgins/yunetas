@@ -17,13 +17,15 @@
 
 #include <command_parser.h>
 #include <stats_parser.h>
+#include <json_config.h>
+#include <helpers.h>
+#include <kwid.h>
 
 #include "yunetas_register.h"
 #include "yunetas_environment.h"
 #include "dbsimple.h"
-#include "c_linux_yuno.h"         // the grandmother
 #include "ydaemon.h"
-#include "json_config.h"
+#include "c_linux_yuno.h"         // the grandmother
 #include "entry_point.h"
 
 /***************************************************************************
@@ -387,7 +389,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             APP_NAME
         );
     }
-    json_t *jn_temp_config = legalstring2json(sconfig, TRUE);
+    json_t *jn_temp_config = string2json(sconfig, TRUE);
     if(!jn_temp_config) {
         print_error(
             PEF_EXIT,
@@ -410,18 +412,18 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
     BOOL use_system_memory = FALSE;
 
-    json_t *jn_temp_environment = kw_get_dict(jn_temp_config, "environment", 0, 0);
+    json_t *jn_temp_environment = kw_get_dict(0, jn_temp_config, "environment", 0, 0);
     if(jn_temp_environment && !__print__) {
         /*
          *  WARNING
          *  In this point json config is temporal.
          *  Be care with pointers!
          */
-        buffer_uv_read = kw_get_int(jn_temp_environment, "buffer_uv_read", buffer_uv_read, 0);
-        xpermission = (int)kw_get_int(jn_temp_environment, "xpermission", xpermission, 0);
-        rpermission = (int)kw_get_int(jn_temp_environment, "rpermission", rpermission, 0);
-        work_dir = kw_get_str(jn_temp_environment, "work_dir", 0, 0);
-        domain_dir = kw_get_str(jn_temp_environment, "domain_dir", 0, 0);
+        buffer_uv_read = kw_get_int(0, jn_temp_environment, "buffer_uv_read", buffer_uv_read, 0);
+        xpermission = (int)kw_get_int(0, jn_temp_environment, "xpermission", xpermission, 0);
+        rpermission = (int)kw_get_int(0, jn_temp_environment, "rpermission", rpermission, 0);
+        work_dir = kw_get_str(0, jn_temp_environment, "work_dir", 0, 0);
+        domain_dir = kw_get_str(0, jn_temp_environment, "domain_dir", 0, 0);
         register_yuneta_environment(
             work_dir,
             domain_dir,

@@ -2230,6 +2230,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 /***************************************************************************
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
+ *  Old legalstring2json()
  ***************************************************************************/
 PUBLIC json_t * string2json(const char* str, BOOL verbose)
 {
