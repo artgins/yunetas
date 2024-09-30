@@ -1494,6 +1494,220 @@ PUBLIC hgobj gobj_create_gobj(
 }
 
 /***************************************************************************
+ *  Create tree
+ ***************************************************************************/
+PUBLIC hgobj gobj_create_tree0(
+    hgobj parent_,
+    json_t *jn_tree,
+    const char *ev_on_setup,
+    const char *ev_on_setup_complete
+)
+{
+    gobj_t *parent = parent_;
+    gobj_flag_t gobj_flag = 0;
+    const char *gclass_name = kw_get_str(parent_, jn_tree, "gclass", "", KW_REQUIRED);
+    const char *name = kw_get_str(parent_, jn_tree, "name", "", 0);
+    BOOL default_service = kw_get_bool(parent_, jn_tree, "default_service", 0, 0);
+    BOOL as_service = kw_get_bool(parent_, jn_tree, "as_service", 0, 0) ||
+        kw_get_bool(parent_, jn_tree, "service", 0, 0);
+    BOOL autoplay = kw_get_bool(parent_, jn_tree, "autoplay", 0, 0);
+    BOOL autostart = kw_get_bool(parent_, jn_tree, "autostart", 0, 0);
+    BOOL disabled = kw_get_bool(parent_, jn_tree, "disabled", 0, 0);
+    gclass_t *gclass = gclass_find_by_name(gclass_name);
+    if(!gclass) {
+        gobj_log_error(parent_, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gclass not found",
+            "gclass_name",  "%s", gclass_name,
+            "name",         "%s", name?name:"",
+            NULL
+        );
+        JSON_DECREF(jn_tree);
+        return 0;
+    }
+    BOOL local_kw = FALSE;
+    json_t *kw = kw_get_dict(parent_, jn_tree, "kw", 0, 0);
+    if(!kw) {
+        local_kw = TRUE;
+        kw = json_object();
+    }
+
+    if(gclass_has_attr(gclass, "subscriber")) {
+        if(!kw_has_key(kw, "subscriber")) { // WARNING TOO implicit
+            if(parent != gobj_yuno()) {
+                json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)parent));
+            }
+        } else {
+            json_t *jn_subscriber = kw_get_dict_value(parent_, kw, "subscriber", 0, 0);
+            if(json_is_string(jn_subscriber)) {
+                const char *subscriber_name = json_string_value(jn_subscriber);
+                hgobj subscriber = gobj_find_service(subscriber_name, FALSE);
+                if(subscriber) {
+                    json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)subscriber));
+                } else {
+                    gobj_log_error(parent_, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "subscriber service gobj NOT FOUND",
+                        "subscriber",   "%s", subscriber_name,
+                        "name",         "%s", name?name:"",
+                        "gclass",       "%s", gclass_name,
+                        NULL
+                    );
+                }
+            } else if(json_is_integer(jn_subscriber)) {
+                json_object_set_new(kw, "subscriber", json_integer(json_integer_value(jn_subscriber)));
+            } else {
+                gobj_log_error(parent_, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "subscriber json INVALID",
+                    "name",         "%s", name?name:"",
+                    "gclass",       "%s", gclass_name,
+                    NULL
+                );
+            }
+        }
+    }
+
+    if(!local_kw) {
+        json_incref(kw);
+    }
+    if(default_service) {
+        gobj_flag |= gobj_flag_default_service;
+    }
+    if(as_service) {
+        gobj_flag |= gobj_flag_service;
+    }
+    if(autoplay) {
+        gobj_flag |= gobj_flag_autoplay;
+    }
+    if(autostart) {
+        gobj_flag |= gobj_flag_autostart;
+    }
+
+    hgobj first_child = gobj_create_gobj(name, gclass_name, kw, parent, gobj_flag);
+    if(!first_child) {
+        gobj_log_error(parent_, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "_gobj_create() FAILED",
+            "name",         "%s", name?name:"",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        JSON_DECREF(jn_tree);
+        return 0;
+    }
+    if(disabled) {
+        gobj_disable(first_child);
+    }
+
+    if(!empty_string(ev_on_setup)) {
+        if(gobj_has_input_event(parent, ev_on_setup)) { // TODO review event
+            gobj_send_event(parent, ev_on_setup, 0, first_child);
+        }
+    }
+
+    hgobj last_child = 0;
+    json_t *jn_childs = kw_get_list(parent_, jn_tree, "zchilds", 0, 0);
+    size_t index;
+    json_t *jn_child;
+    json_array_foreach(jn_childs, index, jn_child) {
+        if(!json_is_object(jn_child)) {
+            continue;
+        }
+        json_incref(jn_child);
+        last_child = gobj_create_tree0(
+            first_child,
+            jn_child,
+            ev_on_setup,
+            ev_on_setup_complete
+        );
+        if(!last_child) {
+            gobj_log_error(parent_, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "gobj_create_tree0() FAILED",
+                "jn_child",     "%j", jn_child,
+                NULL
+            );
+            JSON_DECREF(jn_tree);
+            return 0;
+        }
+    }
+    if(json_array_size(jn_childs) == 1) {
+        gobj_set_bottom_gobj(first_child, last_child);
+    }
+
+    if(!empty_string(ev_on_setup_complete)) {
+        if(gobj_has_input_event(parent, ev_on_setup_complete)) {  // TODO review event
+            gobj_send_event(parent, ev_on_setup_complete, 0, first_child);
+        }
+    }
+    JSON_DECREF(jn_tree)
+    return first_child;
+}
+
+/***************************************************************************
+ *  Create gobj tree
+ ***************************************************************************/
+PUBLIC hgobj gobj_create_tree(
+    hgobj parent_,
+    const char *tree_config_,
+    const char *json_config_variables,
+    const char *ev_on_setup,
+    const char *ev_on_setup_complete)
+{
+    gobj_t *parent = parent_;
+
+    if(!parent) {
+        gobj_log_error(parent_, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "parent null",
+            NULL);
+        return (hgobj) 0;
+    }
+//    if(!parent->yuno) {
+//        gobj_log_error(parent_, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//            "msg",          "%s", "parent without yuno",
+//            NULL);
+//        return (hgobj) 0;
+//    }
+
+    char *config = GBMEM_STRDUP(tree_config_);
+    helper_quote2doublequote(config);
+
+    char *__json_config_variables__ = GBMEM_STRDUP(json_config_variables);
+    helper_quote2doublequote(__json_config_variables__);
+
+    char *tree_config = json_config(
+        0,
+        0,
+        0,                          // fixed_config
+        config,                     // variable_config
+        0,                          // config_json_file
+        __json_config_variables__,  // parameter_config
+        PEF_CONTINUE
+    );
+    GBMEM_FREE(config)
+    GBMEM_FREE(__json_config_variables__)
+
+    json_t *jn_tree = legalstring2json(tree_config, TRUE);
+    jsonp_free(tree_config) ;
+
+    if(!jn_tree) {
+        // error already logged
+        return 0;
+    }
+    return gobj_create_tree0(parent, jn_tree, ev_on_setup, ev_on_setup_complete);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC void gobj_destroy(hgobj hgobj)

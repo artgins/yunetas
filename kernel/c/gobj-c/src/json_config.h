@@ -128,28 +128,6 @@ PUBLIC char *json_config( /* **free** the returned string with jsonp_free() */
     pe_flag_t quit
 );
 
-/**rst**
-
-.. function:: PUBLIC char *helper_quote2doublequote(char *str)
-
-   Change ' by ".
-   Useful for easier json representation in C strings,
-   **BUT** you cannot use true '
-
-**rst**/
-PUBLIC char *helper_quote2doublequote(char *str);
-
-/**rst**
-
-.. function:: PUBLIC char *helper_doublequote2quote(char *str)
-
-   Change " by '.
-   Useful for easier json representation in C strings,
-   **BUT** you cannot use true "
-
-**rst**/
-PUBLIC char *helper_doublequote2quote(char *str);
-
 #ifdef __cplusplus
 }
 #endif
