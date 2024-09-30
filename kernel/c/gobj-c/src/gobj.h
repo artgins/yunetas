@@ -1032,6 +1032,18 @@ PUBLIC void gobj_shutdown(void);            /* Order for shutdown the yuno */
 PUBLIC BOOL gobj_is_shutdowning(void);      /* Check if yuno is shutdowning */
 PUBLIC void gobj_end(void);                 /* De-initialize the yuno */
 
+/*
+ *  gobj_gclass_register():
+ *      Return [gclass:s}]
+ *
+ *  gobj_service_register():
+ *      Return [{gclass:s, service:s}]
+ *
+ */
+PUBLIC json_t * gobj_gclass_register(void);
+PUBLIC json_t * gobj_service_register(const char *gclass_name);
+PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
+
 /*---------------------------------*
  *      GClass functions
  *---------------------------------*/
@@ -1065,7 +1077,6 @@ PUBLIC int gclass_add_state_with_action_list(
     gobj_state_t state_name,
     ev_action_t *ev_action_list
 );
-PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
@@ -1372,17 +1383,6 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
 
 PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
 PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
-
-/*
- *  gobj_gclass_register():
- *      Return [gclass:s}]
- *
- *  gobj_service_register():
- *      Return [{gclass:s, service:s}]
- *
- */
-PUBLIC json_t * gobj_gclass_register(void);
-PUBLIC json_t * gobj_service_register(const char *gclass_name);
 
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
 

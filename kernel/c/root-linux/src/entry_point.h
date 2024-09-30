@@ -21,7 +21,7 @@ extern "C"{
  *  Yuneta setup function.
  */
 PUBLIC int yuneta_setup(
-    void *(*startup_persistent_attrs)(void),
+    int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),
     int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
     int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),

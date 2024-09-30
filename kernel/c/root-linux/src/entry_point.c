@@ -20,11 +20,13 @@
 #include <json_config.h>
 #include <helpers.h>
 #include <kwid.h>
+#include <log_udp_handler.h>
 
 #include "yunetas_register.h"
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "ydaemon.h"
+#include "rotatory.h"
 #include "c_linux_yuno.h"         // the grandmother
 #include "entry_point.h"
 
@@ -54,6 +56,7 @@ PRIVATE char __yuno_version__[NAME_MAX] = {0};
 PRIVATE char __argp_program_version__[NAME_MAX] = {0};
 PRIVATE char __app_doc__[NAME_MAX] = {0};
 PRIVATE char __app_datetime__[NAME_MAX] = {0};
+PRIVATE char __process_name__[64] = {0};
 
 
 PRIVATE json_t *__jn_config__ = 0;
@@ -66,7 +69,7 @@ PRIVATE BOOL __ordered_death__ = 1;  // WARNING Vamos a probar otra vez las muer
 
 PRIVATE int __print__ = 0;
 
-PRIVATE void *(*__global_startup_persistent_attrs_fn__)(void) = 0;
+PRIVATE int (*__global_startup_persistent_attrs_fn__)(void) = 0;
 PRIVATE void (*__global_end_persistent_attrs_fn__)(void) = 0;
 PRIVATE int (*__global_load_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
 PRIVATE int (*__global_save_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
@@ -278,10 +281,25 @@ PRIVATE void daemon_catch_signals(void)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int set_process_name2(const char *role, const char *name)
+{
+    if(role && name) {
+        snprintf(__process_name__, sizeof(__process_name__), "%s^%s", role, name);
+    }
+    return 0;
+}
+PRIVATE const char *get_process_name(void)
+{
+    return __process_name__;
+}
+
+/***************************************************************************
  *  New yuneta setup function.
  ***************************************************************************/
 PUBLIC int yuneta_setup(
-    void *(*startup_persistent_attrs)(void),
+    int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),
     int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
     int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
@@ -478,7 +496,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                             rpermission,
                             TRUE    // exit on failure
                         );
-                        log_add_handler(key, handler_type, handler_options, hr);
+                        gobj_log_add_handler(key, handler_type, handler_options, hr);
                     }
                 }
 
@@ -488,7 +506,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                 if(!empty_string(url)) {
                     size_t bf_size = 0;                 // 0 = default 64K
                     size_t udp_frame_size = 0;          // 0 = default 1500
-                    ouput_format_t output_format = 0;   // 0 = default OUTPUT_FORMAT_YUNETA
+                    output_format_t output_format = 0;   // 0 = default OUTPUT_FORMAT_YUNETA
                     const char *bindip = 0;
 
                     KW_GET(bindip, bindip, kw_get_str)
@@ -499,13 +517,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                     udpc_t udpc = udpc_open(
                         url,
                         bindip,
+                        "",
                         bf_size,
                         udp_frame_size,
                         output_format,
                         TRUE    // exit on failure
                     );
                     if(udpc) {
-                        log_add_handler(key, "udp", handler_options, udpc);
+                        gobj_log_add_handler(key, "udp", handler_options, udpc);
                     }
                 }
             }
@@ -537,7 +556,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         );
         use_system_memory = kw_get_bool(0, jn_temp_environment, "use_system_memory", 0, 0);
         BOOL log_gbmem_info = kw_get_bool(0, jn_temp_environment, "log_gbmem_info", 0, 0);
-        gbmem_enable_log_info(log_gbmem_info);
+        // TODO gbmem_enable_log_info(log_gbmem_info);
         jn_temp_environment = 0; // protect, no more use
     }
     JSON_DECREF(jn_temp_config); // free allocated with default free
@@ -658,7 +677,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     snprintf(__yuno_name__, sizeof(__yuno_name__), "%s", yuno_name);
     snprintf(__yuno_tag__, sizeof(__yuno_tag__), "%s", yuno_tag);
 
-    set_process_name2(__yuno_role__, __yuno_name__);
+    // TODO set_process_name2(__yuno_role__, __yuno_name__);
 
     /*----------------------------------------------*
      *  Check executable name versus yuno_role
@@ -738,9 +757,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *  Init ginsfsm and yuneta
      *------------------------------------------------*/
-    init_ginsfsm_library();
-    json_t *jn_global = kw_get_dict(__jn_config__, "global", 0, 0);
+    // TODO init_ginsfsm_library();
+    json_t *jn_global = kw_get_dict(0, __jn_config__, "global", 0, 0);
+
     gobj_start_up(
+        argc,
+        argv,
         jn_global,
         __global_startup_persistent_attrs_fn__,
         __global_end_persistent_attrs_fn__,
@@ -751,9 +773,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         __global_command_parser_fn__,
         __global_stats_parser_fn__,
         __global_authz_checker_fn__,
-        __global_authenticate_parser_fn__
+        __global_authenticate_parser_fn__,
+        60*1024L,   // TODO max_block, largest memory block
+        120*1024L   // max_system_memory, maximum system memory
     );
-    yuneta_register_c_core();
+
+    // TODO yuneta_register_c_core();
     if(register_yuno_and_more) {
         register_yuno_and_more();
     }
@@ -775,8 +800,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    end_ginsfsm_library();
-    log_debug(0,
+    // TODO end_ginsfsm_library();
+    gobj_log_debug(0,0,
         "gobj",         "%s", __FILE__,
         "msgset",       "%s", MSGSET_START_STOP,
         "msg",          "%s", "Finished",
@@ -787,14 +812,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         NULL
     );
     JSON_DECREF(__jn_config__);
-    gbmem_shutdown();
+    // TODO gbmem_shutdown();
     register_yuneta_environment(0, 0, 0, 0, 0);
-    log_debug_printf("", "<===== Yuno '%s^%s %s' stopped\n",
+    gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped\n",
         __yuno_role__,
         __yuno_name__,
         __yuno_id__
     );
-    end_ghelpers_library();
+    // TODO end_ghelpers_library();
 
     /*
      *  Restore default memory in jansson
