@@ -9038,6 +9038,33 @@ static bool check_no_links(register dl_item_t *item)
 }
 
 /***************************************************************
+ *   Insert at the head
+ ***************************************************************/
+PUBLIC int dl_insert(dl_list_t *dl, void *item)
+{
+    if(check_links(item)) return -1;
+
+    if(dl->head==0) { /*---- Empty List -----*/
+        ((dl_item_t *)item)->__prev__=0;
+        ((dl_item_t *)item)->__next__=0;
+        dl->head = item;
+        dl->tail = item;
+    } else  { /* FIRST ITEM */
+        ((dl_item_t *)item)->__prev__ = 0;
+        ((dl_item_t *)item)->__next__ = dl->head;
+        dl->head->__prev__ = item;
+        dl->head = item;
+    }
+
+    dl->__itemsInContainer__++;
+    dl->__last_id__++;
+    ((dl_item_t *)item)->__id__ = dl->__last_id__;
+    ((dl_item_t *)item)->__dl__ = dl;
+
+    return 0;
+}
+
+/***************************************************************
  *      Add at end of the list
  ***************************************************************/
 PUBLIC int dl_add(dl_list_t *dl, void *item)

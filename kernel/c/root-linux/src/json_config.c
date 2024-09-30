@@ -20,8 +20,8 @@
 
 // From jannson_private.h
 //extern void* jsonp_malloc(size_t size);
-//extern void jsonp_free(void *ptr);
-//extern char *jsonp_strdup(const char *str);
+extern void jsonp_free(void *ptr);
+extern char *jsonp_strdup(const char *str);
 //extern char *jsonp_strndup(const char *str, size_t len);
 
 
@@ -288,7 +288,6 @@ PRIVATE json_t * x_legalstring2json(dl_list_t* dl_op, char* reference, const cha
     if(!jn_msg) {
         print_error(
             quit,
-            "YUNETA ERROR",
             "Cannot convert legal json string to json binary.\n"
             "Reference: '%s'\n"
             "Error: '%s'\n in line %d, column %d, position %d.\n"
