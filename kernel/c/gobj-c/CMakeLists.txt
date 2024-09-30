@@ -41,7 +41,6 @@ set (SRCS
     src/stacktrace_with_bfd.c
 )
 
-
 set (HDRS
     src/ansi_escape_codes.h
     src/00_http_parser.h
