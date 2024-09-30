@@ -38,6 +38,9 @@ set(BIN_DEST_DIR ${CMAKE_INSTALL_PREFIX}/bin)
 add_definitions(-D_GNU_SOURCE)
 add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
 
+include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
+link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
+
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
