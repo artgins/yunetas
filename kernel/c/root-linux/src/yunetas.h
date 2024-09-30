@@ -17,14 +17,37 @@ extern "C"{
  */
 #include <yuneta_version.h>
 #include <gobj.h>
+
+#include <ansi_escape_codes.h>
+#include <comm_prot.h>
+#include <ghttp_parser.h>
+#include <gobj_environment.h>
+#include <helpers.h>
+#include <istream.h>
+#include <json_config.h>
+#include <kwid.h>
+#include <parse_url.h>
+#include <replace_string.h>
 #include <stacktrace_with_bfd.h>
-#include <yunetas_ev_loop.h>
+#include <stats_parser.h>
+#include <testing.h>
+
 #include <timeranger2.h>
 
-//#include "msglog_yuneta.h"
-//#include "c_yuno.h"         // the grandmother
-//#include "dbsimple.h"
-//#include "dbsimple2.h"
+#include "c_linux_yuno.h"         // the grandmother
+#include "c_linux_transport.h"
+#include "c_linux_uart.h"
+#include "c_timer.h"
+#include "dbsimple.h"
+#include "yunetas_ev_loop.h"
+#include "entry_point.h"
+#include "fs_watcher.h"
+#include "rotatory.h"
+#include "ydaemon.h"
+#include "yunetas_environment.h"
+#include "yunetas_ev_loop.h"
+#include "yunetas_register.h"
+
 
 /*
  *  Services
@@ -63,9 +86,9 @@ extern "C"{
 //#include "c_serial.h"
 
 /*
- *  Mixin uv-gobj
+ *  Mixin io_uring-gobj
  */
-//#include "c_gss_udp_s0.h"   // gossamer
+
 //#include "c_tcp0.h"
 //#include "c_tcp_s0.h"
 //#include "c_udp_s0.h"
@@ -77,11 +100,6 @@ extern "C"{
  *  Decoders
  */
 //#include "ghttp_parser.h"
-
-/*
- * Entry point
- */
-//#include "entry_point.h"
 
 
 #ifdef __cplusplus

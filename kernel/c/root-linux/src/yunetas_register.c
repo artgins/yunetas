@@ -5,7 +5,7 @@
  *              Copyright (c) 2014-2015 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
-//#include "yuneta.h"
+#include "yunetas.h"
 #include "yunetas_register.h"
 
 /***************************************************************************
@@ -45,10 +45,13 @@ PUBLIC int yunetas_register_c_core(void)
 //    gobj_register_gclass(GCLASS_DYNRULE);
 //    gobj_register_gclass(GCLASS_TIMETRANSITION);
 //    gobj_register_gclass(GCLASS_RSTATS);
-//
-//    /*
-//     *  Protocols
-//     */
+
+    /*
+     *  Protocols
+     */
+    register_c_linux_transport();
+    register_c_linux_uart();    // TODO include with menuconfig
+
 //    gobj_register_gclass(GCLASS_CONNEX);
 //    gobj_register_gclass(GCLASS_GWEBSOCKET);
 //    gobj_register_gclass(GCLASS_PROT_HEADER4);
@@ -57,10 +60,11 @@ PUBLIC int yunetas_register_c_core(void)
 //    gobj_register_gclass(GCLASS_PROT_HTTP_SRV);
 //    gobj_register_gclass(GCLASS_PROT_HTTP_CLI);
 //    gobj_register_gclass(GCLASS_SERIAL);
-//
-//    /*
-//     *  Mixin uv-gobj
-//     */
+
+    /*
+     *  Mixin io_uring-gobj
+     */
+    register_c_timer();
 //    gobj_register_gclass(GCLASS_GSS_UDP_S0);
 //    gobj_register_gclass(GCLASS_TCP0);
 //    gobj_register_gclass(GCLASS_TCP_S0);
@@ -69,7 +73,7 @@ PUBLIC int yunetas_register_c_core(void)
 //    gobj_register_gclass(GCLASS_TIMETRANSITION);
 //    gobj_register_gclass(GCLASS_TIMER);
 //    gobj_register_gclass(GCLASS_FS);
-//
+
 //    register_ievent_answer_filter();
 
     initialized = TRUE;
