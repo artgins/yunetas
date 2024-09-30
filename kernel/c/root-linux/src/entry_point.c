@@ -346,12 +346,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *process_name = APP_NAME;
 
     /*------------------------------------------------*
-     *  Init ghelpers
-     *------------------------------------------------*/
-    init_ghelpers_library(process_name);
-    log_startup(APP_NAME, APP_VERSION, argv[0]);
-
-    /*------------------------------------------------*
      *          Parse input arguments
      *------------------------------------------------*/
     struct arguments arguments;
