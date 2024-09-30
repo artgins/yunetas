@@ -8,7 +8,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
+#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{
