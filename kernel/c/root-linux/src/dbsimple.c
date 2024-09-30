@@ -1,5 +1,5 @@
 /***********************************************************************
- *          DBSIMPLE.C
+ *          dbsimple.c
  *
  *          Simple DB file for persistent attributes
  *

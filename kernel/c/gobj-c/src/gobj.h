@@ -232,6 +232,7 @@ typedef void (*fnfree)(void *);
 #define MSGSET_SERVICE_ERROR            "Service error"
 #define MSGSET_TASK_ERROR               "Task error"
 #define MSGSET_CONFIGURATION_ERROR      "Configuration error"
+#define MSGSET_RUNTIME_ERROR            "Runtime error"
 
 // Info/Debug MSGSETs
 #define MSGSET_STATISTICS               "Statistics"
@@ -2045,10 +2046,18 @@ PUBLIC void gobj_trace_dump(
     ...
 ) JANSSON_ATTRS((format(printf, 4, 5)));
 
-PUBLIC void print_error(
+typedef enum {
+    PEF_CONTINUE    = 0,
+    PEF_EXIT        = -1,
+    PEF_ABORT       = -2,
+    PEF_SYSLOG      = -3,
+} pe_flag_t;
+
+PUBLIC void print_error( //  Print ERROR message to stdout and syslog if quit != 0
+    pe_flag_t quit,
     const char *fmt,
     ...
-) JANSSON_ATTRS((format(printf, 1, 2)));
+) JANSSON_ATTRS((format(printf, 2, 3)));
 
 /*---------------------------------*
  *      Memory functions

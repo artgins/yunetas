@@ -12,6 +12,7 @@
 #include <wchar.h>
 
 #ifdef __linux__
+    #include <syslog.h>
     #include <execinfo.h>
 #endif
 
@@ -19,6 +20,7 @@
     #include <esp_system.h>
 #endif
 
+#include "stacktrace_with_bfd.h"
 #include "helpers.h"
 #include "gobj.h"
 
@@ -774,9 +776,10 @@ PUBLIC void gobj_trace_dump(
 }
 
 /***************************************************************************
- *  Print ERROR message to stdout
+ *  Print ERROR message to stdout and syslog if quit != 0
  ***************************************************************************/
 PUBLIC void print_error(
+    pe_flag_t quit,
     const char *fmt,
     ...
 )
@@ -792,6 +795,23 @@ PUBLIC void print_error(
         if(buf) {
             vsnprintf(buf, (size_t)length + 1, fmt, ap);
             fwrite(buf, strlen(buf), 1, stdout);
+
+            if(quit != PEF_CONTINUE) {
+#ifdef __linux__
+                syslog(LOG_ERR, "ERROR YUNETAS: %s", buf);
+#endif
+                if(quit == PEF_ABORT) {
+                    if(show_backtrace_fn) {
+                        show_backtrace_fn(stdout_fwrite, stdout);
+                    }
+                    abort();
+                } else if(quit == PEF_EXIT) {
+                    if(show_backtrace_fn) {
+                        show_backtrace_fn(stdout_fwrite, stdout);
+                    }
+                    exit(-1);
+                }
+            }
             free(buf);
         }
     }

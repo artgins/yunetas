@@ -1,6 +1,7 @@
 /****************************************************************************
- *          ENTRY_POINT.C
- *          Entry point for yunos.
+ *          entry_point.c
+ *
+ *          Entry point for yunos (yuneta daemons).
  *
  *          Copyright (c) 2014-2018 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
@@ -13,6 +14,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <argp.h>
+
+#include <command_parser.h>
+#include <stats_parser.h>
+
+#include "yunetas_register.h"
+#include "yunetas_environment.h"
+#include "dbsimple.h"
+#include "c_linux_yuno.h"         // the grandmother
 #include "entry_point.h"
 
 /***************************************************************************
@@ -147,11 +156,9 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 'v':
         printf("%s\n", argp_program_version);
         exit(0);
-        break;
     case 'V':
-        printf("%s\n", __yuneta_long_version__);
+        // TODO printf("%s\n", __yuneta_long_version__);
         exit(0);
-        break;
     case 'f':
         arguments->config_json_file = arg;
         arguments->use_config_file = 1;
@@ -191,18 +198,9 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
 PRIVATE void quit_sighandler(int sig)
 {
     static int tries = 0;
-    int trace = daemon_get_debug_mode();
-
-    if(trace) {
-        print_info("INFO YUNETA", "Sighandler signal %d, process %s, pid %d",
-            sig,
-            get_process_name(),
-            getpid()
-        );
-    }
 
     /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
+     *  __yuno_gobj__ is 0 for watcher fork if we are running --stop
      */
     hgobj gobj = __yuno_gobj__;
 
@@ -218,13 +216,12 @@ PRIVATE void quit_sighandler(int sig)
                 alarm(__assure_kill_time__); // que se muera a la fuerza en 5 o 10 seg.
         }
         if(tries > 1) {
-            mt_clean(gobj);   // Display pending uv handlers
             _exit(-1);
         }
         return;
     }
 
-    print_error(0, "ERROR YUNETA", "Signal handler without __yuno_gobj__, signal %d, pid %d", sig, getpid());
+    print_error(PEF_SYSLOG, "Signal handler without __yuno_gobj__, signal %d, pid %d", sig, getpid());
 }
 
 /***************************************************************************
@@ -238,8 +235,8 @@ PRIVATE void raise_sighandler(int sig)
     hgobj gobj = __yuno_gobj__;
 
     if(gobj) {
-        gobj_set_panic_trace(1);
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_set_deep_tracing(-1);
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_RUNTIME_ERROR,
@@ -269,28 +266,6 @@ PRIVATE void daemon_catch_signals(void)
     sigemptyset(&sigIntHandler.sa_mask);
     sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
     sigaction(SIGUSR1, &sigIntHandler, NULL);
-}
-
-/***************************************************************************
- *  DEPRECATED Set functions of gobj_start_up() function.
- ***************************************************************************/
-PUBLIC int yuneta_set_gobj_startup_functions(
-    int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*remove_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_t * (*list_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser
-)
-{
-    __global_load_persistent_attrs_fn__ = load_persistent_attrs;
-    __global_save_persistent_attrs_fn__ = save_persistent_attrs;
-    __global_remove_persistent_attrs_fn__ = remove_persistent_attrs;
-    __global_list_persistent_attrs_fn__ = list_persistent_attrs;
-    __global_command_parser_fn__ = global_command_parser;
-    __global_stats_parser_fn__ = global_stats_parser;
-
-    return 0;
 }
 
 /***************************************************************************
@@ -360,7 +335,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(strlen(APP_NAME) > 15) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "role name '%s' TOO LONG!, maximum is 15 characters",
             APP_NAME
         );

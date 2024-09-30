@@ -29,6 +29,7 @@ set (SRCS
     src/fs_watcher.c
     src/dbsimple.c
     src/entry_point.c
+    src/yunetas_register.c
 )
 
 set (HDRS
@@ -41,6 +42,8 @@ set (HDRS
     src/fs_watcher.h
     src/dbsimple.h
     src/entry_point.h
+    src/yunetas_register.h
+
     src/yunetas.h
 )
 

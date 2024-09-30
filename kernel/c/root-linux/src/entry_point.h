@@ -1,5 +1,6 @@
 /****************************************************************************
- *          ENTRY_POING.H
+ *          entry_point.c
+ *
  *          Entry point for yunos (yuneta daemons).
  *
  *          Copyright (c) 2014-2015 Niyamaka, 2024- ArtGins.
@@ -7,14 +8,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <ginsfsm.h>
-#include "msglog_yuneta.h"
-#include "yuneta_version.h"
-#include "yuneta_register.h"
-#include "yuneta_environment.h"
-#include "dbsimple.h"
-#include "dbsimple2.h"
-#include "c_yuno.h"         // the grandmother
+#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -24,20 +18,7 @@ extern "C"{
  *  Prototypes
  *********************************************************************/
 /*
- *  Set functions of gobj_start_up() function.
- *  DEPRECATED use yuneta_setup()
- */
-PUBLIC int yuneta_set_gobj_startup_functions(
-    int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*remove_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_t * (*list_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser
-);
-
-/*
- *  New yuneta setup function.
+ *  Yuneta setup function.
  */
 PUBLIC int yuneta_setup(
     void *(*startup_persistent_attrs)(void),

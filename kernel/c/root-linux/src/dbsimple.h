@@ -1,5 +1,5 @@
 /****************************************************************************
- *          DBSIMPLE.H
+ *          dbsimple.h
  *
  *          Simple DB file for persistent attributes
  *
