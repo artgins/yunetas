@@ -22,6 +22,8 @@
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "c_linux_yuno.h"         // the grandmother
+#include "ydaemon.h"
+#include "json_config.h"
 #include "entry_point.h"
 
 /***************************************************************************
@@ -381,7 +383,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!sconfig) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "json_config() of '%s' failed",
             APP_NAME
         );
@@ -390,7 +391,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!jn_temp_config) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "legalstring2json() of '%s' failed",
             APP_NAME
         );
@@ -589,7 +589,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!__jn_config__) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "legalstring2json() of '%s' failed",
             APP_NAME
         );
@@ -623,7 +622,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!jn_yuno) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "'yuno' dict NOT FOUND in json config"
         );
     }
@@ -635,14 +633,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(empty_string(yuno_role)) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "'yuno_role' is EMPTY"
         );
     }
     if(strcmp(yuno_role, APP_NAME)!=0) {
         print_error(
             PEF_EXIT,
-            "ERROR YUNETA",
             "yuno_role '%s' and process name '%s' MUST MATCH!",
             yuno_role,
             APP_NAME
@@ -679,7 +675,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             if(strcmp(bname, yuno_role)!=0) {
                 print_error(
                     PEF_EXIT,
-                    "ERROR YUNETA",
                     "yuno role '%s' and executable name '%s' MUST MATCH!",
                     yuno_role,
                     bname
