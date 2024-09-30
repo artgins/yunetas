@@ -31,7 +31,6 @@ set (SRCS
     src/entry_point.c
     src/yunetas_register.c
     src/ydaemon.c
-    src/json_config.c
 )
 
 set (HDRS
@@ -46,7 +45,6 @@ set (HDRS
     src/entry_point.h
     src/yunetas_register.h
     src/ydaemon.h
-    src/json_config.h
 
     src/yunetas.h
 )

@@ -141,11 +141,10 @@ PRIVATE int load_files(
         }
     } else {
         /*
-         *  Fuck
+         *  Merde
          */
         print_error(
             quit,
-            "YUNETA ERROR",
             "json_file must be a path 'string' or an ['string's]\n"
             "json_file: '%s'\n",
             json_file
