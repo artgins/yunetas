@@ -32,8 +32,6 @@ extern "C"{
 #include <stats_parser.h>
 #include <testing.h>
 
-#include <timeranger2.h>
-
 #include "c_linux_yuno.h"         // the grandmother
 #include "c_linux_transport.h"
 #include "c_linux_uart.h"
