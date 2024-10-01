@@ -28,7 +28,7 @@ set (SRCS
     src/c_task_authz.c
     src/c_task.c
     src/c_prot_http_cl.c
-    src/c_prot_http_sr.c
+#    src/c_prot_http_sr.c
     src/c_ievent_cli.c
     src/c_node.c
     src/c_tranger.c

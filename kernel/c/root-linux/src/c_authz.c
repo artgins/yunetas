@@ -10,9 +10,14 @@
 #include <unistd.h>
 #include <grp.h>
 #include <string.h>
+#include <limits.h>
 #include <jwt.h>
 
+#include <helpers.h>
 #include <timeranger2.h>
+#include <tr_treedb.h>
+#include "c_tranger.h"
+#include "c_node.h"
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
@@ -190,7 +195,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    1,          "Max sessions per user"),
+SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",          "Max sessions per user"),
 SDATA (DTP_STRING,   "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
 SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             0,          "Initial data for treedb"),
@@ -277,10 +282,22 @@ PRIVATE void mt_create(hgobj gobj)
     /*---------------------------*
      *      OAuth
      *---------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gobj_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
     jwt_set_alloc(
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_free
+        malloc_func,
+        realloc_func,
+        free_func
     );
     create_jwt_validations(gobj);
 
@@ -313,7 +330,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
     priv->gobj_tranger = gobj_create_service(
         "tranger_authz",
-        GCLASS_TRANGER,
+        C_TRANGER,
         kw_tranger,
         gobj
     );
@@ -333,7 +350,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_treedb = gobj_create_service(
         treedb_name,
-        GCLASS_NODE,
+        C_NODE,
         kw_resource,
         gobj
     );
@@ -501,7 +518,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *peername = gobj_read_str_attr(src, "peername");
-    const char *jwt= kw_get_str(kw, "jwt", "", 0);
+    const char *jwt= kw_get_str(gobj, kw, "jwt", "", 0);
     const char *username = "";
 
     /*-----------------------------*
@@ -897,11 +914,11 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(kw, "iss", "", 0);
-    const char *description = kw_get_str(kw, "description", "", 0);
+    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
+    const char *description = kw_get_str(gobj, kw, "description", "", 0);
     BOOL disabled = kw_get_bool(kw, "disabled", 0, KW_WILD_NUMBER);
-    const char *algorithm = kw_get_str(kw, "algorithm", "RS256", 0);
-    const char *pkey = kw_get_str(kw, "pkey", "", 0);
+    const char *algorithm = kw_get_str(gobj, kw, "algorithm", "RS256", 0);
+    const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
 
     if(empty_string(iss)) {
         return msg_iev_build_webix(
@@ -1011,7 +1028,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(kw, "iss", "", 0);
+    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
         return msg_iev_build_webix(
             gobj,
@@ -1096,7 +1113,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(kw, "iss", "", 0);
+    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
         return msg_iev_build_webix(
             gobj,
@@ -1172,7 +1189,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(kw, "iss", "", 0);
+    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
         return msg_iev_build_webix(
             gobj,
@@ -1299,7 +1316,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(kw, "username", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
         return msg_iev_build_webix(
@@ -1350,7 +1367,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(kw, "username", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
         return msg_iev_build_webix(
@@ -1410,7 +1427,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(kw, "username", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
         return msg_iev_build_webix(
@@ -1503,7 +1520,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *username = kw_get_str(kw, "username", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
         return msg_iev_build_webix(
@@ -1569,7 +1586,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *username = kw_get_str(kw, "username", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
         return msg_iev_build_webix(
@@ -1813,7 +1830,7 @@ PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
     const char *tail = "-----END PUBLIC KEY-----\n";
 
     size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
-    gbuffer_t *gbuf = gbuf_create(l, l, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(l, l, 0, 0);
     if(!gbuf) {
         // Error already logged
         return NULL;
@@ -2513,8 +2530,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(kw, "username", "", KW_REQUIRED);
-    const char *role = kw_get_str(kw, "role", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *role = kw_get_str(gobj, kw, "role", "", 0);
     BOOL disabled = kw_get_bool(kw, "disabled", 0, 0);
 
     time_t t;
@@ -2563,7 +2580,7 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(kw, "username", "", KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
 
     json_t *user = gobj_get_node(
         priv->gobj_treedb,
@@ -2806,7 +2823,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         return FALSE;
     }
 
-    const char *__username__ = kw_get_str(kw, "__temp__`__username__", 0, 0);
+    const char *__username__ = kw_get_str(gobj, kw, "__temp__`__username__", 0, 0);
     if(empty_string(__username__)) {
         __username__ = gobj_read_str_attr(src, "__username__");
         if(empty_string(__username__)) {

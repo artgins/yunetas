@@ -122,6 +122,7 @@ Example of refresh_token
 #include <stdio.h>
 #include <limits.h>
 
+#include <helpers.h>
 #include <kwid.h>
 #include <parse_url.h>
 #include <helpers.h>
@@ -387,16 +388,16 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-// TODO   KW_INCREF(kw);
-//    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-//    return msg_iev_build_webix(
-//        gobj,
-//        0,
-//        jn_resp,
-//        0,
-//        0,
-//        kw  // owned
-//    );
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_webix(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 

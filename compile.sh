@@ -23,6 +23,14 @@ cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
 
 ##########################################
+#       timeranger2
+##########################################
+cd "${YUNETAS_BASE_DIR}/kernel/c/timeranger2"
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
+make install
+
+##########################################
 #       root-linux
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/root-linux"
@@ -34,14 +42,6 @@ make install
 #       root-esp32
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/root-esp32"
-rm -rf build; mkdir build
-cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
-make install
-
-##########################################
-#       timeranger2
-##########################################
-cd "${YUNETAS_BASE_DIR}/kernel/c/timeranger2"
 rm -rf build; mkdir build
 cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install

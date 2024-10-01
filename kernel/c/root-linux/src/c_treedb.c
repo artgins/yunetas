@@ -415,9 +415,9 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *filename_mask = kw_get_str(kw, "filename_mask", "", 0);
+    const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
     int exit_on_error = kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_treedb_schema = kw_get_dict(kw, "treedb_schema", 0, 0);
     BOOL use_internal_schema = kw_get_bool(kw, "use_internal_schema", 0, 0);
 
@@ -572,7 +572,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -643,7 +643,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     BOOL force = kw_get_bool(kw, "force", 0, KW_WILD_NUMBER);
 
     /*----------------------------------------*
@@ -701,12 +701,12 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     int topic_version = kw_get_int(gobj, kw, "topic_version", 1, KW_WILD_NUMBER);
-    const char *topic_tkey = kw_get_str(kw, "topic_tkey", "", 0);
-    json_t *pkey2s_ = kw_get_dict_value(kw, "pkey2s", 0, 0);
-    json_t *cols_ = kw_get_dict_value(kw, "cols", 0, 0);
+    const char *topic_tkey = kw_get_str(gobj, kw, "topic_tkey", "", 0);
+    json_t *pkey2s_ = kw_get_dict_value(gobj, kw, "pkey2s", 0, 0);
+    json_t *cols_ = kw_get_dict_value(gobj, kw, "cols", 0, 0);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -763,8 +763,8 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     /*----------------------------------------*
      *  Check AUTHZS

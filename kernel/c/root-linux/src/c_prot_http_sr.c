@@ -9,7 +9,10 @@
  ***********************************************************************/
 #include <string.h>
 
+#include <helpers.h>
+#include <kwid.h>
 #include <ghttp_parser.h>
+#include <msg_ievent.h>
 #include "c_timer.h"
 #include "c_prot_http_sr.h"
 
@@ -283,15 +286,15 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(kw_has_key(kw, "body")) {
         // New method
-        const char *code = kw_get_str(kw, "code", "200 OK", 0);
-        const char *headers = kw_get_str(kw, "headers", "", 0);
-        json_t *jn_body = kw_duplicate(kw_get_dict_value(kw, "body", json_object(), KW_REQUIRED));
+        const char *code = kw_get_str(gobj, kw, "code", "200 OK", 0);
+        const char *headers = kw_get_str(gobj, kw, "headers", "", 0);
+        json_t *jn_body = kw_duplicate(kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED));
         char *resp = json2uglystr(jn_body);
         int len = strlen(resp) + strlen(headers);
         kw_decref(jn_body);
 
-        gbuf = gbuf_create(256+len, 256+len, 0, 0);
-        gbuf_printf(gbuf,
+        gbuf = gbuffer_create(256+len, 256+len);
+        gbuffer_printf(gbuf,
             "HTTP/1.1 %s\r\n"
             "%s"
             "Content-Type: application/json; charset=utf-8\r\n"
@@ -300,8 +303,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             headers,
             len
         );
-        gbuf_append(gbuf, resp, len);
-        gbmem_free(resp);
+        gbuffer_append(gbuf, resp, len);
+        GBMEM_FREE(resp);
     } else  {
         // Old method
         json_t *kw_resp = msg_iev_pure_clone(
@@ -312,20 +315,20 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         int len = strlen(resp);
         kw_decref(kw_resp);
 
-        gbuf = gbuf_create(256+len, 256+len, 0, 0);
-        gbuf_printf(gbuf,
+        gbuf = gbuffer_create(256+len, 256+len);
+        gbuffer_printf(gbuf,
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: application/json; charset=utf-8\r\n"
             "Content-Length: %d\r\n\r\n",
             len
         );
-        gbuf_append(gbuf, resp, len);
-        gbmem_free(resp);
+        gbuffer_append(gbuf, resp, len);
+        GBMEM_FREE(resp);
     }
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
-        log_debug_gbuf(
-            LOG_DUMP_OUTPUT,
+        gobj_trace_dump_gbuf(
+            gobj,
             gbuf,
             "%s", gobj_short_name(gobj_bottom_gobj(gobj))
         );

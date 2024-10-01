@@ -522,7 +522,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     BOOL expanded = kw_get_bool(kw, "expanded", 0, KW_WILD_NUMBER);
     int lists_limit = kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
     int dicts_limit = kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
-    const char *path = kw_get_str(kw, "path", "", 0);
+    const char *path = kw_get_str(gobj, kw, "path", "", 0);
 
     json_t *value = priv->tranger;
 
@@ -605,7 +605,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
             gobj,
@@ -617,9 +617,9 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    const char *pkey = kw_get_str(kw, "pkey", "", 0);
-    const char *tkey = kw_get_str(kw, "tkey", "", 0);
-    const char *system_flag_ = kw_get_str(kw, "system_flag", "", 0);
+    const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
+    const char *tkey = kw_get_str(gobj, kw, "tkey", "", 0);
+    const char *system_flag_ = kw_get_str(gobj, kw, "system_flag", "", 0);
     json_t *jn_cols = kw_get_dict(kw, "jn_cols", 0, 0);
     json_t *jn_var = kw_get_dict(kw, "jn_var", 0, 0);
 
@@ -667,7 +667,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
             gobj,
@@ -783,7 +783,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
             gobj,
@@ -840,10 +840,10 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    const char *list_id = kw_get_str(kw, "list_id", "", 0);
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
     BOOL return_data = kw_get_bool(kw, "return_data", 0, 0);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     if(empty_string(list_id)) {
         return msg_iev_build_webix(
@@ -898,14 +898,14 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, 0);
     uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
     uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
-    const char *key = kw_get_str(kw, "key", 0, 0);
-    const char *notkey = kw_get_str(kw, "notkey", 0, 0);
-    const char *rkey = kw_get_str(kw, "rkey", 0, 0);
-    const char *from_t = kw_get_str(kw, "from_t", 0, 0);
-    const char *to_t = kw_get_str(kw, "to_t", 0, 0);
-    const char *from_tm = kw_get_str(kw, "from_tm", 0, 0);
-    const char *to_tm = kw_get_str(kw, "to_tm", 0, 0);
-    const char *fields = kw_get_str(kw, "fields", 0, 0);
+    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
+    const char *notkey = kw_get_str(gobj, kw, "notkey", 0, 0);
+    const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
+    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
+    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
+    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
+    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
+    const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
 
     json_t *match_cond = json_pack("{s:b, s:b}",
         "backward", backward,
@@ -1029,7 +1029,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    const char *list_id = kw_get_str(kw, "list_id", "", 0);
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
 
     if(empty_string(list_id)) {
         return msg_iev_build_webix(
@@ -1096,7 +1096,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         /*
          *  Get parameters
          */
-        const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
         uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
         uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
         json_t *record = kw_get_dict(kw, "record", 0, 0);
@@ -1178,7 +1178,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    const char *list_id = kw_get_str(kw, "list_id", "", 0);
+    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
 
     if(empty_string(list_id)) {
         return msg_iev_build_webix(
@@ -1322,12 +1322,12 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
     /*
      *  Get parameters
      */
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
     uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
     json_t *record = kw_get_dict(kw, "record", 0, 0);
 
-    json_t *__temp__ = kw_get_dict_value(kw, "__temp__", 0, KW_REQUIRED);
+    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
     JSON_INCREF(__temp__); // Save to __answer__
 
     int result = 0;

@@ -21,10 +21,18 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     src/timeranger2.c
+#    src/tr_msg.c
+#    src/tr_msg2db.c
+#    src/tr_queue.c
+#    src/tr_treedb.c
 )
 
 set (HDRS
     src/timeranger2.h
+    src/tr_msg.h
+    src/tr_msg2db.h
+    src/tr_queue.h
+    src/tr_treedb.h
 )
 
 

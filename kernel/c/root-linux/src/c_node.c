@@ -13,6 +13,7 @@
 
 #include <helpers.h>
 #include <kwid.h>
+#include <tr_treedb.h>
 #include "c_node.h"
 
 /***************************************************************************
@@ -901,7 +902,7 @@ PRIVATE int mt_delete_node(
         return 0;
     }
 
-    const char *id = kw_get_str(kw, "id", 0, 0);
+    const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -948,7 +949,7 @@ PRIVATE int mt_delete_node(
     int idx; json_t *jn_pkey2_name;
     json_array_foreach(pkey2s_list, idx, jn_pkey2_name) {
         const char *pkey2_name = json_string_value(jn_pkey2_name);
-        const char *key2 = kw_get_str(kw, pkey2_name, 0, 0);
+        const char *key2 = kw_get_str(gobj, kw, pkey2_name, 0, 0);
         node = treedb_get_instance( // WARNING Return is NOT YOURS, pure node
             priv->tranger,
             priv->treedb_name,
@@ -1725,7 +1726,7 @@ PRIVATE int mt_shoot_snap(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *description = kw_get_str(kw, "description", "", 0);
+    const char *description = kw_get_str(gobj, kw, "description", "", 0);
     int ret = treedb_shoot_snap(
         priv->tranger,
         priv->treedb_name,
@@ -1815,8 +1816,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *content64 = kw_get_str(kw, "content64", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
@@ -1909,8 +1910,8 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *content64 = kw_get_str(kw, "content64", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
@@ -2004,9 +2005,9 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
-    json_t *_jn_record = kw_get_dict_value(kw, "record", 0, 0);
+    json_t *_jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
 
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
@@ -2100,8 +2101,8 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *parent_ref = kw_get_str(kw, "parent_ref", "", 0);
-    const char *child_ref = kw_get_str(kw, "child_ref", "", 0);
+    const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
+    const char *child_ref = kw_get_str(gobj, kw, "child_ref", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(parent_ref)) {
@@ -2235,8 +2236,8 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *parent_ref = kw_get_str(kw, "parent_ref", "", 0);
-    const char *child_ref = kw_get_str(kw, "child_ref", "", 0);
+    const char *parent_ref = kw_get_str(gobj, kw, "parent_ref", "", 0);
+    const char *child_ref = kw_get_str(gobj, kw, "child_ref", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(parent_ref)) {
@@ -2387,7 +2388,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", 0);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(treedb_name)) {
@@ -2422,10 +2423,10 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *node_id = kw_get_str(kw, "node_id", "", 0);
-    const char *hook = kw_get_str(kw, "hook", "", 0);
-    const char *rename_hook = kw_get_str(kw, "rename_hook", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    const char *hook = kw_get_str(gobj, kw, "hook", "", 0);
+    const char *rename_hook = kw_get_str(gobj, kw, "rename_hook", "", 0);
     json_t *_jn_filter = kw_get_dict(kw, "filter", 0, 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
@@ -2522,7 +2523,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(strcmp(cmd, "desc")==0) {
         if(empty_string(topic_name)) {
             return msg_iev_build_webix(
@@ -2593,7 +2594,7 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     json_incref(kw);
     json_t *links = gobj_topic_links(gobj, priv->treedb_name, topic_name, kw, src);
@@ -2614,7 +2615,7 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     json_incref(kw);
     json_t *hooks = gobj_topic_hooks(gobj, priv->treedb_name, topic_name, kw, src);
@@ -2634,9 +2635,9 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *node_id = kw_get_str(kw, "node_id", "", 0);
-    const char *link = kw_get_str(kw, "link", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    const char *link = kw_get_str(gobj, kw, "link", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
@@ -2684,9 +2685,9 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *node_id = kw_get_str(kw, "node_id", "", 0);
-    const char *hook = kw_get_str(kw, "hook", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    const char *hook = kw_get_str(gobj, kw, "hook", "", 0);
     json_t *_jn_filter = kw_get_dict(kw, "filter", 0, 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
@@ -2747,7 +2748,7 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     json_t *_jn_filter = kw_get_dict(kw, "filter", 0, 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
@@ -2804,8 +2805,8 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *id = kw_get_str(kw, "node_id", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *id = kw_get_str(gobj, kw, "node_id", "", 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
@@ -2854,9 +2855,9 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    const char *node_id = kw_get_str(kw, "node_id", "", 0);
-    const char *pkey2 = kw_get_str(kw, "pkey2", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    const char *pkey2 = kw_get_str(gobj, kw, "pkey2", "", 0);
     json_t *jn_filter = json_incref(kw_get_dict(kw, "filter", 0, 0));
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
@@ -2906,7 +2907,7 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
             gobj,
@@ -2940,7 +2941,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
         return msg_iev_build_webix(
             gobj,
@@ -3020,7 +3021,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *name = kw_get_str(kw, "name", 0, 0);
+    const char *name = kw_get_str(gobj, kw, "name", 0, 0);
     if(empty_string(name)) {
         return msg_iev_build_webix(gobj,
             -1,
@@ -3061,7 +3062,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *name = kw_get_str(kw, "name", 0, 0);
+    const char *name = kw_get_str(gobj, kw, "name", 0, 0);
     if(empty_string(name)) {
         return msg_iev_build_webix(gobj,
             -1,
@@ -3115,7 +3116,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *filename = kw_get_str(kw, "filename", "", 0);
+    const char *filename = kw_get_str(gobj, kw, "filename", "", 0);
     BOOL overwrite = kw_get_bool(kw, "overwrite", 0, KW_WILD_NUMBER);
     BOOL with_metadata = kw_get_bool(kw, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid = kw_get_bool(kw, "without_rowid", 0, KW_WILD_NUMBER);
@@ -3181,10 +3182,10 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *content64 = kw_get_str(kw, "content64", "", 0);
+    const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
 
     int if_resource_exists = 0; // abort by default
-    const char *if_resource_exists_ = kw_get_str(kw, "if-resource-exists", "", 0);
+    const char *if_resource_exists_ = kw_get_str(gobj, kw, "if-resource-exists", "", 0);
 
     if(strcasecmp(if_resource_exists_, "skip")==0) {
         if_resource_exists = 1;
@@ -3383,7 +3384,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //         /*
 //          *  Get lista departments
 //          */
-//         const char *department = kw_get_str(kw, "department", 0, 0);
+//         const char *department = kw_get_str(gobj, kw, "department", 0, 0);
 //         if(!department) {
 //             department = "direccion";
 //         }
@@ -3470,7 +3471,7 @@ PRIVATE json_t *fetch_node(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *id = kw_get_str(kw, "id", 0, 0);
+    const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(!id) {
         // Silence
         return 0;
@@ -3510,7 +3511,7 @@ PRIVATE json_t *fetch_node(
             continue;
         }
 
-        const char *pkey2_value = kw_get_str(kw, pkey2_name, "", 0);
+        const char *pkey2_value = kw_get_str(gobj, kw, pkey2_name, "", 0);
 
         node = treedb_get_instance( // WARNING Return is NOT YOURS, pure node
             priv->tranger,
@@ -3611,7 +3612,7 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, const char *event, json_t *kw, hgo
     /*
      *  Get parameters
      */
-    const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     json_t *record = kw_get_dict(kw, "record", 0, 0);
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0); // "create", "auto-link"
 
