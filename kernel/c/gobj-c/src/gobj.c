@@ -5093,6 +5093,21 @@ PUBLIC BOOL gobj_is_volatil(hgobj gobj_)
 }
 
 /***************************************************************************
+ *  Set as volatil
+ ***************************************************************************/
+PUBLIC int gobj_set_volatil(hgobj gobj_, BOOL set)
+{
+    gobj_t *gobj = gobj_;
+    if(set) {
+        gobj->gobj_flag |= gobj_flag_volatil;
+    } else {
+        gobj->gobj_flag &= ~gobj_flag_volatil;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj_)

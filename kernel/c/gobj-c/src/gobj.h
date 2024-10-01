@@ -1426,6 +1426,7 @@ PUBLIC BOOL gobj_is_playing(hgobj gobj);
 PUBLIC BOOL gobj_is_service(hgobj gobj);
 PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
+PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
 
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            /* strict same gclass */
