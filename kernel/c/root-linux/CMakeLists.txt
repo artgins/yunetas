@@ -27,11 +27,14 @@ set (SRCS
     src/c_authz.c
     src/c_task_authenticate.c
     src/c_task.c
+    src/c_prot_http_cli.c
+    src/c_ievent_cli.c
     src/yunetas_environment.c
     src/yunetas_ev_loop.c
     src/fs_watcher.c
     src/dbsimple.c
     src/entry_point.c
+    src/msg_ievent.c
     src/yunetas_register.c
     src/ydaemon.c
     src/rotatory.c
@@ -45,11 +48,14 @@ set (HDRS
     src/c_authz.h
     src/c_task_authenticate.h
     src/c_task.h
+    src/c_prot_http_cli.h
+    src/c_ievent_cli.h
     src/yunetas_environment.h
     src/yunetas_ev_loop.h
     src/fs_watcher.h
     src/dbsimple.h
     src/entry_point.h
+    src/msg_ievent.h
     src/yunetas_register.h
     src/ydaemon.h
     src/rotatory.h

@@ -76,10 +76,8 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
-#include <stdio.h>
 
 #include <kwid.h>
-#include <helpers.h>
 
 #include "c_timer.h"
 #include "c_task.h"
@@ -636,7 +634,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         execute_action(gobj);
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -645,7 +643,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     if(gobj_is_volatil(gobj)) {
         gobj_destroy(gobj);
     }
@@ -664,7 +662,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_sprintf("Task failed by timeout")
     );
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     stop_task(gobj, -2); // -2 WARNING about incomplete task
     return 0;
 }

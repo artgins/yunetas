@@ -126,6 +126,7 @@ Example of refresh_token
 #include <parse_url.h>
 #include <helpers.h>
 
+#include "c_prot_http_cli.h"
 #include "c_task.h"
 #include "c_task_authenticate.h"
 
@@ -303,7 +304,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     priv->gobj_http = gobj_create(
         gobj_name(gobj),
-        GCLASS_PROT_HTTP_CLI,
+        C_PROT_HTTP_CL,
         json_pack("{s:I, s:s}",
             "subscriber", (json_int_t)0,
             "url", auth_url
@@ -315,17 +316,17 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_set_bottom_gobj(gobj, priv->gobj_http);
 
-    gobj_set_bottom_gobj(
-        priv->gobj_http,
-        gobj_create(
-            gobj_name(gobj),
-            secure?GCLASS_CONNEXS:GCLASS_CONNEX,
-            secure?
-                json_pack("{s:[s], s:O}", "urls", auth_url, "crypto", jn_crypto):
-                json_pack("{s:[s]}", "urls", auth_url),
-            priv->gobj_http
-        )
-    );
+// TODO    gobj_set_bottom_gobj(
+//        priv->gobj_http,
+//        gobj_create(
+//            gobj_name(gobj),
+//            secure?GCLASS_CONNEXS:GCLASS_CONNEX,
+//            secure?
+//                json_pack("{s:[s], s:O}", "urls", auth_url, "crypto", jn_crypto):
+//                json_pack("{s:[s]}", "urls", auth_url),
+//            priv->gobj_http
+//        )
+//    );
 
     gobj_start_tree(priv->gobj_http);
 
@@ -347,7 +348,7 @@ PRIVATE int mt_start(hgobj gobj)
             "exec_result", "result_logout"
     );
 
-    hgobj gobj_task = gobj_create(gobj_name(gobj), GCLASS_TASK, kw_task, gobj);
+    hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, "EV_END_TASK", 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
@@ -416,8 +417,8 @@ PRIVATE int publish_token(
     int result,
     json_t *kw_)
 {
-    const char *comment = kw_get_str(kw_, "comment", "", 0);
-    const char *jwt = kw_get_str(kw_, "jwt", "", 0);
+    const char *comment = kw_get_str(gobj, kw_, "comment", "", 0);
+    const char *jwt = kw_get_str(gobj, kw_, "jwt", "", 0);
 
     json_t *kw_on_token = json_pack("{s:i, s:s, s:s}",
         "result", result,
@@ -507,14 +508,14 @@ PRIVATE json_t *result_get_token(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
-    int response_status_code = kw_get_int(kw, "response_status_code", -1, KW_REQUIRED);
+    int response_status_code = kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 200) {
         json_object_set_new(
             output_data_,
             "comment",
             json_sprintf("Something went wrong, check your user or password: %s, %s",
                 http_status_str(response_status_code),
-                kw_get_str(kw, "body`error", "", 0)
+                kw_get_str(gobj, kw, "body`error", "", 0)
             )
         );
 
@@ -524,13 +525,13 @@ PRIVATE json_t *result_get_token(
         STOP_TASK();
     }
 
-    int request_method = kw_get_int(kw, "request_method", 0, KW_REQUIRED);
+    int request_method = kw_get_int(gobj, kw, "request_method", 0, KW_REQUIRED);
     if(request_method) {} // to avoid compilation warning
 
-    json_t *jn_header_ = kw_get_dict(kw, "headers", 0, KW_REQUIRED);
+    json_t *jn_header_ = kw_get_dict(gobj, kw, "headers", 0, KW_REQUIRED);
     if(jn_header_) {} // to avoid compilation warning
 
-    json_t *jn_body_ = kw_get_dict(kw, "body", 0, KW_REQUIRED);
+    json_t *jn_body_ = kw_get_dict(gobj, kw, "body", 0, KW_REQUIRED);
     if(!jn_body_) {
         json_object_set_new(
             output_data_,
@@ -557,31 +558,31 @@ PRIVATE json_t *result_get_token(
      *-----------------------------------------------*/
     json_t *jn_response_ = jn_body_;
 
-    const char *access_token = kw_get_str(jn_response_, "access_token", "", KW_REQUIRED);
+    const char *access_token = kw_get_str(gobj, jn_response_, "access_token", "", KW_REQUIRED);
     if(access_token) {} // to avoid compilation warning
 
-    const char *refresh_token = kw_get_str(jn_response_, "refresh_token", "", KW_REQUIRED);
+    const char *refresh_token = kw_get_str(gobj, jn_response_, "refresh_token", "", KW_REQUIRED);
     if(refresh_token) {} // to avoid compilation warning
 
-    const char *id_token = kw_get_str(jn_response_, "id_token", "", 0); // Only in offline requests
+    const char *id_token = kw_get_str(gobj, jn_response_, "id_token", "", 0); // Only in offline requests
     if(id_token) {} // to avoid compilation warning
 
-    json_int_t expires_in = kw_get_int(jn_response_, "expires_in", 0, KW_REQUIRED);
+    json_int_t expires_in = kw_get_int(gobj, jn_response_, "expires_in", 0, KW_REQUIRED);
     if(expires_in) {} // to avoid compilation warning
 
-    json_int_t refresh_expires_in = kw_get_int(jn_response_, "refresh_expires_in", 0, KW_REQUIRED);
+    json_int_t refresh_expires_in = kw_get_int(gobj, jn_response_, "refresh_expires_in", 0, KW_REQUIRED);
     if(refresh_expires_in) {} // to avoid compilation warning
 
-    const char *token_type = kw_get_str(jn_response_, "token_type", "", KW_REQUIRED);
+    const char *token_type = kw_get_str(gobj, jn_response_, "token_type", "", KW_REQUIRED);
     if(token_type) {} // to avoid compilation warning
 
-    json_int_t not_before_policy = kw_get_int(jn_response_, "not-before-policy", 0, 0);
+    json_int_t not_before_policy = kw_get_int(gobj, jn_response_, "not-before-policy", 0, 0);
     if(not_before_policy) {} // to avoid compilation warning
 
-    const char *session_state = kw_get_str(jn_response_, "session_state", "", KW_REQUIRED);
+    const char *session_state = kw_get_str(gobj, jn_response_, "session_state", "", KW_REQUIRED);
     if(session_state) {} // to avoid compilation warning
 
-    const char *scope = kw_get_str(jn_response_, "scope", "", KW_REQUIRED);
+    const char *scope = kw_get_str(gobj, jn_response_, "scope", "", KW_REQUIRED);
     if(scope) {} // to avoid compilation warning
 
     if(!empty_string(id_token)) {
@@ -713,7 +714,7 @@ PRIVATE json_t *result_logout(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
-    int response_status_code = kw_get_int(kw, "response_status_code", -1, KW_REQUIRED);
+    int response_status_code = kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 204) {
         gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),

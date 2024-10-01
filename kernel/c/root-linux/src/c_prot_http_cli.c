@@ -10,14 +10,15 @@
 #include <string.h>
 #include <strings.h>
 #include <ghttp_parser.h>
-#ifdef ESP_PLATFORM
-    #include <c_esp_transport.h>
-#endif
-#ifdef __linux__
-    #include <c_linux_transport.h>
-#endif
 #include <kwid.h>
 #include <yuneta_version.h>
+
+#ifdef ESP_PLATFORM
+    #include "c_esp_transport.h"
+#endif
+#ifdef __linux__
+    #include "c_linux_transport.h"
+#endif
 #include "c_prot_http_cli.h"
 
 /***************************************************************
