@@ -73,6 +73,8 @@ typedef struct _PRIVATE_DATA {
     const char *on_message_event_name;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -378,158 +380,119 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    // bottom input
-    {"EV_RX_DATA",          0,                  0,  0},
-    {"EV_SEND_MESSAGE",     EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_CONNECTED",        0,                  0,  0},
-    {"EV_DISCONNECTED",     0,                  0,  0},
-    {"EV_DROP",             EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_TIMEOUT",          0,                  0,  0},
-    {"EV_TX_READY",         0,                  0,  0},
-    {"EV_STOPPED",          0,                  0,  0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_OPEN",          EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_ON_CLOSE",         EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_ON_MESSAGE",       EVF_PUBLIC_EVENT,   0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_CONNECTED",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
 };
 
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_CONNECTED",        ac_connected,               "ST_CONNECTED"},
-    {"EV_DISCONNECTED",     ac_disconnected,            0},
-    {"EV_STOPPED",          ac_stopped,                 0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_CONNECTED[] = {
-    {"EV_RX_DATA",          ac_rx_data,                 0},
-    {"EV_SEND_MESSAGE",     ac_send_message,            0},
-    {"EV_TIMEOUT",          ac_timeout_inactivity,      0},
-    {"EV_TX_READY",         0,                          0},
-    {"EV_DROP",             ac_drop,                    0},
-    {"EV_DISCONNECTED",     ac_disconnected,            "ST_DISCONNECTED"},
-    {"EV_STOPPED",          ac_stopped,                 0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_PROT_HTTP_SR);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_CONNECTED,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISCONNECTED);
+GOBJ_DEFINE_STATE(ST_CONNECTED);
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+//GOBJ_DEFINE_EVENT();
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_PROT_HTTP_SRV_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // cmds
-    0,  // gcflag
-};
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_CONNECTED,        ac_connected,               ST_CONNECTED},
+        {EV_DISCONNECTED,     ac_disconnected,            0},
+        {EV_STOPPED,          ac_stopped,                 0},
+        {0,0,0}
+    };
+    ev_action_t st_connected[] = {
+        {EV_RX_DATA,          ac_rx_data,                 0},
+        {EV_SEND_MESSAGE,     ac_send_message,            0},
+        {EV_TIMEOUT,          ac_timeout_inactivity,      0},
+        {EV_TX_READY,         0,                          0},
+        {EV_DROP,             ac_drop,                    0},
+        {EV_DISCONNECTED,     ac_disconnected,            ST_DISCONNECTED},
+        {EV_STOPPED,          ac_stopped,                 0},
+        {0,0,0}
+    };
+    states_t states[] = {
+        {ST_DISCONNECTED,       st_disconnected},
+        {ST_CONNECTED,          st_connected},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = { // HACK System gclass, not public events
+        {EV_RX_DATA,            0}, // TODO is necessary to define the internal or input events?
+        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
+        {EV_RX_DATA,            0},
+        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
+        {EV_CONNECTED,          0},
+        {EV_DISCONNECTED,       0},
+        {EV_DROP,               EVF_PUBLIC_EVENT},
+        {EV_TIMEOUT,            0},
+        {EV_TX_READY,           0},
+        {EV_STOPPED,            0},
+        {EV_ON_OPEN,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,           EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_ON_MESSAGE,         EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  //lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_prot_http_srv(void)
+PUBLIC int register_c_prot_http_sr(void)
 {
-    return &_gclass;
+    return create_gclass(C_PROT_HTTP_SR);
 }

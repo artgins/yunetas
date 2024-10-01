@@ -2760,15 +2760,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC int register_c_node(void)
-{
-    return create_gclass(C_AUTHZ);
-}
-
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
 PUBLIC int register_c_authz(void)
 {
     return create_gclass(C_AUTHZ);
