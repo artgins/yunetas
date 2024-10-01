@@ -27,12 +27,15 @@ command-yuno id=1911 service=tranger command=add-record topic_name=pp record='{"
 command-yuno id=1911 service=tranger command=close-list list_id=pepe
 
 
- *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+
+#include <timeranger2.h>
+
 #include "c_tranger.h"
 
 /***************************************************************************
@@ -50,7 +53,7 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *list,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     json_t *jn_record
 );
 
@@ -72,96 +75,96 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_print_tranger[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"), // TODO pon database
-SDATAPM (ASN_BOOLEAN,   "expanded",     0,              0,          "No expanded (default) return [[size]]"),
-SDATAPM (ASN_UNSIGNED,  "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
-SDATAPM (ASN_UNSIGNED,  "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"), // TODO pon database
+SDATAPM (DTP_BOOLEAN,   "expanded",     0,              0,          "No expanded (default) return [[size]]"),
+SDATAPM (DTP_INTEGER,  "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
+SDATAPM (DTP_INTEGER,  "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_check_json[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_INTEGER, "max_refcount",   0,              0,          "Maximum refcount"),
+SDATAPM (DTP_INTEGER, "max_refcount",   0,              0,          "Maximum refcount"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_desc[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "pkey",         0,              "id",       "Primary Key"),
-SDATAPM (ASN_OCTET_STR, "tkey",         0,              "tm",       "Time Key"),
-SDATAPM (ASN_OCTET_STR, "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf_string_key|sf_rowid_key|sf_int_key|sf_t_ms|sf_tm_ms|sf_no_record_disk|sf_no_md_disk, future: sf_zip_record|sf_cipher_record"),
-SDATAPM (ASN_JSON,      "jn_cols",      0,              0,          "Cols"),
-SDATAPM (ASN_JSON,      "jn_var",       0,              0,          "Var"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "pkey",         0,              "id",       "Primary Key"),
+SDATAPM (DTP_STRING, "tkey",         0,              "tm",       "Time Key"),
+SDATAPM (DTP_STRING, "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf_string_key|sf_rowid_key|sf_int_key|sf_t_ms|sf_tm_ms|sf_no_record_disk|sf_no_md_disk, future: sf_zip_record|sf_cipher_record"),
+SDATAPM (DTP_JSON,      "jn_cols",      0,              0,          "Cols"),
+SDATAPM (DTP_JSON,      "jn_var",       0,              0,          "Var"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_BOOLEAN,   "force",        0,              0,          "Force delete"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_COUNTER64, "__t__",        0,              0,          "Time of record"),
-SDATAPM (ASN_UNSIGNED,  "user_flag",    0,              0,          "User flag of record"),
-SDATAPM (ASN_JSON,      "record",       0,              0,          "Record json"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_INTEGER, "__t__",        0,              0,          "Time of record"),
+SDATAPM (DTP_INTEGER,  "user_flag",    0,              0,          "User flag of record"),
+SDATAPM (DTP_JSON,      "record",       0,              0,          "Record json"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_open_list[] = {
 /*-PM----type-----------name--------------------flag--------default-description---------- */
-SDATAPM (ASN_OCTET_STR, "list_id",              0,          0,      "Id of list"),
-SDATAPM (ASN_OCTET_STR, "topic_name",           0,          0,      "Topic name"),
-SDATAPM (ASN_OCTET_STR, "key",                  0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "notkey",               0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "from_tm",              0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "to_tm",                0,          0,      "match_cond:"),
-SDATAPM (ASN_INTEGER64, "from_rowid",           0,          0,      "match_cond:"),
-SDATAPM (ASN_INTEGER64, "to_rowid",             0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "from_t",               0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "to_t",                 0,          0,      "match_cond:"),
-SDATAPM (ASN_OCTET_STR, "fields",               0,          0,      "match_cond: Only this fields"),
-SDATAPM (ASN_OCTET_STR, "rkey",                 0,          0,      "match_cond: regular expression of key"),
-SDATAPM (ASN_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
-SDATAPM (ASN_BOOLEAN,   "backward",             0,          0,      "match_cond:"),
-SDATAPM (ASN_BOOLEAN,   "only_md",              0,          0,      "match_cond: don't load jn_record on loading disk"),
-SDATAPM (ASN_UNSIGNED,  "user_flag",            0,          0,      "match_cond:"),
-SDATAPM (ASN_UNSIGNED,  "not_user_flag",        0,          0,      "match_cond:"),
-SDATAPM (ASN_UNSIGNED,  "user_flag_mask_set",   0,          0,      "match_cond:"),
-SDATAPM (ASN_UNSIGNED,  "user_flag_mask_notset",0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "list_id",              0,          0,      "Id of list"),
+SDATAPM (DTP_STRING, "topic_name",           0,          0,      "Topic name"),
+SDATAPM (DTP_STRING, "key",                  0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "notkey",               0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "from_tm",              0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "to_tm",                0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER, "from_rowid",           0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER, "to_rowid",             0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "from_t",               0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "to_t",                 0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING, "fields",               0,          0,      "match_cond: Only this fields"),
+SDATAPM (DTP_STRING, "rkey",                 0,          0,      "match_cond: regular expression of key"),
+SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
+SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "match_cond:"),
+SDATAPM (DTP_BOOLEAN,   "only_md",              0,          0,      "match_cond: don't load jn_record on loading disk"),
+SDATAPM (DTP_INTEGER,  "user_flag",            0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,  "not_user_flag",        0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,  "user_flag_mask_set",   0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,  "user_flag_mask_notset",0,          0,      "match_cond:"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_close_list[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (ASN_OCTET_STR, "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING, "list_id",              0,      0,      "Id of list"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_get_list_data[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (ASN_OCTET_STR, "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING, "list_id",              0,      0,      "Id of list"),
 SDATA_END()
 };
 
@@ -169,20 +172,20 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-------json_fn---------description--*/
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs,     "Authorization's help"),
 
 /*-CMD2---type----------name----------------flag------------alias---items---------------json_fn-------------description--*/
-SDATACM2 (ASN_SCHEMA,   "print-tranger",    SDF_AUTHZ_X,    0,      pm_print_tranger,   cmd_print_tranger,  "Print tranger"),
-SDATACM2 (ASN_SCHEMA,   "check-json",       0,              0,      pm_check_json,      cmd_check_json, "Check json refcounts"),
-SDATACM2 (ASN_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      0,                  cmd_topics,         "List topics"),
-SDATACM2 (ASN_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
-SDATACM2 (ASN_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
-SDATACM2 (ASN_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
-SDATACM2 (ASN_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list"),
-SDATACM2 (ASN_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
-SDATACM2 (ASN_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
-SDATACM2 (ASN_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
+SDATACM2 (DTP_SCHEMA,   "print-tranger",    SDF_AUTHZ_X,    0,      pm_print_tranger,   cmd_print_tranger,  "Print tranger"),
+SDATACM2 (DTP_SCHEMA,   "check-json",       0,              0,      pm_check_json,      cmd_check_json, "Check json refcounts"),
+SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      0,                  cmd_topics,         "List topics"),
+SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
+SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
+SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
+SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list"),
+SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
+SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
+SDATACM2 (DTP_SCHEMA,   "get-list-data",    SDF_AUTHZ_X,    0,      pm_get_list_data,   cmd_get_list_data,  "Get list data"),
 SDATA_END()
 };
 
@@ -191,18 +194,18 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
-SDATA (ASN_OCTET_STR,   "path",             SDF_RD|SDF_REQUIRED,"", "Path of database"),
-SDATA (ASN_OCTET_STR,   "database",         SDF_RD|SDF_REQUIRED,"", "Database name"),
-SDATA (ASN_OCTET_STR,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
+SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
+SDATA (DTP_STRING,   "path",             SDF_RD|SDF_REQUIRED,"", "Path of database"),
+SDATA (DTP_STRING,   "database",         SDF_RD|SDF_REQUIRED,"", "Database name"),
+SDATA (DTP_STRING,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
 
-SDATA (ASN_INTEGER,     "xpermission",      SDF_RD,             02770,          "Use in creation, default 02770"),
-SDATA (ASN_INTEGER,     "rpermission",      SDF_RD,             0660,           "Use in creation, default 0660"),
-SDATA (ASN_INTEGER,     "on_critical_error",SDF_RD,             LOG_OPT_EXIT_ZERO,"exit on error (Zero to avoid restart)"),
-SDATA (ASN_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             02770,          "Use in creation, default 02770"),
+SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             0660,           "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             LOG_OPT_EXIT_ZERO,"exit on error (Zero to avoid restart)"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -225,31 +228,31 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 PRIVATE sdata_desc_t pm_authz_create[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_write[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_delete[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (ASN_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create topics"),
-SDATAAUTHZ (ASN_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write topics"),
-SDATAAUTHZ (ASN_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read topics"),
-SDATAAUTHZ (ASN_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics"),
+SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create topics"),
+SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write topics"),
+SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read topics"),
+SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics"),
 SDATA_END()
 };
 

@@ -575,7 +575,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_prot_http_cli(void)
+PUBLIC int register_c_prot_http_cl(void)
 {
     return create_gclass(C_PROT_HTTP_CL);
 }

@@ -4,7 +4,7 @@
  *
  *          Resources with tranger
  *
- *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  *
  *          Wrapper over tranger
@@ -12,31 +12,32 @@
  ****************************************************************************/
 #pragma once
 
-#include <ginsfsm.h>
-#include "yuneta_environment.h"
-#include "c_timer.h"
-#include "c_yuno.h"
-#include "msglog_yuneta.h"
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_TRANGER_NAME "Tranger"
-#define GCLASS_TRANGER gclass_tranger()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_TRANGER);
 
+/*------------------------*
+ *      States
+ *------------------------*/
 
-/***************************************************************
- *              Structures
- ***************************************************************/
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_tranger(void);
+PUBLIC int register_c_tranger(void);
 
 
 #ifdef __cplusplus

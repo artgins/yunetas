@@ -4,32 +4,16 @@
  *
  *          Resources with treedb
  *
- *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <ginsfsm.h>
-#include "yuneta_environment.h"
-#include "c_timer.h"
-#include "c_yuno.h"
-#include "c_tranger.h"
-#include "msglog_yuneta.h"
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-/***************************************************************
- *              Constants
- ***************************************************************/
-#define GCLASS_NODE_NAME "Node"
-#define GCLASS_NODE gclass_node()
-
-
-/***************************************************************
- *              Structures
- ***************************************************************/
 
 /*
  *
@@ -44,9 +28,25 @@ extern "C"{
  */
 
 /***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_NODE);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_node(void);
+PUBLIC int register_c_node(void);
 
 
 #ifdef __cplusplus

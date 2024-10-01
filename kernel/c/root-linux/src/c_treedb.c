@@ -4,7 +4,7 @@
  *
  *          Management of treedb's
  *
- *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2021 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -49,53 +49,53 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_open_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "filename_mask",0,              "%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
-SDATAPM (ASN_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (ASN_JSON,      "treedb_schema",0,              0,          "Initial treedb schema"),
-SDATAPM (ASN_BOOLEAN,   "use_internal_schema",0,        0,          "Use internal (hardcoded in source code) schema"),
+SDATAPM (DTP_STRING, "filename_mask",0,              "%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
+SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema"),
+SDATAPM (DTP_BOOLEAN,   "use_internal_schema",0,        0,          "Use internal (hardcoded in source code) schema"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (ASN_BOOLEAN,   "force",        0,              0,          "Force delete treedb"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete treedb"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 
-SDATAPM (ASN_INTEGER,   "topic_version",0,              "1",        "topic version"),
-SDATAPM (ASN_OCTET_STR, "topic_tkey",   0,              "",         "Time key"),
-SDATAPM (ASN_JSON,      "pkey2s",       0,              0,          "Secondary keys: string or dict of string or [strings]"),
-SDATAPM (ASN_JSON,      "cols",         0,              0,          "Columns"),
+SDATAPM (DTP_INTEGER,   "topic_version",0,              "1",        "topic version"),
+SDATAPM (DTP_STRING, "topic_tkey",   0,              "",         "Time key"),
+SDATAPM (DTP_JSON,      "pkey2s",       0,              0,          "Secondary keys: string or dict of string or [strings]"),
+SDATAPM (DTP_JSON,      "cols",         0,              0,          "Columns"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 
@@ -103,15 +103,15 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "authzs",           0,          pm_authzs,      cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,      cmd_authzs,     "Authorization's help"),
 
 /*-CMD2---type----------name------------flag------------ali-items-----------json_fn-------------description--*/
-SDATACM2 (ASN_SCHEMA,   "open-treedb",  SDF_AUTHZ_X,    0, pm_open_treedb,  cmd_open_treedb, "Open treedb (auto create if not exist)"),
-SDATACM2 (ASN_SCHEMA,   "close-treedb", SDF_AUTHZ_X,    0, pm_close_treedb, cmd_close_treedb, "Close treedb"),
-SDATACM2 (ASN_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_delete_treedb, "Delete treedb"),
-SDATACM2 (ASN_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
-SDATACM2 (ASN_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
+SDATACM2 (DTP_SCHEMA,   "open-treedb",  SDF_AUTHZ_X,    0, pm_open_treedb,  cmd_open_treedb, "Open treedb (auto create if not exist)"),
+SDATACM2 (DTP_SCHEMA,   "close-treedb", SDF_AUTHZ_X,    0, pm_close_treedb, cmd_close_treedb, "Close treedb"),
+SDATACM2 (DTP_SCHEMA,   "delete-treedb",SDF_AUTHZ_X,    0, pm_delete_treedb,cmd_delete_treedb, "Delete treedb"),
+SDATACM2 (DTP_SCHEMA,   "create-topic", SDF_AUTHZ_X,    0, pm_create_topic, cmd_create_topic, "Create new topic"),
+SDATACM2 (DTP_SCHEMA,   "delete-topic", SDF_AUTHZ_X,    0, pm_delete_topic, cmd_delete_topic, "Delete topic"),
 SDATA_END()
 };
 
@@ -121,16 +121,16 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_POINTER,     "tranger",          0,                  0,              "Tranger handler"), // TODO borra, no se usa
-SDATA (ASN_OCTET_STR,   "path",             SDF_RD|SDF_REQUIRED,"",             "Path of treedbs"),
-SDATA (ASN_OCTET_STR,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m",        "System organization of tables (file name format, see strftime())"),
-SDATA (ASN_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
-SDATA (ASN_INTEGER,     "xpermission",      SDF_RD,             02770,          "Use in creation, default 02770"),
-SDATA (ASN_INTEGER,     "rpermission",      SDF_RD,             0660,           "Use in creation, default 0660"),
-SDATA (ASN_INTEGER,     "exit_on_error",    0,                  LOG_OPT_EXIT_ZERO,"exit on error"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"), // TODO borra, no se usa
+SDATA (DTP_STRING,   "path",             SDF_RD|SDF_REQUIRED,"",             "Path of treedbs"),
+SDATA (DTP_STRING,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m",        "System organization of tables (file name format, see strftime())"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
+SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             02770,          "Use in creation, default 02770"),
+SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             0660,           "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "exit_on_error",    0,                  LOG_OPT_EXIT_ZERO,"exit on error"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -157,26 +157,26 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_create[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_write[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (ASN_SCHEMA, "open-close",   0,      0,      pm_authz_open,      "Permission to open-close treedb's"),
-SDATAAUTHZ (ASN_SCHEMA, "create-delete",0,      0,      pm_authz_create,    "Permission to create-delete topics"),
-SDATAAUTHZ (ASN_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write"),
-SDATAAUTHZ (ASN_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read"),
+SDATAAUTHZ (DTP_SCHEMA, "open-close",   0,      0,      pm_authz_open,      "Permission to open-close treedb's"),
+SDATAAUTHZ (DTP_SCHEMA, "create-delete",0,      0,      pm_authz_create,    "Permission to create-delete topics"),
+SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write"),
+SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read"),
 SDATA_END()
 };
 

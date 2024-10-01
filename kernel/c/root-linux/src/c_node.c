@@ -4,7 +4,7 @@
  *
  *          Nodes: resources with treedb
  *
- *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -82,150 +82,150 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_jtree[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "node_id",      0,              0,          "Node id"),
-SDATAPM (ASN_OCTET_STR, "hook",         0,              0,          "Hook to build the tree"),
-SDATAPM (ASN_OCTET_STR, "rename_hook",  0,              0,          "Rename the hook field in the response"),
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Filter to childs"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING, "hook",         0,              0,          "Hook to build the tree"),
+SDATAPM (DTP_STRING, "rename_hook",  0,              0,          "Rename the hook field in the response"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_create_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "Node content in base64"),
-SDATAPM (ASN_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "content64",    0,              0,          "Node content in base64"),
+SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_update_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "Node content in base64"),
-SDATAPM (ASN_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "content64",    0,              0,          "Node content in base64"),
+SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_node[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_JSON,      "record",       0,              0,          "Node content in json"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: 'force'"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force'"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_link_nodes[] = {
-SDATAPM (ASN_OCTET_STR, "parent_ref",   0,              0,          "Parent node ref (parent_topic_name^parent_id^hook_name)"),
-SDATAPM (ASN_OCTET_STR, "child_ref",    0,              0,          "Child node ref (child_topic_name^child_id)"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "parent_ref",   0,              0,          "Parent node ref (parent_topic_name^parent_id^hook_name)"),
+SDATAPM (DTP_STRING, "child_ref",    0,              0,          "Child node ref (child_topic_name^child_id)"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_trace[] = {
-SDATAPM (ASN_BOOLEAN,   "set",          0,              0,          "Trace: set 1 o 0"),
+SDATAPM (DTP_BOOLEAN,   "set",          0,              0,          "Trace: set 1 o 0"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_topics[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: 'dict'"),
+SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'dict'"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_desc[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_hooks[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_links[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_parents[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "node_id",      0,              0,          "Node id"),
-SDATAPM (ASN_OCTET_STR, "link",         0,              0,          "Link port (fkey) to parents"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: refs, fkey_refs, only_id, fkey_only_id, list_dict, fkey_list_dict"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING, "link",         0,              0,          "Link port (fkey) to parents"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, fkey_refs, only_id, fkey_only_id, list_dict, fkey_list_dict"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_childs[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "node_id",      0,              0,          "Node id"),
-SDATAPM (ASN_OCTET_STR, "hook",         0,              0,          "Hook port to childs"),
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Filter to childs"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: recursive, refs, hook_refs, only_id, hook_only_id, list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING, "hook",         0,              0,          "Hook port to childs"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: recursive, refs, hook_refs, only_id, hook_only_id, list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Search filter"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Search filter"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_get_node[] = {
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "node_id",      0,              0,          "Node id"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_node_instances[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (ASN_OCTET_STR, "node_id",      0,              0,          "Node id"),
-SDATAPM (ASN_OCTET_STR, "pkey2",        0,              0,          "PKey2 field"),
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Search filter"),
-SDATAPM (ASN_JSON,      "options",      0,              0,          "Options: only_id, list_dict, size"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING, "pkey2",        0,              0,          "PKey2 field"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Search filter"),
+SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: only_id, list_dict, size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_node_pkey2s[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_snap_content[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "snap_id",      0,              0,          "Snap id"),
-SDATAPM (ASN_OCTET_STR, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING, "snap_id",      0,              0,          "Snap id"),
+SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "name",         0,              0,          "Snap name"),
-SDATAPM (ASN_OCTET_STR, "description",  0,              0,          "Snap description"),
+SDATAPM (DTP_STRING, "name",         0,              0,          "Snap name"),
+SDATAPM (DTP_STRING, "description",  0,              0,          "Snap description"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_activate_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "name",         0,              0,          "Snap name"),
+SDATAPM (DTP_STRING, "name",         0,              0,          "Snap name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_import_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "Content in base64"),
-SDATAPM (ASN_OCTET_STR, "if-resource-exists", 0,        0,          "abort, skip, overwrite"),
+SDATAPM (DTP_STRING, "content64",    0,              0,          "Content in base64"),
+SDATAPM (DTP_STRING, "if-resource-exists", 0,        0,          "abort, skip, overwrite"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_export_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "filename",     0,              0,          "Filename to save db"),
-SDATAPM (ASN_BOOLEAN,   "overwrite",    0,              0,          "Overwrite the file if it exits"),
-SDATAPM (ASN_BOOLEAN,   "with_metadata",0,              0,          "Write metadata"),
-SDATAPM (ASN_BOOLEAN,   "without_rowid",0,              "0",        "Without id in records with rowid id"),
+SDATAPM (DTP_STRING, "filename",     0,              0,          "Filename to save db"),
+SDATAPM (DTP_BOOLEAN,   "overwrite",    0,              0,          "Overwrite the file if it exits"),
+SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "Write metadata"),
+SDATAPM (DTP_BOOLEAN,   "without_rowid",0,              "0",        "Without id in records with rowid id"),
 SDATA_END()
 };
 
@@ -240,37 +240,37 @@ PRIVATE const char *a_schema[] = {"schema", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-------json_fn---------description--*/
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs,     "Authorization's help"),
 
 /*-CMD2---type----------name------------flag------------ali-items-----------json_fn-------------description--*/
-SDATACM2 (ASN_SCHEMA,   "treedbs",      SDF_AUTHZ_X,    0,  0,              cmd_treedbs,        "List treedb's"),
-SDATACM2 (ASN_SCHEMA,   "topics",       SDF_AUTHZ_X,    0,  pm_topics,      cmd_topics,         "List topics"),
-SDATACM2 (ASN_SCHEMA,   "jtree",        SDF_AUTHZ_X,    0,  pm_jtree,       cmd_jtree,          "List hierarchical tree (topic with self-link). Webix option return dict-list else return list of dicts. Always with __path__ "),
-SDATACM2 (ASN_SCHEMA,   "create-node",  SDF_AUTHZ_X,    a_create, pm_create_node, cmd_create_node, "Create node"),
-SDATACM2 (ASN_SCHEMA,   "update-node",  SDF_AUTHZ_X,    a_update, pm_update_node, cmd_update_node, "Update node"),
-SDATACM2 (ASN_SCHEMA,   "delete-node",  SDF_AUTHZ_X,    a_delete, pm_delete_node, cmd_delete_node, "Delete node"),
-SDATACM2 (ASN_SCHEMA,   "nodes",        SDF_AUTHZ_X,    a_nodes, pm_list_nodes, cmd_list_nodes,  "List nodes"),
-SDATACM2 (ASN_SCHEMA,   "node",         SDF_AUTHZ_X,    a_node, pm_get_node, cmd_get_node,       "Get node by id"),
-SDATACM2 (ASN_SCHEMA,   "instances",    SDF_AUTHZ_X,    0,  pm_node_instances,cmd_node_instances,"List node's instances"),
-SDATACM2 (ASN_SCHEMA,   "link-nodes",   SDF_AUTHZ_X,    0,  pm_link_nodes,  cmd_link_nodes,     "Link nodes"),
-SDATACM2 (ASN_SCHEMA,   "unlink-nodes", SDF_AUTHZ_X,    0,  pm_link_nodes,  cmd_unlink_nodes,   "Unlink nodes"),
-SDATACM2 (ASN_SCHEMA,   "hooks",        SDF_AUTHZ_X,    0,  pm_hooks,       cmd_hooks,          "Hooks of node"),
-SDATACM2 (ASN_SCHEMA,   "links",        SDF_AUTHZ_X,    0,  pm_links,       cmd_links,          "Links of node"),
-SDATACM2 (ASN_SCHEMA,   "parents",      SDF_AUTHZ_X,    0,  pm_parents,     cmd_parents,        "Parent Refs of node"),
-SDATACM2 (ASN_SCHEMA,   "childs",       SDF_AUTHZ_X,    0,  pm_childs,      cmd_childs,         "Childs of node"),
-SDATACM2 (ASN_SCHEMA,   "snaps",        SDF_AUTHZ_X,    0,  0,              cmd_list_snaps,     "List snaps"),
-SDATACM2 (ASN_SCHEMA,   "snap-content", SDF_AUTHZ_X,    0,  pm_snap_content,cmd_snap_content,   "Show snap content"),
-SDATACM2 (ASN_SCHEMA,   "shoot-snap",   SDF_AUTHZ_X,    0,  pm_shoot_snap,  cmd_shoot_snap,     "Shoot snap"),
-SDATACM2 (ASN_SCHEMA,   "activate-snap",SDF_AUTHZ_X,    0,  pm_activate_snap,cmd_activate_snap, "Activate snap"),
-SDATACM2 (ASN_SCHEMA,   "deactivate-snap",SDF_AUTHZ_X,  0,  0,              cmd_deactivate_snap,"De-Activate snap"),
-SDATACM2 (ASN_SCHEMA,   "import-db",    SDF_AUTHZ_X,    0,  pm_import_db,   cmd_import_db, "Import db"),
-SDATACM2 (ASN_SCHEMA,   "export-db",    SDF_AUTHZ_X,    0,  pm_export_db,   cmd_export_db, "Export db"),
-SDATACM2 (ASN_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_node_pkey2s,    "List node's pkey2"),
-SDATACM2 (ASN_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
-SDATACM2 (ASN_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
-SDATACM (ASN_SCHEMA,    "system-schema",0,              0,  cmd_system_topic_schema, "Get system schema"),
-SDATACM2 (ASN_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
+SDATACM2 (DTP_SCHEMA,   "treedbs",      SDF_AUTHZ_X,    0,  0,              cmd_treedbs,        "List treedb's"),
+SDATACM2 (DTP_SCHEMA,   "topics",       SDF_AUTHZ_X,    0,  pm_topics,      cmd_topics,         "List topics"),
+SDATACM2 (DTP_SCHEMA,   "jtree",        SDF_AUTHZ_X,    0,  pm_jtree,       cmd_jtree,          "List hierarchical tree (topic with self-link). Webix option return dict-list else return list of dicts. Always with __path__ "),
+SDATACM2 (DTP_SCHEMA,   "create-node",  SDF_AUTHZ_X,    a_create, pm_create_node, cmd_create_node, "Create node"),
+SDATACM2 (DTP_SCHEMA,   "update-node",  SDF_AUTHZ_X,    a_update, pm_update_node, cmd_update_node, "Update node"),
+SDATACM2 (DTP_SCHEMA,   "delete-node",  SDF_AUTHZ_X,    a_delete, pm_delete_node, cmd_delete_node, "Delete node"),
+SDATACM2 (DTP_SCHEMA,   "nodes",        SDF_AUTHZ_X,    a_nodes, pm_list_nodes, cmd_list_nodes,  "List nodes"),
+SDATACM2 (DTP_SCHEMA,   "node",         SDF_AUTHZ_X,    a_node, pm_get_node, cmd_get_node,       "Get node by id"),
+SDATACM2 (DTP_SCHEMA,   "instances",    SDF_AUTHZ_X,    0,  pm_node_instances,cmd_node_instances,"List node's instances"),
+SDATACM2 (DTP_SCHEMA,   "link-nodes",   SDF_AUTHZ_X,    0,  pm_link_nodes,  cmd_link_nodes,     "Link nodes"),
+SDATACM2 (DTP_SCHEMA,   "unlink-nodes", SDF_AUTHZ_X,    0,  pm_link_nodes,  cmd_unlink_nodes,   "Unlink nodes"),
+SDATACM2 (DTP_SCHEMA,   "hooks",        SDF_AUTHZ_X,    0,  pm_hooks,       cmd_hooks,          "Hooks of node"),
+SDATACM2 (DTP_SCHEMA,   "links",        SDF_AUTHZ_X,    0,  pm_links,       cmd_links,          "Links of node"),
+SDATACM2 (DTP_SCHEMA,   "parents",      SDF_AUTHZ_X,    0,  pm_parents,     cmd_parents,        "Parent Refs of node"),
+SDATACM2 (DTP_SCHEMA,   "childs",       SDF_AUTHZ_X,    0,  pm_childs,      cmd_childs,         "Childs of node"),
+SDATACM2 (DTP_SCHEMA,   "snaps",        SDF_AUTHZ_X,    0,  0,              cmd_list_snaps,     "List snaps"),
+SDATACM2 (DTP_SCHEMA,   "snap-content", SDF_AUTHZ_X,    0,  pm_snap_content,cmd_snap_content,   "Show snap content"),
+SDATACM2 (DTP_SCHEMA,   "shoot-snap",   SDF_AUTHZ_X,    0,  pm_shoot_snap,  cmd_shoot_snap,     "Shoot snap"),
+SDATACM2 (DTP_SCHEMA,   "activate-snap",SDF_AUTHZ_X,    0,  pm_activate_snap,cmd_activate_snap, "Activate snap"),
+SDATACM2 (DTP_SCHEMA,   "deactivate-snap",SDF_AUTHZ_X,  0,  0,              cmd_deactivate_snap,"De-Activate snap"),
+SDATACM2 (DTP_SCHEMA,   "import-db",    SDF_AUTHZ_X,    0,  pm_import_db,   cmd_import_db, "Import db"),
+SDATACM2 (DTP_SCHEMA,   "export-db",    SDF_AUTHZ_X,    0,  pm_export_db,   cmd_export_db, "Export db"),
+SDATACM2 (DTP_SCHEMA,   "pkey2s",       SDF_AUTHZ_X,    0,  pm_node_pkey2s, cmd_node_pkey2s,    "List node's pkey2"),
+SDATACM2 (DTP_SCHEMA,   "desc",         SDF_AUTHZ_X,    a_schema, pm_desc,  cmd_desc,           "Schema of topic"),
+SDATACM2 (DTP_SCHEMA,   "descs",        SDF_AUTHZ_X,    a_schemas, 0,       cmd_desc,           "Schema of topics"),
+SDATACM (DTP_SCHEMA,    "system-schema",0,              0,  cmd_system_topic_schema, "Get system schema"),
+SDATACM2 (DTP_SCHEMA,   "trace",        SDF_AUTHZ_X,    0,  pm_trace,       cmd_trace,          "Set trace"),
 SDATA_END()
 };
 
@@ -279,13 +279,13 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
-SDATA (ASN_OCTET_STR,   "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
-SDATA (ASN_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
-SDATA (ASN_INTEGER,     "exit_on_error",    0,                  LOG_OPT_EXIT_ZERO,"exit on error"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
+SDATA (DTP_STRING,   "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
+SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
+SDATA (DTP_INTEGER,     "exit_on_error",    0,                  LOG_OPT_EXIT_ZERO,"exit on error"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -306,38 +306,38 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 
 PRIVATE sdata_desc_t pm_authz_create[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_write[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
-SDATAPM0 (ASN_OCTET_STR,    "id",               0,          "record`id",    "Node Id"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "id",               0,          "record`id",    "Node Id"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "__md_treedb__`treedb_name",             "Treedb name"),
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "__md_treedb__`topic_name", "Topic name"),
-SDATAPM0 (ASN_OCTET_STR,    "id",               0,          "id",           "Node Id"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "__md_treedb__`treedb_name",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "__md_treedb__`topic_name", "Topic name"),
+SDATAPM0 (DTP_STRING,    "id",               0,          "id",           "Node Id"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_delete[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "treedb_name",      0,          "",             "Treedb name"),
-SDATAPM0 (ASN_OCTET_STR,    "topic_name",       0,          "",             "Topic name"),
-SDATAPM0 (ASN_OCTET_STR,    "id",               0,          "record`id",    "Node Id"),
+SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,    "id",               0,          "record`id",    "Node Id"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (ASN_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create nodes"),
-SDATAAUTHZ (ASN_SCHEMA, "update",       0,      0,      pm_authz_write,     "Permission to update nodes"),
-SDATAAUTHZ (ASN_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read nodes"),
-SDATAAUTHZ (ASN_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "update",       0,      0,      pm_authz_write,     "Permission to update nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read nodes"),
+SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete nodes"),
 SDATA_END()
 };
 

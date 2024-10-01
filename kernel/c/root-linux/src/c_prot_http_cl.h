@@ -34,7 +34,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_HTTP_CL);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_prot_http_cli(void);
+PUBLIC int register_c_prot_http_cl(void);
 
 #ifdef __cplusplus
 }

@@ -25,10 +25,14 @@ set (SRCS
     src/c_linux_transport.c
     src/c_linux_uart.c
     src/c_authz.c
-    src/c_task_authenticate.c
+    src/c_task_authz.c
     src/c_task.c
-    src/c_prot_http_cli.c
+    src/c_prot_http_cl.c
+    src/c_prot_http_sr.c
     src/c_ievent_cli.c
+    src/c_node.c
+    src/c_tranger.c
+#    src/c_treedb.c
     src/yunetas_environment.c
     src/yunetas_ev_loop.c
     src/fs_watcher.c
@@ -46,10 +50,14 @@ set (HDRS
     src/c_linux_transport.h
     src/c_linux_uart.h
     src/c_authz.h
-    src/c_task_authenticate.h
+    src/c_task_authz.h
     src/c_task.h
-    src/c_prot_http_cli.h
+    src/c_prot_http_cl.h
+    src/c_prot_http_sr.h
     src/c_ievent_cli.h
+    src/c_node.h
+    src/c_tranger.h
+    src/c_treedb.h
     src/yunetas_environment.h
     src/yunetas_ev_loop.h
     src/fs_watcher.h

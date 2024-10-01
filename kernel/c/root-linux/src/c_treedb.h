@@ -4,32 +4,38 @@
  *
  *          Management of treedb's
  *
- *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2021 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <ginsfsm.h>
-#include "yuneta_environment.h"
-#include "c_yuno.h"
-#include "c_node.h"
-#include "msglog_yuneta.h"
-
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_TREEDB_NAME "Treedb"
-#define GCLASS_TREEDB gclass_treedb()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_TREEDB);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_treedb(void);
+PUBLIC int register_c_treedb(void);
+
 
 #ifdef __cplusplus
 }
