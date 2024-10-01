@@ -229,7 +229,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -251,7 +251,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_publish_event(gobj, priv->on_close_event_name, 0);
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -275,7 +275,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -290,7 +290,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         // New method
         const char *code = kw_get_str(gobj, kw, "code", "200 OK", 0);
         const char *headers = kw_get_str(gobj, kw, "headers", "", 0);
-        json_t *jn_body = kw_duplicate(kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED));
+        json_t *jn_body = kw_duplicate(gobj, kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED));
         char *resp = json2uglystr(jn_body);
         int len = strlen(resp) + strlen(headers);
         kw_decref(jn_body);
@@ -306,7 +306,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             len
         );
         gbuffer_append(gbuf, resp, len);
-        GBMEM_FREE(resp);
+        GBMEM_FREE(resp)
     } else  {
         // Old method
         json_t *kw_resp = msg_iev_pure_clone(
@@ -314,7 +314,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
 
         char *resp = json2uglystr(kw_resp);
-        int len = strlen(resp);
+        int len = (int)strlen(resp);
         kw_decref(kw_resp);
 
         gbuf = gbuffer_create(256+len, 256+len);
@@ -325,7 +325,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             len
         );
         gbuffer_append(gbuf, resp, len);
-        GBMEM_FREE(resp);
+        GBMEM_FREE(resp)
     }
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
@@ -339,7 +339,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     json_t *kw_response = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_response, gobj);
 }
 
@@ -350,7 +350,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -360,7 +360,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout_inactivity(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
