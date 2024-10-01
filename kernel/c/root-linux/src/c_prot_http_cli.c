@@ -230,7 +230,7 @@ PRIVATE size_t kw_content_size(json_t *kw)
 {
     char *sjn = json_dumps(kw, JSON_INDENT(0));
     size_t ln = sjn?strlen(sjn):0;
-    GBMEM_FREE(sjn);
+    GBMEM_FREE(sjn)
     ln += 2 * json_object_size(kw);
     return ln;
 }

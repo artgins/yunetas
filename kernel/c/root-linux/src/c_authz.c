@@ -11,6 +11,8 @@
 #include <grp.h>
 #include <string.h>
 #include <jwt.h>
+
+#include <timeranger2.h>
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
@@ -46,7 +48,7 @@ PRIVATE json_t *get_user_roles(
 PRIVATE int create_jwt_validations(hgobj gobj);
 PRIVATE int destroy_jwt_validations(hgobj gobj);
 PRIVATE int create_validation(hgobj gobj, json_t *jn_pkey);
-PRIVATE GBUFFER *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len);
+PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len);
 PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status);
 
 /***************************************************************************
@@ -68,7 +70,7 @@ static const json_desc_t oauth_iss_desc[] = {
 
 PRIVATE topic_desc_t db_messages_desc[] = {
 // Topic Name,          Pkey            System Flag     Tkey        Topic Json Desc
-{"users_accesses",      "username",     sf_string_key,  "tm",       0},
+{"users_accesses",      "username",     sf2_string_key, "tm",       0},
 {0}
 };
 
@@ -94,69 +96,69 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_add_iss[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "iss",          0,              0,          "Issuer"),
-SDATAPM (ASN_OCTET_STR, "description",  0,              0,          "Description"),
-SDATAPM (ASN_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
-SDATAPM (ASN_OCTET_STR, "algorithm",    0,              0,          "Algorithm"),
-SDATAPM (ASN_OCTET_STR, "pkey",         0,              0,          "Public key"),
+SDATAPM (DTP_STRING, "iss",          0,              0,          "Issuer"),
+SDATAPM (DTP_STRING, "description",  0,              0,          "Description"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
+SDATAPM (DTP_STRING, "algorithm",    0,              0,          "Algorithm"),
+SDATAPM (DTP_STRING, "pkey",         0,              0,          "Public key"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_rm_iss[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "iss",          0,              0,          "Issuer"),
+SDATAPM (DTP_STRING, "iss",          0,              0,          "Issuer"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_users[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Filter"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
-SDATAPM (ASN_OCTET_STR, "role",         0,              0,          "Role, format: roles^ROLE^users"),
-SDATAPM (ASN_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
+SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING, "role",         0,              0,          "Role, format: roles^ROLE^users"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_enable_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_disable_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_roles[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_JSON,      "filter",       0,              0,          "Filter"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_roles[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
 SDATA_END()
 };
 
@@ -164,22 +166,22 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
 
-SDATACM (ASN_SCHEMA,    "list-iss",         0,      0,              cmd_list_iss,   "List OAuth2 Issuers"),
-SDATACM (ASN_SCHEMA,    "add-iss",          0,      pm_add_iss,     cmd_add_iss,    "Add OAuth2 Issuer"),
-SDATACM (ASN_SCHEMA,    "remove-iss",       0,      pm_rm_iss,      cmd_remove_iss, "Remove OAuth2 Issuer"),
-SDATACM (ASN_SCHEMA,    "enable-iss",       0,      pm_rm_iss,      cmd_enable_iss, "Enable OAuth2 Issuer"),
-SDATACM (ASN_SCHEMA,    "disable-iss",      0,      pm_rm_iss,      cmd_disable_iss,"Disable OAuth2 Issuer"),
+SDATACM (DTP_SCHEMA,    "list-iss",         0,      0,              cmd_list_iss,   "List OAuth2 Issuers"),
+SDATACM (DTP_SCHEMA,    "add-iss",          0,      pm_add_iss,     cmd_add_iss,    "Add OAuth2 Issuer"),
+SDATACM (DTP_SCHEMA,    "remove-iss",       0,      pm_rm_iss,      cmd_remove_iss, "Remove OAuth2 Issuer"),
+SDATACM (DTP_SCHEMA,    "enable-iss",       0,      pm_rm_iss,      cmd_enable_iss, "Enable OAuth2 Issuer"),
+SDATACM (DTP_SCHEMA,    "disable-iss",      0,      pm_rm_iss,      cmd_disable_iss,"Disable OAuth2 Issuer"),
 
-SDATACM (ASN_SCHEMA,    "authzs",           0,      pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (ASN_SCHEMA,    "users",            0,      pm_users,       cmd_users,      "List users and their roles"),
-SDATACM (ASN_SCHEMA,    "create-user",      0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
-SDATACM (ASN_SCHEMA,    "enable-user",      0,      pm_enable_user, cmd_enable_user,"Enable user"),
-SDATACM (ASN_SCHEMA,    "disable-user",     0,      pm_disable_user,cmd_disable_user,"Disable user"),
-SDATACM (ASN_SCHEMA,    "roles",            0,      pm_roles,       cmd_roles,      "List roles"),
-SDATACM (ASN_SCHEMA,    "user-roles",       0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
-SDATACM (ASN_SCHEMA,    "user-authzs",      0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,      pm_authzs,      cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "users",            0,      pm_users,       cmd_users,      "List users and their roles"),
+SDATACM (DTP_SCHEMA,    "create-user",      0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
+SDATACM (DTP_SCHEMA,    "enable-user",      0,      pm_enable_user, cmd_enable_user,"Enable user"),
+SDATACM (DTP_SCHEMA,    "disable-user",     0,      pm_disable_user,cmd_disable_user,"Disable user"),
+SDATACM (DTP_SCHEMA,    "roles",            0,      pm_roles,       cmd_roles,      "List roles"),
+SDATACM (DTP_SCHEMA,    "user-roles",       0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
+SDATACM (DTP_SCHEMA,    "user-authzs",      0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
 SDATA_END()
 };
 
@@ -188,16 +190,16 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (ASN_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    1,          "Max sessions per user"),
-SDATA (ASN_OCTET_STR,   "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
-SDATA (ASN_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
-SDATA (ASN_JSON,        "initial_load",     SDF_RD,             0,          "Initial data for treedb"),
+SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    1,          "Max sessions per user"),
+SDATA (DTP_STRING,   "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
+SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
+SDATA (DTP_JSON,        "initial_load",     SDF_RD,             0,          "Initial data for treedb"),
 // HACK WARNING 2024-Jul-30, now if tranger_path is set then it's a client (not master)
-SDATA (ASN_OCTET_STR,   "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
-SDATA (ASN_BOOLEAN,     "master",           SDF_RD,             FALSE,      "the master is the only that can write, internal value"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,          "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_STRING,   "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,      "the master is the only that can write, internal value"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -233,6 +235,8 @@ typedef struct _PRIVATE_DATA {
     json_t *users_accesses;      // dict with users opened
     json_t *jn_validations;
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
