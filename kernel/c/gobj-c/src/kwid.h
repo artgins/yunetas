@@ -316,6 +316,16 @@ PUBLIC void kw_update_except(
  ************************************************************************/
 
 /**rst**
+   Make a duplicate of kw
+   WARNING near as json_deep_copy(), but processing serialized fields and with new references
+**rst**/
+PUBLIC json_t *kw_duplicate(
+    hgobj gobj,
+    json_t *kw  // NOT owned
+);
+
+
+/**rst**
     Return a new kw only with the keys got by path.
     It's not a deep copy, new keys are the paths.
     Not valid with lists.

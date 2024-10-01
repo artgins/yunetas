@@ -34,6 +34,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <unistd.h>
 #include <stdio.h>
 
+#include <kwid.h>
 #include <timeranger2.h>
 
 #include "c_tranger.h"
@@ -199,9 +200,9 @@ SDATA (DTP_STRING,   "path",             SDF_RD|SDF_REQUIRED,"", "Path of databa
 SDATA (DTP_STRING,   "database",         SDF_RD|SDF_REQUIRED,"", "Database name"),
 SDATA (DTP_STRING,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
 
-SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             02770,          "Use in creation, default 02770"),
-SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             0660,           "Use in creation, default 0660"),
-SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             LOG_OPT_EXIT_ZERO,"exit on error (Zero to avoid restart)"),
+SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        "Use in creation, default 02770"),
+SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "2",            "exit on error (Zero to avoid restart)"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
@@ -264,6 +265,8 @@ typedef struct _PRIVATE_DATA {
 
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -296,9 +299,9 @@ PRIVATE void mt_create(hgobj gobj)
         "path", gobj_read_str_attr(gobj, "path"),
         "database", gobj_read_str_attr(gobj, "database"),
         "filename_mask", gobj_read_str_attr(gobj, "filename_mask"),
-        "xpermission", (int)gobj_read_int32_attr(gobj, "xpermission"),
-        "rpermission", (int)gobj_read_int32_attr(gobj, "rpermission"),
-        "on_critical_error", (int)gobj_read_int32_attr(gobj, "on_critical_error"),
+        "xpermission", (int)gobj_read_integer_attr(gobj, "xpermission"),
+        "rpermission", (int)gobj_read_integer_attr(gobj, "rpermission"),
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error"),
         "master", gobj_read_bool_attr(gobj, "master")
     );
 
@@ -358,8 +361,7 @@ PRIVATE int mt_subscription_added(
     const char *event = sdata_read_str(subs, "event");
 
     if(empty_string(event)) {
-        log_warning(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "tranger subscription must be with explicit event",
@@ -518,8 +520,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     BOOL expanded = kw_get_bool(kw, "expanded", 0, KW_WILD_NUMBER);
-    int lists_limit = kw_get_int(kw, "lists_limit", 100, KW_WILD_NUMBER);
-    int dicts_limit = kw_get_int(kw, "dicts_limit", 100, KW_WILD_NUMBER);
+    int lists_limit = kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
+    int dicts_limit = kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
     const char *path = kw_get_str(kw, "path", "", 0);
 
     json_t *value = priv->tranger;
@@ -566,7 +568,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int max_refcount = kw_get_int(kw, "max_refcount", 1, KW_WILD_NUMBER);
+    int max_refcount = kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
 
     json_t *tranger = priv->tranger;
     int result = 0;
@@ -890,12 +892,12 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     BOOL  backward = kw_get_bool(kw, "backward", 0, 0);
     BOOL  only_md = kw_get_bool(kw, "only_md", 0, 0);
-    int64_t from_rowid = (int64_t)kw_get_int(kw, "from_rowid", 0, 0);
-    int64_t to_rowid = (int64_t)kw_get_int(kw, "to_rowid", 0, 0);
-    uint32_t user_flag = (uint32_t)kw_get_int(kw, "user_flag", 0, 0);
-    uint32_t not_user_flag = (uint32_t)kw_get_int(kw, "not_user_flag", 0, 0);
-    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(kw, "user_flag_mask_set", 0, 0);
-    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(kw, "user_flag_mask_notset", 0, 0);
+    int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, 0);
+    int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, 0);
+    uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, 0);
+    uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, 0);
+    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
+    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
     const char *key = kw_get_str(kw, "key", 0, 0);
     const char *notkey = kw_get_str(kw, "notkey", 0, 0);
     const char *rkey = kw_get_str(kw, "rkey", 0, 0);
@@ -1095,8 +1097,8 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
          *  Get parameters
          */
         const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-        uint64_t __t__ = kw_get_int(kw, "__t__", 0, 0);
-        uint32_t user_flag = kw_get_int(kw, "user_flag", 0, 0);
+        uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
+        uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
         json_t *record = kw_get_dict(kw, "record", 0, 0);
 
         /*
@@ -1321,8 +1323,8 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
      *  Get parameters
      */
     const char *topic_name = kw_get_str(kw, "topic_name", "", 0);
-    uint64_t __t__ = kw_get_int(kw, "__t__", 0, 0);
-    uint32_t user_flag = kw_get_int(kw, "user_flag", 0, 0);
+    uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
+    uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
     json_t *record = kw_get_dict(kw, "record", 0, 0);
 
     json_t *__temp__ = kw_get_dict_value(kw, "__temp__", 0, KW_REQUIRED);

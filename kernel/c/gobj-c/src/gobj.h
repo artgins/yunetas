@@ -420,6 +420,20 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .schema=(items_),                                   \
 }
 
+/*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
+#define SDATACM2(type_, name_, flag_, alias_, items_, json_fn_, description_) \
+{                                                       \
+    .type=type_,                                        \
+    .name=name_,                                        \
+    .alias=alias_,                                      \
+    .json_fn=json_fn_,                                  \
+    .flag=flag_,                                        \
+    .default_value=0,                                   \
+    .description=description_,                          \
+    .header=0,                                          \
+    .schema=items_,                                     \
+}
+
 /*-PM----type-----------name------------flag------------default-----description---------- */
 #define SDATAPM(type_, name_, flag_, default_value_, description_) \
 {                                                       \
@@ -450,6 +464,20 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .schema=(items_),                                   \
 }
 
+/*-PM-----type--------------name----------------flag--------authpath--------description-- */
+#define SDATAPM0(type_, name_, flag_, authpth_, description_)     \
+{                                                       \
+    .type=type_,                                        \
+    .name=name_,                                        \
+    .alias=0,                                           \
+    .json_fn=0,                                         \
+    .flag=flag_,                                        \
+    .default_value=0,                                   \
+    .description=description_,                          \
+    .header=0,                                          \
+    .schema=0,                                          \
+    .authpth=authpth_,                                  \
+}
 /*
  *  Generic json function
  */
@@ -471,6 +499,7 @@ typedef struct sdata_desc_s {
     const char *description;
     const json_function_t json_fn;
     const struct sdata_desc_s *schema;
+    const char *authpth;
 } sdata_desc_t;
 
 typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]

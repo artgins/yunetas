@@ -4,30 +4,38 @@
  *
  *          Protocol http as server
  *
- *          Copyright (c) 2018-2021 Niyamaka.
+ *          Copyright (c) 2018-2021 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <ginsfsm.h>
-#include "ghttp_parser.h"
-#include "c_timer.h"
-#include "c_connex.h"
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_PROT_HTTP_SRV_NAME "Prot_http_srv"
-#define GCLASS_PROT_HTTP_SRV gclass_prot_http_srv()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_PROT_HTTP_SR);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_prot_http_srv(void);
+PUBLIC int register_c_prot_http_sr(void);
+
 
 #ifdef __cplusplus
 }

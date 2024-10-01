@@ -32,7 +32,7 @@ set (SRCS
     src/c_ievent_cli.c
     src/c_node.c
     src/c_tranger.c
-#    src/c_treedb.c
+    src/c_treedb.c
     src/yunetas_environment.c
     src/yunetas_ev_loop.c
     src/fs_watcher.c

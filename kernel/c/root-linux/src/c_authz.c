@@ -265,8 +265,7 @@ PRIVATE void mt_create(hgobj gobj)
         /*
          *  Exit if schema fails
          */
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", "Parse schema fails",
@@ -357,7 +356,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(max_sessions_per_user, gobj_read_int32_attr)
+    SET_PRIV(max_sessions_per_user, gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -367,7 +366,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(max_sessions_per_user,       gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(max_sessions_per_user,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(master,                    gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
@@ -712,8 +711,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *--------------------------------------------*/
     json_t *sessions = kw_get_dict(user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "__sessions NULL",
@@ -732,7 +730,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *-------------------------------*/
         hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(session, "channel_gobj", 0, KW_REQUIRED);
         log_info(0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Drop session, max sessions reached",
@@ -1757,7 +1754,7 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
      *  Public keys must be in PEM format, convert if not done
      */
     if(strstr(pkey, "-BEGIN PUBLIC KEY-")==NULL) {
-        GBUFFER *gbuf = format_to_pem(gobj, pkey, strlen(pkey));
+        gbuffer_t *gbuf = format_to_pem(gobj, pkey, strlen(pkey));
         const char *p = gbuf_cur_rd_pointer(gbuf);
         json_object_set_new(jn_validation, "pkey", json_string(p));
         GBUF_DECREF(gbuf)
@@ -1768,8 +1765,7 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
      */
     jwt_alg_t alg = jwt_str_alg(algorithm);
     if(alg == JWT_ALG_INVAL) {
-        log_error(0,
-            "gobj",             "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",              "%s", "JWT Algorithm UNKNOWN",
@@ -1788,8 +1784,7 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
     /* Setup validation */
     ret = jwt_valid_new(&jwt_valid, alg);
     if (ret != 0 || jwt_valid == NULL) {
-        log_error(0,
-            "gobj",             "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",              "%s", "jwt_valid_new() FAILED",
@@ -1812,13 +1807,13 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
 /***************************************************************************
  *  Function to convert to PEM format
  ***************************************************************************/
-PRIVATE GBUFFER *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
+PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
 {
     const char *header = "-----BEGIN PUBLIC KEY-----\n";
     const char *tail = "-----END PUBLIC KEY-----\n";
 
     size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
-    GBUFFER *gbuf = gbuf_create(l, l, 0, 0);
+    gbuffer_t *gbuf = gbuf_create(l, l, 0, 0);
     if(!gbuf) {
         // Error already logged
         return NULL;
@@ -1924,7 +1919,6 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
         } else {
             *status = get_validation_status(jwt_valid_get_status(jwt_valid));
             log_info(0,
-                "gobj",             "%s", gobj_full_name(gobj),
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
                 "msg",              "%s", "jwt invalid",
@@ -1989,8 +1983,7 @@ PRIVATE json_t *identify_system_user(
                     gobj
                 );
                 if(user) {
-                    log_warning(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INFO,
                         "msg",          "%s", "Using groupname instead of username",
@@ -2006,8 +1999,7 @@ PRIVATE json_t *identify_system_user(
     }
 
     if(verbose) {
-        log_warning(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "username not found in system",
@@ -2441,8 +2433,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     *------------------------------*/
     json_t *jwt_payload = gobj_read_json_attr(src, "jwt_payload");
     if(!jwt_payload) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "open without jwt_payload",
@@ -2474,8 +2465,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj
         );
         if(!user) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "User not found",
@@ -2585,8 +2575,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
     if(!user) {
-        log_warning(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "User not found",
@@ -2617,8 +2606,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *-----------------*/
     json_t *sessions = kw_get_dict(user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "__sessions NULL",
@@ -2808,8 +2796,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
          *  HACK if this function is called is because the authz system is configured in setup.
          *  If the service is not found then deny all.
          */
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "No gclass authz found",
@@ -2823,8 +2810,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     if(empty_string(__username__)) {
         __username__ = gobj_read_str_attr(src, "__username__");
         if(empty_string(__username__)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "__username__ not found in kw nor src",

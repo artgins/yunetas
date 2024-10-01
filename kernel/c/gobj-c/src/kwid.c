@@ -38,6 +38,8 @@ typedef struct serialize_fields_s {
     decref_fn_t decref_fn;
 } serialize_fields_t;
 
+PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscores, BOOL serialize);
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1380,6 +1382,161 @@ PUBLIC void kw_update_except(
             continue;
         }
         json_object_set(kw, key, jn_value);
+    }
+}
+
+/***************************************************************************
+ *  if binary is inside of kw, incref binary
+ ***************************************************************************/
+PRIVATE serialize_fields_t * get_serialize_field(const char *binary_field_name)
+{
+    serialize_fields_t * pf = serialize_fields;
+    while(pf->binary_field_name) {
+        if(strcmp(pf->binary_field_name, binary_field_name)==0) {
+            return pf;
+        }
+        pf++;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Make a twin of a array
+ ***************************************************************************/
+PRIVATE json_t * _duplicate_array(json_t *kw, const char **keys, int underscores, BOOL serialize)
+{
+    json_t *kw_dup_ = json_array();
+
+    size_t idx;
+    json_t *value;
+    json_array_foreach(kw, idx, value) {
+        json_t *new_value;
+        json_type type = json_typeof(value);
+        switch(type) {
+        case JSON_OBJECT:
+            new_value = _duplicate_object(value, keys, underscores, serialize);
+            break;
+        case JSON_ARRAY:
+            new_value = _duplicate_array(value, keys, underscores, serialize);
+            break;
+        case JSON_STRING:
+            new_value = json_string(json_string_value(value));
+            break;
+        case JSON_INTEGER:
+            {
+                /*
+                 *  WARNING binary fields in array cannot be managed!
+                 */
+                json_int_t binary = json_integer_value(value);
+                new_value = json_integer(binary);
+            }
+            break;
+        case JSON_REAL:
+            new_value = json_real(json_real_value(value));
+            break;
+        case JSON_TRUE:
+            new_value = json_true();
+            break;
+        case JSON_FALSE:
+            new_value = json_false();
+            break;
+        case JSON_NULL:
+            new_value = json_null();
+            break;
+        }
+        json_array_append_new(kw_dup_, new_value);
+    }
+
+    return kw_dup_;
+}
+/***************************************************************************
+ *  Make a twin of a object
+ ***************************************************************************/
+PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscores, BOOL serialize)
+{
+    json_t *kw_dup_ = json_object();
+
+    const char *key;
+    json_t *value;
+    json_object_foreach(kw, key, value) {
+        if(underscores) {
+            int u;
+            for(u=0; u<strlen(key); u++) {
+                if(key[u] != '_') {
+                    break;
+                }
+            }
+            if(u == underscores) {
+                continue;
+            }
+        }
+        if(keys && !str_in_list(keys, key, FALSE)) {
+            continue;
+        }
+        json_t *new_value;
+        json_type type = json_typeof(value);
+        switch(type) {
+        case JSON_OBJECT:
+            new_value = _duplicate_object(value, keys, underscores, serialize);
+            break;
+        case JSON_ARRAY:
+            new_value = _duplicate_array(value, keys, underscores, serialize);
+            break;
+        case JSON_STRING:
+            new_value = json_string(json_string_value(value));
+            break;
+        case JSON_INTEGER:
+            {
+                json_int_t binary = json_integer_value(value);
+                new_value = json_integer(binary);
+                if(serialize) {
+                    serialize_fields_t * pf = get_serialize_field(key);
+                    if(pf) {
+                        pf->incref_fn((void *)(size_t)binary);
+                    }
+                }
+            }
+            break;
+        case JSON_REAL:
+            new_value = json_real(json_real_value(value));
+            break;
+        case JSON_TRUE:
+            new_value = json_true();
+            break;
+        case JSON_FALSE:
+            new_value = json_false();
+            break;
+        case JSON_NULL:
+            new_value = json_null();
+            break;
+        }
+        json_object_set_new(kw_dup_, key, new_value);
+    }
+
+    return kw_dup_;
+}
+
+/***************************************************************************
+ *  Make a duplicate of kw
+ *  WARNING clone of json_deep_copy(), but processing serialized fields
+ ***************************************************************************/
+PUBLIC json_t *kw_duplicate(
+    hgobj gobj,
+    json_t *kw  // NOT owned
+)
+{
+    if(json_is_object(kw)) {
+        return _duplicate_object(kw, 0, 0, TRUE);
+    } else if(json_is_array(kw)) {
+        return _duplicate_array(kw, 0, 0, TRUE);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json to duplicate must be an object or array",
+            NULL
+        );
+        return 0;
     }
 }
 

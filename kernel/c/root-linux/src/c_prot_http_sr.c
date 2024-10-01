@@ -8,7 +8,10 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
-#include "c_prot_http_srv.h"
+
+#include <ghttp_parser.h>
+#include "c_timer.h"
+#include "c_prot_http_sr.h"
 
 /***************************************************************************
  *              Constants
@@ -32,7 +35,7 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
-SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        5*60,          "Timeout inactivity, in seconds"),
+SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Timeout inactivity, in seconds"),
 SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,             "Connection state. Important filter!"),
 SDATA (DTP_STRING,   "on_open_event_name",SDF_RD,        "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
 SDATA (DTP_STRING,   "on_close_event_name",SDF_RD,       "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
@@ -84,10 +87,12 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     priv->parsing_request = ghttp_parser_create(
         gobj,
         HTTP_REQUEST,
+        "",
+        "",
         "EV_ON_MESSAGE",
         FALSE
     );
@@ -107,7 +112,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(on_open_event_name,    gobj_read_str_attr)
     SET_PRIV(on_close_event_name,   gobj_read_str_attr)
     SET_PRIV(on_message_event_name, gobj_read_str_attr)
-    SET_PRIV(timeout_inactivity,    gobj_read_int32_attr)
+    SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -117,7 +122,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_inactivity,          gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout_inactivity,          gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -175,18 +180,18 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Return 0 if no new request.
  *  Return 1 if new request available in `request`.
  ***************************************************************************/
-PRIVATE int parse_message(hgobj gobj, GBUFFER *gbuf, GHTTP_PARSER *parser)
+PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 {
     size_t ln;
-    while((ln=gbuf_leftbytes(gbuf))>0) {
-        char *bf = gbuf_cur_rd_pointer(gbuf);
+    while((ln=gbuffer_leftbytes(gbuf))>0) {
+        char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
             // Some error in parsing
             ghttp_parser_reset(parser);
             return -1;
         } else if (n > 0) {
-            gbuf_get(gbuf, n);  // take out the bytes consumed
+            gbuffer_get(gbuf, n);  // take out the bytes consumed
         }
     }
     return 0;
@@ -251,10 +256,11 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
-        log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "%s", gobj_short_name(gobj));
+        //log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "%s", gobj_short_name(gobj));
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s", gobj_short_name(gobj));
     }
 
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
@@ -273,7 +279,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ********************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    GBUFFER *gbuf = 0;
+    gbuffer_t *gbuf = 0;
 
     if(kw_has_key(kw, "body")) {
         // New method

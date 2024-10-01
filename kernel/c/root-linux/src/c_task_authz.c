@@ -128,7 +128,7 @@ Example of refresh_token
 
 #include "c_prot_http_cli.h"
 #include "c_task.h"
-#include "c_task_authenticate.h"
+#include "c_task_authz.h"
 
 /***************************************************************************
  *              Constants
@@ -241,7 +241,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    //SET_PRIV(timeout,               gobj_read_int32_attr)
+    //SET_PRIV(timeout,               gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -251,7 +251,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    //IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    //IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     //END_EQ_SET_PRIV()
 }
 
