@@ -37,6 +37,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <kwid.h>
 #include <timeranger2.h>
 
+#include "msg_ievent.h"
 #include "c_tranger.h"
 
 /***************************************************************************
@@ -478,7 +479,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -509,7 +510,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -529,7 +530,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(!empty_string(path)) {
         value = kw_find_path(value, path, FALSE);
         if(!value) {
-            return msg_iev_build_webix(gobj,
+            return msg_iev_build_response(gobj,
                 -1,
                 json_sprintf("Path not found: '%s'", path),
                 0,
@@ -552,7 +553,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Inform
      */
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         0,
         0,
         0,
@@ -573,7 +574,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *tranger = priv->tranger;
     int result = 0;
     json_check_refcounts(tranger, max_refcount, &result)?0:-1;
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         result,
         json_sprintf("check refcounts of tranger: %s", result==0?"Ok":"Bad"),
         0,
@@ -595,7 +596,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *permission = "create";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -607,7 +608,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -635,9 +636,9 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_incref(jn_var)      // owned
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         topic?0:-1,
-        topic?json_sprintf("Topic created: '%s'", topic_name):json_string(log_last_message()),
+        topic?json_sprintf("Topic created: '%s'", topic_name):json_string(gobj_log_last_message()),
         0,
         json_incref(topic),
         kw  // owned
@@ -657,7 +658,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *permission = "delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -669,7 +670,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -682,7 +683,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     BOOL force = kw_get_bool(kw, "force", 0, 0);
     json_t *topic = tranger_topic(priv->tranger, topic_name);
     if(!topic) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Topic not found: '%s'", topic_name),
@@ -695,7 +696,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_int_t topic_size = tranger_topic_size(topic);
     if(topic_size != 0) {
         if(!force) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("'%s' topic with records, you must force to delete", topic_name),
@@ -708,9 +709,9 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     int ret = tranger_delete_topic(priv->tranger, topic_name);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
-        ret>=0?json_sprintf("Topic deleted: '%s'", topic_name):json_string(log_last_message()),
+        ret>=0?json_sprintf("Topic deleted: '%s'", topic_name):json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
@@ -730,7 +731,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -751,9 +752,9 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_array_append_new(topic_list, json_string(topic_name));
     }
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         topics?0:-1,
-        topics?0:json_string(log_last_message()),
+        topics?0:json_string(gobj_log_last_message()),
         0,
         topic_list,
         kw  // owned
@@ -773,7 +774,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -785,7 +786,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -797,7 +798,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_t *topic = tranger_topic(priv->tranger, topic_name);
     if(!topic) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Topic not found: '%s'", topic_name),
@@ -808,9 +809,9 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     }
     json_t *desc = kwid_new_dict("", priv->tranger, "topics`%s`cols", topic_name);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         desc?0:-1,
-        desc?0:json_string(log_last_message()),
+        desc?0:json_string(gobj_log_last_message()),
         0,
         desc,
         kw  // owned
@@ -830,7 +831,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -846,7 +847,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     if(empty_string(list_id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What list_id?"),
@@ -857,7 +858,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -868,7 +869,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
     json_t *topic = tranger_topic(priv->tranger, topic_name);
     if(!topic) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Topic not found: '%s'", topic_name),
@@ -880,7 +881,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     json_t *list = tranger_get_list(priv->tranger, list_id);
     if(list) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("List is already open: '%s'", list_id),
@@ -996,10 +997,10 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     list = tranger_open_list(priv->tranger, jn_list);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         list?0:-1,
-        list?json_sprintf("List opened: '%s'", list_id):json_string(log_last_message()),
+        list?json_sprintf("List opened: '%s'", list_id):json_string(gobj_log_last_message()),
         0,
         return_data?json_incref(kw_get_list(list, "data", 0, KW_REQUIRED)):0,
         kw  // owned
@@ -1019,7 +1020,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -1032,7 +1033,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
 
     if(empty_string(list_id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What list_id?"),
@@ -1044,7 +1045,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     json_t *list = tranger_get_list(priv->tranger, list_id);
     if(!list) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("List not found: '%s'", list_id),
@@ -1056,10 +1057,10 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     int result = tranger_close_list(priv->tranger, list);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         result,
-        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(log_last_message()),
+        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
@@ -1079,7 +1080,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *permission = "write";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -1135,7 +1136,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
 
         if(result<0) {
-            jn_comment = json_string(log_last_message());
+            jn_comment = json_string(gobj_log_last_message());
             break;
         } else {
            jn_comment = json_sprintf("Record added");
@@ -1145,7 +1146,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*
      *  Response
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         result,
         jn_comment,
@@ -1168,7 +1169,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -1181,7 +1182,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
 
     if(empty_string(list_id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What list_id?"),
@@ -1193,7 +1194,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     json_t *list = tranger_get_list(priv->tranger, list_id);
     if(!list) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("List not found: '%s'", list_id),
@@ -1203,7 +1204,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -1363,7 +1364,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         );
 
         if(result<0) {
-            jn_comment = json_string(log_last_message());
+            jn_comment = json_string(gobj_log_last_message());
             break;
         } else {
            jn_comment = json_sprintf("Record added");

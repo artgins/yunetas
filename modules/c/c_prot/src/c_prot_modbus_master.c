@@ -608,7 +608,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return 0; // TODO
 //    JSON_INCREF(kw);
 //    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-//    return msg_iev_build_webix(
+//    return msg_iev_build_response(
 //        gobj,
 //        0,
 //        jn_resp,
@@ -631,7 +631,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //    int size = (int)kw_get_int(gobj, kw, "size", 0, KW_WILD_NUMBER);           // -1 all data
 
 //    if(address > 0xFFFF) {
-//        return msg_iev_build_webix(
+//        return msg_iev_build_response(
 //            gobj,
 //            -1,
 //            json_sprintf("Address out of range"),
@@ -648,7 +648,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //            priv->max_slaves * sizeof(slave_data_t),
 //            "slaves"
 //        );
-//        return msg_iev_build_webix(
+//        return msg_iev_build_response(
 //            gobj,
 //            0,
 //            json_sprintf("FULL data dumped in log file"),
@@ -662,7 +662,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //        size = 0xFFFF + 1;
 //    }
 //    if(address+size > 0xFFFF+1) {
-//        return msg_iev_build_webix(
+//        return msg_iev_build_response(
 //            gobj,
 //            -1,
 //            json_sprintf("Size out of range"),
@@ -675,7 +675,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //    if(slave_id != -1) {
 //        slave_data_t *pslv = get_slave_data(gobj, slave_id, FALSE);
 //        if(!pslv) {
-//            return msg_iev_build_webix(
+//            return msg_iev_build_response(
 //                gobj,
 //                -1,
 //                json_sprintf("Slave id not found"),
@@ -731,7 +731,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //        }
 //    }
 //
-//    return msg_iev_build_webix(
+//    return msg_iev_build_response(
 //        gobj,
 //        0,
 //        json_sprintf("Data dumped in log file"),
@@ -753,7 +753,7 @@ PRIVATE json_t *cmd_set_poll_timeout(hgobj gobj, const char *cmd, json_t *kw, hg
 //    gobj_write_int32_attr(gobj, "timeout_polling", timeout);
 //    gobj_save_persistent_attrs(gobj, json_string("timeout_polling"));
 //
-//    return msg_iev_build_webix(
+//    return msg_iev_build_response(
 //        gobj,
 //        0,
 //        json_sprintf("Poll timeout = %d miliseconds", timeout),

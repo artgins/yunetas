@@ -15,6 +15,8 @@
 #include <kwid.h>
 #include <tr_treedb.h>
 #include <timeranger2.h>
+
+#include "msg_ievent.h"
 #include "c_node.h"
 
 /***************************************************************************
@@ -1794,7 +1796,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -1822,7 +1824,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -1845,7 +1847,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_content = legalstring2json(gbuf_cur_rd_pointer(gbuf_content), TRUE);
         GBUF_DECREF(gbuf_content);
         if(!jn_content) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Can't decode json content64"),
@@ -1864,7 +1866,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!jn_content) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What record?"),
@@ -1880,7 +1882,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *permission = "create";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         json_decref(jn_content);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -1897,9 +1899,9 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_incref(_jn_options),
         src
     );
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         node?0:-1,
-        json_sprintf("%s", node?"Node created!":log_last_message()),
+        json_sprintf("%s", node?"Node created!":gobj_log_last_message()),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -1916,7 +1918,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -1939,7 +1941,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_content = legalstring2json(gbuf_cur_rd_pointer(gbuf_content), TRUE);
         GBUF_DECREF(gbuf_content);
         if(!jn_content) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Can't decode json content64"),
@@ -1958,7 +1960,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!jn_content) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What record?"),
@@ -1974,7 +1976,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *permission = "update";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         json_decref(jn_content);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -1992,9 +1994,9 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         node?0:-1,
-        json_sprintf("%s", node?"Node update!":log_last_message()),
+        json_sprintf("%s", node?"Node update!":gobj_log_last_message()),
         gobj_topic_desc(gobj, topic_name),
         node,
         kw  // owned
@@ -2011,7 +2013,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *_jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2022,7 +2024,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     if(!kw_has_key(_jn_record, "id")) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("field 'id' is required to delete nodes"),
@@ -2037,7 +2039,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *----------------------------------------*/
     const char *permission = "delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -2058,7 +2060,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         src
     );
     if(!node) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Node not found"),
@@ -2077,17 +2079,17 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             src
     )<0) {
         JSON_DECREF(node);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s", log_last_message()),
+            json_sprintf("%s", gobj_log_last_message()),
             0,
             0,
             kw  // owned
         );
     }
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Node deleted"),
@@ -2107,7 +2109,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(parent_ref)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What parent ref?"),
@@ -2117,7 +2119,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
     if(empty_string(child_ref)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What child ref?"),
@@ -2140,7 +2142,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
          *  It's not a fkey.
          *  It's not an error, it happens when it's a hook and fkey field.
          */
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Wrong parent ref"),
@@ -2159,7 +2161,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         child_id, sizeof(child_id)
     )) {
         // It's not a child ref
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Wrong child ref"),
@@ -2177,7 +2179,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
     if(!parent_node) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Parent not found"),
@@ -2195,7 +2197,7 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
     if(!child_node) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Parent not found"),
@@ -2223,9 +2225,9 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         result,
-        result<0?json_sprintf("%s", log_last_message()):json_sprintf("Nodes linked!"),
+        result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes linked!"),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
         kw  // owned
@@ -2242,7 +2244,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(parent_ref)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What parent ref?"),
@@ -2252,7 +2254,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
     if(empty_string(child_ref)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What child ref?"),
@@ -2275,7 +2277,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
          *  It's not a fkey.
          *  It's not an error, it happens when it's a hook and fkey field.
          */
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Wrong parent ref"),
@@ -2294,7 +2296,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         child_id, sizeof(child_id)
     )) {
         // It's not a child ref
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Wrong child ref"),
@@ -2312,7 +2314,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         src
     );
     if(!parent_node) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Parent not found"),
@@ -2330,7 +2332,7 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         src
     );
     if(!child_node) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Parent not found"),
@@ -2358,9 +2360,9 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         result,
-        result<0?json_sprintf("%s", log_last_message()):json_sprintf("Nodes unlinked!"),
+        result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes unlinked!"),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
         kw  // owned
@@ -2375,7 +2377,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_incref(kw);
     json_t *treedbs = gobj_treedbs(gobj, kw, src);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         treedbs?0:-1,
         0,
         0,
@@ -2393,7 +2395,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(treedb_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What treedb_name?"),
@@ -2404,9 +2406,9 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     }
     json_t *topics = gobj_treedb_topics(gobj, treedb_name, json_incref(_jn_options), src);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         topics?0:-1,
-        topics?0:json_string(log_last_message()),
+        topics?0:json_string(gobj_log_last_message()),
         0,
         topics,
         kw  // owned
@@ -2432,7 +2434,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2442,7 +2444,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(hook)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What hook?"),
@@ -2488,7 +2490,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         } while(0);
 
         if(empty_string(node_id)) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("What node_id?"),
@@ -2510,9 +2512,9 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         jtree?0:-1,
-        jtree?0:json_string(log_last_message()),
+        jtree?0:json_string(gobj_log_last_message()),
         0,
         jtree,
         kw  // owned
@@ -2527,7 +2529,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(strcmp(cmd, "desc")==0) {
         if(empty_string(topic_name)) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("What topic_name?"),
@@ -2540,9 +2542,9 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_t *desc = gobj_topic_desc(gobj, topic_name); // Empty topic_name -> return all
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         desc?0:-1,
-        desc?0:json_string(log_last_message()),
+        desc?0:json_string(gobj_log_last_message()),
         0,
         desc,
         kw  // owned
@@ -2557,7 +2559,7 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
     /*
      *  Inform
      */
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         0,
         0,
         0,
@@ -2578,7 +2580,7 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     } else {
         treedb_set_trace(FALSE);
     }
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Set trace %s", set?"on":"false"),
@@ -2600,9 +2602,9 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_incref(kw);
     json_t *links = gobj_topic_links(gobj, priv->treedb_name, topic_name, kw, src);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         links?0:-1,
-        links?0:json_string(log_last_message()),
+        links?0:json_string(gobj_log_last_message()),
         0,
         links,
         kw  // owned
@@ -2621,9 +2623,9 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_incref(kw);
     json_t *hooks = gobj_topic_hooks(gobj, priv->treedb_name, topic_name, kw, src);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         hooks?0:-1,
-        hooks?0:json_string(log_last_message()),
+        hooks?0:json_string(gobj_log_last_message()),
         0,
         hooks,
         kw  // owned
@@ -2642,7 +2644,7 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2652,7 +2654,7 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(node_id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What node id?"),
@@ -2671,10 +2673,10 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         src
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         parents?0:-1,
-        parents?0:json_string(log_last_message()),
+        parents?0:json_string(gobj_log_last_message()),
         0,
         parents,
         kw  // owned
@@ -2693,7 +2695,7 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2703,7 +2705,7 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(hook)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What hook?"),
@@ -2713,7 +2715,7 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(node_id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What node id?"),
@@ -2733,10 +2735,10 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         src
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         childs?0:-1,
-        childs?0:json_string(log_last_message()),
+        childs?0:json_string(gobj_log_last_message()),
         0,
         childs,
         kw  // owned
@@ -2754,7 +2756,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2769,7 +2771,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -403,
             json_sprintf("No permission to '%s'", permission),
@@ -2787,12 +2789,12 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         nodes?0:-1,
         nodes?
             json_sprintf("%d nodes", (int)json_array_size(nodes)):
-            json_string(log_last_message()),
+            json_string(gobj_log_last_message()),
         nodes?tranger_topic_desc(priv->tranger, topic_name):0,
         nodes,
         kw  // owned
@@ -2811,7 +2813,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2821,7 +2823,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(id)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What node id?"),
@@ -2840,7 +2842,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         node?0:-1,
         node?0:json_sprintf("Node not found"),
         node?tranger_topic_desc(priv->tranger, topic_name):0,
@@ -2863,7 +2865,7 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *_jn_options = kw_get_dict(kw, "options", 0, 0);
 
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2889,12 +2891,12 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
         src
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         instances?
             json_sprintf("%d instances", (int)json_array_size(instances)):
-            json_string(log_last_message()),
+            json_string(gobj_log_last_message()),
         instances?tranger_topic_desc(priv->tranger, topic_name):0,
         instances,
         kw  // owned
@@ -2910,7 +2912,7 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2925,7 +2927,7 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         topic_name
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("%d pkey2s", (int)json_array_size(pkey2s)),
@@ -2944,7 +2946,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     if(empty_string(topic_name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What topic_name?"),
@@ -2956,7 +2958,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     int snap_id = kw_get_int(gobj, kw, "snap_id", 0, KW_WILD_NUMBER);
     if(!snap_id) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What snap_id?"),
@@ -2983,7 +2985,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_array_extend(jn_data, kw_get_list(list, "data", 0, KW_REQUIRED));
     tranger_close_list(priv->tranger, list);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -3006,7 +3008,7 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         src
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         0,
         0,
         tranger_list_topic_desc(priv->tranger, "__snaps__"),
@@ -3024,7 +3026,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     const char *name = kw_get_str(gobj, kw, "name", 0, 0);
     if(empty_string(name)) {
-        return msg_iev_build_webix(gobj,
+        return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
                 "What snap name?"
@@ -3049,9 +3051,9 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
-        ret==0?json_sprintf("Snap '%s' shooted", name):json_string(log_last_message()),
+        ret==0?json_sprintf("Snap '%s' shooted", name):json_string(gobj_log_last_message()),
         ret==0?tranger_list_topic_desc(priv->tranger, "__snaps__"):0,
         jn_data,
         kw  // owned
@@ -3065,7 +3067,7 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
 {
     const char *name = kw_get_str(gobj, kw, "name", 0, 0);
     if(empty_string(name)) {
-        return msg_iev_build_webix(gobj,
+        return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
                 "What snap name?"
@@ -3081,9 +3083,9 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
         kw_incref(kw),
         src
     );
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
-        ret>=0?json_sprintf("Snap activated: '%s'", name):json_string(log_last_message()),
+        ret>=0?json_sprintf("Snap activated: '%s'", name):json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
@@ -3101,9 +3103,9 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
         kw_incref(kw),
         src
     );
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
-        ret==0?json_sprintf("Snap deactivated"):json_string(log_last_message()),
+        ret==0?json_sprintf("Snap deactivated"):json_string(gobj_log_last_message()),
         0,
         0,
         kw  // owned
@@ -3154,7 +3156,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
     if(access(path, 0)==0) {
         if(!overwrite) {
             json_decref(jn_data);
-            return msg_iev_build_webix(gobj,
+            return msg_iev_build_response(gobj,
                 -1,
                 json_sprintf("File '%s' already exists. Use overwrite option", name),
                 0,
@@ -3169,7 +3171,7 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
     /*
      *  Inform
      */
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
         json_sprintf("Treedb exported %s", ret==0?"ok":"failed"),
         0,
@@ -3199,7 +3201,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *------------------------------------------------*/
     json_t *jn_db;
     if(empty_string(content64)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What content64?"),
@@ -3215,7 +3217,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         2
     );
     if(!jn_db) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Bad json in content64"),
@@ -3279,9 +3281,9 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 );
                 new++;
             } else {
-                int n = kw_get_int(jn_errores, log_last_message(), 0, KW_CREATE);
+                int n = kw_get_int(jn_errores, gobj_log_last_message(), 0, KW_CREATE);
                 n++;
-                json_object_set_new(jn_errores, log_last_message(), json_integer(n));
+                json_object_set_new(jn_errores, gobj_log_last_message(), json_integer(n));
 
                 if(if_resource_exists==1) {
                     // Skip
@@ -3303,9 +3305,9 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                         );
                         overwrite++;
                     } else {
-                        int n = kw_get_int(jn_errores, log_last_message(), 0, KW_CREATE);
+                        int n = kw_get_int(jn_errores, gobj_log_last_message(), 0, KW_CREATE);
                         n++;
-                        json_object_set_new(jn_errores, log_last_message(), json_integer(n));
+                        json_object_set_new(jn_errores, gobj_log_last_message(), json_integer(n));
 
                         failure++;
                     }
@@ -3313,7 +3315,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     // abort
                     abort++;
                     fin = TRUE;
-                    gobj_trace_json(gobj, record, "%s", log_last_message());
+                    gobj_trace_json(gobj, record, "%s", gobj_log_last_message());
                     break;
                 }
             }
@@ -3359,7 +3361,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         "errores", jn_errores
     );
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         ret,
         0,
         0,
@@ -3405,7 +3407,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //             jn_data = webix_new_list_tree(node, "departments", "data", filter, "");
 //         } else {
 //             result = -1;
-//             jn_comment = json_string(log_last_message());
+//             jn_comment = json_string(gobj_log_last_message());
 //         }
 //     } while(0);
 /*

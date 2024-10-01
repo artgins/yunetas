@@ -18,6 +18,7 @@
 #include <timeranger2.h>
 #include <tr_msg.h>
 #include <tr_treedb.h>
+#include "msg_ievent.h"
 #include "c_tranger.h"
 #include "c_node.h"
 #include "c_authz.h"
@@ -863,7 +864,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -899,7 +900,7 @@ PRIVATE json_t *cmd_list_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_t *jn_schema = json_record_to_schema(oauth_iss_desc);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -923,7 +924,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
 
     if(empty_string(iss)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What iss?"),
@@ -933,7 +934,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     if(empty_string(pkey)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What public key?"),
@@ -978,7 +979,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
     if(jn_record_) {
         JSON_DECREF(jn_record);
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Issuer '%s' already exists", iss),
@@ -1013,7 +1014,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_array_append_new(priv->jn_validations, jn_validation);
     create_validation(gobj, jn_validation);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -1032,7 +1033,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What iss?"),
@@ -1056,7 +1057,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         0                   // flag
     );
     if(!jn_record_) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Issuer '%s' NOT exists", iss),
@@ -1098,7 +1099,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     jwt_valid_free(jwt_valid);
     JSON_DECREF(jn_validation)
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Issuer '%s' deleted", iss),
@@ -1117,7 +1118,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What iss?"),
@@ -1141,7 +1142,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0                   // flag
     );
     if(!jn_record_) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Issuer '%s' NOT exists", iss),
@@ -1174,7 +1175,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     );
     json_object_set_new(jn_validation, "disabled", json_true());
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Issuer '%s' disabled", iss),
@@ -1193,7 +1194,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     if(empty_string(iss)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What iss?"),
@@ -1217,7 +1218,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         0                   // flag
     );
     if(!jn_record_) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Issuer '%s' NOT exists", iss),
@@ -1250,7 +1251,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     );
     json_object_set_new(jn_validation, "disabled", json_false());
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Issuer '%s' enabled", iss),
@@ -1302,7 +1303,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_decref(jn_users);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -1321,7 +1322,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What username?"),
@@ -1343,7 +1344,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj
     );
     if(!user) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Can't create user: %s", username),
@@ -1352,7 +1353,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     } else {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("User created or updated: %s", username),
@@ -1372,7 +1373,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What username?"),
@@ -1392,7 +1393,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj
     );
     if(!user) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("User not found: '%s'", username),
@@ -1413,7 +1414,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         src
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("User enabled: %s", username),
@@ -1432,7 +1433,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What username?"),
@@ -1452,7 +1453,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj
     );
     if(!user) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("User not found: '%s'", username),
@@ -1476,7 +1477,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("User disabled: %s", username),
@@ -1505,7 +1506,7 @@ PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     json_t *jn_data = jn_roles;
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -1525,7 +1526,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What username?"),
@@ -1545,7 +1546,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj
     );
     if(!user) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("User not found: '%s'", username),
@@ -1571,7 +1572,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     JSON_DECREF(user)
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -1591,7 +1592,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What username?"),
@@ -1611,7 +1612,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj
     );
     if(!user) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("User not found: '%s'", username),
@@ -1678,7 +1679,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_decref(roles_refs);
     JSON_DECREF(user)
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
