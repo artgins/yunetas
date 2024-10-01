@@ -30,6 +30,11 @@ GOBJ_DECLARE_GCLASS(C_AUTHZ);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_ADD_USER);
+GOBJ_DECLARE_EVENT(EV_REJECT_USER);
+GOBJ_DECLARE_EVENT(EV_AUTHZ_USER_LOGIN);
+GOBJ_DECLARE_EVENT(EV_AUTHZ_USER_LOGOUT);
+GOBJ_DECLARE_EVENT(EV_AUTHZ_USER_NEW);
 
 /***************************************************************
  *              Prototypes
