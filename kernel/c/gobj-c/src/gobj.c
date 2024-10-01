@@ -8823,6 +8823,15 @@ PUBLIC int gobj_set_gclass_no_trace(hgclass gclass_, const char *level, BOOL set
     gclass_t *gclass = gclass_;
     uint32_t bitmask = 0;
 
+    if(!gclass) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gclass NULL",
+            NULL
+        );
+        return -1;
+    }
     if(empty_string(level)) {
         bitmask = (uint32_t)-1;
     } else {
