@@ -35,6 +35,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <stdio.h>
 
 #include <kwid.h>
+#include <command_parser.h>
 #include <timeranger2.h>
 
 #include "msg_ievent.h"
@@ -521,8 +522,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     }
 
     BOOL expanded = kw_get_bool(kw, "expanded", 0, KW_WILD_NUMBER);
-    int lists_limit = kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
-    int dicts_limit = kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
+    int lists_limit = (int)kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
+    int dicts_limit = (int)kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
     const char *path = kw_get_str(gobj, kw, "path", "", 0);
 
     json_t *value = priv->tranger;
@@ -621,16 +622,17 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
     const char *tkey = kw_get_str(gobj, kw, "tkey", "", 0);
     const char *system_flag_ = kw_get_str(gobj, kw, "system_flag", "", 0);
-    json_t *jn_cols = kw_get_dict(kw, "jn_cols", 0, 0);
-    json_t *jn_var = kw_get_dict(kw, "jn_var", 0, 0);
+    json_t *jn_cols = kw_get_dict(gobj, kw, "jn_cols", 0, 0);
+    json_t *jn_var = kw_get_dict(gobj, kw, "jn_var", 0, 0);
 
-    system_flag_t system_flag = tranger_str2system_flag(system_flag_);
+    system_flag2_t system_flag = tranger2_str2system_flag(system_flag_);
 
-    json_t *topic = tranger_create_topic( // WARNING returned json IS NOT YOURS, HACK IDEMPOTENT function
+    json_t *topic = tranger2_create_topic( // WARNING returned json IS NOT YOURS, HACK IDEMPOTENT function
         priv->tranger,      // If topic exists then only needs (tranger, topic_name) parameters
         topic_name,
         pkey,
         tkey,
+        NULL,
         system_flag,
         json_incref(jn_cols),    // owned
         json_incref(jn_var)      // owned
@@ -680,8 +682,8 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    BOOL force = kw_get_bool(kw, "force", 0, 0);
-    json_t *topic = tranger_topic(priv->tranger, topic_name);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, 0);
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
@@ -707,7 +709,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         }
     }
 
-    int ret = tranger_delete_topic(priv->tranger, topic_name);
+    int ret = tranger2_delete_topic(priv->tranger, topic_name);
 
     return msg_iev_build_response(gobj,
         ret,
@@ -796,7 +798,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    json_t *topic = tranger_topic(priv->tranger, topic_name);
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
@@ -867,7 +869,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             kw  // owned
         );
     }
-    json_t *topic = tranger_topic(priv->tranger, topic_name);
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
     if(!topic) {
         return msg_iev_build_response(
             gobj,
@@ -1100,7 +1102,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
         uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
         uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-        json_t *record = kw_get_dict(kw, "record", 0, 0);
+        json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
 
         /*
          *  Check parameters
@@ -1238,7 +1240,7 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     json_t *list,
-    md_record_t *md_record,
+    md2_record_t *md_record,
     json_t *jn_record  // owned
 )
 {
@@ -1250,14 +1252,14 @@ PRIVATE int load_record_callback(
     }
 
     if(jn_record) {
-        json_object_set_new(jn_record, "__md_tranger__", tranger_md2json(md_record));
+        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
     } else {
         if(only_md) {
             jn_record = json_object();
         } else {
             jn_record = tranger_read_record_content(tranger, topic, md_record);
         }
-        json_object_set_new(jn_record, "__md_tranger__", tranger_md2json(md_record));
+        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
     }
 
     json_t *list_data = kw_get_list(list, "data", 0, KW_REQUIRED);
@@ -1326,7 +1328,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
     uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-    json_t *record = kw_get_dict(kw, "record", 0, 0);
+    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
 
     json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
     JSON_INCREF(__temp__); // Save to __answer__
@@ -1338,7 +1340,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         /*
          *  Check parameters
          */
-        json_t *topic = tranger_topic(priv->tranger, topic_name);
+        json_t *topic = tranger2_topic(priv->tranger, topic_name);
         if(!topic) {
            jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
            result = -1;
@@ -1353,8 +1355,8 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         /*
          *  Append record to tranger topic
          */
-        md_record_t md_record;
-        result = tranger_append_record(
+        md2_record_t md_record;
+        result = tranger2_append_record(
             priv->tranger,
             topic_name,
             __t__,                  // if 0 then the time will be set by TimeRanger with now time

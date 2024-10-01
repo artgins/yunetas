@@ -15,6 +15,7 @@
 
 #include <helpers.h>
 #include <kwid.h>
+#include <command_parser.h>
 #include <timeranger2.h>
 #include <tr_msg.h>
 #include <tr_treedb.h>
@@ -1275,7 +1276,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *jn_filter = kw_get_dict(kw, "filter", 0, KW_EXTRACT);
+    json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
     char temp[256];
     json_t *jn_users = gobj_list_nodes(
         priv->gobj_treedb,
@@ -1493,7 +1494,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *jn_filter = kw_get_dict(kw, "filter", 0, KW_EXTRACT);
+    json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
     json_t *jn_roles = gobj_list_nodes(
         priv->gobj_treedb,
         "roles",

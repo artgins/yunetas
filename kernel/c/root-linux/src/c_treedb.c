@@ -12,6 +12,7 @@
 #include <limits.h>
 
 #include <helpers.h>
+#include <command_parser.h>
 #include <kwid.h>
 #include "msg_ievent.h"
 #include "c_tranger.h"
@@ -227,9 +228,9 @@ PRIVATE void mt_create(hgobj gobj)
      *-----------------------------------*/
     const char *filename_mask = gobj_read_str_attr(gobj, "filename_mask");
     BOOL master = gobj_read_bool_attr(gobj, "master");
-    int exit_on_error = gobj_read_integer_attr(gobj, "exit_on_error");
-    int xpermission = gobj_read_integer_attr(gobj, "xpermission");
-    int rpermission = gobj_read_integer_attr(gobj, "rpermission");
+    int exit_on_error = (int)gobj_read_integer_attr(gobj, "exit_on_error");
+    int xpermission = (int)gobj_read_integer_attr(gobj, "xpermission");
+    int rpermission = (int)gobj_read_integer_attr(gobj, "rpermission");
 
     char path[PATH_MAX];
     build_path(
@@ -276,6 +277,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     const char *treedb_name = kw_get_str(
+        gobj,
         jn_treedb_system_schema,
         "id",
         "treedb_system_schema",
@@ -370,10 +372,10 @@ PRIVATE json_t *mt_treedbs(
         );
     }
 
-// TODO   return treedb_list_treedb(
-//        priv->tranger_system_,
-//        kw
-//    );
+    return treedb_list_treedb(
+        priv->tranger_system_,
+        kw
+    );
 }
 
 
@@ -408,7 +410,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    return gobj_build_authzs_doc(gobj, cmd, kw, src);
 }
 
 /***************************************************************************
@@ -419,7 +421,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
     int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    json_t *_jn_treedb_schema = kw_get_dict(kw, "treedb_schema", 0, 0);
+    json_t *_jn_treedb_schema = kw_get_dict(gobj, kw, "treedb_schema", 0, 0);
     BOOL use_internal_schema = kw_get_bool(kw, "use_internal_schema", 0, 0);
 
     /*----------------------------------------*
@@ -645,7 +647,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
-    BOOL force = kw_get_bool(kw, "force", 0, KW_WILD_NUMBER);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     /*----------------------------------------*
      *  Check AUTHZS
