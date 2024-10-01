@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_AUTHZ.C
+ *          c_authz.c
  *          Authz GClass.
  *
  *          Authorization Manager
@@ -2787,10 +2787,11 @@ PRIVATE GCLASS _gclass = {
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_authz(void)
+PUBLIC int register_c_authz(void)
 {
-    return &_gclass;
+    return create_gclass(C_AUTHZ);
 }
+
 
 /***************************************************************************
    Check user authz

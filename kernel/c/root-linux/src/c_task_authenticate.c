@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_TASK_AUTHENTICATE.C
+ *          c_task_authenticate.c
  *          Task_authenticate GClass.
  *
  *          Task to authenticate with OAuth2 against keycloak (WARNING by now only tested in keycloak)
@@ -120,6 +120,13 @@ Example of refresh_token
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
+
+#include <kwid.h>
+#include <parse_url.h>
+#include <helpers.h>
+
+#include "c_task.h"
 #include "c_task_authenticate.h"
 
 /***************************************************************************
@@ -141,8 +148,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -150,7 +157,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
 SDATA_END()
 };
 
@@ -160,18 +167,18 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
-SDATA (ASN_JSON,        "crypto",           SDF_RD,         "{\"library\": \"openssl\"}", "Crypto config"),
-SDATA (ASN_OCTET_STR,   "auth_system",      SDF_RD,         "keycloak",     "OpenID System(interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "auth_url",         SDF_RD,         "",             "OpenID Endpoint (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "user_id",          SDF_RD,         "",             "OAuth2 User Id (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "user_passw",       0,              "",             "OAuth2 User Password (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "azp",              SDF_RD,         "",             "OAuth2 Authorized Party  (jwt's azp field - interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "access_token",     0,              "",             "Access token"),
-SDATA (ASN_OCTET_STR,   "refresh_token",    0,              "",             "Refresh token"),
-SDATA (ASN_POINTER,     "user_data",        0,              0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,              0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
+SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{\"library\": \"openssl\"}", "Crypto config"),
+SDATA (DTP_STRING,      "auth_system",      SDF_RD,         "keycloak",     "OpenID System(interactive jwt)"),
+SDATA (DTP_STRING,      "auth_url",         SDF_RD,         "",             "OpenID Endpoint (interactive jwt)"),
+SDATA (DTP_STRING,      "user_id",          SDF_RD,         "",             "OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,              "",             "OAuth2 User Password (interactive jwt)"),
+SDATA (DTP_STRING,      "azp",              SDF_RD,         "",             "OAuth2 Authorized Party  (jwt's azp field - interactive jwt)"),
+SDATA (DTP_STRING,      "access_token",     0,              "",             "Access token"),
+SDATA (DTP_STRING,      "refresh_token",    0,              "",             "Refresh token"),
+SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -201,6 +208,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_http;
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -263,7 +272,8 @@ PRIVATE int mt_start(hgobj gobj)
      *      Create http
      *-----------------------------*/
     const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
-    int r = parse_partial_http_url(auth_url,
+    int r = parse_url(gobj,
+        auth_url,
         priv->schema, sizeof(priv->schema),
         priv->host, sizeof(priv->host),
         priv->port, sizeof(priv->port),
@@ -272,7 +282,7 @@ PRIVATE int mt_start(hgobj gobj)
         FALSE
     );
     if(r < 0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
@@ -376,16 +386,16 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
+// TODO   KW_INCREF(kw);
+//    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+//    return msg_iev_build_webix(
+//        gobj,
+//        0,
+//        jn_resp,
+//        0,
+//        0,
+//        kw  // owned
+//    );
 }
 
 
@@ -450,7 +460,7 @@ PRIVATE json_t *action_get_token(
         CASES("keycloak")
         DEFAULTS
             char resource[PATH_MAX];
-            build_path2(resource, sizeof(resource), priv->path, "protocol/openid-connect/token");
+            build_path(resource, sizeof(resource), priv->path, "protocol/openid-connect/token", NULL);
 
             json_t *jn_headers = json_pack("{s:s}",
                 "Content-Type", "application/x-www-form-urlencoded"
@@ -477,8 +487,8 @@ PRIVATE json_t *action_get_token(
             break;
     } SWITCHS_END;
 
-    KW_DECREF(kw);
-    CONTINUE_TASK();
+    KW_DECREF(kw)
+    CONTINUE_TASK()
 }
 
 /***************************************************************************
@@ -527,14 +537,14 @@ PRIVATE json_t *result_get_token(
             "comment",
             json_sprintf("http response with no body")
         );
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Oauth2 response without body",
             NULL
         );
-        log_debug_json(0, kw, "Oauth2 response without body");
+        gobj_trace_json(gobj, kw, "Oauth2 response without body");
 
         publish_token(gobj, -1, output_data_);
 
@@ -582,14 +592,14 @@ PRIVATE json_t *result_get_token(
         json_object_set_new(output_data_, "jwt", json_string(access_token));
     } else {
         json_object_set_new(output_data_, "comment", json_string("No access token in response"));
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Oauth2 response without id_token or access_token",
             NULL
         );
-        log_debug_json(0, kw, "Oauth2 response without id_token or access_token");
+        gobj_trace_json(gobj, kw, "Oauth2 response without id_token or access_token");
 
         publish_token(gobj, -1, output_data_);
 
@@ -705,7 +715,7 @@ PRIVATE json_t *result_logout(
      *------------------------------------*/
     int response_status_code = kw_get_int(kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 204) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
@@ -714,7 +724,7 @@ PRIVATE json_t *result_logout(
             "status",       "%s", http_status_str(response_status_code),
             NULL
         );
-        log_debug_json(0, kw, "Logout has failed");
+        gobj_trace_json(gobj, kw, "Logout has failed");
 
         KW_DECREF(kw);
         STOP_TASK();
@@ -762,44 +772,18 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_END_TASK",         0,  0,  0},
-    // bottom input
-    {"EV_STOPPED",          0,  0,  ""},
-    // internal
-    {NULL, 0, 0, ""}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_TOKEN",         0,   0,  0},
-    {NULL, 0, 0, ""}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",
-    NULL
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_END_TASK",             ac_end_task,            0},
-    {"EV_STOPPED",              ac_stopped,             0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
 /*---------------------------------------------*
  *              Local methods table
  *---------------------------------------------*/
@@ -811,92 +795,85 @@ PRIVATE LMETHOD lmt[] = {
     {0, 0, 0}
 };
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_TASK_AUTHENTICATE_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_authzs,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_link_nodes2,
-        0, //mt_unlink_nodes,
-        0, //mt_unlink_nodes2,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_node_instances,
-        0, //mt_save_node,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  //authz_table,
-    s_user_trace_level,
-    command_table,  // command_table
-    0,  // gcflag
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_TASK_AUTHENTICATE);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_END_TASK);
+GOBJ_DEFINE_EVENT(EV_ON_TOKEN);
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_END_TASK,           ac_end_task,        0},
+        {EV_STOPPED,            ac_stopped,         0},
+        {0,0,0}
+    };
+    states_t states[] = {
+        {ST_IDLE,       st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_END_TASK,       0},
+        {EV_ON_TOKEN,       EVF_OUTPUT_EVENT},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_task_authenticate(void)
+PUBLIC int register_c_task_authenticate(void)
 {
-    return &_gclass;
+    return create_gclass(C_TASK_AUTHENTICATE);
 }
