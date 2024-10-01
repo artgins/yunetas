@@ -1,10 +1,10 @@
 /****************************************************************************
- *          c_linux_transport.h
+ *          c_authz.h
+ *          Authz GClass.
  *
- *          GClass Wifi
- *          Low level linux
+ *          Authorization Manager
  *
- *          Copyright (c) 2023 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_LINUX_TRANSPORT);
+GOBJ_DECLARE_GCLASS(C_AUTHZ);
 
 /*------------------------*
  *      States
@@ -34,7 +34,10 @@ GOBJ_DECLARE_GCLASS(C_LINUX_TRANSPORT);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_linux_transport(void);
+PUBLIC int register_c_authz(void);
+
+PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src);
+PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src);
 
 #ifdef __cplusplus
 }

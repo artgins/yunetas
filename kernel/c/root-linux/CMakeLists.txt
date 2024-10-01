@@ -24,6 +24,8 @@ set (SRCS
     src/c_timer.c
     src/c_linux_transport.c
     src/c_linux_uart.c
+    src/c_authz.c
+    src/c_task_authenticate.c
     src/yunetas_environment.c
     src/yunetas_ev_loop.c
     src/fs_watcher.c
@@ -39,6 +41,8 @@ set (HDRS
     src/c_timer.h
     src/c_linux_transport.h
     src/c_linux_uart.h
+    src/c_authz.h
+    src/c_task_authenticate.h
     src/yunetas_environment.h
     src/yunetas_ev_loop.h
     src/fs_watcher.h

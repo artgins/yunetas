@@ -1,10 +1,10 @@
 /****************************************************************************
- *          c_linux_transport.h
+ *          C_TASK_AUTHENTICATE.H
+ *          Task_authenticate GClass.
  *
- *          GClass Wifi
- *          Low level linux
+ *          Task to authenticate with OAuth2
  *
- *          Copyright (c) 2023 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2021 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_LINUX_TRANSPORT);
+GOBJ_DECLARE_GCLASS(C_TASK_AUTHENTICATE);
 
 /*------------------------*
  *      States
@@ -34,7 +34,7 @@ GOBJ_DECLARE_GCLASS(C_LINUX_TRANSPORT);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_linux_transport(void);
+PUBLIC int register_c_task_authenticate(void);
 
 #ifdef __cplusplus
 }
