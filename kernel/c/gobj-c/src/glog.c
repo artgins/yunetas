@@ -185,6 +185,10 @@ PRIVATE uint32_t __debug_count__ = 0;
  ****************************************************************************/
 PUBLIC void glog_init(void)
 {
+    if(__initialized__) {
+        return;
+    }
+
     dl_init(&dl_log_handlers);
 
     /*--------------------------------*
@@ -208,6 +212,10 @@ PUBLIC void glog_end(void)
     /*
      *  WARNING Free log handler at the end! to let log the last errors
      */
+    if(!__initialized__) {
+        return;
+    }
+
     log_handler_t *lh;
     while((lh=dl_first(&dl_log_handlers))) {
         gobj_log_del_handler(lh->handler_name);

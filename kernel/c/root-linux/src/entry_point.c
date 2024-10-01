@@ -417,17 +417,51 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             APP_NAME
         );
     }
-    json_t *jn_temp_config = string2json(sconfig, TRUE);
-    if(!jn_temp_config) {
+
+    /*------------------------------------------------*
+     *          Setup memory
+     *------------------------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gobj_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifdef DEBUG
+    init_backtrace_with_bfd(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_bfd);
+#endif
+
+    /*
+     *  WARNING now all json is gbmem allocated
+     */
+
+    /*------------------------------------------------*
+     *          Re-alloc with gbmem
+     *------------------------------------------------*/
+    __jn_config__ = legalstring2json(sconfig, TRUE); //
+    if(!__jn_config__) {
         print_error(
             PEF_EXIT,
             "legalstring2json() of '%s' failed",
             APP_NAME
         );
     }
+    free(sconfig);  // HACK I know that sconfig is malloc'ed
 
     /*------------------------------------------------*
-     *          Load temp environment config
+     *          Load environment config
      *------------------------------------------------*/
     int xpermission = 02775;
     int rpermission = 0664;
@@ -438,27 +472,75 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     json_int_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
     json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
 
-    json_t *jn_temp_environment = kw_get_dict(0, jn_temp_config, "environment", 0, 0);
-    if(jn_temp_environment && !__print__) {
-        /*
-         *  WARNING
-         *  In this point json config is temporal.
-         *  Be care with pointers!
-         */
-        xpermission = (int)kw_get_int(0, jn_temp_environment, "xpermission", xpermission, 0);
-        rpermission = (int)kw_get_int(0, jn_temp_environment, "rpermission", rpermission, 0);
-        work_dir = kw_get_str(0, jn_temp_environment, "work_dir", 0, 0);
-        domain_dir = kw_get_str(0, jn_temp_environment, "domain_dir", 0, 0);
+    json_t *jn_environment = kw_get_dict(0, __jn_config__, "environment", 0, 0);
+    if(jn_environment) {
+        xpermission = (int)kw_get_int(0, jn_environment, "xpermission", xpermission, 0);
+        rpermission = (int)kw_get_int(0, jn_environment, "rpermission", rpermission, 0);
+        work_dir = kw_get_str(0, jn_environment, "work_dir", 0, 0);
+        domain_dir = kw_get_str(0, jn_environment, "domain_dir", 0, 0);
         register_yuneta_environment(
             work_dir,
             domain_dir,
             xpermission,
             rpermission,
-            0
+            __jn_config__
         );
 
+        MEM_MIN_BLOCK = kw_get_int(0,
+            jn_environment,
+            "MEM_MIN_BLOCK",
+            MEM_MIN_BLOCK,
+            0
+        );
+        MEM_MAX_BLOCK = kw_get_int(0,
+            jn_environment,
+            "MEM_MAX_BLOCK",
+            MEM_MAX_BLOCK,
+            0
+        );
+        MEM_SUPERBLOCK = kw_get_int(0,
+            jn_environment,
+            "MEM_SUPERBLOCK",
+            MEM_SUPERBLOCK,
+            0
+        );
+        MEM_MAX_SYSTEM_MEMORY = kw_get_int(0,
+            jn_environment,
+            "MEM_MAX_SYSTEM_MEMORY",
+            MEM_MAX_SYSTEM_MEMORY,
+            0
+        );
+    }
+
+    /*------------------------------------------------*
+     *  Init ginsfsm and yuneta
+     *------------------------------------------------*/
+    json_t *jn_global = kw_get_dict(0, __jn_config__, "global", 0, 0);
+
+    gobj_start_up(
+        argc,
+        argv,
+        jn_global,
+        __global_startup_persistent_attrs_fn__,
+        __global_end_persistent_attrs_fn__,
+        __global_load_persistent_attrs_fn__,
+        __global_save_persistent_attrs_fn__,
+        __global_remove_persistent_attrs_fn__,
+        __global_list_persistent_attrs_fn__,
+        __global_command_parser_fn__,
+        __global_stats_parser_fn__,
+        __global_authz_checker_fn__,
+        __global_authenticate_parser_fn__,
+        MEM_MAX_BLOCK,          // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY   // max_system_memory, maximum system memory
+    );
+
+    /*------------------------------------------------*
+     *  Init log handlers
+     *------------------------------------------------*/
+    if(jn_environment && !__print__) {
         json_t *jn_log_handlers = kw_get_dict(0,
-            jn_temp_environment,
+            jn_environment,
             __as_daemon__? "daemon_log_handlers":"console_log_handlers",
             0,
             0
@@ -531,96 +613,18 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                 }
             }
         }
-
-        MEM_MIN_BLOCK = kw_get_int(0,
-            jn_temp_environment,
-            "MEM_MIN_BLOCK",
-            MEM_MIN_BLOCK,
-            0
-        );
-        MEM_MAX_BLOCK = kw_get_int(0,
-            jn_temp_environment,
-            "MEM_MAX_BLOCK",
-            MEM_MAX_BLOCK,
-            0
-        );
-        MEM_SUPERBLOCK = kw_get_int(0,
-            jn_temp_environment,
-            "MEM_SUPERBLOCK",
-            MEM_SUPERBLOCK,
-            0
-        );
-        MEM_MAX_SYSTEM_MEMORY = kw_get_int(0,
-            jn_temp_environment,
-            "MEM_MAX_SYSTEM_MEMORY",
-            MEM_MAX_SYSTEM_MEMORY,
-            0
-        );
-        jn_temp_environment = 0; // protect, no more use
+        jn_environment = 0; // protect, no more use
     }
-    JSON_DECREF(jn_temp_config) // free allocated with default free
-
-    /*------------------------------------------------*
-     *          Setup memory
-     *------------------------------------------------*/
-    sys_malloc_fn_t malloc_func;
-    sys_realloc_fn_t realloc_func;
-    sys_calloc_fn_t calloc_func;
-    sys_free_fn_t free_func;
-
-    gobj_get_allocators(
-        &malloc_func,
-        &realloc_func,
-        &calloc_func,
-        &free_func
-    );
-
-    json_set_alloc_funcs(
-        malloc_func,
-        free_func
-    );
-
-#ifdef DEBUG
-    init_backtrace_with_bfd(argv[0]);
-    set_show_backtrace_fn(show_backtrace_with_bfd);
-#endif
-
-    /*
-     *  WARNING now all json is gbmem allocated
-     */
-
-    /*------------------------------------------------*
-     *          Re-alloc with gbmem
-     *------------------------------------------------*/
-    __jn_config__ = legalstring2json(sconfig, TRUE); //
-    if(!__jn_config__) {
-        print_error(
-            PEF_EXIT,
-            "legalstring2json() of '%s' failed",
-            APP_NAME
-        );
-    }
-    free(sconfig);  // HACK I know that sconfig is malloc'ed
 
     /*------------------------------------------------*
      *      Re-read
      *------------------------------------------------*/
-    work_dir = kw_get_str(0, __jn_config__, "environment`work_dir", "", 0);
-    domain_dir = kw_get_str(0, __jn_config__, "environment`domain_dir", "", 0);
     const char *realm_id  = kw_get_str(0, __jn_config__, "environment`realm_id", "", 0);
     const char *realm_owner  = kw_get_str(0, __jn_config__, "environment`realm_owner", "", 0);
     const char *realm_role  = kw_get_str(0, __jn_config__, "environment`realm_role", "", 0);
     const char *realm_name  = kw_get_str(0, __jn_config__, "environment`realm_name", "", 0);
     const char *realm_env  = kw_get_str(0, __jn_config__, "environment`realm_env", "", 0);
     const char *node_owner  = kw_get_str(0, __jn_config__, "environment`node_owner", "", 0);
-
-    register_yuneta_environment(
-        work_dir,
-        domain_dir,
-        xpermission,
-        rpermission,
-        __jn_config__
-    );
 
     /*------------------------------------------------*
      *      Get yuno attributes.
@@ -740,28 +744,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     /*------------------------------------------------*
-     *  Init ginsfsm and yuneta
+     *  Register gclasses
      *------------------------------------------------*/
-    json_t *jn_global = kw_get_dict(0, __jn_config__, "global", 0, 0);
-
-    gobj_start_up(
-        argc,
-        argv,
-        jn_global,
-        __global_startup_persistent_attrs_fn__,
-        __global_end_persistent_attrs_fn__,
-        __global_load_persistent_attrs_fn__,
-        __global_save_persistent_attrs_fn__,
-        __global_remove_persistent_attrs_fn__,
-        __global_list_persistent_attrs_fn__,
-        __global_command_parser_fn__,
-        __global_stats_parser_fn__,
-        __global_authz_checker_fn__,
-        __global_authenticate_parser_fn__,
-        MEM_MAX_BLOCK,          // max_block, largest memory block
-        MEM_MAX_SYSTEM_MEMORY   // max_system_memory, maximum system memory
-    );
-
     yunetas_register_c_core();
 
     if(register_yuno_and_more) {
