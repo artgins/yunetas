@@ -416,7 +416,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *filename_mask = kw_get_str(gobj, kw, "filename_mask", "", 0);
-    int exit_on_error = kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
+    int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_treedb_schema = kw_get_dict(kw, "treedb_schema", 0, 0);
     BOOL use_internal_schema = kw_get_bool(kw, "use_internal_schema", 0, 0);
@@ -508,7 +508,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
     hgobj gobj_client_tranger = gobj_create_service(
         tranger_name,
-        GCLASS_TRANGER,
+        C_TRANGER,
         kw_client_tranger,
         gobj
     );
@@ -1027,7 +1027,7 @@ PRIVATE json_t *get_treedb_schema(
         return 0;
     }
 
-    json_t *topics = kw_get_dict(treedb, "topics", 0, 0);
+    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
         json_t *cols = kw_get_dict(topic, "cols", 0, KW_EXTRACT|KW_REQUIRED);
@@ -1053,7 +1053,7 @@ PRIVATE json_t *get_treedb_schema(
              *
              *  HACK The id of a rowid record is his pkey2
              */
-            const char *value = kw_get_str(col, "value", 0, KW_REQUIRED);
+            const char *value = kw_get_str(gobj, col, "value", 0, KW_REQUIRED);
             if(empty_string(value)) {
                 continue;
             }
@@ -1102,7 +1102,7 @@ PRIVATE json_t *get_client_treedb_schema(
             "msg",          "%s", "Input Schema fails",
             NULL
         );
-        log_debug_json(0, jn_client_treedb_schema, "Input Schema fails");
+        gobj_trace_json(gobj, jn_client_treedb_schema, "Input Schema fails");
         if(use_internal_schema) {
             return 0;
         }
@@ -1145,7 +1145,7 @@ PRIVATE json_t *get_client_treedb_schema(
                 "msg",          "%s", "Last treedb schema fails",
                 NULL
             );
-            log_debug_json(0, client_treedb_schema, "Last treedb schema fails");
+            gobj_trace_json(gobj, client_treedb_schema, "Last treedb schema fails");
             JSON_DECREF(client_treedb_schema);
             // continue below
         }
@@ -1173,7 +1173,7 @@ PRIVATE json_t *get_client_treedb_schema(
                 "msg",          "%s", "New treedb schema fails",
                 NULL
             );
-            log_debug_json(0, client_treedb_schema, "New treedb schema fails");
+            gobj_trace_json(gobj, client_treedb_schema, "New treedb schema fails");
             JSON_DECREF(client_treedb_schema);
             // continue below
         }
@@ -1188,7 +1188,7 @@ PRIVATE json_t *get_client_treedb_schema(
             "msg",          "%s", "Schema fails",
             NULL
         );
-        log_debug_json(0, client_treedb_schema, "Schema fails");
+        gobj_trace_json(gobj, client_treedb_schema, "Schema fails");
         json_decref(client_treedb_schema);
         return 0;
     }

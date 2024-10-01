@@ -14,6 +14,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <tr_treedb.h>
+#include <timeranger2.h>
 #include "c_node.h"
 
 /***************************************************************************
@@ -557,7 +558,7 @@ PRIVATE json_t *mt_topic_desc(hgobj gobj, const char *topic_name)
             );
             return 0;
         }
-        return tranger_topic_desc(priv->tranger, topic_name);
+        return tranger2_topic_desc(priv->tranger, topic_name);
 
     } else {
         json_t *topics_list = treedb_topics( //Return a list with topic names of the treedb
@@ -572,7 +573,7 @@ PRIVATE json_t *mt_topic_desc(hgobj gobj, const char *topic_name)
             json_object_set_new(
                 jn_topics_desc,
                 topic_name,
-                tranger_topic_desc(priv->tranger, topic_name)
+                tranger2_topic_desc(priv->tranger, topic_name)
             );
         }
         json_decref(topics_list);
@@ -628,15 +629,15 @@ PRIVATE json_t *mt_topic_links(
     json_t *links = json_object();
     int idx; json_t *jn_topic_name;
     json_array_foreach(topics, idx, jn_topic_name) {
-        const char *topic_name = json_string_value(jn_topic_name);
+        const char *topic_name_ = json_string_value(jn_topic_name);
         json_object_set_new(
             links,
             topic_name,
-            treedb_get_topic_links(priv->tranger, treedb_name, topic_name)
+            treedb_get_topic_links(priv->tranger, treedb_name, topic_name_)
         );
     }
-    JSON_DECREF(topics);
-    KW_DECREF(kw);
+    JSON_DECREF(topics)
+    KW_DECREF(kw)
     return links;
 }
 
@@ -688,16 +689,16 @@ PRIVATE json_t *mt_topic_hooks(
     json_t *hooks = json_object();
     int idx; json_t *jn_topic_name;
     json_array_foreach(topics, idx, jn_topic_name) {
-        const char *topic_name = json_string_value(jn_topic_name);
+        const char *topic_name_ = json_string_value(jn_topic_name);
         json_object_set_new(
             hooks,
             topic_name,
-            treedb_get_topic_hooks(priv->tranger, treedb_name, topic_name)
+            treedb_get_topic_hooks(priv->tranger, treedb_name, topic_name_)
         );
     }
 
-    JSON_DECREF(topics);
-    KW_DECREF(kw);
+    JSON_DECREF(topics)
+    KW_DECREF(kw)
     return hooks;
 }
 
@@ -722,7 +723,7 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
         priv->treedb_name,
         topic_name
     )) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic name not found in treedbs",
@@ -730,7 +731,7 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         KW_DECREF(kw);
         return 0;
     }
@@ -742,7 +743,7 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
         kw // owned
     );
     if(!node) {
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -791,7 +792,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
         priv->treedb_name,
         topic_name
     )) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic name not found in treedbs",
@@ -799,8 +800,8 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
-        KW_DECREF(kw);
+        JSON_DECREF(jn_options)
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -815,7 +816,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             );
         }
         if(!node) {
-            log_error(LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "node not found",
@@ -823,9 +824,9 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            log_debug_json(0, kw, "node not found");
-            JSON_DECREF(jn_options);
-            KW_DECREF(kw);
+            gobj_trace_json(gobj, kw, "node not found");
+            JSON_DECREF(jn_options)
+            KW_DECREF(kw)
             return 0;
         }
     } else {
@@ -889,7 +890,7 @@ PRIVATE int mt_delete_node(
         priv->treedb_name,
         topic_name
     )) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic name not found in treedbs",
@@ -897,7 +898,7 @@ PRIVATE int mt_delete_node(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         KW_DECREF(kw);
         return 0;
     }
@@ -912,8 +913,8 @@ PRIVATE int mt_delete_node(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(kw)
+        JSON_DECREF(jn_options)
         return -1;
     }
 
@@ -933,8 +934,8 @@ PRIVATE int mt_delete_node(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(kw);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(kw)
+        JSON_DECREF(jn_options)
         return -1;
     }
 
@@ -979,8 +980,8 @@ PRIVATE int mt_delete_node(
         ret += r;
     }
 
-    JSON_DECREF(kw);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(kw)
+    JSON_DECREF(jn_options)
     return ret;
 }
 
@@ -1056,7 +1057,7 @@ PRIVATE int mt_link_nodes(
             "msg",          "%s", "parent node not found",
             NULL
         );
-        log_debug_json(0, parent_record, "node not found");
+        gobj_trace_json(gobj, parent_record, "node not found");
         JSON_DECREF(parent_record);
         JSON_DECREF(child_record);
         return -1;
@@ -1074,7 +1075,7 @@ PRIVATE int mt_link_nodes(
             "msg",          "%s", "child node not found",
             NULL
         );
-        log_debug_json(0, child_record, "node not found");
+        gobj_trace_json(gobj, child_record, "node not found");
         JSON_DECREF(parent_record);
         JSON_DECREF(child_record);
         return -1;
@@ -1162,7 +1163,7 @@ PRIVATE int mt_unlink_nodes(
             "msg",          "%s", "parent node not found",
             NULL
         );
-        log_debug_json(0, parent_record, "node not found");
+        gobj_trace_json(gobj, parent_record, "node not found");
         JSON_DECREF(parent_record);
         JSON_DECREF(child_record);
         return -1;
@@ -1180,7 +1181,7 @@ PRIVATE int mt_unlink_nodes(
             "msg",          "%s", "child node not found",
             NULL
         );
-        log_debug_json(0, child_record, "node not found");
+        gobj_trace_json(gobj, child_record, "node not found");
         JSON_DECREF(parent_record);
         JSON_DECREF(child_record);
         return -1;
@@ -1217,7 +1218,7 @@ PRIVATE json_t *mt_get_node(
         priv->treedb_name,
         topic_name
     )) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic name not found in treedbs",
@@ -1225,7 +1226,7 @@ PRIVATE json_t *mt_get_node(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         KW_DECREF(kw);
         return 0;
     }
@@ -1233,7 +1234,7 @@ PRIVATE json_t *mt_get_node(
     json_t *node = fetch_node(gobj, topic_name, kw);
     if(!node) {
         // Silence
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         KW_DECREF(kw);
         return 0;
     }
@@ -1276,7 +1277,7 @@ PRIVATE json_t *mt_list_nodes(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -1322,8 +1323,8 @@ PRIVATE json_t *mt_list_nodes(
     }
     json_decref(iter);
 
-    JSON_DECREF(jn_filter);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_filter)
+    JSON_DECREF(jn_options)
 
     return list;
 }
@@ -1359,7 +1360,7 @@ PRIVATE json_t *mt_list_instances(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -1388,8 +1389,8 @@ PRIVATE json_t *mt_list_instances(
     }
     json_decref(iter);
 
-    JSON_DECREF(jn_filter);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_filter)
+    JSON_DECREF(jn_options)
     return list;
 }
 
@@ -1423,8 +1424,8 @@ PRIVATE json_t *mt_node_parents(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1439,8 +1440,8 @@ PRIVATE json_t *mt_node_parents(
             "kw",           "%j", kw,
             NULL
         );
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1448,7 +1449,7 @@ PRIVATE json_t *mt_node_parents(
      *  Return a list of parent nodes pointed by the link (fkey)
      */
     if(!empty_string(link)) {
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return treedb_parent_refs( // Return MUST be decref
             priv->tranger,
             link, // must be a fkey field
@@ -1473,10 +1474,10 @@ PRIVATE json_t *mt_node_parents(
         json_array_extend(parents, parents_);
         JSON_DECREF(parents_);
     }
-    JSON_DECREF(links);
+    JSON_DECREF(links)
 
-    JSON_DECREF(jn_options);
-    JSON_DECREF(kw);
+    JSON_DECREF(jn_options)
+    JSON_DECREF(kw)
     return parents;
 }
 
@@ -1512,8 +1513,8 @@ PRIVATE json_t *mt_node_childs(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1529,8 +1530,8 @@ PRIVATE json_t *mt_node_childs(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1548,8 +1549,8 @@ PRIVATE json_t *mt_node_childs(
     if(!iter) {
         // Error already logged
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1569,8 +1570,8 @@ PRIVATE json_t *mt_node_childs(
     json_decref(iter);
 
     JSON_DECREF(jn_filter);
-    JSON_DECREF(jn_options);
-    JSON_DECREF(kw);
+    JSON_DECREF(jn_options)
+    JSON_DECREF(kw)
     return childs;
 }
 
@@ -1607,8 +1608,8 @@ PRIVATE json_t *mt_topic_jtree(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1627,15 +1628,15 @@ PRIVATE json_t *mt_topic_jtree(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
     /*
      *  Return a tree of child nodes of the hook
      */
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return treedb_node_jtree( // Return MUST be decref
         priv->tranger,
         hook, // must be a hook field
@@ -1675,8 +1676,8 @@ PRIVATE json_t *mt_node_tree(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -1694,16 +1695,16 @@ PRIVATE json_t *mt_node_tree(
             "kw",           "%j", kw,
             NULL
         );
-        JSON_DECREF(jn_options);
-        JSON_DECREF(kw);
+        JSON_DECREF(jn_options)
+        JSON_DECREF(kw)
         return 0;
     }
 
     /*
      *  Return the duplicated full node
      */
-    JSON_DECREF(jn_options);
-    JSON_DECREF(kw);
+    JSON_DECREF(jn_options)
+    JSON_DECREF(kw)
 
     BOOL with_metadata = kw_get_bool(jn_options, "with_metadata", 0, KW_WILD_NUMBER);
 
@@ -3312,7 +3313,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                     // abort
                     abort++;
                     fin = TRUE;
-                    log_debug_json(0, record, "%s", log_last_message());
+                    gobj_trace_json(gobj, record, "%s", log_last_message());
                     break;
                 }
             }
@@ -3333,11 +3334,11 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 src
             );
             if(node) {
-                //log_debug_json(0, node, "node added");
+                //gobj_trace_json(gobj, node, "node added");
                 json_decref(node);
             } else {
                 link_failure++;
-                log_debug_json(0, record, "link_failure");
+                gobj_trace_json(gobj, record, "link_failure");
             }
         }
     }

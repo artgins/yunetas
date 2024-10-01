@@ -14,7 +14,9 @@
 #include <jwt.h>
 
 #include <helpers.h>
+#include <kwid.h>
 #include <timeranger2.h>
+#include <tr_msg.h>
 #include <tr_treedb.h>
 #include "c_tranger.h"
 #include "c_node.h"
@@ -746,7 +748,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *  Drop the old sessions
          *-------------------------------*/
         hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(session, "channel_gobj", 0, KW_REQUIRED);
-        log_info(0,
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Drop session, max sessions reached",
@@ -1772,9 +1774,9 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
      */
     if(strstr(pkey, "-BEGIN PUBLIC KEY-")==NULL) {
         gbuffer_t *gbuf = format_to_pem(gobj, pkey, strlen(pkey));
-        const char *p = gbuf_cur_rd_pointer(gbuf);
+        const char *p = gbuffer_cur_rd_pointer(gbuf);
         json_object_set_new(jn_validation, "pkey", json_string(p));
-        GBUF_DECREF(gbuf)
+        GBUFFER_DECREF(gbuf)
     }
 
     /*
@@ -1830,20 +1832,20 @@ PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
     const char *tail = "-----END PUBLIC KEY-----\n";
 
     size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
-    gbuffer_t *gbuf = gbuffer_create(l, l, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(l, l);
     if(!gbuf) {
         // Error already logged
         return NULL;
     }
 
-    gbuf_append_string(gbuf, header);
+    gbuffer_append_string(gbuf, header);
     const char *p = pkey;
     size_t lines = pkey_len/64 + ((pkey_len % 64)?1:0);
     for(size_t i=0; i<lines; i++) {
-        p += gbuf_append(gbuf, (void *)p, MIN(64, strlen(p)));
-        gbuf_append_char(gbuf, '\n');
+        p += gbuffer_append(gbuf, (void *)p, MIN(64, strlen(p)));
+        gbuffer_append_char(gbuf, '\n');
     }
-    gbuf_append_string(gbuf, tail);
+    gbuffer_append_string(gbuf, tail);
 
     return gbuf;
 }
@@ -1927,7 +1929,7 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
             jwt_free_str(s);
         }
 
-        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(jn_validation, "jwt_valid", 0, KW_REQUIRED);
+        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
         jwt_valid_set_now(jwt_valid, time(NULL));
 
         if(jwt_validate(jwt, jwt_valid)==0) {
@@ -1935,14 +1937,14 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
             *status = get_validation_status(jwt_valid_get_status(jwt_valid));
         } else {
             *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-            log_info(0,
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
                 "msg",              "%s", "jwt invalid",
                 "status",           "%s", *status,
                 NULL
             );
-            log_debug_json(0, *jwt_payload, "jwt invalid");
+            gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
         }
         jwt_free(jwt);
         break;
@@ -2864,7 +2866,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(0, user_authzs, "user '%s', authz '%s', allow -> %s",
+        gobj_trace_json(gobj, user_authzs, "user '%s', authz '%s', allow -> %s",
             __username__,
             authz,
             allow?"YES":"NO"
