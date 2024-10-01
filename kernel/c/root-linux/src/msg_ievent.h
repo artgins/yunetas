@@ -221,6 +221,14 @@ static inline json_t *msg_iev_build_response( // OLD msg_iev_build_response()
     return jn_answer;
 }
 
+static inline void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
+    json_t *kw // not owned
+) {
+    json_object_del((kw), "__md_iev__");
+    json_object_del((kw), "__temp__");
+    json_object_del((kw), "__md_tranger__");
+}
+
 /*
  *  Trace inter-events with metadata of kw
  */

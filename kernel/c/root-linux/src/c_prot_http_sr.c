@@ -12,7 +12,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <ghttp_parser.h>
-#include <msg_ievent.h>
+#include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_prot_http_sr.h"
 
@@ -309,13 +309,10 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         GBMEM_FREE(resp)
     } else  {
         // Old method
-        json_t *kw_resp = msg_iev_pure_clone(
-            kw  // NO owned
-        );
+        msg_iev_clean_metadata(kw);
 
-        char *resp = json2uglystr(kw_resp);
+        char *resp = json2uglystr(kw);
         int len = (int)strlen(resp);
-        kw_decref(kw_resp);
 
         gbuf = gbuffer_create(256+len, 256+len);
         gbuffer_printf(gbuf,
