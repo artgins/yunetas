@@ -46,6 +46,7 @@ extern "C"{
 #include "yunetas_ev_loop.h"
 #include "yunetas_register.h"
 
+#include <timeranger2.h>
 
 /*
  *  Services
