@@ -30,6 +30,7 @@ GOBJ_DECLARE_GCLASS(C_TASK_AUTHENTICATE);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_ON_TOKEN);
 
 /***************************************************************
  *              Prototypes

@@ -3326,6 +3326,51 @@ PRIVATE json_t *gobj_check_required_attrs(gobj_t *gobj)
 }
 
 /***************************************************************************
+ *  Execute internal method
+ ***************************************************************************/
+PUBLIC json_t *gobj_exec_internal_method(
+    hgobj gobj_,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src
+)
+{
+    gobj_t * gobj = gobj_;
+    register const LMETHOD *lmt;
+
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(0, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        return 0;
+    }
+
+    lmt = gobj->gclass->lmt;
+    while(lmt && lmt->lname != 0) {
+        if(strncasecmp(lmt->lname, lmethod, strlen(lmt->lname))==0) {
+            if(lmt->lm) {
+                return (*lmt->lm)(gobj, lmethod, kw, src);
+            }
+        }
+        lmt++;
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "internal method NOT EXIST",
+        "full-name",    "%s", gobj_full_name(gobj),
+        "lmethod",      "%s", lmethod,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
  *  Execute global method "start" of the gobj
  ***************************************************************************/
 PUBLIC int gobj_start(hgobj gobj_)

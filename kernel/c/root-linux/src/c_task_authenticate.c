@@ -807,7 +807,6 @@ GOBJ_DEFINE_GCLASS(C_TASK_AUTHENTICATE);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_END_TASK);
 GOBJ_DEFINE_EVENT(EV_ON_TOKEN);
 
 

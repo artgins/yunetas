@@ -40,7 +40,7 @@
     switch(result) {
         case -1:
             // Error from some task action
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
@@ -49,11 +49,11 @@
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End with error");
+            gobj_trace_json(gobj, kw, "Task End with error");
             break;
         case -2:
             // Error from task manager: timeout, incomplete task
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
@@ -62,7 +62,7 @@
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End by timeout");
+            gobj_trace_json(gobj, kw, "Task End by timeout");
             break;
         case 0:
             // Task end ok
@@ -77,6 +77,11 @@
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+
+#include <kwid.h>
+#include <helpers.h>
+
+#include "c_timer.h"
 #include "c_task.h"
 
 /***************************************************************************
@@ -100,14 +105,14 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
@@ -115,8 +120,8 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "authzs",           0,          pm_authzs,      cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATA_END()
 };
 
@@ -126,15 +131,15 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
-SDATA (ASN_JSON,        "jobs",             SDF_RD,         0,              "Jobs"),
-SDATA (ASN_JSON,        "input_data",       SDF_RD,         "{}",           "Input Jobs Data. Use as you want. Available in exec_action() and exec_result() action methods."),
-SDATA (ASN_JSON,        "output_data",      SDF_RD,         "{}",           "Output Jobs Data. Use as you want. Available in exec_action() and exec_result() action methods."),
-SDATA (ASN_JSON,        "gobj_jobs",        SDF_RD,         0,              "GObj defining the jobs: json integer with a hgobj or json string with a unique gobj"),
-SDATA (ASN_JSON,        "gobj_results",     SDF_RD,         0,              "GObj executing the jobs: json integer with a hgobj or json string with a unique gobj"),
-SDATA (ASN_INTEGER,     "timeout",          SDF_PERSIST|SDF_WR,10*1000,     "Action Timeout"),
-SDATA (ASN_POINTER,     "user_data",        0,              0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,              0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_JSON,        "jobs",             SDF_RD,         0,              "Jobs"),
+SDATA (DTP_JSON,        "input_data",       SDF_RD,         "{}",           "Input Jobs Data. Use as you want. Available in exec_action() and exec_result() action methods."),
+SDATA (DTP_JSON,        "output_data",      SDF_RD,         "{}",           "Output Jobs Data. Use as you want. Available in exec_action() and exec_result() action methods."),
+SDATA (DTP_JSON,        "gobj_jobs",        SDF_RD,         0,              "GObj defining the jobs: json integer with a hgobj or json string with a unique gobj"),
+SDATA (DTP_JSON,        "gobj_results",     SDF_RD,         0,              "GObj executing the jobs: json integer with a hgobj or json string with a unique gobj"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_PERSIST|SDF_WR,"10000",     "Action Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -158,14 +163,16 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *      GClass authz levels
  *---------------------------------------------*/
 PRIVATE sdata_desc_t pm_authz_sample[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING, "param sample",    0,              0,          "Param ..."),
+
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (ASN_OCTET_STR,    "param sample",     0,          "",             "Param ..."),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
-SDATAAUTHZ (ASN_SCHEMA, "sample",       0,      0,      pm_authz_sample,    "Permission to ..."),
+SDATAAUTHZ (DTP_SCHEMA, "sample",       0,      0,      pm_authz_sample,    "Permission to ..."),
 SDATA_END()
 };
 
@@ -203,7 +210,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create(gobj_name(gobj), GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -217,7 +224,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(json_is_integer(jn_gobj_results)) {
         priv->gobj_results = (hgobj)(size_t)json_integer_value(jn_gobj_results);
         if(gobj_is_volatil(priv->gobj_results)) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -229,10 +236,10 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else if(json_is_string(jn_gobj_results)) {
         const char *sdst = json_string_value(jn_gobj_results);
-        priv->gobj_results = gobj_find_unique_gobj(sdst, TRUE);
+        priv->gobj_results = gobj_find_service(sdst, TRUE);
 
     } else {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -246,7 +253,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(json_is_integer(jn_gobj_jobs)) {
         priv->gobj_jobs = (hgobj)(size_t)json_integer_value(jn_gobj_jobs);
         if(gobj_is_volatil(priv->gobj_jobs)) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -258,10 +265,10 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else if(json_is_string(jn_gobj_jobs)) {
         const char *sdst = json_string_value(jn_gobj_jobs);
-        priv->gobj_jobs = gobj_find_unique_gobj(sdst, TRUE);
+        priv->gobj_jobs = gobj_find_service(sdst, TRUE);
 
     } else {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -275,7 +282,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
     SET_PRIV(jobs,                  gobj_read_json_attr)
 
     priv->max_job = json_array_size(priv->jobs);
@@ -289,7 +296,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -355,16 +362,16 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
+//TODO    KW_INCREF(kw);
+//    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+//    return msg_iev_build_webix(
+//        gobj,
+//        0,
+//        jn_resp,
+//        0,
+//        0,
+//        kw  // owned
+//    );
 }
 
 /***************************************************************************
@@ -372,7 +379,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+//  TODO  return gobj_build_authzs_doc(gobj, cmd, kw, src);
 }
 
 
@@ -391,7 +398,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     switch(result) {
         case -1:
             // Error from some task action
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
@@ -400,11 +407,11 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End with error");
+            gobj_trace_json(gobj, kw, "Task End with error");
             break;
         case -2:
             // Error from task manager: timeout, incomplete task
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
@@ -413,7 +420,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End by timeout");
+            gobj_trace_json(gobj, kw, "Task End by timeout");
             break;
         case 0:
             // Task end ok
@@ -433,23 +440,23 @@ PRIVATE int stop_task(hgobj gobj, int result)
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         if(result < 0) {
             if(result == -2) {
-                trace_msg("💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
+                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
             } else {
-                trace_msg("💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
+                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
             }
         } else {
-            trace_msg("💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
+            gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
         }
     }
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
         if(result < 0) {
             if(result == -2) {
-                log_debug_json(0, kw_task, "💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
+                gobj_trace_json(gobj, kw_task, "💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
             } else {
-                log_debug_json(0, kw_task, "💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
+                gobj_trace_json(gobj, kw_task, "💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
             }
         } else {
-            log_debug_json(0, kw_task, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
+            gobj_trace_json(gobj, kw_task, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
         }
     }
 
@@ -469,7 +476,7 @@ PRIVATE int execute_action(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->idx_job > priv->max_job) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -487,11 +494,11 @@ PRIVATE int execute_action(hgobj gobj)
         return 0;
     }
 
-    const char *action = kw_get_str(jn_job_, "exec_action", "", KW_REQUIRED);
-    json_int_t exec_timeout = kw_get_int(jn_job_, "exec_timeout", priv->timeout, 0);
+    const char *action = kw_get_str(gobj, jn_job_, "exec_action", "", KW_REQUIRED);
+    json_int_t exec_timeout = kw_get_int(gobj, jn_job_, "exec_timeout", priv->timeout, 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        trace_msg("💎💎Task ⏩ exec ACTION %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
+        gobj_trace_msg(gobj, "💎💎Task ⏩ exec ACTION %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
     int ret = (int)(size_t)gobj_exec_internal_method(
@@ -503,11 +510,11 @@ PRIVATE int execute_action(hgobj gobj)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         if(ret < 0) {
-            trace_msg("💎💎Task ⏪ exec ACTION %s(%d '%s') 🔴 ERROR",
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔴 ERROR",
                 gobj_name(gobj), priv->idx_job, action
             );
         } else {
-            trace_msg("💎💎Task ⏪ exec ACTION %s(%d '%s') 🔵 OK",
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔵 OK",
                 gobj_name(gobj), priv->idx_job, action
             );
         }
@@ -518,12 +525,12 @@ PRIVATE int execute_action(hgobj gobj)
             "output_data", gobj_read_json_attr(gobj, "output_data")
         );
         if(ret < 0) {
-            log_debug_json(0, kw_task,
+            gobj_trace_json(gobj, kw_task,
                 "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔴 ERROR",
                 gobj_name(gobj), priv->idx_job, action
             );
         } else {
-            log_debug_json(0, kw_task,
+            gobj_trace_json(gobj, kw_task,
                 "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔵 OK",
                 gobj_name(gobj), priv->idx_job, action
             );
@@ -579,10 +586,10 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     json_t *jn_job_ = json_array_get(priv->jobs, priv->idx_job);
 
-    const char *action = kw_get_str(jn_job_, "exec_result", "", KW_REQUIRED);
+    const char *action = kw_get_str(gobj, jn_job_, "exec_result", "", KW_REQUIRED);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        trace_msg("💎💎Task ⏩ exec RESULT %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
+        gobj_trace_msg(gobj, "💎💎Task ⏩ exec RESULT %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
     int ret = (int)(size_t)gobj_exec_internal_method(
@@ -594,11 +601,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         if(ret < 0) {
-            trace_msg("💎💎Task ⏪ exec RESULT %s(%d '%s') 🔴 ERROR",
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔴 ERROR",
                 gobj_name(gobj), priv->idx_job, action
             );
         } else {
-            trace_msg("💎💎Task ⏪ exec RESULT %s(%d '%s') 🔵 OK",
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔵 OK",
                 gobj_name(gobj), priv->idx_job, action
             );
         }
@@ -609,12 +616,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "output_data", gobj_read_json_attr(gobj, "output_data")
         );
         if(ret < 0) {
-            log_debug_json(0, kw_task,
+            gobj_trace_json(gobj, kw_task,
                 "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔴 ERROR",
                 gobj_name(gobj), priv->idx_job, action
             );
         } else {
-            log_debug_json(0, kw_task,
+            gobj_trace_json(gobj, kw_task,
                 "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔵 OK",
                 gobj_name(gobj), priv->idx_job, action
             );
@@ -738,7 +745,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        lmt,
+        0,  //lmt,
         tattr_desc,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
@@ -757,7 +764,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC int register_c_task_authenticate(void)
+PUBLIC int register_c_task(void)
 {
-    return create_gclass(C_TASK_AUTHENTICATE);
+    return create_gclass(C_TASK);
 }

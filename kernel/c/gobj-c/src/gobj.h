@@ -1279,6 +1279,14 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value);
 /*--------------------------------------------*
  *  Operational functions
  *--------------------------------------------*/
+PUBLIC json_t *gobj_exec_internal_method(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src
+);
+#define gobj_local_method gobj_exec_internal_method
+
 PUBLIC int gobj_start(hgobj gobj);
 PUBLIC int gobj_start_childs(hgobj gobj);   // only direct childs
 PUBLIC int gobj_start_tree(hgobj gobj);     // childs with gcflag_manual_start flag are not started.
