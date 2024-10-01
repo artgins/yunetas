@@ -486,7 +486,7 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
 {
     treedb_set_trace(TRUE);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -496,7 +496,7 @@ PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
 PRIVATE int mt_trace_off(hgobj gobj, const char *level, json_t *kw)
 {
     treedb_set_trace(FALSE);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -615,11 +615,11 @@ PRIVATE json_t *mt_topic_links(
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return 0;
         }
 
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return treedb_get_topic_links(priv->tranger, treedb_name, topic_name);
     }
 
@@ -675,11 +675,11 @@ PRIVATE json_t *mt_topic_hooks(
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return 0;
         }
 
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return treedb_get_topic_hooks(priv->tranger, treedb_name, topic_name);
     }
 
@@ -736,7 +736,7 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -903,7 +903,7 @@ PRIVATE int mt_delete_node(
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -1231,7 +1231,7 @@ PRIVATE json_t *mt_get_node(
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -1239,11 +1239,11 @@ PRIVATE json_t *mt_get_node(
     if(!node) {
         // Silence
         JSON_DECREF(jn_options)
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return node_collapsed_view( // Return MUST be decref
         priv->tranger, // not owned
         node, // not owned
@@ -1738,7 +1738,7 @@ PRIVATE int mt_shoot_snap(
         name,
         description
     );
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return ret;
 }
 
@@ -1754,7 +1754,7 @@ PRIVATE int mt_activate_snap(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
 
     return treedb_activate_snap(
         priv->tranger,
@@ -3631,135 +3631,105 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, const char *event, json_t *kw, hgo
     );
     json_decref(node); // return something? de momento no, uso interno.
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = { // HACK System gclass, not public events TODO o si?
-    {"EV_TREEDB_UPDATE_NODE",   EVF_PUBLIC_EVENT,   0,      0},
-    // bottom input
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = { // HACK System gclass, not public events TODO o si?
-    {"EV_TREEDB_NODE_CREATED",  EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_TREEDB_NODE_UPDATED",  EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_TREEDB_NODE_DELETED",  EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_TREEDB_UPDATE_NODE",   ac_treedb_update_node,      0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_NODE);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_TREEDB_UPDATE_NODE);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_CREATED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UPDATED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_DELETED);
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_NODE_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21,
-        0, //mt_future22,
-        0, //mt_get_resource,
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        mt_trace_on,
-        mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        mt_create_node,
-        mt_update_node,
-        mt_delete_node,
-        mt_link_nodes,
-        0, //mt_future44,
-        mt_unlink_nodes,
-        mt_topic_jtree,
-        mt_get_node,
-        mt_list_nodes,
-        mt_shoot_snap,
-        mt_activate_snap,
-        mt_list_snaps,
-        mt_treedbs,
-        mt_treedb_topics,
-        mt_topic_desc,
-        mt_topic_links,
-        mt_topic_hooks,
-        mt_node_parents,
-        mt_node_childs,
-        mt_list_instances,
-        mt_node_tree, //mt_node_tree,
-        mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    0,  // lmt
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    authz_table,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    0,  // gcflag
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_TREEDB_UPDATE_NODE,   ac_treedb_update_node,      0},
+        {0,0,0}
+    };
+    states_t states[] = {
+        {ST_IDLE,       st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_TREEDB_UPDATE_NODE,     EVF_OUTPUT_EVENT},
+        {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  //lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_node(void)
+PUBLIC int register_c_node(void)
 {
-    return &_gclass;
+    return create_gclass(C_NODE);
 }

@@ -16,7 +16,7 @@
 #include <kwid.h>
 #include "msg_ievent.h"
 #include "c_tranger.h"
-#include "c_node.h"
+#include "c_treedb.h"
 #include "c_treedb.h"
 
 #include "treedb_system_schema.c"
@@ -292,7 +292,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_node_system = gobj_create_service(
         treedb_name,
-        C_NODE,
+        C_TREEDB,
         kw_resource,
         gobj
     );
@@ -1296,6 +1296,109 @@ PRIVATE int ac_close_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+};
+
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_TREEDB);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_OPEN_TREEDB);
+GOBJ_DEFINE_EVENT(EV_CLOSE_TREEDB);
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_idle[] = {
+        {"EV_OPEN_TREEDB",          ac_open_treedb,         0},
+        {"EV_CLOSE_TREEDB",         ac_close_treedb,        0},
+        {"EV_STOPPED",              0,                      0},
+        {0,0,0}
+    };
+    states_t states[] = {
+        {ST_IDLE,       st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_OPEN_TREEDB,        EVF_PUBLIC_EVENT},
+        {EV_CLOSE_TREEDB,       EVF_PUBLIC_EVENT},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  //lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *              Public access
+ ***************************************************************************/
+PUBLIC int register_c_treedb(void)
+{
+    return create_gclass(C_TREEDB);
+}
+
+
+
+
+
+
+
+
+
+
 PRIVATE const EVENT input_events[] = {
     // top input
     {"EV_OPEN_TREEDB",      EVF_PUBLIC_EVENT,   0,      0},

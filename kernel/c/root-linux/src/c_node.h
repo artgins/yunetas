@@ -42,6 +42,10 @@ GOBJ_DECLARE_GCLASS(C_NODE);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_TREEDB_UPDATE_NODE);
+GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_CREATED);
+GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_UPDATED);
+GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_DELETED);
 
 /***************************************************************
  *              Prototypes
