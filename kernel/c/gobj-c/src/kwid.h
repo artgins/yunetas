@@ -579,6 +579,17 @@ PUBLIC BOOL kw_has_word(
     kw_flag_t kw_flag
 );
 
+/**rst**
+    Utility for databases.
+    Return TRUE if `id` is in the list/dict/str `ids`
+**rst**/
+PUBLIC BOOL kwid_match_id(
+    hgobj gobj,
+    json_t *ids,
+    const char *id
+);
+
+
 #ifdef __cplusplus
 }
 #endif
