@@ -701,7 +701,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    json_int_t topic_size = tranger2_topic_size(topic);
+    uint64_t topic_size = tranger2_topic_size(topic, NULL);
     if(topic_size != 0) {
         if(!force) {
             return msg_iev_build_response(
@@ -749,7 +749,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    json_t *topics = kw_get_dict(priv->tranger, "topics", 0, KW_REQUIRED);
+    json_t *topics = kw_get_dict(gobj, priv->tranger, "topics", 0, KW_REQUIRED);
     json_t *topic_list = json_array();
 
     const char *topic_name; json_t *topic;

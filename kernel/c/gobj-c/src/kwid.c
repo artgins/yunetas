@@ -6,14 +6,9 @@
  *              Copyright (c) 2014,2023 Niyamaka, 2024 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
-#include <errno.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/file.h>
 #include "helpers.h"
 #include "kwid.h"
 
@@ -2277,4 +2272,146 @@ PUBLIC json_t *kw_collapse(
     GBMEM_FREE(path)
 
     return new_kw;
+}
+
+/***************************************************************************
+    Utility for databases.
+    Return a new list from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to his key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+
+    If path is empty then use kw
+ ***************************************************************************/
+PUBLIC json_t *kwid_new_list(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *path,
+    ...
+)
+{
+    va_list ap;
+    char temp[4*1024]; temp[0] = 0;
+
+    va_start(ap, path);
+    vsnprintf(
+        temp,
+        sizeof(temp),
+        path,
+        ap
+    );
+
+    json_t *jn = _kw_find_path(gobj, kw, temp, TRUE);
+
+    va_end(ap);
+
+    if(!jn) {
+        // Error already logged if verbose
+        return 0;
+    }
+    json_t *new_list = 0;
+
+    switch(json_typeof(jn)) {
+    case JSON_ARRAY:
+        {
+            new_list = jn;
+            json_incref(new_list);
+        }
+        break;
+    case JSON_OBJECT:
+        {
+            new_list = json_array();
+            const char *key; json_t *v;
+            json_object_foreach(jn, key, v) {
+                json_object_set_new(v, "id", json_string(key)); // WARNING id hardcorded
+                json_array_append(new_list, v);
+            }
+        }
+        break;
+    default:
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "wrong type for list",
+            "path",         "%s", temp,
+            "jn",           "%j", jn,
+            NULL
+        );
+        break;
+    }
+
+    return new_list;
+}
+
+/***************************************************************************
+    Utility for databases.
+    Return a new dict from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to his key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+    If path is empty then use kw
+ ***************************************************************************/
+PUBLIC json_t *kwid_new_dict(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *path,
+    ...
+)
+{
+    va_list ap;
+    char temp[4*1024]; temp[0] = 0;
+
+    va_start(ap, path);
+    vsnprintf(
+        temp,
+        sizeof(temp),
+        path,
+        ap
+    );
+
+    json_t *jn = _kw_find_path(gobj, kw, temp, TRUE);
+
+    va_end(ap);
+
+    if(!jn) {
+        // Error already logged if verbose
+        return 0;
+    }
+
+    json_t *new_dict = 0;
+
+    switch(json_typeof(jn)) {
+    case JSON_ARRAY:
+        {
+            new_dict = json_object();
+            int idx; json_t *v;
+            json_array_foreach(jn, idx, v) {
+                const char *id = kw_get_str(gobj, v, "id", "", KW_REQUIRED);
+                if(!empty_string(id)) {
+                    json_object_set(new_dict, id, v);
+                }
+            }
+        }
+        break;
+    case JSON_OBJECT:
+        {
+            new_dict = jn;
+            json_incref(new_dict);
+        }
+        break;
+    default:
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "wrong type for dict",
+            "path",         "%s", temp,
+            "jn",           "%j", jn,
+            NULL
+        );
+        break;
+    }
+
+    return new_dict;
 }

@@ -466,6 +466,40 @@ PUBLIC json_t *kw_collapse(
     int collapse_dicts_limit
 );
 
+/**rst**
+    Utility for databases.
+    Return a new list from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to their key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+    If path is empty then use kw
+**rst**/
+PUBLIC json_t *kwid_new_list(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *path,
+    ...
+) JANSSON_ATTRS((format(printf, 3, 4)));
+
+/**rst**
+    Utility for databases.
+    Return a new dict from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to their key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+    If path is empty then use kw
+**rst**/
+PUBLIC json_t *kwid_new_dict(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *path,
+    ...
+) JANSSON_ATTRS((format(printf, 3, 4)));
+
+
+
 #ifdef __cplusplus
 }
 #endif
