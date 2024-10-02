@@ -2467,3 +2467,155 @@ PUBLIC json_t *kw_filter_metadata(
     KW_DECREF(kw)
     return new_kw;
 }
+
+/***************************************************************************
+    Utility for databases of json records.
+    Get a json list or dict, get the **first** record that match `id`
+    WARNING `id` is the first key of json_desc
+    Convention:
+        - If it's a list of dict: the records have "id" field as primary key
+        - If it's a dict, the key is the `id`
+ ***************************************************************************/
+PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *id,
+    json_t *new_record,  // owned
+    const json_desc_t *json_desc,
+    size_t *idx_,      // If not null set the idx in case of array
+    kw_flag_t flag
+)
+{
+    json_t *v = NULL;
+    BOOL backward = flag & KW_BACKWARD;
+
+    if(idx_) { // error case
+        *idx_ = 0;
+    }
+
+    if(!(json_is_array(kw) || json_is_object(kw))) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw must be dict or list",
+            NULL
+        );
+        JSON_DECREF(new_record)
+        return NULL;
+    }
+    if(empty_string(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "id NULL",
+            NULL
+        );
+        JSON_DECREF(new_record)
+        return NULL;
+    }
+
+    switch(json_typeof(kw)) {
+    case JSON_OBJECT:
+        v = json_object_get(kw, id);
+        if(!v) {
+            if((flag & KW_CREATE)) {
+                json_t *jn_record = create_json_record(gobj, json_desc);
+                json_object_update_new(jn_record, json_deep_copy(new_record));
+                json_object_set_new(kw, id, jn_record);
+                JSON_DECREF(new_record)
+                return jn_record;
+            }
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "record NOT FOUND",
+                    "id",           "%s", id,
+                    NULL
+                );
+                gobj_trace_json(gobj, kw, "record NOT FOUND");
+            }
+            JSON_DECREF(new_record)
+            return NULL;
+        }
+        if(flag & KW_EXTRACT) {
+            json_incref(v);
+            json_object_del(kw, id);
+        }
+
+        JSON_DECREF(new_record)
+        return v;
+
+    case JSON_ARRAY:
+        {
+            const char *pkey = json_desc->name;
+            if(!backward) {
+                size_t idx;
+                json_array_foreach(kw, idx, v) {
+                    const char *id_ = json_string_value(json_object_get(v, pkey));
+                    if(id_ && strcmp(id_, id)==0) {
+                        if(idx_) {
+                            *idx_ = idx;
+                        }
+                        JSON_DECREF(new_record)
+                        if(flag & KW_EXTRACT) {
+                            json_incref(v);
+                            json_array_remove(kw, idx);
+                        }
+                        return v;
+                    }
+                }
+            } else {
+                int idx;
+                json_array_backward(kw, idx, v) {
+                    const char *id_ = json_string_value(json_object_get(v, pkey));
+                    if(id_ && strcmp(id_, id)==0) {
+                        if(idx_) {
+                            *idx_ = idx;
+                        }
+                        JSON_DECREF(new_record)
+                        if(flag & KW_EXTRACT) {
+                            json_incref(v);
+                            json_array_remove(kw, idx);
+                        }
+                        return v;
+                    }
+                }
+            }
+
+            if((flag & KW_CREATE)) {
+                json_t *jn_record = create_json_record(gobj, json_desc);
+                json_object_update_new(jn_record, json_deep_copy(new_record));
+                json_array_append_new(kw, jn_record);
+                JSON_DECREF(new_record)
+                return jn_record;
+            }
+
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "record NOT FOUND",
+                    "id",           "%s", id,
+                    NULL
+                );
+                gobj_trace_json(gobj, kw, "record NOT FOUND");
+            }
+            JSON_DECREF(new_record)
+            return NULL;
+        }
+        break;
+    default:
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw must be dict or list",
+            "id",           "%s", id,
+            NULL
+        );
+        break;
+    }
+
+    JSON_DECREF(new_record)
+    return NULL;
+}

@@ -23,6 +23,7 @@
 #include <tr_treedb.h>
 #include "msg_ievent.h"
 #include "yunetas_environment.h"
+#include "c_linux_yuno.h"
 #include "c_tranger.h"
 #include "c_node.h"
 #include "c_authz.h"
@@ -958,7 +959,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Create new record
      */
-    json_t *jn_record = create_json_record(oauth_iss_desc);
+    json_t *jn_record = create_json_record(gobj, oauth_iss_desc);
     json_object_update_new(
         jn_record,
         json_pack("{s:s, s:s, s:b, s:s, s:s}",

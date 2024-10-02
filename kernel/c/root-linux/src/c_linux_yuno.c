@@ -3457,3 +3457,90 @@ PUBLIC void *yuno_event_loop(void)
 
     return priv->yev_loop;
 }
+
+/***************************************************************************
+ *  Is ip or peername allowed?
+ *  TODO pueden meter ip's con nombre, traduce a numérico
+ ***************************************************************************/
+PUBLIC BOOL is_ip_allowed(const char *peername)
+{
+    char ip[NAME_MAX];
+    snprintf(ip, sizeof(ip), "%s", peername);
+    char *p = strchr(ip, ':');
+    if(p) {
+        *p = 0;
+    }
+    json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip);
+    return json_is_true(b)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ * allowed: TRUE to allow, FALSE to deny
+ ***************************************************************************/
+PUBLIC int add_allowed_ip(const char *ip, BOOL allowed)
+{
+    if(json_object_set_new(
+        gobj_read_json_attr(gobj_yuno(), "allowed_ips"),
+        ip,
+        allowed?json_true(): json_false()
+    )==0) {
+        return gobj_save_persistent_attrs(gobj_yuno(), json_string("allowed_ips"));
+    } else {
+        return -1;
+    }
+}
+
+/***************************************************************************
+ *  Remove from interna list (dict)
+ ***************************************************************************/
+PUBLIC int remove_allowed_ip(const char *ip)
+{
+    if(json_object_del(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip)==0) {
+        return gobj_save_persistent_attrs(gobj_yuno(), json_string("allowed_ips"));
+    } else {
+        return -1;
+    }
+}
+
+/***************************************************************************
+ *  Is ip or peername denied?
+ ***************************************************************************/
+PUBLIC BOOL is_ip_denied(const char *peername)
+{
+    char ip[NAME_MAX];
+    snprintf(ip, sizeof(ip), "%s", peername);
+    char *p = strchr(ip, ':');
+    if(p) {
+        *p = 0;
+    }
+    json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip);
+    return json_is_true(b)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ * denied: TRUE to deny, FALSE to deny
+ ***************************************************************************/
+PUBLIC int add_denied_ip(const char *ip, BOOL denied)
+{
+    if(json_object_set_new(
+        gobj_read_json_attr(gobj_yuno(), "denied_ips"),
+        ip,
+        denied?json_true(): json_false()
+    )==0) {
+        return gobj_save_persistent_attrs(gobj_yuno(), json_string("denied_ips"));
+    } else {
+        return -1;
+    }
+}
+
+/***************************************************************************
+ *  Remove from interna list (dict)
+ ***************************************************************************/
+PUBLIC int remove_denied_ip(const char *ip)
+{
+    if(json_object_del(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip)==0) {
+        return gobj_save_persistent_attrs(gobj_yuno(), json_string("denied_ips"));
+    } else {
+        return -1;
+    }
+}
