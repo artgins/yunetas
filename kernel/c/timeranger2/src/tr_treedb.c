@@ -1755,7 +1755,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
          *      Enum
          *----------------------------*/
         CASES("enum")
-            json_t *desc_enum = kw_get_list(desc, "enum", 0, 0);
+            json_t *desc_enum = kw_get_list(gobj, desc, "enum", 0, 0);
             switch(json_typeof(value)) { // json_typeof NO CONTROLADO
             case JSON_ARRAY:
                 {
@@ -1763,7 +1763,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                     json_array_foreach(value, idx, v) {
                         switch(json_typeof(v)) {
                         case JSON_STRING:
-                            if(!json_str_in_list(desc_enum, json_string_value(v), TRUE)) {
+                            if(!json_str_in_list(gobj, desc_enum, json_string_value(v), TRUE)) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
                                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1800,7 +1800,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                 }
                 break;
             case JSON_STRING:
-                if(!json_str_in_list(desc_enum, json_string_value(value), TRUE)) {
+                if(!json_str_in_list(gobj, desc_enum, json_string_value(value), TRUE)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1844,7 +1844,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
         DEFAULTS
             if(value) {
                 const char *value_type = my_json_type(value);
-                if(!kw_has_word(desc_type, value_type, 0)) {
+                if(!kw_has_word(gobj, desc_type, value_type, 0)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1872,6 +1872,7 @@ PUBLIC int parse_schema(
     json_t *schema  // not owned
 )
 {
+    hgobj gobj = 0;
     if(!schema) {
         return -1;
     }
@@ -1880,12 +1881,12 @@ PUBLIC int parse_schema(
 
     json_t *cols_desc = _treedb_create_topic_cols_desc();
 
-    json_t *topics = kwid_new_dict("verbose", schema, "topics");
+    json_t *topics = kwid_new_dict(gobj,  schema, KW_VERBOSE, "topics");
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
         ret += parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
     }
 
@@ -1907,6 +1908,7 @@ PUBLIC int parse_schema_cols(
     json_t *dato  // owned
 )
 {
+    hgobj gobj = 0;
     int ret = 0;
 
     if(!(json_is_object(dato) || json_is_array(dato))) {
@@ -1949,12 +1951,13 @@ PUBLIC int parse_hooks(
     json_t *schema  // not owned
 )
 {
+    hgobj gobj = 0;
     int ret = 0;
 
-    json_t *topics = kwid_new_dict("verbose", schema, "topics");
+    json_t *topics = kwid_new_dict(gobj, schema, KW_VERBOSE, "topics");
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
-        json_t *cols = kwid_new_list("verbose", topic, "cols");
+        json_t *cols = kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
         if(!cols) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1968,16 +1971,16 @@ PUBLIC int parse_hooks(
         }
         int idx; json_t *col;
         json_array_foreach(cols, idx, col) {
-            const char *id = kw_get_str(col, "id", 0, 0);
-            json_t *flag = kw_get_dict_value(col, "flag", 0, 0);
+            const char *id = kw_get_str(gobj, col, "id", 0, 0);
+            json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
             /*-------------------------*
              *      Is a hook?
              *-------------------------*/
-            if(kw_has_word(flag, "hook", 0)) {
+            if(kw_has_word(gobj, flag, "hook", 0)) {
                 /*---------------------------------*
                  *  It's a hook, check the links
                  *---------------------------------*/
-                json_t *hook = kw_get_dict(col, "hook", 0, 0);
+                json_t *hook = kw_get_dict(gobj, col, "hook", 0, 0);
                 if(!hook) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1987,21 +1990,22 @@ PUBLIC int parse_hooks(
                         "id",           "%s", id,
                         NULL
                     );
-                    log_debug_json(0, col, "column def with hook field not found");
+                    gobj_trace_json(gobj, col, "column def with hook field not found");
                     ret += -1;
                     continue;
                 }
 
                 /*----------------------------*
-                 *  Check egdes
+                 *  Check edges
                  *----------------------------*/
                 const char *link_topic_name; json_t *link_field;
                 json_object_foreach(hook, link_topic_name, link_field) {
                     /*------------------------------*
                      *  Check link: who child node
                      *------------------------------*/
-                    json_t *link_topic = kwid_get("",
+                    json_t *link_topic = kwid_get(gobj,
                         schema,
+                        0,
                         "topics`%s",
                             link_topic_name
                     );
@@ -2020,8 +2024,9 @@ PUBLIC int parse_hooks(
                         continue;
                     }
                     const char *s_link_field = json_string_value(link_field);
-                    json_t *field = kwid_get("",
+                    json_t *field = kwid_get(gobj,
                         link_topic,
+                        0,
                         "cols`%s",
                             s_link_field
                     );
@@ -2041,8 +2046,8 @@ PUBLIC int parse_hooks(
                     }
 
                     // CHEQUEA que tiene el flag fkey
-                    json_t *jn_flag = kwid_get("", field, "flag");
-                    if(!kw_has_word(jn_flag, "fkey", "")) {
+                    json_t *jn_flag = kwid_get(gobj, field, 0, "flag");
+                    if(!kw_has_word(gobj, jn_flag, "fkey", 0)) {
                         gobj_log_error(gobj, 0,
                             "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
@@ -2058,7 +2063,7 @@ PUBLIC int parse_hooks(
                         continue;
                     }
 
-                    if(kw_has_word(field, "fkey", "")) {
+                    if(kw_has_word(gobj, field, "fkey", 0)) {
                         gobj_log_error(gobj, 0,
                             "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
@@ -2112,10 +2117,10 @@ PUBLIC int parse_hooks(
                 }
             }
         }
-        JSON_DECREF(cols);
+        JSON_DECREF(cols)
     }
 
-    JSON_DECREF(topics);
+    JSON_DECREF(topics)
 
     return ret;
 }
@@ -2128,19 +2133,20 @@ PUBLIC json_t *topic_desc_hook_names(
     json_t *topic_desc // owned
 )
 {
+    hgobj gobj = 0;
     json_t *jn_hook_field_names = json_array();
 
     int idx; json_t *col;
     json_array_foreach(topic_desc, idx, col) {
-        json_t *flag = kw_get_dict_value(col, "flag", 0, 0);
+        json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
         /*-------------------------*
          *      Is a hook?
          *-------------------------*/
-        if(kw_has_word(flag, "hook", 0)) {
+        if(kw_has_word(gobj, flag, "hook", 0)) {
             json_array_append(jn_hook_field_names, json_object_get(col, "id"));
         }
     }
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     return jn_hook_field_names;
 }
 
@@ -2152,19 +2158,20 @@ PUBLIC json_t *topic_desc_fkey_names(
     json_t *topic_desc // owned
 )
 {
+    hgobj gobj = 0;
     json_t *jn_fkey_field_names = json_array();
 
     int idx; json_t *col;
     json_array_foreach(topic_desc, idx, col) {
-        json_t *flag = kw_get_dict_value(col, "flag", 0, 0);
+        json_t *flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
         /*-------------------------*
          *      Is a fkey?
          *-------------------------*/
-        if(kw_has_word(flag, "fkey", 0)) {
+        if(kw_has_word(gobj, flag, "fkey", 0)) {
             json_array_append(jn_fkey_field_names, json_object_get(col, "id"));
         }
     }
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     return jn_fkey_field_names;
 }
 
@@ -2189,6 +2196,7 @@ PRIVATE json_t *filtra_fkeys(
     json_t *value  // not owned
 )
 {
+    hgobj gobj = 0;
     json_t *jn_list = json_array();
 
     switch(json_typeof(value)) {
@@ -3723,7 +3731,7 @@ PRIVATE int load_all_links(
         }
     }
 
-    JSON_DECREF(topics);
+    JSON_DECREF(topics)
     return ret;
 }
 
@@ -7117,7 +7125,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
         );
     }
 
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     JSON_DECREF(jn_options)
     return node_view;
 }
@@ -7254,7 +7262,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
         JSON_DECREF(list);
     }
 
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     JSON_DECREF(jn_filter);
     JSON_DECREF(ids_list);
 
@@ -7408,7 +7416,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
     }
 
     JSON_DECREF(iter_pkey2s);
-    JSON_DECREF(topic_desc);
+    JSON_DECREF(topic_desc)
     JSON_DECREF(ids_list);
     JSON_DECREF(jn_filter);
 
@@ -8197,10 +8205,10 @@ PUBLIC json_t *treedb_get_topic_links(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(topics);
+        JSON_DECREF(topics)
         return 0;
     }
-    JSON_DECREF(topics);
+    JSON_DECREF(topics)
 
     json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
     json_t *jn_list = json_array();
@@ -8238,10 +8246,10 @@ PUBLIC json_t *treedb_get_topic_hooks(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(topics);
+        JSON_DECREF(topics)
         return 0;
     }
-    JSON_DECREF(topics);
+    JSON_DECREF(topics)
 
     json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
     json_t *jn_list = json_array();
@@ -8505,7 +8513,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
 
     }
 
-    JSON_DECREF(topics);
+    JSON_DECREF(topics)
     return 0;
 }
 

@@ -4958,3 +4958,18 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
 
     return FALSE;
 }
+
+/***************************************************************************
+ *    Cuenta cuantos caracteres de 'c' hay en 's'
+ ***************************************************************************/
+PUBLIC int count_char(const char *s, char c)
+{
+    int count = 0;
+
+    while(*s) {
+        if(*s == c)
+            count++;
+        s++;
+    }
+    return count;
+}

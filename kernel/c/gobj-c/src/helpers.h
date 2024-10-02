@@ -672,6 +672,11 @@ PUBLIC int json_print_refcounts(
 **rst**/
 PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case);
 
+/**rst**
+   Cuenta cuantos caracteres de 'c' hay en 's'
+**rst**/
+PUBLIC int count_char(const char *s, char c);
+
 #ifdef __cplusplus
 }
 #endif
