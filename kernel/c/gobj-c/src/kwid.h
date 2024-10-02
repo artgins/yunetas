@@ -589,6 +589,17 @@ PUBLIC BOOL kwid_match_id(
     const char *id
 );
 
+/**rst**
+    Utility for databases.
+    Return TRUE if `id` WITH LIMITED SIZE is in the list/dict/str `ids`
+**rst**/
+PUBLIC BOOL kwid_match_nid(
+    hgobj gobj,
+    json_t *ids,
+    const char *id,
+    int max_id_size
+);
+
 
 #ifdef __cplusplus
 }
