@@ -2619,3 +2619,134 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
     JSON_DECREF(new_record)
     return NULL;
 }
+
+/***************************************************************************
+    Utility for databases.
+    Being `ids` a:
+
+        "$id"
+
+        {
+            "$id": {
+                "id": "$id",
+                ...
+            }
+            ...
+        }
+
+        ["$id", ...]
+
+        [
+            "$id",
+            {
+                "id":$id,
+                ...
+            },
+            ...
+        ]
+
+    return a list of all ids (all duplicated items)
+ ***************************************************************************/
+PUBLIC json_t *kwid_get_ids(
+    json_t *ids // not owned
+)
+{
+    if(!ids) {
+        return 0;
+    }
+
+    json_t *new_ids = json_array();
+
+    switch(json_typeof(ids)) {
+        case JSON_STRING:
+            /*
+                "$id"
+             */
+            json_array_append_new(new_ids, json_string(json_string_value(ids)));
+            break;
+
+        case JSON_INTEGER:
+            /*
+                $id
+             */
+            json_array_append_new(
+                new_ids,
+                json_sprintf("%"JSON_INTEGER_FORMAT, json_integer_value(ids))
+            );
+            break;
+
+        case JSON_OBJECT:
+            /*
+                {
+                    "$id": {
+                        "id": "$id",
+                        ...
+                    }
+                    ...
+                }
+            */
+        {
+            const char *id; json_t *jn_value;
+            json_object_foreach(ids, id, jn_value) {
+                json_array_append_new(new_ids, json_string(id));
+            }
+        }
+            break;
+
+        case JSON_ARRAY:
+        {
+            int idx; json_t *jn_value;
+            json_array_foreach(ids, idx, jn_value) {
+                switch(json_typeof(jn_value)) {
+                    case JSON_STRING:
+                        /*
+                            ["$id", ...]
+                        */
+                    {
+                        const char *id = json_string_value(jn_value);
+                        if(!empty_string(id)) {
+                            json_array_append_new(new_ids, json_string(id));
+                        }
+                    }
+                        break;
+
+                    case JSON_INTEGER:
+                        /*
+                            $id
+                        */
+                        json_array_append_new(
+                            new_ids,
+                            json_sprintf("%"JSON_INTEGER_FORMAT, json_integer_value(jn_value))
+                        );
+                        break;
+
+                    case JSON_OBJECT:
+                        /*
+                            [
+                                {
+                                    "id":$id,
+                                    ...
+                                },
+                                ...
+                            ]
+                        */
+                    {
+                        const char *id = json_string_value(json_object_get(jn_value, "id"));
+                        if(!empty_string(id)) {
+                            json_array_append_new(new_ids, json_string(id));
+                        }
+                    }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+            break;
+
+        default:
+            break;
+    }
+
+    return new_ids;
+}

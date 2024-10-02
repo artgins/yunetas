@@ -555,7 +555,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             /*
              *  IP no autorizada sin user/passw, informa
              */
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return json_pack("{s:i, s:s}",
                 "result", -1,
                 "comment", "Ip denied"
@@ -566,7 +566,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 
         json_t *user = identify_system_user(gobj, &username, TRUE, FALSE);
         if(!user) {
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return json_pack("{s:i, s:s, s:s}",
                 "result", -1,
                 "comment", "System user not found or not authorized",
@@ -590,7 +590,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 /*
                  *  Only localhost is allowed without jwt
                  */
-                KW_DECREF(kw);
+                KW_DECREF(kw)
                 return json_pack("{s:i, s:s}",
                     "result", -1,
                     "comment", "Without JWT only localhost is allowed"
@@ -608,7 +608,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
 
         if(!kw_has_key(services_roles, dst_service)) {
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return json_pack("{s:i, s:s, s:s, s:s}",
                 "result", -1,
                 "comment", "Username has not authz in service",
@@ -625,7 +625,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         /*
          *  Autorizado
          */
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s, s:s, s:o, s:o}",
             "result", 0,
             "comment", comment,
@@ -643,7 +643,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     const char *status;
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s}",
             "result", -1,
             "comment", status
@@ -657,7 +657,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", false, KW_REQUIRED);
     if(!email_verified) {
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s}",
             "result", -1,
             "comment", "Email not verified",
@@ -666,7 +666,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
     if(!strchr(username, '@')) {
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s}",
             "result", -1,
             "comment", "Username must be an email address",
@@ -703,7 +703,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "username", username
         );
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return jn_msg;
     }
 
@@ -716,7 +716,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
         json_decref(user);
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return jn_msg;
     }
 
@@ -782,7 +782,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         json_decref(services_roles);
         JSON_DECREF(user);
         JSON_DECREF(jwt_payload);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
             "comment", "Username has not authz in service",
@@ -847,7 +847,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         )
     );
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
 
     return jn_resp;
 }
@@ -975,6 +975,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  Check if the record already exists
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -998,6 +999,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *  Add the new record
      */
     jn_record_ = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         jn_record,          // new_record, owned
@@ -1014,7 +1016,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Create new validation
      */
-    json_t *jn_validation = create_json_record(oauth_iss_desc);
+    json_t *jn_validation = create_json_record(gobj, oauth_iss_desc);
     json_object_update_new(jn_validation, json_deep_copy(jn_record_));
     json_array_append_new(priv->jn_validations, jn_validation);
     create_validation(gobj, jn_validation);
@@ -1054,6 +1056,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Check if the record already exists
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1076,6 +1079,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Remove the record
      */
     jn_record_ = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1093,6 +1097,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Delete validation
      */
     json_t *jn_validation = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         priv->jn_validations,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1139,6 +1144,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  Check if the record already exists
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1171,6 +1177,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  Delete validation
      */
     json_t *jn_validation = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         priv->jn_validations,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1215,6 +1222,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Check if the record already exists
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         jwt_public_keys,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1247,6 +1255,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Delete validation
      */
     json_t *jn_validation = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
         priv->jn_validations,    // kw, NOT owned
         iss,                // id
         0,                  // new_record, owned
@@ -1306,7 +1315,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_array_foreach(jn_users, idx, jn_user) {
         const char *user_id = kw_get_str(gobj, jn_user, "id", "", 0);
         json_t *jn_user_roles = kw_get_list(gobj, jn_user, "roles", 0, 0);
-        json_t *jn_roles_ids = kwid_get_ids(gobj, jn_user_roles);
+        json_t *jn_roles_ids = kwid_get_ids(jn_user_roles);
         char *roles_ids = json2uglystr(jn_roles_ids);
         snprintf(temp, sizeof(temp), "%-36s %s", user_id, roles_ids);
         change_char(temp, '"', '\'');
@@ -1739,7 +1748,7 @@ PRIVATE int create_jwt_validations(hgobj gobj)
     priv->jn_validations = json_array();
     int idx; json_t *jn_record;
     json_array_foreach(jwt_public_keys, idx, jn_record) {
-        json_t *jn_validation = create_json_record(oauth_iss_desc);
+        json_t *jn_validation = create_json_record(gobj, oauth_iss_desc);
         json_object_update_new(jn_validation, json_deep_copy(jn_record));
         json_array_append_new(priv->jn_validations, jn_validation);
         create_validation(gobj, jn_validation);
@@ -2474,12 +2483,12 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "msg",          "%s", "open without jwt_payload",
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
     if(gobj_is_shutdowning()) {
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -2538,7 +2547,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gobj_unsubscribe_event(src, "EV_ON_CLOSE", 0, gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -2588,7 +2597,7 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
         ));
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -2617,7 +2626,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "username",     "%s", username,
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -2672,7 +2681,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
         src
     ));
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return ret;
 }
 
@@ -2785,7 +2794,7 @@ PUBLIC int register_c_authz(void)
  ***************************************************************************/
 PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_gclass_service(GCLASS_AUTHZ_NAME, TRUE);
+    hgobj gobj = gobj_find_service(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.
@@ -2797,7 +2806,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
             "msg",          "%s", "No gclass authz found",
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return FALSE;
     }
 
@@ -2812,7 +2821,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return FALSE;
         }
     }
@@ -2820,7 +2829,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
     if(!jn_authz_desc) {
         // Error already logged
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return FALSE;
     }
 
@@ -2851,7 +2860,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
 
     JSON_DECREF(user_authzs);
     JSON_DECREF(jn_authz_desc);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return allow;
 }
 
@@ -2862,13 +2871,13 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
  ***************************************************************************/
 PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_gclass_service(GCLASS_AUTHZ_NAME, TRUE);
+    hgobj gobj = gobj_find_service(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.
          *  If the service is not found, deny all.
          */
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s}",
             "result", -1,
             "comment", "Authz gclass not found"

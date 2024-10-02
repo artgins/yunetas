@@ -535,6 +535,22 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
     kw_flag_t flag
 );
 
+/**rst**
+    Utility for databases.
+    Being `ids` a:
+        "$id"
+        ["$id", ...]
+        [{"id":$id, ...}, ...]
+        {
+            "$id": {}.
+            ...
+        }
+    return a new list of all ids (all duplicated items)
+**rst**/
+PUBLIC json_t *kwid_get_ids(
+    json_t *ids // not owned
+);
+
 
 #ifdef __cplusplus
 }
