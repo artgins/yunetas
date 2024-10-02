@@ -7344,7 +7344,8 @@ PUBLIC json_t *gobj_topic_hooks(
  ***************************************************************************/
 PUBLIC size_t gobj_topic_size(
     hgobj gobj_,
-    const char *topic_name
+    const char *topic_name,
+    const char *key
 )
 {
     gobj_t *gobj = gobj_;
@@ -7368,7 +7369,7 @@ PUBLIC size_t gobj_topic_size(
         );
         return 0;
     }
-    return gobj->gclass->gmt->mt_topic_size(gobj, topic_name);
+    return gobj->gclass->gmt->mt_topic_size(gobj, topic_name, key);
 }
 
 /***************************************************************************

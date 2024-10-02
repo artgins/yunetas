@@ -84,90 +84,90 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_print_tranger[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"), // TODO pon database
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"), // TODO pon database
 SDATAPM (DTP_BOOLEAN,   "expanded",     0,              0,          "No expanded (default) return [[size]]"),
-SDATAPM (DTP_INTEGER,  "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
-SDATAPM (DTP_INTEGER,  "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
+SDATAPM (DTP_INTEGER,   "lists_limit",  0,              0,          "Expand lists only if size < limit. 0 no limit"),
+SDATAPM (DTP_INTEGER,   "dicts_limit",  0,              0,          "Expand dicts only if size < limit. 0 no limit"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_check_json[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER, "max_refcount",   0,              0,          "Maximum refcount"),
+SDATAPM (DTP_INTEGER,   "max_refcount",   0,              0,          "Maximum refcount"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_desc[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "pkey",         0,              "id",       "Primary Key"),
-SDATAPM (DTP_STRING, "tkey",         0,              "tm",       "Time Key"),
-SDATAPM (DTP_STRING, "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf_string_key|sf_rowid_key|sf_int_key|sf_t_ms|sf_tm_ms|sf_no_record_disk|sf_no_md_disk, future: sf_zip_record|sf_cipher_record"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "pkey",         0,              "id",       "Primary Key"),
+SDATAPM (DTP_STRING,    "tkey",         0,              "tm",       "Time Key"),
+SDATAPM (DTP_STRING,    "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf2_string_key|sf2_int_key|sf2_t_ms|sf2_tm_ms|sf2_no_record_disk, future: sf2_zip_record|sf2_cipher_record"),
 SDATAPM (DTP_JSON,      "jn_cols",      0,              0,          "Cols"),
 SDATAPM (DTP_JSON,      "jn_var",       0,              0,          "Var"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_add_record[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_INTEGER, "__t__",        0,              0,          "Time of record"),
-SDATAPM (DTP_INTEGER,  "user_flag",    0,              0,          "User flag of record"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_INTEGER,   "__t__",        0,              0,          "Time of record"),
+SDATAPM (DTP_INTEGER,   "user_flag",    0,              0,          "User flag of record"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Record json"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_open_list[] = {
 /*-PM----type-----------name--------------------flag--------default-description---------- */
-SDATAPM (DTP_STRING, "list_id",              0,          0,      "Id of list"),
-SDATAPM (DTP_STRING, "topic_name",           0,          0,      "Topic name"),
-SDATAPM (DTP_STRING, "key",                  0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "notkey",               0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "from_tm",              0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "to_tm",                0,          0,      "match_cond:"),
-SDATAPM (DTP_INTEGER, "from_rowid",           0,          0,      "match_cond:"),
-SDATAPM (DTP_INTEGER, "to_rowid",             0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "from_t",               0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "to_t",                 0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING, "fields",               0,          0,      "match_cond: Only this fields"),
-SDATAPM (DTP_STRING, "rkey",                 0,          0,      "match_cond: regular expression of key"),
+SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
+SDATAPM (DTP_STRING,    "key",                  0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "notkey",               0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "from_tm",              0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "to_tm",                0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "from_t",               0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "to_t",                 0,          0,      "match_cond:"),
+SDATAPM (DTP_STRING,    "fields",               0,          0,      "match_cond: Only this fields"),
+SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regular expression of key"),
 SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
 SDATAPM (DTP_BOOLEAN,   "backward",             0,          0,      "match_cond:"),
 SDATAPM (DTP_BOOLEAN,   "only_md",              0,          0,      "match_cond: don't load jn_record on loading disk"),
-SDATAPM (DTP_INTEGER,  "user_flag",            0,          0,      "match_cond:"),
-SDATAPM (DTP_INTEGER,  "not_user_flag",        0,          0,      "match_cond:"),
-SDATAPM (DTP_INTEGER,  "user_flag_mask_set",   0,          0,      "match_cond:"),
-SDATAPM (DTP_INTEGER,  "user_flag_mask_notset",0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "user_flag",            0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "not_user_flag",        0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "user_flag_mask_set",   0,          0,      "match_cond:"),
+SDATAPM (DTP_INTEGER,   "user_flag_mask_notset",0,          0,      "match_cond:"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_close_list[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (DTP_STRING, "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING,    "list_id",              0,      0,      "Id of list"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_get_list_data[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (DTP_STRING, "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING,    "list_id",              0,      0,      "Id of list"),
 SDATA_END()
 };
 
@@ -198,9 +198,9 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
-SDATA (DTP_STRING,   "path",             SDF_RD|SDF_REQUIRED,"", "Path of database"),
-SDATA (DTP_STRING,   "database",         SDF_RD|SDF_REQUIRED,"", "Database name"),
-SDATA (DTP_STRING,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
+SDATA (DTP_STRING,      "path",             SDF_RD|SDF_REQUIRED,"", "Path of database"),
+SDATA (DTP_STRING,      "database",         SDF_RD|SDF_REQUIRED,"", "Database name"),
+SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
 
 SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        "Use in creation, default 02770"),
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
@@ -231,22 +231,22 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 PRIVATE sdata_desc_t pm_authz_create[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_write[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_delete[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "topic_name",       0,          "",             "Topic name"),
+SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
 
@@ -307,7 +307,7 @@ PRIVATE void mt_create(hgobj gobj)
         "master", gobj_read_bool_attr(gobj, "master")
     );
 
-    priv->tranger = tranger_startup(
+    priv->tranger = tranger2_startup(
         jn_tranger // owned
     );
     gobj_write_pointer_attr(gobj, "tranger", priv->tranger);
@@ -325,7 +325,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(tranger_shutdown, priv->tranger);
+    EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
     gobj_write_pointer_attr(gobj, "tranger", 0);
 }
 
@@ -350,17 +350,17 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_subscription_added(
     hgobj gobj,
-    hsdata subs)
+    json_t *subs)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *__config__ = sdata_read_json(subs, "__config__");
-    BOOL first_shot = kw_get_bool(__config__, "__first_shot__", FALSE, 0);
+    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
+    BOOL first_shot = kw_get_bool(gobj, __config__, "__first_shot__", FALSE, 0);
     if(!first_shot) {
         return 0;
     }
-    hgobj subscriber = sdata_read_pointer(subs, "subscriber");
-    const char *event = sdata_read_str(subs, "event");
+    hgobj subscriber = (hgobj)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED);
 
     if(empty_string(event)) {
         gobj_log_warning(gobj, 0,
@@ -373,40 +373,39 @@ PRIVATE int mt_subscription_added(
         return 0; // return -1 unsubscribe this subs
     }
 
-    json_t *__global__ = sdata_read_json(subs, "__global__");
-    json_t *__filter__ = sdata_read_json(subs, "__filter__");
+    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
+    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, 0);
 
-    const char *event_name = sdata_read_str(subs, "renamed_event");
+    const char *event_name = kw_get_str(gobj, subs, "renamed_event", 0, 0);
 
-    const char *__list_id__ = kw_get_str(__config__, "__list_id__", "", 0);
+    const char *__list_id__ = kw_get_str(gobj, __config__, "__list_id__", "", 0);
     if(empty_string(__list_id__)) {
         return gobj_send_event(
             subscriber,
             (!empty_string(event_name))?event_name:event,
-            msg_iev_build_webix2_without_answer_filter(gobj,
+            msg_iev_build_response_without_reverse_dst(gobj,
                 -1,
                 json_sprintf("__list_id__ required"),
                 0,
                 0, // owned
-                __global__?kw_duplicate(__global__):0,  // owned
-                "__first_shot__"
+                __global__?kw_duplicate(gobj, __global__):0  // owned
             ),
             gobj
         );
     }
 
-    json_t *list = tranger_get_list(priv->tranger, __list_id__);
+    // TODO review, old tranger_get_list
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, __list_id__);
     if(!list) {
         return gobj_send_event(
             subscriber,
             (!empty_string(event_name))?event_name:event,
-            msg_iev_build_webix2_without_answer_filter(gobj,
+            msg_iev_build_response_without_reverse_dst(gobj,
                 -1,
                 json_sprintf("tranger list not found: '%s'", __list_id__),
                 0,
                 0, // owned
-                __global__?kw_duplicate(__global__):0,  // owned
-                "__first_shot__"
+                __global__?kw_duplicate(gobj, __global__):0  // owned
             ),
             gobj
         );
@@ -416,8 +415,8 @@ PRIVATE int mt_subscription_added(
         json_t *jn_data = json_array();
         size_t idx;
         json_t *jn_record;
-        json_array_foreach(kw_get_list(list, "data", 0, KW_REQUIRED), idx, jn_record) {
-            JSON_INCREF(__filter__);
+        json_array_foreach(kw_get_list(gobj, list, "data", 0, KW_REQUIRED), idx, jn_record) {
+            JSON_INCREF(__filter__)
             if(!kw_match_simple(jn_record, __filter__)) {
                 continue;
             }
@@ -430,13 +429,12 @@ PRIVATE int mt_subscription_added(
         return gobj_send_event(
             subscriber,
             (!empty_string(event_name))?event_name:event,
-            msg_iev_build_webix2_without_answer_filter(gobj,
+            msg_iev_build_response_without_reverse_dst(gobj,
                 0,
                 0,
                 0,
                 jn_data, // owned
-                __global__?kw_duplicate(__global__):0,  // owned
-                "__first_shot__"
+                __global__?kw_duplicate(gobj, __global__):0  // owned
             ),
             gobj
         );
@@ -451,16 +449,17 @@ PRIVATE int mt_subscription_added(
  ***************************************************************************/
 PRIVATE size_t mt_topic_size(
     hgobj gobj,
-    const char *topic_name
+    const char *topic_name,
+    const char *key
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *topic = tranger_topic( // WARNING returned json IS NOT YOURS
+    json_t *topic = tranger2_topic( // WARNING returned json IS NOT YOURS
         priv->tranger,
         topic_name
     );
-    return tranger_topic_size(topic);
+    return tranger2_topic_key_size(priv->tranger, topic, key);
 }
 
 
@@ -1308,9 +1307,9 @@ PRIVATE int load_record_callback(
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -1409,6 +1408,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_subscription_added = mt_subscription_added,
+    .mt_topic_size = mt_topic_size,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,

@@ -772,7 +772,8 @@ typedef json_t *(*mt_list_instances_fn)(
 );
 typedef size_t (*mt_topic_size_fn)(
     hgobj gobj,
-    const char *topic_name
+    const char *topic_name,
+    const char *key
 );
 
 typedef json_t *(*local_method_fn)(
@@ -1737,7 +1738,8 @@ PUBLIC json_t *gobj_topic_hooks(
 
 PUBLIC size_t gobj_topic_size(
     hgobj gobj,
-    const char *topic_name
+    const char *topic_name,
+    const char *key
 );
 
 PUBLIC json_t *gobj_create_node( // Return is YOURS
