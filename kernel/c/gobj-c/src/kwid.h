@@ -74,6 +74,8 @@ extern "C"{
         index >= 0 && (value = json_array_get(array, index)); \
         index--)
 
+#define JSON_TYPEOF(json, tipo) (json && json_typeof(json)==tipo)
+
 /*---------------------------------*
  *          KW
  *---------------------------------*/

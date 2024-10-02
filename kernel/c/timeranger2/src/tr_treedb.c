@@ -29,12 +29,6 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE json_t *record2tranger(
-    json_t *tranger,
-    const char *topic_name,
-    json_t *kw,  // NOT owned
-    BOOL create // create or update
-);
 PRIVATE json_t *_md2json(
     const char *treedb_name,
     const char *topic_name,
@@ -2011,7 +2005,6 @@ PUBLIC int parse_hooks(
                     );
                     if(!link_topic) {
                         gobj_log_error(gobj, 0,
-                            "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB_ERROR,
                             "msg",              "%s", "link topic not found",
@@ -2032,7 +2025,6 @@ PUBLIC int parse_hooks(
                     );
                     if(!field) {
                         gobj_log_error(gobj, 0,
-                            "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB_ERROR,
                             "msg",              "%s", "link field not found",
@@ -2049,7 +2041,6 @@ PUBLIC int parse_hooks(
                     json_t *jn_flag = kwid_get(gobj, field, 0, "flag");
                     if(!kw_has_word(gobj, jn_flag, "fkey", 0)) {
                         gobj_log_error(gobj, 0,
-                            "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB_ERROR,
                             "msg",              "%s", "link field must be a fkey",
@@ -2065,7 +2056,6 @@ PUBLIC int parse_hooks(
 
                     if(kw_has_word(gobj, field, "fkey", 0)) {
                         gobj_log_error(gobj, 0,
-                            "gobj",             "%s", __FILE__,
                             "function",         "%s", __FUNCTION__,
                             "msgset",           "%s", MSGSET_TREEDB_ERROR,
                             "msg",              "%s", "Only can be one fkey",
@@ -2227,15 +2217,15 @@ PRIVATE json_t *filtra_fkeys(
                     }
                 } else if(json_typeof(v)==JSON_OBJECT) {
                     char temp[NAME_MAX];
-                    const char *id = kw_get_str(v, "id", 0, 0);
-                    const char *topic_name = kw_get_str(v, "topic_name", 0, 0);
-                    const char *hook_name = kw_get_str(v, "hook_name", 0, 0);
-                    if(!id || !topic_name || !hook_name) {
+                    const char *id = kw_get_str(gobj, v, "id", 0, 0);
+                    const char *topic_name_ = kw_get_str(gobj, v, "topic_name", 0, 0);
+                    const char *hook_name = kw_get_str(gobj, v, "hook_name", 0, 0);
+                    if(!id || !topic_name_ || !hook_name) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                             "msg",          "%s", "Wrong fkey reference: must be {topic_name,id,hook_name}",
-                            "topic_name",   "%s", topic_name,
+                            "topic_name",   "%s", topic_name_,
                             "col_name",     "%s", col_name,
                             "ref",          "%j", v,
                             NULL
@@ -2244,7 +2234,7 @@ PRIVATE json_t *filtra_fkeys(
                         return 0;
                     }
                     snprintf(temp, sizeof(temp), "%s^%s^%s",
-                        topic_name,
+                        topic_name_,
                         id,
                         hook_name
                     );
@@ -2352,7 +2342,7 @@ PRIVATE json_t *filtra_fkeys(
 
         DEFAULTS
             break;
-    } SWITCHS_END;
+    } SWITCHS_END
 
     json_decref(jn_list);
 
@@ -2371,8 +2361,10 @@ PRIVATE int set_tranger_field_value(
     BOOL create
 )
 {
+    hgobj gobj = 0;
+
     if(!field) {
-        field = kw_get_str(col, "id", 0, KW_REQUIRED);
+        field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
     }
     if(!field) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2385,7 +2377,7 @@ PRIVATE int set_tranger_field_value(
         );
         return -1;
     }
-    const char *type = kw_get_str(col, "type", 0, KW_REQUIRED);
+    const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
     if(!type) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -2398,12 +2390,12 @@ PRIVATE int set_tranger_field_value(
         );
         return -1;
     }
-    json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
 
     /*
      *  Required
      */
-    if(kw_has_word(desc_flag, "required", 0)) {
+    if(kw_has_word(gobj, desc_flag, "required", 0)) {
         if(!value) { // WARNING efecto colateral? 16-oct-2020 || json_is_null(value)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2418,13 +2410,13 @@ PRIVATE int set_tranger_field_value(
         }
     }
 
-    BOOL is_persistent = kw_has_word(desc_flag, "persistent", 0)?TRUE:FALSE;
-    BOOL wild_conversion = kw_has_word(desc_flag, "wild", 0)?TRUE:FALSE;
-    BOOL is_enum = kw_has_word(desc_flag, "enum", 0)?TRUE:FALSE;
-    BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
-    BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
-    BOOL is_now = kw_has_word(desc_flag, "now", 0)?TRUE:FALSE;
-    BOOL is_template = kw_has_word(desc_flag, "template", 0)?TRUE:FALSE;
+    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
+    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
+    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+    BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
+    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?TRUE:FALSE;
     if(!(is_persistent || is_hook || is_fkey)) {
         // Not save to tranger
         return 0;
@@ -2435,7 +2427,7 @@ PRIVATE int set_tranger_field_value(
      */
     if(json_is_null(value)) {
         if(!(is_hook || is_fkey || is_enum)) {
-            if(kw_has_word(desc_flag, "notnull", 0)) {
+            if(kw_has_word(gobj, desc_flag, "notnull", 0)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -2583,7 +2575,7 @@ PRIVATE int set_tranger_field_value(
                     } else if(wild_conversion) {
                         char *v = jn2string(value);
                         json_object_set_new(record, field, json_string(v));
-                        gbmem_free(v);
+                        GBMEM_FREE(v)
                     } else {
                         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                             "function",     "%s", __FUNCTION__,
@@ -2681,7 +2673,7 @@ PRIVATE int set_tranger_field_value(
             } else if(wild_conversion) {
                 char *v = jn2string(value);
                 json_object_set_new(record, field, json_string(v));
-                gbmem_free(v);
+                GBMEM_FREE(v)
             } else {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -2712,7 +2704,7 @@ PRIVATE int set_tranger_field_value(
             } else {
                 json_int_t v = jn2integer(value);
                 json_object_set_new(record, field, json_integer(v));
-                log_warning(LOG_OPT_TRACE_STACK,
+                gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "Value must be integer",
@@ -2736,7 +2728,7 @@ PRIVATE int set_tranger_field_value(
             } else {
                 double v = jn2real(value);
                 json_object_set_new(record, field, json_real(v));
-                log_warning(LOG_OPT_TRACE_STACK,
+                gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "Value must be real",
@@ -2767,7 +2759,7 @@ PRIVATE int set_tranger_field_value(
                 NULL
             );
             return -1;
-    } SWITCHS_END;
+    } SWITCHS_END
 
     return 0;
 }
@@ -2782,6 +2774,8 @@ PRIVATE int set_volatil_field_value(
     json_t *value   // NOT owned
 )
 {
+    hgobj gobj = 0;
+
     SWITCHS(type) {
         CASES("enum")
         CASES("list")
@@ -2810,7 +2804,7 @@ PRIVATE int set_volatil_field_value(
             } else {
                 char *v = jn2string(value);
                 json_object_set_new(record, field, json_string(v));
-                gbmem_free(v);
+                GBMEM_FREE(v);
             }
             break;
 
@@ -2873,7 +2867,7 @@ PUBLIC int set_volatil_values(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2888,40 +2882,41 @@ PUBLIC int set_volatil_values(
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
         json_t *value = kw_get_dict_value(
+            gobj,
             kw,
             field,
             0,
             0
         );
         if(!value) {
-            value = kw_get_dict_value(col, "default", 0, 0);
+            value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
 
-        const char *field = kw_get_str(col, "id", 0, KW_REQUIRED);
-        if(!field) {
+        const char *field_ = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
+        if(!field_) {
             continue;
         }
-        const char *type = kw_get_str(col, "type", 0, KW_REQUIRED);
+        const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
         if(!type) {
             continue;
         }
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_persistent = kw_has_word(desc_flag, "persistent", 0)?TRUE:FALSE;
-        BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_persistent || is_hook || is_fkey)) {
             continue;
         }
 
         set_volatil_field_value(
             type,
-            field,
+            field_,
             record, // NOT owned
             value   // NOT owned
         );
     }
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return 0;
 }
 
@@ -2929,12 +2924,13 @@ PUBLIC int set_volatil_values(
  *
  ***************************************************************************/
 PRIVATE int set_missing_values(
+    hgobj gobj,
     json_t *tranger,
     const char *topic_name,
     json_t *record  // NOT owned
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2947,24 +2943,25 @@ PRIVATE int set_missing_values(
     }
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        const char *field = kw_get_str(col, "id", 0, KW_REQUIRED);
-        if(!field) {
+        const char *field_ = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
+        if(!field_) {
             continue;
         }
-        const char *type = kw_get_str(col, "type", 0, KW_REQUIRED);
+        const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
         if(!type) {
             continue;
         }
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_hook || is_fkey)) {
             continue;
         }
 
         json_t *value = kw_get_dict_value(
+            gobj,
             record,
-            field,
+            field_,
             0,
             0
         );
@@ -2973,17 +2970,17 @@ PRIVATE int set_missing_values(
             continue;
         }
 
-        value = kw_get_dict_value(col, "default", 0, 0);
+        value = kw_get_dict_value(gobj, col, "default", 0, 0);
 
         set_volatil_field_value(
             type,
-            field,
+            field_,
             record, // NOT owned
             value   // NOT owned
         );
     }
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return 0;
 }
 
@@ -2991,13 +2988,14 @@ PRIVATE int set_missing_values(
  *
  ***************************************************************************/
 PRIVATE json_t *record2tranger(
+    hgobj gobj,
     json_t *tranger,
     const char *topic_name,
     json_t *kw,  // NOT owned
     BOOL create // create or update
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3012,10 +3010,10 @@ PRIVATE json_t *record2tranger(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(kw, field, 0, 0);
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
         if(!value) {
             if(create) {
-                value = kw_get_dict_value(col, "default", 0, 0);
+                value = kw_get_dict_value(gobj, col, "default", 0, 0);
             }
         }
         if(set_tranger_field_value(
@@ -3027,15 +3025,15 @@ PRIVATE json_t *record2tranger(
                 create
             )<0) {
             // Error already logged
-            JSON_DECREF(new_record);
-            JSON_DECREF(cols);
+            JSON_DECREF(new_record)
+            JSON_DECREF(cols)
             return 0;
         }
     }
 
     json_object_del(new_record, "__md_treedb__");
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return new_record;
 }
 
@@ -3059,10 +3057,10 @@ PRIVATE json_t *_md2json(
         "topic_name",
         json_string(topic_name)
     );
-    json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
+// TODO   json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
     json_object_set_new(jn_md, "__t__", json_integer(md_record->__t__));
     json_object_set_new(jn_md, "__tm__", json_integer(md_record->__tm__));
-    json_object_set_new(jn_md, "__tag__", json_integer(md_record->__user_flag__));
+//  TODO  json_object_set_new(jn_md, "__tag__", json_integer(md_record->__user_flag__));
     json_object_set_new(jn_md, "__pure_node__", json_true());
 
     return jn_md;
@@ -3080,14 +3078,19 @@ PRIVATE int load_id_callback(
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     json_t *deleted_records = kw_get_dict(
+        gobj,
         list, "deleted_records", 0, KW_REQUIRED
     );
 
     const char *treedb_name = kw_get_str(
+        gobj,
         list, "treedb_name", 0, KW_REQUIRED
     );
     const char *topic_name = kw_get_str(
+        gobj,
         list, "topic_name", 0, KW_REQUIRED
     );
 
@@ -3103,81 +3106,81 @@ PRIVATE int load_id_callback(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_record);
+        JSON_DECREF(jn_record)
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
-    if(md_record->__system_flag__ & (sf_loading_from_disk)) {
-        /*---------------------------------*
-         *  Loading treedb from disk
-         *---------------------------------*/
-        if(md_record->__system_flag__ & (sf_mark1)) {
-            /*---------------------------------*
-             *      Record deleted
-             *---------------------------------*/
-            json_object_set_new(
-                deleted_records,
-                md_record->key.s,
-                json_true()
-            );
-        } else {
-            /*-------------------------------------*
-             *  If not deleted record append node
-             *-------------------------------------*/
-            if(!json_object_get(deleted_records, md_record->key.s)) {
-                /*-------------------------------*
-                 *  Exists already the node?
-                 *-------------------------------*/
-                if(exist_primary_node(indexx, md_record->key.s)) {
-                    // Ignore
-                    // The node with this key already exists
-                    // HACK using backward, the first record is the last record
-                } else {
-                    /*-------------------------------*
-                     *  Append new node
-                     *-------------------------------*/
-                    /*---------------------------------------------*
-                     *  Build metadata, loading node from tranger
-                     *---------------------------------------------*/
-                    json_t *jn_record_md = _md2json(
-                        treedb_name,
-                        topic_name,
-                        md_record
-                    );
-                    json_object_set_new(jn_record_md, "__pending_links__", json_true());
-                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+//  TODO  if(md_record->__system_flag__ & (sf_loading_from_disk)) {
+//        /*---------------------------------*
+//         *  Loading treedb from disk
+//         *---------------------------------*/
+//        if(md_record->__system_flag__ & (sf_mark1)) {
+//            /*---------------------------------*
+//             *      Record deleted
+//             *---------------------------------*/
+//            json_object_set_new(
+//                deleted_records,
+//                md_record->key.s,
+//                json_true()
+//            );
+//        } else {
+//            /*-------------------------------------*
+//             *  If not deleted record append node
+//             *-------------------------------------*/
+//            if(!json_object_get(deleted_records, md_record->key.s)) {
+//                /*-------------------------------*
+//                 *  Exists already the node?
+//                 *-------------------------------*/
+//                if(exist_primary_node(indexx, md_record->key.s)) {
+//                    // Ignore
+//                    // The node with this key already exists
+//                    // HACK using backward, the first record is the last record
+//                } else {
+//                    /*-------------------------------*
+//                     *  Append new node
+//                     *-------------------------------*/
+//                    /*---------------------------------------------*
+//                     *  Build metadata, loading node from tranger
+//                     *---------------------------------------------*/
+//                    json_t *jn_record_md = _md2json(
+//                        treedb_name,
+//                        topic_name,
+//                        md_record
+//                    );
+//                    json_object_set_new(jn_record_md, "__pending_links__", json_true());
+//                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+//
+//                    /*--------------------------------------------*
+//                     *  Set missing data
+//                     *--------------------------------------------*/
+//                    set_missing_values( // crea campos vacios
+//                        tranger,
+//                        topic_name,
+//                        jn_record  // NOT owned
+//                    );
+//
+//                    /*-------------------------------*
+//                     *  Write node in memory: id
+//                     *-------------------------------*/
+//                    add_primary_node(
+//                        indexx,
+//                        md_record->key.s,
+//                        jn_record
+//                    );
+//                }
+//            }
+//        }
+//    } else {
+//        /*---------------------------------*
+//         *      Working in memory
+//         *---------------------------------*/
+//        if(json_object_get(deleted_records, md_record->key.s)) {
+//            // This key is operative again
+//            json_object_del(deleted_records, md_record->key.s);
+//        }
+//    }
 
-                    /*--------------------------------------------*
-                     *  Set missing data
-                     *--------------------------------------------*/
-                    set_missing_values( // crea campos vacios
-                        tranger,
-                        topic_name,
-                        jn_record  // NOT owned
-                    );
-
-                    /*-------------------------------*
-                     *  Write node in memory: id
-                     *-------------------------------*/
-                    add_primary_node(
-                        indexx,
-                        md_record->key.s,
-                        jn_record
-                    );
-                }
-            }
-        }
-    } else {
-        /*---------------------------------*
-         *      Working in memory
-         *---------------------------------*/
-        if(json_object_get(deleted_records, md_record->key.s)) {
-            // This key is operative again
-            json_object_del(deleted_records, md_record->key.s);
-        }
-    }
-
-    JSON_DECREF(jn_record);
+    JSON_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
 }
 
@@ -3193,17 +3196,23 @@ PRIVATE int load_pkey2_callback(
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     const char *pkey2_name = kw_get_str(
+        gobj,
         list, "pkey2_name", "", KW_REQUIRED
     );
     json_t *deleted_records = kw_get_dict(
+        gobj,
         list, "deleted_records", 0, KW_REQUIRED
     );
 
     const char *treedb_name = kw_get_str(
+        gobj,
         list, "treedb_name", 0, KW_REQUIRED
     );
     const char *topic_name = kw_get_str(
+        gobj,
         list, "topic_name", 0, KW_REQUIRED
     );
 
@@ -3229,83 +3238,83 @@ PRIVATE int load_pkey2_callback(
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
-    if(md_record->__system_flag__ & (sf_loading_from_disk)) {
-        /*---------------------------------*
-         *  Loading treedb from disk
-         *---------------------------------*/
-        if(md_record->__system_flag__ & (sf_mark1)) {
-            /*---------------------------------*
-             *      Record deleted
-             *---------------------------------*/
-            json_object_set_new(
-                deleted_records,
-                md_record->key.s,
-                json_true()
-            );
-        } else {
-            /*-------------------------------------*
-             *  If not deleted record append node
-             *-------------------------------------*/
-            if(!json_object_get(deleted_records, md_record->key.s)) {
-                /*-------------------------------*
-                 *  Exists already the node?
-                 *-------------------------------*/
-                const char *pkey2_value = get_key2_value(
-                    tranger,
-                    topic_name,
-                    pkey2_name,
-                    jn_record
-                );
-                if(exist_secondary_node(indexy, md_record->key.s, pkey2_value)) {
-                    // Ignore
-                    // The node with this key already exists
-                    // HACK using backward, the first record is the last record
-                } else {
-                    /*-------------------------------*
-                     *  Append new node
-                     *-------------------------------*/
-                    /*---------------------------------------------*
-                     *  Build metadata, loading node from tranger
-                     *---------------------------------------------*/
-                    json_t *jn_record_md = _md2json(
-                        treedb_name,
-                        topic_name,
-                        md_record
-                    );
-                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+// TODO   if(md_record->__system_flag__ & (sf_loading_from_disk)) {
+//        /*---------------------------------*
+//         *  Loading treedb from disk
+//         *---------------------------------*/
+//        if(md_record->__system_flag__ & (sf_mark1)) {
+//            /*---------------------------------*
+//             *      Record deleted
+//             *---------------------------------*/
+//            json_object_set_new(
+//                deleted_records,
+//                md_record->key.s,
+//                json_true()
+//            );
+//        } else {
+//            /*-------------------------------------*
+//             *  If not deleted record append node
+//             *-------------------------------------*/
+//            if(!json_object_get(deleted_records, md_record->key.s)) {
+//                /*-------------------------------*
+//                 *  Exists already the node?
+//                 *-------------------------------*/
+//                const char *pkey2_value = get_key2_value(
+//                    tranger,
+//                    topic_name,
+//                    pkey2_name,
+//                    jn_record
+//                );
+//                if(exist_secondary_node(indexy, md_record->key.s, pkey2_value)) {
+//                    // Ignore
+//                    // The node with this key already exists
+//                    // HACK using backward, the first record is the last record
+//                } else {
+//                    /*-------------------------------*
+//                     *  Append new node
+//                     *-------------------------------*/
+//                    /*---------------------------------------------*
+//                     *  Build metadata, loading node from tranger
+//                     *---------------------------------------------*/
+//                    json_t *jn_record_md = _md2json(
+//                        treedb_name,
+//                        topic_name,
+//                        md_record
+//                    );
+//                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+//
+//                    /*--------------------------------------------*
+//                     *  Set missing data
+//                     *--------------------------------------------*/
+//                    set_missing_values( // crea campos vacios
+//                        tranger,
+//                        topic_name,
+//                        jn_record // NOT owned
+//                    );
+//
+//                    /*-------------------------------*
+//                     *  Write node in memory: pkey2
+//                     *-------------------------------*/
+//                    add_secondary_node(
+//                        indexy,
+//                        md_record->key.s,
+//                        pkey2_value,
+//                        jn_record
+//                    );
+//                }
+//            }
+//        }
+//    } else {
+//        /*---------------------------------*
+//         *      Working in memory
+//         *---------------------------------*/
+//        if(json_object_get(deleted_records, md_record->key.s)) {
+//            // This key is operative again
+//            json_object_del(deleted_records, md_record->key.s);
+//        }
+//    }
 
-                    /*--------------------------------------------*
-                     *  Set missing data
-                     *--------------------------------------------*/
-                    set_missing_values( // crea campos vacios
-                        tranger,
-                        topic_name,
-                        jn_record // NOT owned
-                    );
-
-                    /*-------------------------------*
-                     *  Write node in memory: pkey2
-                     *-------------------------------*/
-                    add_secondary_node(
-                        indexy,
-                        md_record->key.s,
-                        pkey2_value,
-                        jn_record
-                    );
-                }
-            }
-        }
-    } else {
-        /*---------------------------------*
-         *      Working in memory
-         *---------------------------------*/
-        if(json_object_get(deleted_records, md_record->key.s)) {
-            // This key is operative again
-            json_object_del(deleted_records, md_record->key.s);
-        }
-    }
-
-    JSON_DECREF(jn_record);
+    JSON_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
 }
 
@@ -3319,6 +3328,8 @@ PUBLIC BOOL decode_parent_ref(
     char *hook_name, int hook_name_size
 )
 {
+    hgobj gobj = 0;
+
     if(topic_name) {
         *topic_name = 0;
     }
@@ -3370,6 +3381,8 @@ PUBLIC BOOL decode_child_ref(
     char *id, int id_size
 )
 {
+    hgobj gobj = 0;
+
     *topic_name = *id = 0;
 
     if(!(pref && strchr(pref, '^'))) {
@@ -3429,6 +3442,8 @@ PRIVATE int link_child_to_parent(
     BOOL is_child_hook
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     char parent_topic_name[NAME_MAX];
     char parent_id[NAME_MAX];
     char hook_name[NAME_MAX];
@@ -3469,7 +3484,6 @@ PRIVATE int link_child_to_parent(
     );
     if(!parent_node) {
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_PARAMETER_ERROR,
             "msg",                  "%s", "Node not found",
@@ -3492,7 +3506,6 @@ PRIVATE int link_child_to_parent(
     json_t *parent_hook_data = kw_get_dict_value(parent_node, hook_name, 0, 0);
     if(!parent_hook_data) {
         gobj_log_error(gobj, 0,
-            "gobj",             "%s", __FILE__,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_TREEDB_ERROR,
             "msg",              "%s", "hook field not found",
@@ -3500,14 +3513,13 @@ PRIVATE int link_child_to_parent(
             "hook_name",        "%s", hook_name,
             NULL
         );
-        log_debug_json(0, parent_node, "hook field not found");
+        gobj_trace_json(gobj, parent_node, "hook field not found");
         return -1;
     }
 
     json_t *child_data = kw_get_dict_value(child_node, fkey_col_name, 0, 0);
     if(!child_data) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "fkey field not found in the node",
@@ -3518,7 +3530,7 @@ PRIVATE int link_child_to_parent(
             "fkey_col_name",        "%s", fkey_col_name,
             NULL
         );
-        log_debug_json(0, child_node, "fkey field not found in the node");
+        gobj_trace_json(gobj, child_node, "fkey field not found in the node");
         return -1;
     }
 
@@ -3551,7 +3563,6 @@ PRIVATE int link_child_to_parent(
     default:
         {
             gobj_log_error(gobj, 0,
-                "gobj",                 "%s", __FILE__,
                 "function",             "%s", __FUNCTION__,
                 "msgset",               "%s", MSGSET_TREEDB_ERROR,
                 "msg",                  "%s", "Review the scheme: wrong parent hook type",
@@ -3605,8 +3616,8 @@ PRIVATE int load_links(
                 "col_name",     "%s", col_name,
                 NULL
             );
-            log_debug_json(0, col, "Not explicit link done; child node without fkey field descriptor: col desc");
-            log_debug_json(0, child_node, "Not explicit link done; child node without fkey field descriptor: node");
+            gobj_trace_json(gobj, col, "Not explicit link done; child node without fkey field descriptor: col desc");
+            gobj_trace_json(gobj, child_node, "Not explicit link done; child node without fkey field descriptor: node");
             ret += -1;
             continue;
         }
@@ -3795,14 +3806,13 @@ PRIVATE json_t *get_hook_refs(
                 );
                 if(!topic_name) {
                     gobj_log_error(gobj, 0,
-                        "gobj",                 "%s", __FILE__,
                         "function",             "%s", __FUNCTION__,
                         "msgset",               "%s", MSGSET_TREEDB_ERROR,
                         "msg",                  "%s", "__md_treedb__ not found",
                         NULL
                     );
-                    log_debug_json(0, jn_value, "__md_treedb__ not found: value");
-                    log_debug_json(0, hook_data, "__md_treedb__ not found: hook_data");
+                    gobj_trace_json(gobj, jn_value, "__md_treedb__ not found: value");
+                    gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
                     continue;
                 }
                 snprintf(mix_id, sizeof(mix_id), "%s^%s", topic_name, id);
@@ -3837,14 +3847,13 @@ PRIVATE json_t *get_hook_refs(
                             );
                             if(!topic_name) {
                                 gobj_log_error(gobj, 0,
-                                    "gobj",                 "%s", __FILE__,
                                     "function",             "%s", __FUNCTION__,
                                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                                     "msg",                  "%s", "__md_treedb__ not found",
                                     NULL
                                 );
-                                log_debug_json(0, jn_value, "__md_treedb__ not found: value");
-                                log_debug_json(0, hook_data, "__md_treedb__ not found: hook_data");
+                                gobj_trace_json(gobj, jn_value, "__md_treedb__ not found: value");
+                                gobj_trace_json(gobj, hook_data, "__md_treedb__ not found: hook_data");
                                 break;
                             }
                             snprintf(mix_id, sizeof(mix_id), "%s^%s", topic_name, id);
@@ -3866,14 +3875,13 @@ PRIVATE json_t *get_hook_refs(
                     }
                 default:
                     gobj_log_error(gobj, 0,
-                        "gobj",                 "%s", __FILE__,
                         "function",             "%s", __FUNCTION__,
                         "msgset",               "%s", MSGSET_TREEDB_ERROR,
                         "msg",                  "%s", "wrong array child hook type",
                         NULL
                     );
-                    log_debug_json(0, jn_value, "wrong array child hook type: value");
-                    log_debug_json(0, hook_data, "wrong array child hook type: hook data");
+                    gobj_trace_json(gobj, jn_value, "wrong array child hook type: value");
+                    gobj_trace_json(gobj, hook_data, "wrong array child hook type: hook data");
                     break;
                 }
             }
@@ -3882,7 +3890,6 @@ PRIVATE json_t *get_hook_refs(
 
     default:
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "wrong child hook type",
@@ -3994,7 +4001,7 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
                 "field",        "%s", col_name,
                 NULL
             );
-            log_debug_json(0, node, "field not found in the node 1");
+            gobj_trace_json(gobj, node, "field not found in the node 1");
         }
         if(json_empty(field_data)) {
             continue;
@@ -4042,7 +4049,7 @@ PRIVATE json_t *get_node_up_refs(  // Return MUST be decref
                 "field",        "%s", col_name,
                 NULL
             );
-            log_debug_json(0, node, "field not found in the node 2");
+            gobj_trace_json(gobj, node, "field not found in the node 2");
         }
 
         if(json_empty(field_data)) {
@@ -4289,7 +4296,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            log_debug_json(0, kw, "Field 'id' required");
+            gobj_trace_json(gobj, kw, "Field 'id' required");
             JSON_DECREF(kw);
             return 0;
         }
@@ -4554,7 +4561,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Trace
      *-------------------------------*/
     if(treedb_trace) {
-        log_debug_json(0, record, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
+        gobj_trace_json(gobj, record, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
     json_decref(record);
@@ -4584,7 +4591,7 @@ PUBLIC int treedb_save_node(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         return -1;
     }
 
@@ -4683,7 +4690,7 @@ PUBLIC int treedb_save_node(
      *  Trace
      *-------------------------------*/
     if(treedb_trace) {
-        log_debug_json(0, node, "treedb_save_node: Ok");
+        gobj_trace_json(gobj, node, "treedb_save_node: Ok");
     }
 
     JSON_DECREF(record);
@@ -4714,7 +4721,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         KW_DECREF(kw);
         return 0;
     }
@@ -4793,7 +4800,7 @@ PUBLIC int treedb_delete_node(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
@@ -5094,7 +5101,7 @@ PUBLIC int treedb_delete_instance(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
@@ -5347,7 +5354,7 @@ PRIVATE int remove_wrong_up_ref(
             "field",        "%s", col_name,
             NULL
         );
-        log_debug_json(0, node, "field not found in the node 4");
+        gobj_trace_json(gobj, node, "field not found in the node 4");
     }
 
     if(json_empty(field_data)) {
@@ -5476,7 +5483,7 @@ PRIVATE int _link_nodes(
             "msg",          "%s", "Cannot link nodes, Not a pure node",
             NULL
         );
-        log_debug_json(0, parent_node, "Not a pure node");
+        gobj_trace_json(gobj, parent_node, "Not a pure node");
         return -1;
     }
 
@@ -5490,7 +5497,7 @@ PRIVATE int _link_nodes(
             "msg",          "%s", "Cannot link nodes, Not a pure node",
             NULL
         );
-        log_debug_json(0, child_node, "Not a pure node");
+        gobj_trace_json(gobj, child_node, "Not a pure node");
         return -1;
     }
 
@@ -5538,7 +5545,7 @@ PRIVATE int _link_nodes(
             "hook_name",    "%s", hook_name,
             NULL
         );
-        log_debug_json(0, parent_node, "hook field not found");
+        gobj_trace_json(gobj, parent_node, "hook field not found");
         return -1;
     }
 
@@ -5654,7 +5661,7 @@ PRIVATE int _link_nodes(
             "field",        "%s", child_field,
             NULL
         );
-        log_debug_json(0, child_node, "field not found in the node 5");
+        gobj_trace_json(gobj, child_node, "field not found in the node 5");
         return -1;
     }
 
@@ -5668,7 +5675,6 @@ PRIVATE int _link_nodes(
         break;
     default:
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "wrong parent hook type",
@@ -5691,7 +5697,6 @@ PRIVATE int _link_nodes(
         }
     default:
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "wrong child hook type",
@@ -5859,7 +5864,7 @@ PRIVATE int _unlink_nodes(
             "msg",          "%s", "Cannot unlink nodes, Not a pure node",
             NULL
         );
-        log_debug_json(0, parent_node, "Not a pure node");
+        gobj_trace_json(gobj, parent_node, "Not a pure node");
         return -1;
     }
 
@@ -5873,7 +5878,7 @@ PRIVATE int _unlink_nodes(
             "msg",          "%s", "Cannot unlink nodes, Not a pure node",
             NULL
         );
-        log_debug_json(0, child_node, "Not a pure node");
+        gobj_trace_json(gobj, child_node, "Not a pure node");
         return -1;
     }
 
@@ -5921,7 +5926,7 @@ PRIVATE int _unlink_nodes(
             "hook_name",    "%s", hook_name,
             NULL
         );
-        log_debug_json(0, parent_node, "hook field not found");
+        gobj_trace_json(gobj, parent_node, "hook field not found");
         return -1;
     }
 
@@ -6040,7 +6045,7 @@ PRIVATE int _unlink_nodes(
             "field",        "%s", child_field,
             NULL
         );
-        log_debug_json(0, child_node, "field not found in the node 6");
+        gobj_trace_json(gobj, child_node, "field not found in the node 6");
     }
 
     /*--------------------------------------------------*
@@ -6053,7 +6058,6 @@ PRIVATE int _unlink_nodes(
         break;
     default:
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "wrong parent hook type",
@@ -6076,7 +6080,6 @@ PRIVATE int _unlink_nodes(
         }
     default:
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "wrong child hook type",
@@ -6107,7 +6110,6 @@ PRIVATE int _unlink_nodes(
                 }
                 if(!found) {
                     gobj_log_error(gobj, 0,
-                        "gobj",                 "%s", __FILE__,
                         "function",             "%s", __FUNCTION__,
                         "msgset",               "%s", MSGSET_TREEDB_ERROR,
                         "msg",                  "%s", "Child data not found in list parent hook",
@@ -6133,7 +6135,6 @@ PRIVATE int _unlink_nodes(
                 }
                 if(!found) {
                     gobj_log_error(gobj, 0,
-                        "gobj",                 "%s", __FILE__,
                         "function",             "%s", __FUNCTION__,
                         "msgset",               "%s", MSGSET_TREEDB_ERROR,
                         "msg",                  "%s", "Child data not found in dict parent hook",
@@ -6198,7 +6199,6 @@ PRIVATE int _unlink_nodes(
             }
             if(!found) {
                 gobj_log_error(gobj, 0,
-                    "gobj",                 "%s", __FILE__,
                     "function",             "%s", __FUNCTION__,
                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                     "msg",                  "%s", "Parent ref not found in array child data",
@@ -6225,7 +6225,6 @@ PRIVATE int _unlink_nodes(
                 json_object_del(child_data, pref);
             } else {
                 gobj_log_error(gobj, 0,
-                    "gobj",                 "%s", __FILE__,
                     "function",             "%s", __FUNCTION__,
                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                     "msg",                  "%s", "Parent ref not found in dict child data",
@@ -6313,7 +6312,7 @@ PUBLIC int treedb_clean_node(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         return -1;
     }
 
@@ -6348,7 +6347,6 @@ PUBLIC int treedb_clean_node(
             )) {
                 // It's not a fkey
                 gobj_log_error(gobj, 0,
-                    "gobj",                 "%s", __FILE__,
                     "function",             "%s", __FUNCTION__,
                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                     "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
@@ -6432,7 +6430,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(kw);
         return -1;
     }
@@ -6520,7 +6518,6 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
             )) {
                 // It's not a fkey
                 gobj_log_error(gobj, 0,
-                    "gobj",                 "%s", __FILE__,
                     "function",             "%s", __FUNCTION__,
                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                     "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
@@ -6543,7 +6540,6 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
             );
             if(!parent_node) {
                 gobj_log_error(gobj, 0,
-                    "gobj",                 "%s", __FILE__,
                     "function",             "%s", __FUNCTION__,
                     "msgset",               "%s", MSGSET_TREEDB_ERROR,
                     "msg",                  "%s", "update_node, new link: parent node not found",
@@ -7034,7 +7030,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -7489,7 +7485,6 @@ PRIVATE json_t *apply_parent_ref_options(
         )) {
             // It's not a fkey
             gobj_log_error(gobj, 0,
-                "gobj",                 "%s", __FILE__,
                 "function",             "%s", __FUNCTION__,
                 "msgset",               "%s", MSGSET_TREEDB_ERROR,
                 "msg",                  "%s", "Wrong parent reference: must be \"parent_topic_name^parent_id^hook_name\"",
@@ -7693,7 +7688,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -7714,7 +7709,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             "fkey",         "%s", fkey,
             NULL
         );
-        log_debug_json(0, cols, "fkey not found in the desc");
+        gobj_trace_json(gobj, cols, "fkey not found in the desc");
         JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
@@ -7730,7 +7725,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             "fkey",         "%s", fkey,
             NULL
         );
-        log_debug_json(0, cols, "not a fkey");
+        gobj_trace_json(gobj, cols, "not a fkey");
         JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
@@ -7746,7 +7741,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             "fkey",         "%s", fkey,
             NULL
         );
-        log_debug_json(0, node, "fkey data not found in the node");
+        gobj_trace_json(gobj, node, "fkey data not found in the node");
         JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
@@ -7786,7 +7781,6 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
     );
     if(!refs) {
         gobj_log_error(gobj, 0,
-            "gobj",                 "%s", __FILE__,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_TREEDB_ERROR,
             "msg",                  "%s", "treedb_parent_refs: no refs",
@@ -7813,7 +7807,6 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
         );
         if(!parent_node) {
             gobj_log_error(gobj, 0,
-                "gobj",                 "%s", __FILE__,
                 "function",             "%s", __FUNCTION__,
                 "msgset",               "%s", MSGSET_TREEDB_ERROR,
                 "msg",                  "%s", "get_parent_nodes: parent node not found",
@@ -7860,7 +7853,7 @@ PRIVATE json_t *_list_childs(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         return 0;
     }
 
@@ -7880,7 +7873,7 @@ PRIVATE json_t *_list_childs(
             "hook",         "%s", hook,
             NULL
         );
-        log_debug_json(0, cols, "hook not found");
+        gobj_trace_json(gobj, cols, "hook not found");
         json_decref(cols);
         return 0;
     }
@@ -7895,7 +7888,7 @@ PRIVATE json_t *_list_childs(
             "hook",         "%s", hook,
             NULL
         );
-        log_debug_json(0, cols, "not a hook");
+        gobj_trace_json(gobj, cols, "not a hook");
         json_decref(cols);
         return 0;
     }
@@ -7910,7 +7903,7 @@ PRIVATE json_t *_list_childs(
             "hook",         "%s", hook,
             NULL
         );
-        log_debug_json(0, node, "hook data not found in the node");
+        gobj_trace_json(gobj, node, "hook data not found in the node");
         json_decref(cols);
         return 0;
     }
@@ -7979,7 +7972,7 @@ PUBLIC json_t *treedb_node_childs(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
         return 0;
@@ -8137,7 +8130,7 @@ PUBLIC json_t *treedb_node_jtree(
             "msg",          "%s", "Not a pure node",
             NULL
         );
-        log_debug_json(0, node, "Not a pure node");
+        gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
         return 0;
@@ -8344,7 +8337,7 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
             "msg",          "%s", "Too much actives tags",
             NULL
         );
-        log_debug_json(0, snaps, "Too much actives tags");
+        gobj_trace_json(gobj, snaps, "Too much actives tags");
 
         int idx; json_t *snap;
         json_array_foreach(snaps, idx, snap) {
