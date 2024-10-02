@@ -677,6 +677,8 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
 **rst**/
 PUBLIC int count_char(const char *s, char c);
 
+PUBLIC int create_uuid(char *bf, int bfsize);
+
 #ifdef __cplusplus
 }
 #endif

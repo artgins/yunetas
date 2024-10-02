@@ -18,10 +18,9 @@
 #include <math.h>
 #include <time.h>
 #include <dirent.h>
-#ifdef __linux__
-    #include <fcntl.h>
-    #include <syslog.h>
-#endif
+#include <fcntl.h>
+#include <syslog.h>
+#include <uuid/uuid.h>
 
 #include <arpa/inet.h>   // For htonl and htons
 #include <endian.h>      // For __BYTE_ORDER, __LITTLE_ENDIAN, etc.
@@ -4972,4 +4971,19 @@ PUBLIC int count_char(const char *s, char c)
         s++;
     }
     return count;
+}
+
+/***************************************************************************
+ * This is the linux friendly implementation, but it could work on other
+ * systems that have libuuid available
+ ***************************************************************************/
+PUBLIC int create_uuid(char *bf, int bfsize)
+{
+    if(bfsize < 37) {
+        return -1;
+    }
+    uuid_t out;
+    uuid_generate(out);
+    uuid_unparse_lower(out, bf);
+    return 0;
 }

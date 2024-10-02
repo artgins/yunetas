@@ -36,6 +36,7 @@ PRIVATE json_t *_md2json(
 );
 
 PRIVATE int load_all_links(
+    hgobj gobj,
     json_t *tranger,
     const char *treedb_name
 );
@@ -68,12 +69,6 @@ PRIVATE int search_and_remove_wrong_up_ref(
     const char *ref
 );
 
-PRIVATE json_t *get_hook_list(
-    json_t *hook_data // NOT owned
-);
-PRIVATE json_t *get_hook_refs(
-    json_t *hook_data // NOT owned
-);
 PRIVATE json_t *get_fkey_refs(
     json_t *field_data // NOT owned
 );
@@ -1124,7 +1119,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*------------------------------*
      *  Load links
      *------------------------------*/
-    load_all_links(tranger, treedb_name);
+    load_all_links(gobj, tranger, treedb_name);
 
     JSON_DECREF(jn_schema_topics)
     JSON_DECREF(jn_schema)
@@ -3469,9 +3464,9 @@ PRIVATE int link_child_to_parent(
     }
 
     const char *child_topic_name = json_string_value(
-        kwid_get("", child_node, "__md_treedb__`topic_name")
+        kwid_get(gobj, child_node, 0, "__md_treedb__`topic_name")
     );
-    const char *child_id = kw_get_str(child_node, "id", "", KW_REQUIRED);
+    const char *child_id = kw_get_str(gobj, child_node, "id", "", KW_REQUIRED);
 
     /*
      *  Find the parent node
@@ -3503,7 +3498,7 @@ PRIVATE int link_child_to_parent(
      *  WARNING repeated in
      *      _link_nodes() and link_child_to_parent()
      *--------------------------------------------------*/
-    json_t *parent_hook_data = kw_get_dict_value(parent_node, hook_name, 0, 0);
+    json_t *parent_hook_data = kw_get_dict_value(gobj, parent_node, hook_name, 0, 0);
     if(!parent_hook_data) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -3517,7 +3512,7 @@ PRIVATE int link_child_to_parent(
         return -1;
     }
 
-    json_t *child_data = kw_get_dict_value(child_node, fkey_col_name, 0, 0);
+    json_t *child_data = kw_get_dict_value(gobj, child_node, fkey_col_name, 0, 0);
     if(!child_data) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",             "%s", __FUNCTION__,
@@ -3582,30 +3577,31 @@ PRIVATE int link_child_to_parent(
  *  Use from disk to memory only
  ***************************************************************************/
 PRIVATE int load_links(
+    hgobj gobj,
     json_t *tranger,
     json_t *child_node
 )
 {
     int ret = 0;
 
-    const char *treedb_name = kw_get_str(child_node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
-    const char *topic_name = kw_get_str(child_node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
+    const char *treedb_name = kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, child_node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
 
-    json_t *cols = tranger_dict_topic_desc(
+    json_t *cols = tranger2_topic_desc(
         tranger,
         topic_name
     );
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_child_hook = kw_has_word(desc_flag, "hook", "")?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_child_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
 
-        json_t *fkey_desc = kwid_get("", col, "fkey");
+        json_t *fkey_desc = kwid_get(gobj, col, 0, "fkey");
         if(!fkey_desc) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -3626,7 +3622,7 @@ PRIVATE int load_links(
          *  Get fkeys from kw fkey field
          */
         // **FKEY**
-        json_t *fkeys = kw_get_dict_value(child_node, col_name, 0, 0);
+        json_t *fkeys = kw_get_dict_value(gobj, child_node, col_name, 0, 0);
         if(!fkeys) {
             continue;
         }
@@ -3693,6 +3689,7 @@ PRIVATE int load_links(
  *  Load links from childs to parents  (child's fkeys to parent's hooks)
  ***************************************************************************/
 PRIVATE int load_all_links(
+    hgobj gobj,
     json_t *tranger,
     const char *treedb_name
 )
@@ -3723,6 +3720,7 @@ PRIVATE int load_all_links(
         json_object_foreach(indexx, child_id, child_node) {
             json_t *__md_treedb__ = kw_get_dict(child_node, "__md_treedb__", 0, KW_REQUIRED);
             BOOL __pending_links__ = kw_get_bool(
+                gobj,
                 __md_treedb__,
                 "__pending_links__",
                 0,
@@ -3736,6 +3734,7 @@ PRIVATE int load_all_links(
              *  Loop desc cols searching fkey
              */
             ret += load_links(
+                gobj,
                 tranger,
                 child_node
             );
@@ -3768,6 +3767,7 @@ PRIVATE int load_all_links(
     return a new list of all node's mix_id
  ***************************************************************************/
 PRIVATE json_t *get_hook_refs(
+    hgobj gobj,
     json_t *hook_data // NOT owned
 )
 {
@@ -3837,9 +3837,10 @@ PRIVATE json_t *get_hook_refs(
                         ]
                     */
                     {
-                        const char *id = kw_get_str(jn_value, "id", 0, 0);
+                        const char *id = kw_get_str(gobj, jn_value, "id", 0, 0);
                         if(id) {
                             const char *topic_name = kw_get_str(
+                                gobj,
                                 jn_value,
                                 "__md_treedb__`topic_name",
                                 0,
@@ -3972,25 +3973,26 @@ PRIVATE BOOL json_empty(json_t *value)
  *  Used in delete_node to get all down refs
  ***************************************************************************/
 PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
+    hgobj gobj,
     json_t *tranger,
     json_t *node    // NOT owned
 )
 {
     json_t *refs = json_array();
 
-    const char *treedb_name = kw_get_str(node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
-    const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(!is_hook) {
             continue;
         }
 
-        json_t *field_data = kw_get_dict_value(node, col_name, 0, 0);
+        json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, 0);
         if(!field_data) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -4020,25 +4022,26 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
  *  Used in delete_node to get all up refs
  ***************************************************************************/
 PRIVATE json_t *get_node_up_refs(  // Return MUST be decref
+    hgobj gobj,
     json_t *tranger,
     json_t *node    // NOT owned
 )
 {
     json_t *refs = json_array();
 
-    const char *treedb_name = kw_get_str(node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
-    const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
 
-        json_t *field_data = kw_get_dict_value(node, col_name, 0, 0);
+        json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, 0);
         if(!field_data) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -4079,6 +4082,7 @@ PUBLIC int treedb_set_trace(BOOL set)
     If path is empty then use kw
  ***************************************************************************/
 PUBLIC json_t *get_hook_list(
+    hgobj gobj,
     json_t *hook_data // NOT owned
 )
 {
@@ -4134,6 +4138,7 @@ PUBLIC json_t *get_hook_list(
  *  Copy inherit fields FROM primary_node TO secondary_node
  ***************************************************************************/
 PRIVATE BOOL copy_inherit_fields(
+    hgobj gobj,
     json_t *tranger,
     const char *topic_name,
     json_t *secondary_node, // NOT owned
@@ -4142,7 +4147,7 @@ PRIVATE BOOL copy_inherit_fields(
 {
     BOOL ret = FALSE;
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4156,8 +4161,8 @@ PRIVATE BOOL copy_inherit_fields(
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_inherit = kw_has_word(desc_flag, "inherit", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_inherit = kw_has_word(gobj, desc_flag, "inherit", 0)?TRUE:FALSE;
         if(!is_inherit) {
             continue;
         }
@@ -4165,7 +4170,7 @@ PRIVATE BOOL copy_inherit_fields(
         /*
          *  Copy inherit field
          */
-        json_t *cell = kw_get_dict_value(primary_node, col_name, 0, 0);
+        json_t *cell = kw_get_dict_value(gobj, primary_node, col_name, 0, 0);
         if(cell) {
             json_object_set(secondary_node, col_name, cell);
             ret = TRUE;
@@ -4180,6 +4185,7 @@ PRIVATE BOOL copy_inherit_fields(
  *  Inherit links FROM primary_node TO secondary_node. In collapse mode.
  ***************************************************************************/
 PRIVATE BOOL inherit_links(
+    hgobj gobj,
     json_t *tranger,
     const char *topic_name,
     json_t *secondary_node, // NOT owned
@@ -4188,7 +4194,7 @@ PRIVATE BOOL inherit_links(
 {
     BOOL ret = FALSE;
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4202,8 +4208,8 @@ PRIVATE BOOL inherit_links(
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
@@ -4217,7 +4223,7 @@ PRIVATE BOOL inherit_links(
             primary_node,
             json_pack("{s:b}", "refs", 1)
         );
-        json_t *cell = kw_get_dict_value(secondary_node, col_name, 0, KW_REQUIRED);
+        json_t *cell = kw_get_dict_value(gobj, secondary_node, col_name, 0, KW_REQUIRED);
         if(cell) {
             int idx; json_t *fkey;
             json_array_foreach(fkeys, idx, fkey) {
@@ -4236,7 +4242,7 @@ PRIVATE BOOL inherit_links(
         json_decref(fkeys);
     }
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return ret;
 }
 
@@ -4272,10 +4278,11 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Get the id to create node
      *  it's mandatory
      *-------------------------------*/
-    const char *id = kw_get_str(kw, "id", 0, 0);
+    const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = kwid_get("verbose",
+        json_t *id_col_flag = kwid_get(gobj,
             tranger,
+            KW_VERBOSE,
             "topics`%s`cols`id`flag",
                 topic_name
         );
@@ -4456,7 +4463,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Get callback
      *-------------------------------*/
-    json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(0,
         treedb,
@@ -4651,7 +4658,7 @@ PUBLIC int treedb_save_node(
     /*-------------------------------*
      *  Get callback
      *-------------------------------*/
-    json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(0,
         treedb,
@@ -4734,7 +4741,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Update fields
      *-------------------------------*/
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5018,7 +5025,7 @@ PUBLIC int treedb_delete_node(
         /*
          *  Call Callback
          */
-        json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
 
         treedb_callback_t treedb_callback =
             (treedb_callback_t)(size_t)kw_get_int(0,
@@ -5279,7 +5286,7 @@ PUBLIC int treedb_delete_instance(
         /*
          *  Call Callback
          */
-        json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
 
         treedb_callback_t treedb_callback =
             (treedb_callback_t)(size_t)kw_get_int(0,
@@ -5443,7 +5450,7 @@ PRIVATE int search_and_remove_wrong_up_ref(
     const char *ref
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
@@ -5553,16 +5560,17 @@ PRIVATE int _link_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = json_string_value(
-        kwid_get("", parent_node, "__md_treedb__`topic_name")
+        kwid_get(gobj, parent_node, 0, "__md_treedb__`topic_name")
     );
-    json_t *hook_col_desc = kwid_get("verbose",
+    json_t *hook_col_desc = kwid_get(gobj,
         tranger,
+        KW_VERBOSE,
         "topics`%s`%s`%s",
             parent_topic_name, "cols", hook_name
     );
 
     const char *child_topic_name = json_string_value(
-        kwid_get("", child_node, "__md_treedb__`topic_name")
+        kwid_get(gobj, child_node, 0, "__md_treedb__`topic_name")
     );
 
     /*----------------------*
@@ -5633,8 +5641,9 @@ PRIVATE int _link_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = kwid_get("verbose",
+    json_t *child_col_flag = kwid_get(gobj,
         tranger,
+        KW_VERBOSE,
         "topics`%s`%s`%s`flag",
             child_topic_name, "cols", child_field
     );
@@ -5801,7 +5810,7 @@ PRIVATE int _link_nodes(
      *      Call Callback
      *      TODO implement EV_LINK_NODE/EV_UNLINK_NODE ?
      *--------------------------------------------------*/
-    json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(0,
             treedb,
@@ -5934,16 +5943,17 @@ PRIVATE int _unlink_nodes(
      *  Get info of parent/child from their metadata
      *--------------------------------------------------*/
     const char *parent_topic_name = json_string_value(
-        kwid_get("", parent_node, "__md_treedb__`topic_name")
+        kwid_get(gobj, parent_node, 0, "__md_treedb__`topic_name")
     );
-    json_t *hook_col_desc = kwid_get("verbose",
+    json_t *hook_col_desc = kwid_get(gobj,
         tranger,
+        KW_VERBOSE,
         "topics`%s`%s`%s",
             parent_topic_name, "cols", hook_name
     );
 
     const char *child_topic_name = json_string_value(
-        kwid_get("", child_node, "__md_treedb__`topic_name")
+        kwid_get(gobj, child_node, 0, "__md_treedb__`topic_name")
     );
 
     /*----------------------*
@@ -6014,8 +6024,9 @@ PRIVATE int _unlink_nodes(
     /*--------------------------------------------------*
      *  Reverse - child container with info of parent
      *--------------------------------------------------*/
-    json_t *child_col_flag = kwid_get("verbose",
+    json_t *child_col_flag = kwid_get(gobj,
         tranger,
+        KW_VERBOSE,
         "topics`%s`%s`%s`flag",
             child_topic_name, "cols", child_field
     );
@@ -6248,7 +6259,7 @@ PRIVATE int _unlink_nodes(
      *      Call Callback
      *      TODO implement EV_LINK_NODE/EV_UNLINK_NODE ?
      *--------------------------------------------------*/
-    json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+    json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
         (treedb_callback_t)(size_t)kw_get_int(0,
             treedb,
@@ -6441,7 +6452,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     const char *treedb_name = kw_get_str(node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7040,7 +7051,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
      *-------------------------------*/
     const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *topic_desc = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
 
     BOOL with_metadata = kw_get_bool(jn_options, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid =  kw_get_bool(jn_options, "without_rowid", 0, KW_WILD_NUMBER);
@@ -7201,7 +7212,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
     /*
      *  Filtra de jn_filter solo las keys del topic
      */
-    json_t *topic_desc = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
     jn_filter = kw_clone_by_keys(
         jn_filter,     // owned
         kw_incref(topic_desc), // owned
@@ -7336,7 +7347,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
     /*
      *  Filtra de jn_filter solo las keys del topic
      */
-    json_t *topic_desc = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
     jn_filter = kw_clone_by_keys(
         jn_filter,     // owned
         kw_incref(topic_desc), // owned
@@ -7698,7 +7709,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
      *-------------------------------*/
     const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     json_t *col = kw_get_dict_value(cols, fkey, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
@@ -7862,7 +7873,7 @@ PRIVATE json_t *_list_childs(
      *-------------------------------*/
     const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     json_t *col = kw_get_dict_value(cols, hook, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
@@ -8203,7 +8214,7 @@ PUBLIC json_t *treedb_get_topic_links(
     }
     JSON_DECREF(topics)
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     json_t *jn_list = json_array();
 
     const char *col_name; json_t *col;
@@ -8244,7 +8255,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
     }
     JSON_DECREF(topics)
 
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_topic_desc(tranger, topic_name);
     json_t *jn_list = json_array();
 
     const char *col_name; json_t *col;
