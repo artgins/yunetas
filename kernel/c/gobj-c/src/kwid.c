@@ -2415,3 +2415,55 @@ PUBLIC json_t *kwid_new_dict(
 
     return new_dict;
 }
+
+/***************************************************************************
+    HACK Convention: private data begins with "_".
+    This function return a duplicate of kw removing all private data
+ ***************************************************************************/
+PUBLIC json_t *kw_filter_private(
+    hgobj gobj,
+    json_t *kw  // owned
+)
+{
+    json_t *new_kw = 0;
+    if(json_is_object(kw)) {
+        new_kw =  _duplicate_object(kw, 0, 1, TRUE);
+    } else if(json_is_array(kw)) {
+        new_kw = _duplicate_array(kw, 0, 1, TRUE);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json to duplicate must be an object or array",
+            NULL
+        );
+    }
+    KW_DECREF(kw)
+    return new_kw;
+}
+
+/***************************************************************************
+    HACK Convention: all metadata begins with "__".
+    This function return a duplicate of kw removing all metadata
+ ***************************************************************************/
+PUBLIC json_t *kw_filter_metadata(
+    hgobj gobj,
+    json_t *kw  // owned
+)
+{
+    json_t *new_kw = 0;
+    if(json_is_object(kw)) {
+        new_kw =  _duplicate_object(kw, 0, 2, TRUE);
+    } else if(json_is_array(kw)) {
+        new_kw = _duplicate_array(kw, 0, 2, TRUE);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json to duplicate must be an object or array",
+            NULL
+        );
+    }
+    KW_DECREF(kw)
+    return new_kw;
+}

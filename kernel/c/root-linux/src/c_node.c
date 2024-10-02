@@ -19,6 +19,7 @@
 #include <timeranger2.h>
 
 #include "msg_ievent.h"
+#include "yunetas_environment.h"
 #include "c_node.h"
 
 /***************************************************************************
@@ -1716,7 +1717,7 @@ PRIVATE json_t *mt_node_tree(
     if(with_metadata) {
         return json_deep_copy(node);
     } else {
-        return kw_filter_metadata(json_incref(node));
+        return kw_filter_metadata(gobj, json_incref(node));
     }
 }
 
@@ -2980,28 +2981,42 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     json_t *jn_data = json_array();
 
     json_t *jn_filter = json_pack("{s:b, s:i}",
         "backward", 1,
         "user_flag", snap_id
     );
-    json_t *jn_list = json_pack("{s:s, s:o}",
-        "topic_name", topic_name,
-        "match_cond", jn_filter
-    );
-    json_t *list = tranger_open_list(
+
+    json_t *list = tranger2_open_iterator(
         priv->tranger,
-        jn_list // owned
+        topic,
+        "key",
+        jn_filter,  //match_cond,  // owned
+        NULL,       //load_record_callback, // called on LOADING and APPENDING
+        "",         // iterator_id,     // iterator id, optional, if empty will be the key
+        jn_data,    // JSON array, if not empty, fills it with the LOADING data, not owned
+        NULL
     );
-    json_array_extend(jn_data, kw_get_list(gobj, list, "data", 0, KW_REQUIRED));
-    tranger_close_list(priv->tranger, list);
+    tranger2_close_iterator(priv->tranger, list);
 
     return msg_iev_build_response(
         gobj,
         0,
         0,
-        tranger_list_topic_desc(priv->tranger, topic_name),
+        tranger2_topic_desc(priv->tranger, topic_name),
         jn_data,
         kw  // owned
     );
@@ -3023,7 +3038,7 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(gobj,
         0,
         0,
-        tranger_list_topic_desc(priv->tranger, "__snaps__"),
+        tranger2_topic_desc(priv->tranger, "__snaps__"),
         jn_data,
         kw  // owned
     );
@@ -3065,8 +3080,8 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     return msg_iev_build_response(gobj,
         ret,
-        ret==0?json_sprintf("Snap '%s' shooted", name):json_string(gobj_log_last_message()),
-        ret==0?tranger_list_topic_desc(priv->tranger, "__snaps__"):0,
+        ret==0?json_sprintf("Snap '%s' shot", name):json_string(gobj_log_last_message()),
+        ret==0?tranger2_topic_desc(priv->tranger, "__snaps__"):0,
         jn_data,
         kw  // owned
     );

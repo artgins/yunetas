@@ -22,6 +22,7 @@
 #include <tr_msg.h>
 #include <tr_treedb.h>
 #include "msg_ievent.h"
+#include "yunetas_environment.h"
 #include "c_tranger.h"
 #include "c_node.h"
 #include "c_authz.h"

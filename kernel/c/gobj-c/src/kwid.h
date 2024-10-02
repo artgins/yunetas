@@ -498,6 +498,24 @@ PUBLIC json_t *kwid_new_dict(
     ...
 ) JANSSON_ATTRS((format(printf, 3, 4)));
 
+/**rst**
+    HACK Convention: private data begins with "_".
+    This function return a duplicate of kw removing all private data
+**rst**/
+PUBLIC json_t *kw_filter_private(
+    hgobj gobj,
+    json_t *kw  // owned
+);
+
+/**rst**
+    HACK Convention: metadata begins with "__".
+    This function return a duplicate of kw removing all metadata
+**rst**/
+PUBLIC json_t *kw_filter_metadata(
+    hgobj gobj,
+    json_t *kw  // owned
+);
+
 
 
 #ifdef __cplusplus
