@@ -1317,6 +1317,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_treedbs = mt_treedbs,
 };
 
 /*------------------------*
@@ -1381,9 +1382,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  //lmt,
         tattr_desc,
         sizeof(PRIVATE_DATA),
-        0,  // authz_table,
-        0,  // command_table,
-        0,  // s_user_trace_level
+        authz_table,  // authz_table,
+        command_table,  // command_table,
+        s_user_trace_level,  // s_user_trace_level
         0   // gclass_flag
     );
     if(!__gclass__) {

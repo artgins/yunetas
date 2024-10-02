@@ -370,7 +370,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http);
+    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http)
 
     return 0;
 }
@@ -489,7 +489,7 @@ PRIVATE json_t *action_get_token(
             );
             gobj_send_event(priv->gobj_http, "EV_SEND_MESSAGE", query, gobj);
             break;
-    } SWITCHS_END;
+    } SWITCHS_END
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -511,7 +511,7 @@ PRIVATE json_t *result_get_token(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
-    int response_status_code = kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
+    int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 200) {
         json_object_set_new(
             output_data_,
@@ -524,11 +524,11 @@ PRIVATE json_t *result_get_token(
 
         publish_token(gobj, -1, output_data_);
 
-        KW_DECREF(kw);
-        STOP_TASK();
+        KW_DECREF(kw)
+        STOP_TASK()
     }
 
-    int request_method = kw_get_int(gobj, kw, "request_method", 0, KW_REQUIRED);
+    int request_method = (int)kw_get_int(gobj, kw, "request_method", 0, KW_REQUIRED);
     if(request_method) {} // to avoid compilation warning
 
     json_t *jn_header_ = kw_get_dict(gobj, kw, "headers", 0, KW_REQUIRED);
@@ -552,8 +552,8 @@ PRIVATE json_t *result_get_token(
 
         publish_token(gobj, -1, output_data_);
 
-        KW_DECREF(kw);
-        STOP_TASK();
+        KW_DECREF(kw)
+        STOP_TASK()
     }
 
     /*-----------------------------------------------*
@@ -607,8 +607,8 @@ PRIVATE json_t *result_get_token(
 
         publish_token(gobj, -1, output_data_);
 
-        KW_DECREF(kw);
-        STOP_TASK();
+        KW_DECREF(kw)
+        STOP_TASK()
     }
 
     gobj_write_str_attr(gobj, "access_token", access_token); // Needed for logout
@@ -616,8 +616,8 @@ PRIVATE json_t *result_get_token(
 
     publish_token(gobj, 0, output_data_);
 
-    KW_DECREF(kw);
-    CONTINUE_TASK();
+    KW_DECREF(kw)
+    CONTINUE_TASK()
 }
 
 /***************************************************************************
@@ -670,7 +670,7 @@ PRIVATE json_t *action_logout(
             );
             gobj_send_event(priv->gobj_http, "EV_SEND_MESSAGE", query, gobj);
             break;
-    } SWITCHS_END;
+    } SWITCHS_END
 
 
     /*
@@ -698,10 +698,8 @@ PRIVATE json_t *action_logout(
         resp = requests.post(url, headers=headers, data=data, verify=False)
     */
 
-
-
-    KW_DECREF(kw);
-    CONTINUE_TASK();
+    KW_DECREF(kw)
+    CONTINUE_TASK()
 }
 
 /***************************************************************************
@@ -717,7 +715,7 @@ PRIVATE json_t *result_logout(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
-    int response_status_code = kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
+    int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 204) {
         gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
@@ -730,12 +728,12 @@ PRIVATE json_t *result_logout(
         );
         gobj_trace_json(gobj, kw, "Logout has failed");
 
-        KW_DECREF(kw);
-        STOP_TASK();
+        KW_DECREF(kw)
+        STOP_TASK()
     }
 
-    KW_DECREF(kw);
-    CONTINUE_TASK();
+    KW_DECREF(kw)
+    CONTINUE_TASK()
 }
 
 
@@ -755,9 +753,9 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http);
+    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http)
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -769,7 +767,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -861,8 +859,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         tattr_desc,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
-        0,  // command_table,
-        0,  // s_user_trace_level
+        command_table,  // command_table,
+        s_user_trace_level,  // s_user_trace_level
         0   // gclass_flag
     );
     if(!__gclass__) {
