@@ -667,6 +667,10 @@ PUBLIC int json_print_refcounts(
     int level
 );
 
+/**rst**
+    Check if a string item are in `list` array:
+**rst**/
+PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case);
 
 #ifdef __cplusplus
 }

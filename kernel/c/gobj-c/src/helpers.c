@@ -4913,3 +4913,48 @@ PUBLIC int json_print_refcounts(
 
     return 0;
 }
+
+/***************************************************************************
+ *  Check if a item are in `list` array:
+ ***************************************************************************/
+PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case)
+{
+    size_t idx;
+    json_t *jn_str;
+
+    if(!json_is_array(jn_list)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "list MUST BE a json array",
+            NULL
+        );
+        gobj_trace_json(gobj, jn_list, "list MUST BE a json array");
+        return FALSE;
+    }
+    if(!str) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "str NULL",
+            NULL
+        );
+        return FALSE;
+    }
+
+    json_array_foreach(jn_list, idx, jn_str) {
+        if(!json_is_string(jn_str)) {
+            continue;
+        }
+        const char *_str = json_string_value(jn_str);
+        if(ignore_case) {
+            if(strcasecmp(_str, str)==0)
+                return TRUE;
+        } else {
+            if(strcmp(_str, str)==0)
+                return TRUE;
+        }
+    }
+
+    return FALSE;
+}

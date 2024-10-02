@@ -1727,7 +1727,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
     /*
      *  Check required
      */
-    if(kw_has_word(desc_flag, "required", 0)) {
+    if(kw_has_word(gobj, desc_flag, "required", 0)) {
         if(!value) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1746,7 +1746,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
      *  Check value type
      */
     const char *my_desc_type = my_json_type(desc_type);
-    if(kw_has_word(desc_flag, "enum", 0)) {
+    if(kw_has_word(gobj, desc_flag, "enum", 0)) {
         my_desc_type = "enum";
     }
 
