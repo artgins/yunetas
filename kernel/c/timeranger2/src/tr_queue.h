@@ -10,7 +10,7 @@
 #pragma once
 
 #include <time.h>
-#include "30_timeranger.h"
+#include "timeranger2.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -237,4 +237,3 @@ PUBLIC int trq_check_backup(tr_queue trq);
 #ifdef __cplusplus
 }
 #endif
-

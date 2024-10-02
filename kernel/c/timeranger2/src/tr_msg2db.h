@@ -12,9 +12,7 @@
  ****************************************************************************/
 #pragma once
 
-#include "01_reference.h"
-#include "30_timeranger.h"
-#include "31_tr_treedb.h"
+#include "timeranger2.h"
 
 #ifdef __cplusplus
 extern "C"{

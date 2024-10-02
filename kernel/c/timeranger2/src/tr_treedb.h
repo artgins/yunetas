@@ -10,7 +10,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
+#include "timeranger2.h"
 
 #ifdef __cplusplus
 extern "C"{

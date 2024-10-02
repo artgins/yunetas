@@ -63,7 +63,7 @@
  ****************************************************************************/
 #pragma once
 
-#include "30_timeranger.h"
+#include "timeranger2.h"
 
 #ifdef __cplusplus
 extern "C"{
