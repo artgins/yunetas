@@ -763,7 +763,8 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
  ***************************************************************************/
 PRIVATE size_t mt_topic_size(
     hgobj gobj,
-    const char *topic_name
+    const char *topic_name,
+    const char *key
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1710,7 +1711,7 @@ PRIVATE json_t *mt_node_tree(
     JSON_DECREF(jn_options)
     JSON_DECREF(kw)
 
-    BOOL with_metadata = kw_get_bool(jn_options, "with_metadata", 0, KW_WILD_NUMBER);
+    BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
 
     if(with_metadata) {
         return json_deep_copy(node);
@@ -1813,7 +1814,16 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
@@ -2481,7 +2491,7 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             );
             int idx; json_t *node;
             json_array_foreach(nodes, idx, node) {
-                json_t *jn_hook = kw_get_list(node, link, 0, KW_REQUIRED);
+                json_t *jn_hook = kw_get_list(gobj, node, link, 0, KW_REQUIRED);
                 if(json_array_size(jn_hook)==0) {
                     node_id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
                     break;
@@ -2984,7 +2994,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         priv->tranger,
         jn_list // owned
     );
-    json_array_extend(jn_data, kw_get_list(list, "data", 0, KW_REQUIRED));
+    json_array_extend(jn_data, kw_get_list(gobj, list, "data", 0, KW_REQUIRED));
     tranger_close_list(priv->tranger, list);
 
     return msg_iev_build_response(
@@ -3122,9 +3132,9 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *filename = kw_get_str(gobj, kw, "filename", "", 0);
-    BOOL overwrite = kw_get_bool(kw, "overwrite", 0, KW_WILD_NUMBER);
-    BOOL with_metadata = kw_get_bool(kw, "with_metadata", 0, KW_WILD_NUMBER);
-    BOOL without_rowid = kw_get_bool(kw, "without_rowid", 0, KW_WILD_NUMBER);
+    BOOL overwrite = kw_get_bool(gobj, kw, "overwrite", 0, KW_WILD_NUMBER);
+    BOOL with_metadata = kw_get_bool(gobj, kw, "with_metadata", 0, KW_WILD_NUMBER);
+    BOOL without_rowid = kw_get_bool(gobj, kw, "without_rowid", 0, KW_WILD_NUMBER);
 
     char path[PATH_MAX];
     char name[NAME_MAX];
@@ -3284,7 +3294,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 );
                 new++;
             } else {
-                int n = kw_get_int(jn_errores, gobj_log_last_message(), 0, KW_CREATE);
+                int n = kw_get_int(gobj, jn_errores, gobj_log_last_message(), 0, KW_CREATE);
                 n++;
                 json_object_set_new(jn_errores, gobj_log_last_message(), json_integer(n));
 

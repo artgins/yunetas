@@ -1041,7 +1041,6 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-// TODO   return gobj_build_authzs_doc(gobj, cmd, kw, src);
     json_t *kw_response = build_command_response(
         gobj,
         -1,     // result

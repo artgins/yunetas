@@ -41,7 +41,7 @@ PUBLIC tr_queue trq_open(
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    system_flag_t system_flag,
+    system_flag2_t system_flag,
     size_t backup_queue_size
 );
 

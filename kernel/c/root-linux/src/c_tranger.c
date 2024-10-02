@@ -31,8 +31,6 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
-#include <unistd.h>
-#include <stdio.h>
 
 #include <kwid.h>
 #include <helpers.h>
@@ -496,7 +494,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//    return gobj_build_authzs_doc(gobj, cmd, kw, src);
     KW_INCREF(kw)
     json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
     return msg_iev_build_response(

@@ -11,6 +11,8 @@
 #include <grp.h>
 #include <string.h>
 #include <limits.h>
+#include <sys/types.h>
+#include <pwd.h>
 #include <jwt.h>
 
 #include <helpers.h>
@@ -411,9 +413,9 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->gobj_treedb);
     }
 
-    if(gobj_topic_size(priv->gobj_treedb, "roles")==0 &&
-        gobj_topic_size(priv->gobj_treedb, "users")==0 &&
-        gobj_topic_size(priv->gobj_treedb, "authorizations")==0
+    if(gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
+        gobj_topic_size(priv->gobj_treedb, "users", "")==0 &&
+        gobj_topic_size(priv->gobj_treedb, "authorizations", "")==0
     ) {
         /*------------------------------------*
          *  Empty treedb? initialize treedb
@@ -528,14 +530,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*-----------------------------*
      *  Get destination service
      *-----------------------------*/
-    const char *dst_service = kw_get_str(
+    const char *dst_service = kw_get_str(gobj,
         kw,
         "__md_iev__`ievent_gate_stack`0`dst_service",
         "",
         KW_REQUIRED
     );
     if(!gobj_find_service(dst_service, FALSE)) {
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s}",
             "result", -1,
             "comment", "Destination service not found",
@@ -649,8 +651,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*-------------------------------------------------*
      *  Get username and validate against our system
      *-------------------------------------------------*/
-    username = kw_get_str(jwt_payload, "email", "", KW_REQUIRED);
-    BOOL email_verified = kw_get_bool(jwt_payload, "email_verified", false, KW_REQUIRED);
+    username = kw_get_str(gobj, jwt_payload, "email", "", KW_REQUIRED);
+    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", false, KW_REQUIRED);
     if(!email_verified) {
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw);
@@ -703,7 +705,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         return jn_msg;
     }
 
-    BOOL disabled = kw_get_bool(user, "disabled", 0, KW_REQUIRED);
+    BOOL disabled = kw_get_bool(gobj, user, "disabled", 0, KW_REQUIRED);
     if(disabled) {
         json_t *jn_msg = json_pack("{s:i, s:s, s:s}",
             "result", -1,
@@ -730,7 +732,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*--------------------------------------------*
      *  Get sessions, check max sessions allowed
      *--------------------------------------------*/
-    json_t *sessions = kw_get_dict(user, "__sessions", 0, KW_REQUIRED);
+    json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -749,7 +751,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *  Check max sessions allowed
          *  Drop the old sessions
          *-------------------------------*/
-        hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(session, "channel_gobj", 0, KW_REQUIRED);
+        hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(gobj, session, "channel_gobj", 0, KW_REQUIRED);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
@@ -792,7 +794,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  WARNING "session_state" is from keycloak!!!
      *  And others???
      *-------------------------------*/
-    const char *session_id = kw_get_str(jwt_payload, "session_state", 0, KW_REQUIRED);
+    const char *session_id = kw_get_str(gobj, jwt_payload, "session_state", 0, KW_REQUIRED);
     session = json_pack("{s:s, s:I}",
         "id", session_id,
         "channel_gobj", (json_int_t)(size_t)src
@@ -920,7 +922,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
     const char *description = kw_get_str(gobj, kw, "description", "", 0);
-    BOOL disabled = kw_get_bool(kw, "disabled", 0, KW_WILD_NUMBER);
+    BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, KW_WILD_NUMBER);
     const char *algorithm = kw_get_str(gobj, kw, "algorithm", "RS256", 0);
     const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
 
@@ -1096,7 +1098,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         NULL,               // idx pointer
         KW_EXTRACT          // flag
     );
-    jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(jn_validation, "jwt_valid", 0, KW_REQUIRED);
+    jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
     jwt_valid_free(jwt_valid);
     JSON_DECREF(jn_validation)
 
@@ -1267,7 +1269,16 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
@@ -1291,9 +1302,9 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *jn_data = json_array();
     int idx; json_t *jn_user;
     json_array_foreach(jn_users, idx, jn_user) {
-        const char *user_id = kw_get_str(jn_user, "id", "", 0);
-        json_t *jn_user_roles = kw_get_list(jn_user, "roles", 0, 0);
-        json_t *jn_roles_ids = kwid_get_ids(jn_user_roles);
+        const char *user_id = kw_get_str(gobj, jn_user, "id", "", 0);
+        json_t *jn_user_roles = kw_get_list(gobj, jn_user, "roles", 0, 0);
+        json_t *jn_roles_ids = kwid_get_ids(gobj, jn_user_roles);
         char *roles_ids = json2uglystr(jn_roles_ids);
         snprintf(temp, sizeof(temp), "%-36s %s", user_id, roles_ids);
         change_char(temp, '"', '\'');
@@ -1745,7 +1756,7 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(jn_validation, "jwt_valid", 0, KW_REQUIRED);
+        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
         jwt_valid_free(jwt_valid);
     }
 
@@ -1766,9 +1777,9 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
  ***************************************************************************/
 PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
 {
-    const char *iss = kw_get_str(jn_validation, "iss", "", KW_REQUIRED);
-    const char *pkey = kw_get_str(jn_validation, "pkey", "", KW_REQUIRED);
-    const char *algorithm = kw_get_str(jn_validation, "algorithm", "", KW_REQUIRED);
+    const char *iss = kw_get_str(gobj, jn_validation, "iss", "", KW_REQUIRED);
+    const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
+    const char *algorithm = kw_get_str(gobj, jn_validation, "algorithm", "", KW_REQUIRED);
     int ret = 0;
 
     /*
@@ -1908,12 +1919,12 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        BOOL disabled = kw_get_bool(jn_validation, "disabled", 0, KW_REQUIRED);
+        BOOL disabled = kw_get_bool(gobj, jn_validation, "disabled", 0, KW_REQUIRED);
         if(disabled) {
             *status = "NO OAuth2 Issuer found";
             continue;
         }
-        const char *pkey = kw_get_str(jn_validation, "pkey", "", KW_REQUIRED);
+        const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
         ret = jwt_decode(
             &jwt,
             token,
@@ -2042,14 +2053,15 @@ PRIVATE json_t *append_role(
     const char *dst_service
 )
 {
-    BOOL disabled = kw_get_bool(role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
+    BOOL disabled = kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
     if(!disabled) {
-        const char *service = kw_get_str(role, "service", "", KW_REQUIRED);
-        const char *realm_id = kw_get_str(role, "realm_id", "", KW_REQUIRED);
+        const char *service = kw_get_str(gobj, role, "service", "", KW_REQUIRED);
+        const char *realm_id = kw_get_str(gobj, role, "realm_id", "", KW_REQUIRED);
         if((strcmp(realm_id, dst_realm_id)==0 || strcmp(realm_id, "*")==0)) {
             if(strcmp(service, dst_service)==0 || strcmp(service, "*")==0
             ) {
                 json_t *srv_roles = kw_get_list(
+                    gobj,
                     services_roles,
                     dst_service,
                     json_array(),
@@ -2057,7 +2069,7 @@ PRIVATE json_t *append_role(
                 );
                 json_array_append_new(
                     srv_roles,
-                    json_string(kw_get_str(role, "id", "", KW_REQUIRED))
+                    json_string(kw_get_str(gobj, role, "id", "", KW_REQUIRED))
                 );
             }
         }
@@ -2113,7 +2125,7 @@ PRIVATE json_t *get_user_roles(
         return services_roles;
     }
 
-    json_t *required_services = kw_get_list(kw, "required_services", 0, 0);
+    json_t *required_services = kw_get_list(gobj, kw, "required_services", 0, 0);
 
     int idx; json_t *role_ref;
     json_array_foreach(roles_refs, idx, role_ref) {
@@ -2127,7 +2139,7 @@ PRIVATE json_t *get_user_roles(
             ),
             gobj
         );
-        if(kw_get_bool(role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER)) {
+        if(kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER)) {
             json_decref(role);
             continue;
         }
@@ -2213,15 +2225,15 @@ PRIVATE json_t *append_permission(
     const char *dst_service
 )
 {
-    BOOL disabled = kw_get_bool(role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
+    BOOL disabled = kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER);
     if(!disabled) {
-        const char *service = kw_get_str(role, "service", "", KW_REQUIRED);
-        const char *realm_id = kw_get_str(role, "realm_id", "", KW_REQUIRED);
+        const char *service = kw_get_str(gobj, role, "service", "", KW_REQUIRED);
+        const char *realm_id = kw_get_str(gobj, role, "realm_id", "", KW_REQUIRED);
         if((strcmp(realm_id, dst_realm_id)==0 || strcmp(realm_id, "*")==0)) {
             if(strcmp(service, dst_service)==0 || strcmp(service, "*")==0
             ) {
-                const char *permission = kw_get_str(role, "permission", "", KW_REQUIRED);
-                BOOL deny = kw_get_bool(role, "deny", false, KW_REQUIRED);
+                const char *permission = kw_get_str(gobj, role, "permission", "", KW_REQUIRED);
+                BOOL deny = kw_get_bool(gobj, role, "deny", false, KW_REQUIRED);
                 if(!empty_string(permission)) {
                     json_object_set_new(
                         services_roles,
@@ -2230,11 +2242,11 @@ PRIVATE json_t *append_permission(
                     );
                 }
 
-                json_t *permissions = kw_get_list(role, "permissions", 0, KW_REQUIRED);
+                json_t *permissions = kw_get_list(gobj, role, "permissions", 0, KW_REQUIRED);
                 int idx; json_t *jn_permission;
                 json_array_foreach(permissions, idx, jn_permission) {
-                    permission = kw_get_str(jn_permission, "permission", "", KW_REQUIRED);
-                    deny = kw_get_bool(jn_permission, "deny", false, KW_REQUIRED);
+                    permission = kw_get_str(gobj, jn_permission, "permission", "", KW_REQUIRED);
+                    deny = kw_get_bool(gobj, jn_permission, "deny", false, KW_REQUIRED);
                     if(!empty_string(permission)) {
                         json_object_set_new(
                             services_roles,
@@ -2283,7 +2295,7 @@ PRIVATE json_t *get_user_permissions(
         return services_roles;
     }
 
-    json_t *required_services = kw_get_list(kw, "required_services", 0, 0);
+    json_t *required_services = kw_get_list(gobj, kw, "required_services", 0, 0);
 
     int idx; json_t *role_ref;
     json_array_foreach(roles_refs, idx, role_ref) {
@@ -2297,7 +2309,7 @@ PRIVATE json_t *get_user_permissions(
             ),
             gobj
         );
-        if(kw_get_bool(role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER)) {
+        if(kw_get_bool(gobj, role, "disabled", 0, KW_REQUIRED|KW_WILD_NUMBER)) {
             json_decref(role);
             continue;
         }
@@ -2473,8 +2485,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Add logout user
      *--------------------------------------------*/
     if(priv->tranger) { // Si han pasado a pause es 0
-        const char *session_id = kw_get_str(jwt_payload, "session_state", 0, KW_REQUIRED);
-        const char *username = kw_get_str(jwt_payload, "preferred_username", 0, KW_REQUIRED);
+        const char *session_id = kw_get_str(gobj, jwt_payload, "session_state", 0, KW_REQUIRED);
+        const char *username = kw_get_str(gobj, jwt_payload, "preferred_username", 0, KW_REQUIRED);
 
         json_t *user = gobj_get_node(
             priv->gobj_treedb,
@@ -2494,8 +2506,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
         } else {
-            json_t *sessions = kw_get_dict(user, "__sessions", 0, KW_REQUIRED);
-            json_t *session = kw_get_dict(sessions, session_id, 0, KW_EXTRACT); // Remove session
+            json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
+            json_t *session = kw_get_dict(gobj, sessions, session_id, 0, KW_EXTRACT); // Remove session
 
             add_user_logout(gobj, username);
 
@@ -2536,7 +2548,7 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
-    BOOL disabled = kw_get_bool(kw, "disabled", 0, 0);
+    BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
 
     time_t t;
     time(&t);
@@ -2609,7 +2621,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
 
     if(kw_has_key(kw, "disabled")) {
-        BOOL disabled = kw_get_bool(kw, "disabled", 0, 0);
+        BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
         json_object_set_new(user, "disabled", disabled?json_true():json_false());
         user = gobj_update_node(
             priv->gobj_treedb,
@@ -2625,7 +2637,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*-----------------*
      *  Get sessions
      *-----------------*/
-    json_t *sessions = kw_get_dict(user, "__sessions", 0, KW_REQUIRED);
+    json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2641,7 +2653,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*-------------------------------*
          *  Drop sessions
          *-------------------------------*/
-        hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(session, "channel_gobj", 0, KW_REQUIRED);
+        hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(gobj, session, "channel_gobj", 0, KW_REQUIRED);
         gobj_send_event(prev_channel_gobj, "EV_DROP", 0, gobj);
         json_object_del(sessions, k);
         ret++;

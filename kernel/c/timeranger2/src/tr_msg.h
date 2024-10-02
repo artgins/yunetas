@@ -80,13 +80,6 @@ typedef enum { // add instance flags
     fc_only_desc_cols       = 0x00000001,   // filter record by keys defined in cols
 } cols_flag_t;
 
-typedef struct {
-    const char *topic_name;
-    const char *pkey;   // Primary key
-    const system_flag_t system_flag;
-    const char *tkey;   // Time key
-    const json_desc_t *json_desc;
-} topic_desc_t;
 
 /***************************************************************
  *              Desc
@@ -156,7 +149,7 @@ PUBLIC int trmsg_add_instance(
     const char *topic_name,
     json_t *jn_msg,  // owned
     cols_flag_t cols_flag,
-    md_record_t *md_record
+    md2_record_t *md_record
 );
 
 /*

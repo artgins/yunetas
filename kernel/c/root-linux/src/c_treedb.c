@@ -16,7 +16,7 @@
 #include <kwid.h>
 #include "msg_ievent.h"
 #include "c_tranger.h"
-#include "c_treedb.h"
+#include "c_node.h"
 #include "c_treedb.h"
 
 #include "treedb_system_schema.c"
@@ -410,7 +410,16 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
@@ -422,7 +431,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     int exit_on_error = (int)kw_get_int(gobj, kw, "exit_on_error", 0, KW_WILD_NUMBER);
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_treedb_schema = kw_get_dict(gobj, kw, "treedb_schema", 0, 0);
-    BOOL use_internal_schema = kw_get_bool(kw, "use_internal_schema", 0, 0);
+    BOOL use_internal_schema = kw_get_bool(gobj, kw, "use_internal_schema", 0, 0);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -491,11 +500,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     int rpermission = gobj_read_integer_attr(gobj, "rpermission");
 
     char path[PATH_MAX];
-    build_path2(
+    build_path(
         path,
         sizeof(path),
         gobj_read_str_attr(gobj, "path"),
-        treedb_name
+        treedb_name,
+        NULL
     );
 
     json_t *kw_client_tranger = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
@@ -548,7 +558,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     hgobj gobj_client_node = gobj_create_service(
         treedb_name,
-        GCLASS_NODE,
+        C_NODE,
         kw_resource,
         gobj
     );
@@ -848,21 +858,21 @@ PRIVATE int build_new_treedb_schema(
         return -1;
     }
 
-    json_t *jn_topics = kw_get_list(kw, "topics", 0, 0);
+    json_t *jn_topics = kw_get_list(gobj, kw, "topics", 0, 0);
     int idx; json_t *jn_topic;
     json_array_foreach(jn_topics, idx, jn_topic) {
-        const char *topic_name = kw_get_str(jn_topic, "id", "", 0);
+        const char *topic_name = kw_get_str(gobj, jn_topic, "id", "", 0);
         if(empty_string(topic_name)) {
-            topic_name = kw_get_str(jn_topic, "topic_name", "", KW_REQUIRED);
+            topic_name = kw_get_str(gobj, jn_topic, "topic_name", "", KW_REQUIRED);
         }
         if(empty_string(topic_name)) {
             continue;
         }
-        const char *pkey = kw_get_str(jn_topic, "pkey", "id", 0);
-        const char *tkey = kw_get_str(jn_topic, "tkey", "", 0);
-        const char *system_flag = kw_get_str(jn_topic, "system_flag", "sf_string_key", 0);
-        json_int_t topic_version = kw_get_int(jn_topic, "topic_version", 1, KW_WILD_NUMBER);
-        json_t *topic_pkey2s_ = kw_get_dict_value(jn_topic, "pkey2s", 0, 0);
+        const char *pkey = kw_get_str(gobj, jn_topic, "pkey", "id", 0);
+        const char *tkey = kw_get_str(gobj, jn_topic, "tkey", "", 0);
+        const char *system_flag = kw_get_str(gobj, jn_topic, "system_flag", "sf_string_key", 0);
+        json_int_t topic_version = kw_get_int(gobj, jn_topic, "topic_version", 1, KW_WILD_NUMBER);
+        json_t *topic_pkey2s_ = kw_get_dict_value(gobj, jn_topic, "pkey2s", 0, 0);
 
         json_t *kw_topic = json_pack("{s:s, s:s, s:s, s:s, s:I}",
             "id", topic_name,
@@ -908,22 +918,22 @@ PRIVATE int build_new_treedb_schema(
 
         int idx2; json_t *jn_col;
         json_array_foreach(jn_cols, idx2, jn_col) {
-            const char *col_name = kw_get_str(jn_col, "id", "", KW_REQUIRED);
+            const char *col_name = kw_get_str(gobj, jn_col, "id", "", KW_REQUIRED);
             if(empty_string(col_name)) {
                 continue;
             }
-            const char *header = kw_get_str(jn_col, "header", col_name, 0);
-            json_int_t fillspace = kw_get_int(jn_col, "fillspace", 10, 0);
-            const char *placeholder = kw_get_str(jn_col, "placeholder", "", 0);
-            const char *type = kw_get_str(jn_col, "type", "", KW_REQUIRED);
+            const char *header = kw_get_str(gobj, jn_col, "header", col_name, 0);
+            json_int_t fillspace = kw_get_int(gobj, jn_col, "fillspace", 10, 0);
+            const char *placeholder = kw_get_str(gobj, jn_col, "placeholder", "", 0);
+            const char *type = kw_get_str(gobj, jn_col, "type", "", KW_REQUIRED);
             if(empty_string(type)) {
                 continue;
             }
-            json_t *flag_ = kw_get_list(jn_col, "flag", json_array(), 0);
-            json_t *hook_ = kw_get_dict_value(jn_col, "hook", 0, 0);
-            json_t *default_ = kw_get_dict_value(jn_col, "default", 0, 0);
-            const char *description = kw_get_str(jn_col, "description", 0, 0);
-            json_t *properties_ = kw_get_dict_value(jn_col, "properties", 0, 0);
+            json_t *flag_ = kw_get_list(gobj, jn_col, "flag", json_array(), 0);
+            json_t *hook_ = kw_get_dict_value(gobj, jn_col, "hook", 0, 0);
+            json_t *default_ = kw_get_dict_value(gobj, jn_col, "default", 0, 0);
+            const char *description = kw_get_str(gobj, jn_col, "description", 0, 0);
+            json_t *properties_ = kw_get_dict_value(gobj, jn_col, "properties", 0, 0);
 
             json_t *kw_col = json_pack("{s:s, s:s, s:I, s:s, s:s, s:O}",
                 "value", col_name,
@@ -1033,7 +1043,7 @@ PRIVATE json_t *get_treedb_schema(
     json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
-        json_t *cols = kw_get_dict(topic, "cols", 0, KW_EXTRACT|KW_REQUIRED);
+        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, KW_EXTRACT|KW_REQUIRED);
         if(!cols) {
             continue;
         }
@@ -1232,7 +1242,7 @@ PRIVATE int delete_client_treedb_schema(
         gobj
     );
 
-    json_t *topics = kw_get_dict(treedb, "topics", 0, 0);
+    json_t *topics = kw_get_dict(gobj, treedb, "topics", 0, 0);
     const char *topic_name; json_t *topic;
     json_object_foreach(topics, topic_name, topic) {
         ret += gobj_delete_node(
@@ -1242,7 +1252,7 @@ PRIVATE int delete_client_treedb_schema(
             json_pack("{s:b}", "force", 1),
             gobj
         );
-        json_t *cols = kw_get_dict(topic, "cols", 0, KW_REQUIRED);
+        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, KW_REQUIRED);
         if(!cols) {
             continue;
         }
