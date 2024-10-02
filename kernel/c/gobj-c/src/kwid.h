@@ -572,6 +572,7 @@ PUBLIC json_t *kwid_get_ids(
         }
 
  ***************************************************************************/
+// TODO review if these functions are used only in tranger
 PUBLIC BOOL kw_has_word(
     hgobj gobj,
     json_t *kw,  // NOT owned

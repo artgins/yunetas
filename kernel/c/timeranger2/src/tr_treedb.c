@@ -20,7 +20,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define RECORD_KEY_VALUE_MAX NAME_MAX
 
 /***************************************************************
  *              Structures
@@ -67,6 +66,7 @@ PRIVATE int _unlink_nodes(
 );
 
 PRIVATE json_t * treedb_get_activated_snap_tag(
+    hgobj gobj,
     json_t *tranger,
     const char *treedb_name,
     uint32_t *user_flag
@@ -75,14 +75,17 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
 PRIVATE json_int_t json_size(json_t *value);
 
 PRIVATE json_t *apply_parent_ref_options(
+    hgobj gobj,
     json_t *refs,  // NOT owned
     json_t *jn_options // NOT owned
 );
 PRIVATE json_t *apply_child_list_options(
+    hgobj gobj,
     json_t *child_list,  // NOT owned
     json_t *jn_options // NOT owned
 );
 PRIVATE json_t *_list_childs(
+    hgobj gobj,
     json_t *tranger,
     const char *hook,
     json_t *node       // NOT owned, pure node
@@ -956,7 +959,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
-        kw_get_dict_value(tranger, path, json_object(), KW_CREATE);
+        kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
         json_t *jn_filter = json_pack("{s:b}",
             "backward", 1
@@ -983,7 +986,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
-        kw_get_dict_value(tranger, path, json_object(), KW_CREATE);
+        kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
         json_t *jn_filter = json_pack("{s:b}",
             "backward", 1
@@ -1006,10 +1009,11 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*------------------------------*
      *  Get snap tab
      *------------------------------*/
-    json_t *treedb_snaps = kw_get_dict(tranger, "treedbs_snaps", json_object(), KW_CREATE);
+    json_t *treedb_snaps = kw_get_dict(gobj, tranger, "treedbs_snaps", json_object(), KW_CREATE);
 
     uint32_t snap_tag = 0;
     treedb_get_activated_snap_tag(
+        gobj,
         tranger,
         treedb_name,
         &snap_tag
@@ -4843,6 +4847,7 @@ PUBLIC int treedb_delete_node(
             json_array_foreach(jn_hooks, idx2, jn_hook) {
                 const char *hook = json_string_value(jn_hook);
                 json_t *childs = _list_childs(
+                    gobj,
                     tranger,
                     hook,
                     node
@@ -5146,6 +5151,7 @@ PUBLIC int treedb_delete_instance(
             json_array_foreach(jn_hooks, idx2, jn_hook) {
                 const char *hook = json_string_value(jn_hook);
                 json_t *childs = _list_childs(
+                    gobj,
                     tranger,
                     hook,
                     node
@@ -7089,7 +7095,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             );
             json_t *child_list = get_hook_list(gobj, field_data);
 
-            json_t *childs = apply_child_list_options(child_list, jn_options);
+            json_t *childs = apply_child_list_options(gobj, child_list, jn_options);
             json_array_extend(list, childs);
             json_decref(childs);
 
@@ -7104,7 +7110,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
                 KW_CREATE
             );
             json_t *refs = get_fkey_refs(field_data);
-            json_t *parents = apply_parent_ref_options(refs, jn_options);
+            json_t *parents = apply_parent_ref_options(gobj, refs, jn_options);
             json_array_extend(list, parents);
             json_decref(parents);
             json_decref(refs);
@@ -7231,8 +7237,9 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
         size_t idx; json_t *node;
         json_array_foreach(indexx, idx, node) {
             if(!kwid_match_nid(
+                gobj,
                 ids_list,
-                kw_get_str(node, "id", 0, 0),
+                kw_get_str(gobj, node, "id", 0, 0),
                 tranger_max_key_size())
             ) {
                 continue;
@@ -7248,7 +7255,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
     } else if(json_is_object(indexx)) {
         const char *id; json_t *node;
         json_object_foreach(indexx, id, node) {
-            if(!kwid_match_nid(ids_list, id, tranger_max_key_size())) {
+            if(!kwid_match_nid(gobj, ids_list, id, tranger_max_key_size())) {
                 continue;
             }
             if(match_fn(topic_desc, node, jn_filter)) {
@@ -7266,12 +7273,12 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
             "msg",          "%s", "kw MUST BE a json array or object",
             NULL
         );
-        JSON_DECREF(list);
+        JSON_DECREF(list)
     }
 
     JSON_DECREF(topic_desc)
-    JSON_DECREF(jn_filter);
-    JSON_DECREF(ids_list);
+    JSON_DECREF(jn_filter)
+    JSON_DECREF(ids_list)
 
     return list;
 }
@@ -7314,7 +7321,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
      *  Use duplicate, will be modified
      *-----------------------------------*/
     json_t *jn_filter = jn_filter_?json_deep_copy(jn_filter_):0;
-    JSON_DECREF(jn_filter_);
+    JSON_DECREF(jn_filter_)
 
     /*--------------------------------------------*
      *      Search
@@ -7329,19 +7336,19 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
      *  Extrae ids
      */
     json_t *ids_list = 0;
-    json_t *jn_id = kw_get_dict_value(jn_filter, "id", 0, KW_EXTRACT);
+    json_t *jn_id = kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT);
     if(jn_id) {
         ids_list = kwid_get_ids(jn_id);
-        JSON_DECREF(jn_id);
+        JSON_DECREF(jn_id)
     }
 
     /*
      *  Usa __filter__ si existe
      */
     if(kw_has_key(jn_filter, "__filter__")) {
-        json_t *jn_filter_ = kw_get_dict_value(jn_filter, "__filter__", 0, KW_EXTRACT);
-        JSON_DECREF(jn_filter);
-        jn_filter = jn_filter_;
+        json_t *jn_filter2_ = kw_get_dict_value(gobj, jn_filter, "__filter__", 0, KW_EXTRACT);
+        JSON_DECREF(jn_filter)
+        jn_filter = jn_filter2_;
     }
 
     /*
@@ -7349,6 +7356,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
      */
     json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
     jn_filter = kw_clone_by_keys(
+        gobj,
         jn_filter,     // owned
         kw_incref(topic_desc), // owned
         FALSE
@@ -7399,7 +7407,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
         if(json_is_object(indexy)) {
             const char *id; json_t *pkey2_dict;
             json_object_foreach(indexy, id, pkey2_dict) {
-                if(!kwid_match_nid(ids_list, id, tranger_max_key_size())) {
+                if(!kwid_match_nid(gobj, ids_list, id, tranger_max_key_size())) {
                     continue;
                 }
                 const char *pkey2; json_t *node;
@@ -7424,8 +7432,8 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
 
     JSON_DECREF(iter_pkey2s)
     JSON_DECREF(topic_desc)
-    JSON_DECREF(ids_list);
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(ids_list)
+    JSON_DECREF(jn_filter)
 
     return list;
 }
@@ -7473,6 +7481,7 @@ PRIVATE json_int_t json_size(json_t *value)
 
  ***************************************************************************/
 PRIVATE json_t *apply_parent_ref_options(
+    hgobj gobj,
     json_t *refs,  // NOT owned
     json_t *jn_options // NOT owned
 )
@@ -7505,8 +7514,8 @@ PRIVATE json_t *apply_parent_ref_options(
             continue;
         }
 
-        if(kw_get_bool(jn_options, "only_id", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "fkey_only_id", 0, KW_WILD_NUMBER)
+        if(kw_get_bool(gobj, jn_options, "only_id", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "fkey_only_id", 0, KW_WILD_NUMBER)
         ) {
             /*
                 Return the 'fkey ref' with only the 'id' field
@@ -7514,8 +7523,8 @@ PRIVATE json_t *apply_parent_ref_options(
              */
             json_array_append_new(parents, json_string(parent_id));
 
-        } else if(kw_get_bool(jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "fkey_list_dict", 0, KW_WILD_NUMBER)
+        } else if(kw_get_bool(gobj, jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "fkey_list_dict", 0, KW_WILD_NUMBER)
         ) {
             /*
                 Return the kwid style:
@@ -7530,8 +7539,8 @@ PRIVATE json_t *apply_parent_ref_options(
                 )
             );
 
-        } else if(kw_get_bool(jn_options, "refs", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "fkey_refs", 0, KW_WILD_NUMBER)
+        } else if(kw_get_bool(gobj, jn_options, "refs", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "fkey_refs", 0, KW_WILD_NUMBER)
         ) {
             /*
                 Return 'fkey ref'
@@ -7587,14 +7596,15 @@ PRIVATE json_t *apply_parent_ref_options(
 
  ***************************************************************************/
 PRIVATE json_t *apply_child_list_options(
+    hgobj gobj,
     json_t *child_list,  // NOT owned
     json_t *jn_options // NOT owned
 )
 {
     json_t *childs = json_array();
 
-    if(kw_get_bool(jn_options, "size", 0, KW_WILD_NUMBER) ||
-        kw_get_bool(jn_options, "hook_size", 0, KW_WILD_NUMBER)
+    if(kw_get_bool(gobj, jn_options, "size", 0, KW_WILD_NUMBER) ||
+        kw_get_bool(gobj, jn_options, "hook_size", 0, KW_WILD_NUMBER)
     ) {
         /*
             Return:
@@ -7611,25 +7621,25 @@ PRIVATE json_t *apply_child_list_options(
 
     int idx; json_t *child;
     json_array_foreach(child_list, idx, child) {
-        if(kw_get_bool(jn_options, "only_id", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "hook_only_id", 0, KW_WILD_NUMBER)
+        if(kw_get_bool(gobj, jn_options, "only_id", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "hook_only_id", 0, KW_WILD_NUMBER)
         ) {
             /*
                 Return the 'hook ref' with only the 'id' field
                     ["$id",...]
              */
-            const char *id = kw_get_str(child, "id", 0, KW_REQUIRED);
+            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
             json_array_append_new(childs, json_string(id));
 
-        } else if(kw_get_bool(jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "hook_list_dict", 0, KW_WILD_NUMBER)
+        } else if(kw_get_bool(gobj, jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "hook_list_dict", 0, KW_WILD_NUMBER)
         ) {
             /*
                 Return the kwid style:
                     [{"id": "$id", "topic_name":"$topic_name"}, ...]
              */
-            const char *id = kw_get_str(child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(child, "__md_treedb__`topic_name", 0, 0);
+            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
 
             json_array_append_new(
                 childs,
@@ -7639,16 +7649,16 @@ PRIVATE json_t *apply_child_list_options(
                 )
             );
 
-        } else if(kw_get_bool(jn_options, "refs", 0, KW_WILD_NUMBER) ||
-            kw_get_bool(jn_options, "hook_refs", 0, KW_WILD_NUMBER)
+        } else if(kw_get_bool(gobj, jn_options, "refs", 0, KW_WILD_NUMBER) ||
+            kw_get_bool(gobj, jn_options, "hook_refs", 0, KW_WILD_NUMBER)
         ) {
             /*
                     Return 'hook ref'
                         ["topic_name^id", ...]
 
             */
-            const char *id = kw_get_str(child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(child, "__md_treedb__`topic_name", 0, 0);
+            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
             char ref[NAME_MAX];
             snprintf(ref, sizeof(ref), "%s^%s", topic_name, id);
             json_array_append_new(childs, json_string(ref));
@@ -7660,8 +7670,8 @@ PRIVATE json_t *apply_child_list_options(
                 Return the kwid style:
                     [{"id": "$id", "topic_name":"$topic_name"}, ...]
              */
-            const char *id = kw_get_str(child, "id", 0, KW_REQUIRED);
-            const char *topic_name = kw_get_str(child, "__md_treedb__`topic_name", 0, 0);
+            const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
+            const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
 
             json_array_append_new(
                 childs,
@@ -7692,7 +7702,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7707,10 +7717,10 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     /*-------------------------------*
      *      Get node info
      *-------------------------------*/
-    const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     json_t *cols = tranger2_topic_desc(tranger, topic_name);
-    json_t *col = kw_get_dict_value(cols, fkey, 0, 0);
+    json_t *col = kw_get_dict_value(gobj, cols, fkey, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7725,8 +7735,8 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
         json_decref(cols);
         return 0;
     }
-    json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-    BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
     if(!is_fkey) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7742,7 +7752,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
         return 0;
     }
 
-    json_t *field_data = kw_get_dict_value(node, fkey, 0, 0);
+    json_t *field_data = kw_get_dict_value(gobj, node, fkey, 0, 0);
     if(!field_data) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7759,7 +7769,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     }
 
     json_t *refs = get_fkey_refs(field_data);
-    json_t *parents = apply_parent_ref_options(refs, jn_options);
+    json_t *parents = apply_parent_ref_options(gobj, refs, jn_options);
     json_decref(refs);
 
     JSON_DECREF(jn_options)
@@ -7778,8 +7788,8 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    const char *treedb_name = kw_get_str(node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
-    const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
+    const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     json_t *refs = treedb_parent_refs( // Return MUST be decref
         tranger,
@@ -7807,8 +7817,8 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
 
     int idx; json_t *parent_ref;
     json_array_foreach(refs, idx, parent_ref) {
-        const char *parent_topic_name = kw_get_str(parent_ref, "topic_name", "", KW_REQUIRED);
-        const char *parent_id = kw_get_str(parent_ref, "id", "", KW_REQUIRED);
+        const char *parent_topic_name = kw_get_str(gobj, parent_ref, "topic_name", "", KW_REQUIRED);
+        const char *parent_id = kw_get_str(gobj, parent_ref, "id", "", KW_REQUIRED);
 
         json_t *parent_node = treedb_get_node( // Return is NOT YOURS
             tranger,
@@ -7841,7 +7851,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
     }
 
     JSON_DECREF(jn_options)
-    JSON_DECREF(refs);
+    JSON_DECREF(refs)
     return parents;
 }
 
@@ -7849,6 +7859,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
  *  Return a list of childs of the hook
  ***************************************************************************/
 PRIVATE json_t *_list_childs(
+    hgobj gobj,
     json_t *tranger,
     const char *hook,
     json_t *node       // NOT owned, pure node
@@ -7857,7 +7868,7 @@ PRIVATE json_t *_list_childs(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7871,10 +7882,10 @@ PRIVATE json_t *_list_childs(
     /*-------------------------------*
      *      Get node info
      *-------------------------------*/
-    const char *topic_name = kw_get_str(node, "__md_treedb__`topic_name", 0, 0);
+    const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     json_t *cols = tranger2_topic_desc(tranger, topic_name);
-    json_t *col = kw_get_dict_value(cols, hook, 0, 0);
+    json_t *col = kw_get_dict_value(gobj, cols, hook, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7888,8 +7899,8 @@ PRIVATE json_t *_list_childs(
         json_decref(cols);
         return 0;
     }
-    json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-    BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
     if(!is_hook) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7904,7 +7915,7 @@ PRIVATE json_t *_list_childs(
         return 0;
     }
 
-    json_t *field_data = kw_get_dict_value(node, hook, 0, 0);
+    json_t *field_data = kw_get_dict_value(gobj, node, hook, 0, 0);
     if(!field_data) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7919,7 +7930,7 @@ PRIVATE json_t *_list_childs(
         return 0;
     }
 
-    json_t *child_list = get_hook_list(field_data);
+    json_t *child_list = get_hook_list(gobj, field_data);
 
     json_decref(cols);
     return child_list;
@@ -7929,6 +7940,7 @@ PRIVATE json_t *_list_childs(
  *  Return a list of childs of the hook in the tree
  ***************************************************************************/
 PRIVATE json_t *add_tree_childs(
+    hgobj gobj,
     json_t *tranger,
     json_t *list,       // not owned
     const char *hook,
@@ -7937,7 +7949,7 @@ PRIVATE json_t *add_tree_childs(
     json_t *jn_filter   // not owned
 )
 {
-    json_t *child_list = _list_childs(tranger, hook, node);
+    json_t *child_list = _list_childs(gobj, tranger, hook, node);
     if(!child_list) {
         // Error already logged
         return 0;
@@ -7951,7 +7963,7 @@ PRIVATE json_t *add_tree_childs(
         )){
             json_array_append(list, child);
             if(recursive) {
-                add_tree_childs(tranger, list, hook, child, recursive, jn_filter);
+                add_tree_childs(gobj, tranger, list, hook, child, recursive, jn_filter);
             }
         }
     }
@@ -7976,7 +7988,7 @@ PUBLIC json_t *treedb_node_childs(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7984,30 +7996,30 @@ PUBLIC json_t *treedb_node_childs(
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;
     }
 
-    if(!kw_get_dict_value(node, hook, 0, 0)) {
+    if(!kw_get_dict_value(gobj, node, hook, 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "hook not found",
-            "topic_name",   "%s", kw_get_str(node, "__md_treedb__`treedb_name", 0, 0),
+            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0),
             "hook",         "%s", hook,
             NULL
         );
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;
     }
 
-    BOOL recursive = kw_get_bool(jn_options, "recursive", 0, KW_WILD_NUMBER);
+    BOOL recursive = kw_get_bool(gobj, jn_options, "recursive", 0, KW_WILD_NUMBER);
     json_t *list = json_array();
-    add_tree_childs(tranger, list, hook, node, recursive, jn_filter);
+    add_tree_childs(gobj, tranger, list, hook, node, recursive, jn_filter);
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)
     return list;
 }
@@ -8020,10 +8032,10 @@ PUBLIC int add_jtree_path(
     json_t *child  // not owned
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    hgobj gobj = 0;
 
-    const char *parent_path = parent?kw_get_str(parent, "__path__", "", 0):0;
-    const char *child_id = kw_get_str(child, "id", "", 0);
+    const char *parent_path = parent?kw_get_str(gobj, parent, "__path__", "", 0):0;
+    const char *child_id = kw_get_str(gobj, child, "id", "", 0);
 
     if(parent_path) {
         char *path = str_concat3(parent_path, "`", child_id);
@@ -8042,6 +8054,7 @@ PUBLIC int add_jtree_path(
  *
  ***************************************************************************/
 PRIVATE json_t *create_jchild(
+    hgobj gobj,
     json_t *tranger,
     const char *hook,   // hook to build the hierarchical tree
     const char *rename_hook, // change the hook name in the tree response
@@ -8058,7 +8071,7 @@ PRIVATE json_t *create_jchild(
     json_decref(jchild_);
 
     if(!empty_string(rename_hook)) {
-        json_t *jn_hook = kw_get_dict_value(jchild, hook, 0, KW_REQUIRED|KW_EXTRACT);
+        json_t *jn_hook = kw_get_dict_value(gobj, jchild, hook, 0, KW_REQUIRED|KW_EXTRACT);
         json_decref(jn_hook);
         json_object_set_new(jchild, rename_hook, json_array());
     }
@@ -8069,6 +8082,7 @@ PRIVATE json_t *create_jchild(
  *  Return a list of hierarchical childs of the hook in the tree
  ***************************************************************************/
 PRIVATE json_t *add_jtree_childs(
+    hgobj gobj,
     json_t *tranger,
     json_t *tree,       // not owned
     const char *hook,
@@ -8079,7 +8093,7 @@ PRIVATE json_t *add_jtree_childs(
     json_t *jn_options  // not owned
 )
 {
-    json_t *child_list = _list_childs(tranger, hook, node);
+    json_t *child_list = _list_childs(gobj, tranger, hook, node);
     if(!child_list) {
         // Error already logged
         return 0;
@@ -8094,14 +8108,15 @@ PRIVATE json_t *add_jtree_childs(
             continue;
         }
 
-        json_t *_child = create_jchild(tranger, hook, rename_hook, child, jn_options);
+        json_t *_child = create_jchild(gobj, tranger, hook, rename_hook, child, jn_options);
         add_jtree_path(parent, _child);
 
-        json_t *list = kw_get_list(parent, rename_hook?rename_hook:hook, 0, KW_REQUIRED);
+        json_t *list = kw_get_list(gobj, parent, rename_hook?rename_hook:hook, 0, KW_REQUIRED);
         json_array_append_new(list, _child);
 
         // recursive
         add_jtree_childs(
+            gobj,
             tranger,
             tree,
             hook,
@@ -8134,7 +8149,7 @@ PUBLIC json_t *treedb_node_jtree(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8142,21 +8157,21 @@ PUBLIC json_t *treedb_node_jtree(
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;
     }
 
-    if(!kw_get_dict_value(node, hook, 0, 0)) {
+    if(!kw_get_dict_value(gobj, node, hook, 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "hook not found",
-            "topic_name",   "%s", kw_get_str(node, "__md_treedb__`treedb_name", 0, 0),
+            "topic_name",   "%s", kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0),
             "hook",         "%s", hook,
             NULL
         );
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_filter)
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -8165,15 +8180,15 @@ PUBLIC json_t *treedb_node_jtree(
         rename_hook = 0;
     }
 
-    json_t *root = create_jchild(tranger, hook, rename_hook, node, jn_options);
+    json_t *root = create_jchild(gobj, tranger, hook, rename_hook, node, jn_options);
     add_jtree_path(0, root);
 
     json_t *tree = root;
 
     // recursive
-    add_jtree_childs(tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
+    add_jtree_childs(gobj, tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)
     return tree;
 }
@@ -8200,7 +8215,7 @@ PUBLIC json_t *treedb_get_topic_links(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topics = treedb_topics(tranger, treedb_name, 0);
-    if(!json_str_in_list(topics, topic_name, 0)) {
+    if(!json_str_in_list(gobj, topics, topic_name, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8219,8 +8234,8 @@ PUBLIC json_t *treedb_get_topic_links(
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(is_fkey) {
             json_array_append_new(jn_list, json_string(col_name));
         }
@@ -8241,7 +8256,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     json_t *topics = treedb_topics(tranger, treedb_name, 0);
-    if(!json_str_in_list(topics, topic_name, 0)) {
+    if(!json_str_in_list(gobj, topics, topic_name, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8260,8 +8275,8 @@ PUBLIC json_t *treedb_get_topic_hooks(
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(is_hook) {
             json_array_append_new(jn_list, json_string(col_name));
         }
@@ -8319,6 +8334,7 @@ PUBLIC int treedb_end_transaction(
  *
  ***************************************************************************/
 PRIVATE json_t * treedb_get_activated_snap_tag(
+    hgobj gobj,
     json_t *tranger,
     const char *treedb_name,
     uint32_t *user_flag
@@ -8336,9 +8352,9 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
         jn_tag,  // filter, owned
         0   // match_fn
     );
-    int size = json_array_size(snaps);
+    int size = (int)json_array_size(snaps);
     if(size == 0) {
-        JSON_DECREF(snaps);
+        JSON_DECREF(snaps)
         return 0;
 
     } else if(size > 1) {
@@ -8361,13 +8377,13 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
 
         snap = json_array_get(snaps, size-1);
         *user_flag = (uint32_t)kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
-        JSON_DECREF(snaps);
+        JSON_DECREF(snaps)
         return snap;
 
     } else {
         json_t *snap = json_array_get(snaps, 0);
         *user_flag = kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
-        JSON_DECREF(snaps);
+        JSON_DECREF(snaps)
         return snap;
     }
 }
@@ -8400,17 +8416,17 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     if(json_array_size(snaps)>0) {
         char temp[80];
         snprintf(temp, sizeof(temp), "Snap already exists: '%s'", snap_name);
-        log_info(0,
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", temp,
             "snap",         "%s", snap_name,
             NULL
         );
-        JSON_DECREF(snaps);
+        JSON_DECREF(snaps)
         return -1;
     }
-    JSON_DECREF(snaps);
+    JSON_DECREF(snaps)
 
     /*
      *  Register the tag
@@ -8441,7 +8457,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
     );
 
     if(!snap) {
-        log_critical(kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot save record tag",
@@ -8453,7 +8469,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
 
     uint32_t user_flag = kw_get_int(gobj, snap, "id", 0, KW_REQUIRED|KW_WILD_NUMBER);
     if(user_flag==0 || user_flag >= 0xFFFFFFFF) {
-        log_critical(kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "rowid for tag too big",
@@ -8493,14 +8509,14 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
             treedb_save_node(tranger, node);
             uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`__rowid__", 0, KW_REQUIRED);
 
-            ret += tranger_write_user_flag(
-                tranger,
-                topic_name,
-                __rowid__,
-                user_flag
-            );
+// TODO           ret += tranger_write_user_flag(
+//                tranger,
+//                topic_name,
+//                __rowid__,
+//                user_flag
+//            );
             if(ret < 0) {
-                log_critical(0,
+                gobj_log_critical(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "Cannot write tag",
@@ -8538,6 +8554,7 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
          *-------------------------*/
         uint32_t user_flag = 0;
         json_t *old_snap = treedb_get_activated_snap_tag(
+            gobj,
             tranger,
             treedb_name,
             &user_flag
@@ -8572,12 +8589,12 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
         0   // match_fn
     );
     json_t *snap = json_array_get(snaps, 0);
-    JSON_DECREF(snaps);
+    JSON_DECREF(snaps)
 
     if(!snap) {
         char temp[80];
         snprintf(temp, sizeof(temp), "Snap not found: '%s'", snap_name);
-        log_info(0,
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", temp,
@@ -8592,6 +8609,7 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
      *-------------------------------------*/
     uint32_t user_flag = 0;
     json_t *old_snap = treedb_get_activated_snap_tag(
+        gobj,
         tranger,
         treedb_name,
         &user_flag
@@ -8601,14 +8619,14 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
             // Already active
             char temp[80];
             snprintf(temp, sizeof(temp), "Snap already activated: '%s'", snap_name);
-            log_info(0,
+            gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", temp,
                 "snap",         "%s", snap_name,
                 NULL
             );
-            return user_flag;
+            return (int)user_flag;
         }
         // desactivate tag
         json_object_set_new(old_snap, "active", json_false());
@@ -8617,7 +8635,7 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "Cannot deactivate snap",
-                "snap",         "%s", kw_get_str(old_snap, "name", "", KW_REQUIRED),
+                "snap",         "%s", kw_get_str(gobj, old_snap, "name", "", KW_REQUIRED),
                 NULL
             );
         }
@@ -8631,7 +8649,7 @@ PUBLIC int treedb_activate_snap( // Activate tag, return the snap tag
         return ret;
     }
 
-    return user_flag;
+    return (int)user_flag;
 }
 
 /***************************************************************************
@@ -8663,6 +8681,7 @@ PUBLIC json_t *create_template_record(
     json_t *kw          // Owned
 )
 {
+    hgobj gobj = 0;
     json_t *new_record = json_object();
     if(!template_name) {
         template_name = "";
@@ -8673,9 +8692,9 @@ PUBLIC json_t *create_template_record(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(kw, field, 0, 0);
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
         if(!value) {
-            value = kw_get_dict_value(col, "default", 0, 0);
+            value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
         set_tranger_field_value(
             template_name,
