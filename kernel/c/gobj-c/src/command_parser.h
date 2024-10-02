@@ -29,6 +29,11 @@ PUBLIC json_t *gobj_build_cmds_doc(
     json_t *kw
 );
 
+PUBLIC json_t *gobj_build_authzs_doc(
+    hgobj gobj,
+    const char *cmd,
+    json_t *kw
+);
 
 #ifdef __cplusplus
 }

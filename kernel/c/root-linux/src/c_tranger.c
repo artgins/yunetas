@@ -477,7 +477,7 @@ PRIVATE size_t mt_topic_size(
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
     return msg_iev_build_response(
         gobj,
@@ -494,7 +494,17 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+//    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************

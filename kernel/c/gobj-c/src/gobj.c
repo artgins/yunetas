@@ -644,9 +644,9 @@ PUBLIC json_t * gobj_gclass_register(void)
 }
 
 /***************************************************************************
- *  Debug print service register in json
+ *
  ***************************************************************************/
-PUBLIC json_t *gobj_service_register(const char *gclass_name)
+PUBLIC json_t *gobj_service_register(void)
 {
     json_t *jn_register = json_array();
 
@@ -2539,10 +2539,19 @@ PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass_)
+{
+    gclass_t *gclass = gclass_;
+    return gclass->authz_table;
+}
+
+/***************************************************************************
  *  Return the data description of the attribute `attr`
  *  If `attr` is null returns full attr's table
  ***************************************************************************/
-PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *name, BOOL verbose)
+PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *attr, BOOL verbose)
 {
     gclass_t *gclass = gclass_;
 
@@ -2558,12 +2567,12 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *name, B
         return 0;
     }
 
-    if(!name) {
+    if(!attr) {
         return gclass->tattr_desc;
     }
     const sdata_desc_t *it = gclass->tattr_desc;
     while(it->name) {
-        if(strcmp(it->name, name)==0) {
+        if(strcmp(it->name, attr)==0) {
             return it;
         }
         it++;
@@ -2575,7 +2584,7 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *name, B
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "GClass Attribute NOT FOUND",
             "gclass",       "%s", gclass->gclass_name,
-            "attr",         "%s", name,
+            "attr",         "%s", attr,
             NULL
         );
     }
@@ -2586,7 +2595,7 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *name, B
  *  Return the data description of the attribute `attr`
  *  If `attr` is null returns full attr's table
  ***************************************************************************/
-PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *name, BOOL verbose)
+PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *attr, BOOL verbose)
 {
     gobj_t *gobj = gobj_;
     if(!gobj) {
@@ -2601,11 +2610,11 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *name, BOOL ve
         return 0;
     }
 
-    if(!name) {
+    if(!attr) {
         return gobj->gclass->tattr_desc;
     }
 
-    return gclass_attr_desc(gobj->gclass, name, verbose);
+    return gclass_attr_desc(gobj->gclass, attr, verbose);
 }
 
 /***************************************************************************
@@ -4848,6 +4857,24 @@ PUBLIC int rc_walk_by_tree(
 
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_services(void)
+{
+    json_t *jn_register = json_array();
+
+    const char *key; json_t *jn_service;
+    json_object_foreach(jn_services, key, jn_service) {
+        json_array_append_new(
+            jn_register,
+            json_string(key)
+        );
+    }
+
+    return jn_register;
+}
+
+/***************************************************************************
  *  Return yuno, the grandfather
  ***************************************************************************/
 PUBLIC hgobj gobj_yuno(void)
@@ -5235,6 +5262,32 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
 PUBLIC const char **get_sdata_flag_table(void)
 {
     return sdata_flag_names;
+}
+
+/***************************************************************************
+ *  Get a gbuffer with type strings
+ ***************************************************************************/
+PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
+{
+    gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+    if(!gbuf) {
+        return 0;
+    }
+    BOOL add_sep = FALSE;
+
+    char **name = (char **)sdata_flag_names;
+    while(*name) {
+        if(flag & 0x01) {
+            if(add_sep) {
+                gbuffer_append(gbuf, "|", 1);
+            }
+            gbuffer_append(gbuf, *name, strlen(*name));
+            add_sep = TRUE;
+        }
+        flag = flag >> 1;
+        name++;
+    }
+    return gbuf;
 }
 
 /***************************************************************************

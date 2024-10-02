@@ -302,6 +302,34 @@ typedef int  (*loghandler_fwrite_fn_t)(void *h, int priority, const char *format
 typedef void (*show_backtrace_fn_t)(loghandler_fwrite_fn_t fwrite_fn, void *h);
 
 /***************************************************************
+ *              gbuffer
+ ***************************************************************/
+typedef struct gbuffer_s {
+    DL_ITEM_FIELDS
+
+    size_t refcount;            /* to delete by reference counter */
+
+    char *label;                /* like user_data */
+    size_t mark;                /* like user_data */
+
+    size_t data_size;           /* nº bytes allocated for data */
+    size_t max_memory_size;     /* maximum size in memory */
+
+    /*
+     *  Con tail controlo la entrada de bytes en el packet.
+     *  El número total de bytes en el packet será tail.
+     */
+    size_t tail;    /* write pointer */
+    size_t curp;    /* read pointer */
+
+    /*
+     *  Data dynamically allocated
+     *  In file_mode this buffer only is for read from file.
+     */
+    char *data;
+} gbuffer_t;
+
+/***************************************************************
  *              SData
  ***************************************************************/
 typedef enum {
@@ -328,11 +356,15 @@ typedef enum {
 #define DTP_SCHEMA      DTP_POINTER
 //#define ASN_POINTER     DTP_POINTER
 
+#define DTP_IS_STRING(type) ((type) == DTP_STRING)
+#define DTP_IS_BOOLEAN(type) ((type) == DTP_BOOLEAN)
 #define DTP_IS_INTEGER(type) ((type) == DTP_INTEGER)
 #define DTP_IS_REAL(type) ((type) == DTP_REAL)
-#define DTP_IS_BOOLEAN(type) ((type) == DTP_BOOLEAN)
-#define DTP_IS_STRING(type) ((type) == DTP_STRING)
+#define DTP_IS_LIST(type) ((type) == DTP_LIST)
+#define DTP_IS_DICT(type) ((type) == DTP_DICT)
 #define DTP_IS_JSON(type) ((type) == DTP_JSON)
+#define DTP_IS_POINTER(type) ((type) == DTP_POINTER)
+#define DTP_IS_SCHEMA(type) ((type) == DTP_SCHEMA)
 
 #define DTP_IS_NUMBER(type)     \
     (DTP_IS_INTEGER(type) ||    \
@@ -1075,7 +1107,7 @@ PUBLIC void gobj_end(void);                 /* De-initialize the yuno */
  *
  */
 PUBLIC json_t * gobj_gclass_register(void);
-PUBLIC json_t * gobj_service_register(const char *gclass_name);
+PUBLIC json_t * gobj_service_register(void);
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 
 PUBLIC hgclass gclass_create(
@@ -1236,10 +1268,12 @@ PUBLIC json_t * gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs); // str
 
 // Return the data description of the attribute `attr`
 // If `attr` is null returns full attr's table
-PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass, const char *name, BOOL verbose);
+PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass, const char *attr, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj, const char *attr, BOOL verbose);
 PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name);
 PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
+
+PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass);
 
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name);
@@ -1441,6 +1475,7 @@ PUBLIC int gobj_walk_gobj_childs_tree(
 /*---------------------------------*
  *      Info functions
  *---------------------------------*/
+PUBLIC json_t *gobj_services(void); // return list of strings
 PUBLIC hgobj gobj_yuno(void); // Return yuno, the grandfather (Only one yuno per process, single thread)
 PUBLIC const char * gobj_name(hgobj gobj);
 PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj);
@@ -1471,10 +1506,12 @@ static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yun
 
 //  Return the data description of the command `command`
 //  If `command` is null returns full command's table
-PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name, BOOL verbose);
-PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL verbose);
+PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name, BOOL verbose);
+PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose);
 
 PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
+PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
+
 PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
 
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
@@ -2226,31 +2263,6 @@ PUBLIC size_t dl_size(dl_list_t *dl);
 /*---------------------------------*
  *      GBuffer functions
  *---------------------------------*/
-typedef struct gbuffer_s {
-    DL_ITEM_FIELDS
-
-    size_t refcount;            /* to delete by reference counter */
-
-    char *label;                /* like user_data */
-    size_t mark;                /* like user_data */
-
-    size_t data_size;           /* nº bytes allocated for data */
-    size_t max_memory_size;     /* maximum size in memory */
-
-    /*
-     *  Con tail controlo la entrada de bytes en el packet.
-     *  El número total de bytes en el packet será tail.
-     */
-    size_t tail;    /* write pointer */
-    size_t curp;    /* read pointer */
-
-    /*
-     *  Data dynamically allocated
-     *  In file_mode this buffer only is for read from file.
-     */
-    char *data;
-} gbuffer_t;
-
 #define GBUFFER_DECREF(ptr)    \
     if(ptr) {               \
         gbuffer_decref(ptr);   \
