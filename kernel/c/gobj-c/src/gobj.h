@@ -2242,6 +2242,7 @@ PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
     }
 
 #define GBMEM_STRDUP gobj_strdup
+#define GBMEM_STRNDUP gobj_strndup
 
 #define GBMEM_REALLOC(ptr, size) (gobj_realloc_func())((ptr), (size))
 

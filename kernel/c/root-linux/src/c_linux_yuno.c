@@ -255,7 +255,7 @@ SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,c
 SDATACM (DTP_SCHEMA,    "list-log-handlers",        0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
 SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,   "View gclass's register"),
-SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,pm_gclass_name,cmd_view_service_register,"View service's register"),
+SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,0,cmd_view_service_register,"View service's register"),
 
 SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
 SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
@@ -708,20 +708,12 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
  ***************************************************************************/
 PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *gclass_name = kw_get_str(
-        gobj,
-        kw,
-        "gclass_name",
-        kw_get_str(gobj, kw, "gclass", "", 0),
-        0
-    );
-
     json_t *jn_response = build_command_response(
         gobj,
         0,
         0,
         0,
-        gobj_service_register(gclass_name)
+        gobj_service_register()
     );
     JSON_DECREF(kw)
     return jn_response;

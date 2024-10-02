@@ -451,6 +451,20 @@ int kwid_find_record_in_list(
     BOOL verbose
 );
 
+/**rst**
+    Return a new json with all arrays or dicts greater than `limit` collapsed with
+        __collapsed__: {
+            path:
+            size:
+        }
+    WARNING _limit must be > 0 to collapse
+**rst**/
+PUBLIC json_t *kw_collapse(
+    hgobj gobj,
+    json_t *kw,         // not owned
+    int collapse_lists_limit,
+    int collapse_dicts_limit
+);
 
 #ifdef __cplusplus
 }

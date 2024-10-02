@@ -650,6 +650,24 @@ PUBLIC void list_open_files(void);
 
 PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format);
 
+/**rst**
+    Check all refcounts
+**rst**/
+PUBLIC int json_check_refcounts(
+    json_t *kw, // not owned
+    int max_refcount,
+    int *result // firstly initalize to 0
+);
+
+/**rst**
+    Check deeply the refcount of kw
+**rst**/
+PUBLIC int json_print_refcounts(
+    json_t *jn, // not owned
+    int level
+);
+
+
 #ifdef __cplusplus
 }
 #endif

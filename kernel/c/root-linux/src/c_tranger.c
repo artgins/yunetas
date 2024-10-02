@@ -35,6 +35,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <stdio.h>
 
 #include <kwid.h>
+#include <helpers.h>
 #include <command_parser.h>
 #include <timeranger2.h>
 
@@ -455,11 +456,7 @@ PRIVATE size_t mt_topic_size(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *topic = tranger2_topic( // WARNING returned json IS NOT YOURS
-        priv->tranger,
-        topic_name
-    );
-    return tranger2_topic_key_size(priv->tranger, topic, key);
+    return tranger2_topic_key_size(priv->tranger, topic_name, key);
 }
 
 
@@ -530,7 +527,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    BOOL expanded = kw_get_bool(kw, "expanded", 0, KW_WILD_NUMBER);
+    BOOL expanded = kw_get_bool(gobj, kw, "expanded", 0, KW_WILD_NUMBER);
     int lists_limit = (int)kw_get_int(gobj, kw, "lists_limit", 100, KW_WILD_NUMBER);
     int dicts_limit = (int)kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
     const char *path = kw_get_str(gobj, kw, "path", "", 0);
@@ -538,7 +535,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = kw_find_path(value, path, FALSE);
+        value = kw_find_path(gobj, value, path, FALSE);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,
@@ -554,10 +551,10 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         if(!lists_limit && !dicts_limit) {
             kw_incref(value); // All
         } else {
-            value = kw_collapse(value, lists_limit, dicts_limit);
+            value = kw_collapse(gobj, value, lists_limit, dicts_limit);
         }
     } else {
-        value = kw_collapse(value, 0, 0);
+        value = kw_collapse(gobj, value, 0, 0);
     }
 
     /*
@@ -704,7 +701,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    json_int_t topic_size = tranger_topic_size(topic);
+    json_int_t topic_size = tranger2_topic_size(topic);
     if(topic_size != 0) {
         if(!force) {
             return msg_iev_build_response(

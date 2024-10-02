@@ -291,7 +291,15 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
 );
 
 /**rst**
-   Get key size (number of records)
+   Get topic size (number of records of all keys)
+**rst**/
+PUBLIC uint64_t tranger2_topic_size(
+    json_t *tranger,
+    const char *topic_name
+);
+
+/**rst**
+   Get key size (number of records of key)
 **rst**/
 PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,

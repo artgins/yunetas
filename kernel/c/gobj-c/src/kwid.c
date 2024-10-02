@@ -2164,3 +2164,117 @@ int kwid_find_record_in_list(
     }
     return 0;
 }
+/***************************************************************************
+    Return a new json with all arrays or dicts greater than `limit`
+        with [{"__collapsed__": {"path": path, "size": size}}]
+        or   {{"__collapsed__": {"path": path, "size": size}}}
+ ***************************************************************************/
+PRIVATE json_t *collapse(
+    hgobj gobj,
+    json_t *kw,         // not owned
+    char *path,
+    int collapse_lists_limit,
+    int collapse_dicts_limit
+)
+{
+    json_t *new_kw = json_object();
+    const char *key; json_t *jn_value;
+    json_object_foreach(kw, key, jn_value) {
+        char *new_path = GBMEM_STRNDUP(path, strlen(path)+strlen(key)+2);
+        if(strlen(new_path)>0) {
+            strcat(new_path, delimiter);
+        }
+        strcat(new_path, key);
+
+        if(json_is_object(jn_value)) {
+            if(collapse_dicts_limit>0 && json_object_size(jn_value)>collapse_dicts_limit) {
+                json_object_set_new(
+                    new_kw,
+                    key,
+                    json_pack("{s:{s:s, s:I}}",
+                        "__collapsed__",
+                            "path", new_path,
+                            "size", (json_int_t)json_object_size(jn_value)
+                    )
+                );
+            } else {
+                json_object_set_new(
+                    new_kw,
+                    key,
+                    collapse(gobj, jn_value, new_path, collapse_lists_limit, collapse_dicts_limit)
+                );
+            }
+
+        } else if(json_is_array(jn_value)) {
+            if(collapse_lists_limit > 0 && json_array_size(jn_value)>collapse_lists_limit) {
+                json_object_set_new(
+                    new_kw,
+                    key,
+                    json_pack("[{s:{s:s, s:I}}]",
+                        "__collapsed__",
+                            "path", new_path,
+                            "size", (json_int_t)json_array_size(jn_value)
+                    )
+                );
+            } else {
+                json_t *new_list = json_array();
+                json_object_set_new(new_kw, key, new_list);
+                int idx; json_t *v;
+                json_array_foreach(jn_value, idx, v) {
+                    char s_idx[40];
+                    snprintf(s_idx, sizeof(s_idx), "%d", idx);
+                    char *new_path2 = GBMEM_STRNDUP(new_path, strlen(new_path)+strlen(s_idx)+2);
+                    if(strlen(new_path2)>0) {
+                        strcat(new_path2, delimiter);
+                    }
+                    strcat(new_path2, s_idx);
+
+                    if(json_is_object(v)) {
+                        json_array_append_new(
+                            new_list,
+                            collapse(gobj, v, new_path2, collapse_lists_limit, collapse_dicts_limit)
+                        );
+                    } else if(json_is_array(v)) {
+                        json_array_append(new_list, v); // ???
+                    } else {
+                        json_array_append(new_list, v);
+                    }
+                    GBMEM_FREE(new_path2);
+                }
+            }
+
+        } else {
+            json_object_set(
+                new_kw,
+                key,
+                jn_value
+            );
+        }
+        GBMEM_FREE(new_path);
+    }
+
+    return new_kw;
+}
+PUBLIC json_t *kw_collapse(
+    hgobj gobj,
+    json_t *kw,         // not owned
+    int collapse_lists_limit,
+    int collapse_dicts_limit
+)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw_collapse() kw must be a dictionary",
+            NULL
+        );
+        return 0;
+    }
+    char *path = GBMEM_MALLOC(1);
+    *path = 0;
+    json_t *new_kw = collapse(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit);
+    GBMEM_FREE(path)
+
+    return new_kw;
+}

@@ -1292,7 +1292,37 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
 }
 
 /***************************************************************************
-   Get key size (number of records)
+   Get topic size (number of records of all keys)
+ ***************************************************************************/
+PUBLIC uint64_t tranger2_topic_size(
+    json_t *tranger,
+    const char *topic_name
+) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        return 0;
+    }
+
+    json_t *jn_keys = tranger2_list_keys( // return is yours
+        tranger,
+        topic,
+        NULL
+    );
+
+    uint64_t total = 0;
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        total += get_topic_key_rows(gobj, topic, key);
+    }
+    json_decref(jn_keys);
+
+    return total;
+}
+
+/***************************************************************************
+   Get key size (number of records of key)
  ***************************************************************************/
 PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,
@@ -1305,7 +1335,12 @@ PUBLIC uint64_t tranger2_topic_key_size(
     if(!topic) {
         return 0;
     }
-    return get_topic_key_rows(gobj, topic, key);
+    if(empty_string(key)) {
+        return tranger2_topic_size(gobj, topic_name);
+
+    } else {
+        return get_topic_key_rows(gobj, topic, key);
+    }
 }
 
 /***************************************************************************
