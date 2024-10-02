@@ -40,6 +40,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <timeranger2.h>
 
 #include "msg_ievent.h"
+#include "c_linux_yuno.h"
 #include "c_tranger.h"
 
 /***************************************************************************
@@ -56,9 +57,11 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record
+    json_t *jn_record  // must be owned
 );
 
 /***************************************************************************
@@ -309,7 +312,9 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     priv->tranger = tranger2_startup(
-        jn_tranger // owned
+        gobj,
+        jn_tranger, // owned
+        yuno_event_loop()
     );
     gobj_write_pointer_attr(gobj, "tranger", priv->tranger);
 
@@ -815,7 +820,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *desc = kwid_new_dict("", priv->tranger, "topics`%s`cols", topic_name);
+    json_t *desc = kwid_new_dict(gobj, priv->tranger, "topics`%s`cols", topic_name);
 
     return msg_iev_build_response(gobj,
         desc?0:-1,
@@ -850,7 +855,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-    BOOL return_data = kw_get_bool(kw, "return_data", 0, 0);
+    BOOL return_data = kw_get_bool(gobj, kw, "return_data", 0, 0);
 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
@@ -887,7 +892,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    json_t *list = tranger_get_list(priv->tranger, list_id);
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
     if(list) {
         return msg_iev_build_response(
             gobj,
@@ -899,8 +904,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    BOOL  backward = kw_get_bool(kw, "backward", 0, 0);
-    BOOL  only_md = kw_get_bool(kw, "only_md", 0, 0);
+    BOOL  backward = kw_get_bool(gobj, kw, "backward", 0, 0);
+    BOOL  only_md = kw_get_bool(gobj, kw, "only_md", 0, 0);
     int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, 0);
     int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, 0);
     uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, 0);
@@ -995,22 +1000,33 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:I}",
-        "id", list_id,
-        "topic_name", topic_name,
-        "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-        "gobj", (json_int_t)(size_t)gobj
+//    json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:I}",
+//        "id", list_id,
+//        "topic_name", topic_name,
+//        "match_cond", match_cond,
+//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
+//        "gobj", (json_int_t)(size_t)gobj
+//    );
+//
+//    list = tranger_open_list(priv->tranger, jn_list);
+
+    list = tranger2_open_iterator(
+        priv->tranger,
+        topic,
+        key,
+        match_cond,  // owned
+        load_record_callback, // called on LOADING and APPENDING
+        list_id,    // iterator id, optional, if empty will be the key
+        NULL,       // data
+        NULL        // options
+
     );
-
-    list = tranger_open_list(priv->tranger, jn_list);
-
     return msg_iev_build_response(
         gobj,
         list?0:-1,
         list?json_sprintf("List opened: '%s'", list_id):json_string(gobj_log_last_message()),
         0,
-        return_data?json_incref(kw_get_list(list, "data", 0, KW_REQUIRED)):0,
+        return_data?json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)):0,
         kw  // owned
     );
 }
@@ -1051,7 +1067,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    json_t *list = tranger_get_list(priv->tranger, list_id);
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1063,7 +1079,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    int result = tranger_close_list(priv->tranger, list);
+    int result = tranger2_close_iterator(priv->tranger, list);
 
     return msg_iev_build_response(
         gobj,
@@ -1118,7 +1134,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
            result = -1;
            break;
         }
-        json_t *topic = tranger_topic(priv->tranger, topic_name);
+        json_t *topic = tranger2_topic(priv->tranger, topic_name);
         if(!topic) {
            jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
            result = -1;
@@ -1133,8 +1149,8 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         /*
          *  Append record to tranger topic
          */
-        md_record_t md_record;
-        result = tranger_append_record(
+        md2_record_t md_record;
+        result = tranger2_append_record(
             priv->tranger,
             topic_name,
             __t__,                  // if 0 then the time will be set by TimeRanger with now time
@@ -1200,7 +1216,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    json_t *list = tranger_get_list(priv->tranger, list_id);
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1217,7 +1233,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         0,
-        json_incref(kw_get_list(list, "data", 0, KW_REQUIRED)),
+        json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
         kw  // owned
     );
 }
@@ -1245,70 +1261,21 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record  // owned
+    json_t *jn_record  // must be owned
 )
 {
-    json_t *match_cond = kw_get_dict(list, "match_cond", 0, KW_REQUIRED);
-    BOOL only_md = kw_get_bool(match_cond, "only_md", 0, 0);
+    hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+    json_t *list = tranger2_get_iterator_by_id(tranger, rt_id);
+    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
     BOOL has_fields = kw_has_key(match_cond, "fields");
-    if(has_fields) {
-        only_md = FALSE;
-    }
 
-    if(jn_record) {
-        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
-    } else {
-        if(only_md) {
-            jn_record = json_object();
-        } else {
-            jn_record = tranger_read_record_content(tranger, topic, md_record);
-        }
-        json_object_set_new(jn_record, "__md_tranger__", tranger2_md2json(md_record));
-    }
+    gobj_publish_event(gobj, "EV_TRANGER_RECORD_ADDED", jn_record);
 
-    json_t *list_data = kw_get_list(list, "data", 0, KW_REQUIRED);
-
-    const char ** keys = 0;
-    if(has_fields) {
-        const char *fields = kw_get_str(match_cond, "fields", "", 0);
-        keys = split2(fields, ", ", 0);
-    }
-    if(keys) {
-        json_t *jn_record_with_fields = kw_clone_by_path(
-            jn_record,   // owned
-            keys
-        );
-        jn_record = jn_record_with_fields;
-        json_array_append(
-            list_data,
-            jn_record
-        );
-        split_free2(keys);
-    } else {
-        json_array_append(
-            list_data,
-            jn_record
-        );
-    }
-
-    if(!(md_record->__system_flag__ & sf_loading_from_disk)) {
-        json_t *jn_data = json_array();
-
-        if(only_md) {
-            json_array_append(jn_data, kw_get_dict(jn_record, "__md_tranger__", 0, KW_REQUIRED));
-        } else {
-            json_array_append(jn_data, jn_record);
-        }
-
-        hgobj gobj = (hgobj)(size_t)kw_get_int(list, "gobj", 0, KW_REQUIRED);
-        gobj_publish_event(gobj, "EV_TRANGER_RECORD_ADDED", jn_data);
-    }
-
-    JSON_DECREF(jn_record);
-
-    return 0; // HACK lest timeranger to add record to list.data
+    return 0; // HACK let timeranger to add record to list.data TODO true?
 }
 
 
@@ -1382,28 +1349,28 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
     /*
      *  Response
      */
-    json_t *iev = iev_create(
-        event,
-        msg_iev_build_webix2(gobj,
-            result,
-            jn_comment,
-            0,
-            0,  // owned
-            kw,  // owned
-            "__answer__"
-        )
-    );
-    json_object_set_new(iev, "__temp__", __temp__);  // Set the channel
-
-    /*
-     *  Inform
-     */
-    return gobj_send_event(
-        src,
-        "EV_SEND_IEV",
-        iev,
-        gobj
-    );
+// TODO   json_t *iev = iev_create(
+//        event,
+//        msg_iev_build_response(gobj,
+//            result,
+//            jn_comment,
+//            0,
+//            0,  // owned
+//            kw  // owned
+//        )
+//    );
+//    json_object_set_new(iev, "__temp__", __temp__);  // Set the channel
+//
+//    /*
+//     *  Inform
+//     */
+//    return gobj_send_event(
+//        src,
+//        "EV_SEND_IEV",
+//        iev,
+//        gobj
+//    );
+    return 0;
 }
 
 /***************************************************************************

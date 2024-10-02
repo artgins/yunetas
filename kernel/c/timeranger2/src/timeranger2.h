@@ -76,6 +76,7 @@
 #pragma once
 
 #include <gobj.h>
+#include <yunetas_ev_loop.h>
 
 #ifdef __cplusplus
 extern "C"{
