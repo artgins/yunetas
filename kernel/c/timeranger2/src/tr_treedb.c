@@ -1575,7 +1575,7 @@ PUBLIC json_t *treedb_list_treedb(
         json_array_append_new(treedb_list, json_string(treedb_name));
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
 
     return treedb_list;
 }
@@ -1591,9 +1591,9 @@ PUBLIC json_t *treedb_topics(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *treedb = kw_get_subdict_value(tranger, "treedbs", treedb_name, 0, 0);
+    json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, 0);
     if(!treedb) {
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1613,7 +1613,7 @@ PUBLIC json_t *treedb_topics(
             continue;
         }
         build_id_index_path(list_id, sizeof(list_id), treedb_name, topic_name);
-        if(kw_get_bool(jn_options, "dict", 0, KW_WILD_NUMBER)) {
+        if(kw_get_bool(gobj, jn_options, "dict", 0, KW_WILD_NUMBER)) {
             json_t *dict = json_object();
             json_object_set_new(dict, "id", json_string(list_id));
             json_object_set_new(dict, "value", json_string(topic_name));
@@ -1623,7 +1623,7 @@ PUBLIC json_t *treedb_topics(
         }
     }
 
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return topic_list;
 }
 
@@ -1688,13 +1688,13 @@ PRIVATE const char *my_json_type(json_t *field)
 PRIVATE int check_desc_field(json_t *desc, json_t *dato)
 {
     int ret = 0;
-
+    hgobj gobj = 0;
     /*
      *  Get description of field
      */
-    const char *desc_id = kw_get_str(desc, "id", 0, 0);
-    json_t *desc_type = kw_get_dict_value(desc, "type", 0, 0);
-    json_t *desc_flag = kw_get_dict_value(desc, "flag", 0, 0);
+    const char *desc_id = kw_get_str(gobj, desc, "id", 0, 0);
+    json_t *desc_type = kw_get_dict_value(gobj, desc, "type", 0, 0);
+    json_t *desc_flag = kw_get_dict_value(gobj, desc, "flag", 0, 0);
 
     if(!desc_id) {
         gobj_log_error(gobj, 0,
@@ -1722,7 +1722,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
     /*
      *  Get value
      */
-    json_t *value = kw_get_dict_value(dato, desc_id, 0, 0);
+    json_t *value = kw_get_dict_value(gobj, dato, desc_id, 0, 0);
 
     /*
      *  Check required
@@ -4786,7 +4786,7 @@ PUBLIC int treedb_delete_node(
             NULL
         );
         log_debug_json(0, node, "Not a pure node");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
     }
@@ -4815,7 +4815,7 @@ PUBLIC int treedb_delete_node(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return -1;
     }
 
@@ -4907,7 +4907,7 @@ PUBLIC int treedb_delete_node(
 
     if(!to_delete) {
         // Error already logged
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return -1;
     }
 
@@ -5048,11 +5048,11 @@ PUBLIC int treedb_delete_node(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return -1;
     }
 
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return 0;
 }
 
@@ -5087,7 +5087,7 @@ PUBLIC int treedb_delete_instance(
             NULL
         );
         log_debug_json(0, node, "Not a pure node");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
     }
@@ -5116,7 +5116,7 @@ PUBLIC int treedb_delete_instance(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
     }
@@ -5209,7 +5209,7 @@ PUBLIC int treedb_delete_instance(
 
     if(!to_delete) {
         // Error already logged
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
     }
@@ -5309,12 +5309,12 @@ PUBLIC int treedb_delete_instance(
             "id",           "%s", id,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         JSON_DECREF(node);
         return -1;
     }
 
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return 0;
 }
 
@@ -7027,7 +7027,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             NULL
         );
         log_debug_json(0, node, "Not a pure node");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -7118,7 +7118,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
     }
 
     JSON_DECREF(topic_desc);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return node_view;
 }
 
@@ -7686,7 +7686,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             NULL
         );
         log_debug_json(0, node, "Not a pure node");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -7707,7 +7707,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             NULL
         );
         log_debug_json(0, cols, "fkey not found in the desc");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
     }
@@ -7723,7 +7723,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             NULL
         );
         log_debug_json(0, cols, "not a fkey");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
     }
@@ -7739,7 +7739,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
             NULL
         );
         log_debug_json(0, node, "fkey data not found in the node");
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         json_decref(cols);
         return 0;
     }
@@ -7748,7 +7748,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     json_t *parents = apply_parent_ref_options(refs, jn_options);
     json_decref(refs);
 
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     json_decref(cols);
     return parents;
 }
@@ -7786,7 +7786,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
             "topic_name",           "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return NULL;
     }
 
@@ -7828,7 +7828,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
         }
     }
 
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     JSON_DECREF(refs);
     return parents;
 }
@@ -7973,7 +7973,7 @@ PUBLIC json_t *treedb_node_childs(
         );
         log_debug_json(0, node, "Not a pure node");
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -7987,7 +7987,7 @@ PUBLIC json_t *treedb_node_childs(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -7996,7 +7996,7 @@ PUBLIC json_t *treedb_node_childs(
     add_tree_childs(tranger, list, hook, node, recursive, jn_filter);
 
     JSON_DECREF(jn_filter);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return list;
 }
 
@@ -8131,7 +8131,7 @@ PUBLIC json_t *treedb_node_jtree(
         );
         log_debug_json(0, node, "Not a pure node");
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -8145,7 +8145,7 @@ PUBLIC json_t *treedb_node_jtree(
             NULL
         );
         JSON_DECREF(jn_filter);
-        JSON_DECREF(jn_options);
+        JSON_DECREF(jn_options)
         return 0;
     }
 
@@ -8162,7 +8162,7 @@ PUBLIC json_t *treedb_node_jtree(
     add_jtree_childs(tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
 
     JSON_DECREF(jn_filter);
-    JSON_DECREF(jn_options);
+    JSON_DECREF(jn_options)
     return tree;
 }
 

@@ -101,6 +101,7 @@ typedef enum {
     KW_BACKWARD         = 0x0010,   // Search backward in lists or arrays
     KW_VERBOSE          = 0x0020,   //
     KW_LOWER            = 0x0040,   //
+    KW_RECURSIVE        = 0x0080,   //
 } kw_flag_t;
 
 PUBLIC int kw_add_binary_type(
@@ -554,6 +555,27 @@ PUBLIC json_t *kwid_get_ids(
     json_t *ids // not owned
 );
 
+/***************************************************************************
+    Has word? Can be in string, list or dict.
+    options: "recursive", "verbose"
+
+    Use to configurate:
+
+        "opt2"              No has word "opt1"
+        "opt1|opt2"         Yes, has word "opt1"
+        ["opt1", "opt2"]    Yes, has word "opt1"
+        {
+            "opt1": true,   Yes, has word "opt1"
+            "opt2": false   No has word "opt1"
+        }
+
+ ***************************************************************************/
+PUBLIC BOOL kw_has_word(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *word,
+    kw_flag_t kw_flag
+);
 
 #ifdef __cplusplus
 }

@@ -2776,3 +2776,81 @@ PUBLIC json_t *kwid_get_ids(
 
     return new_ids;
 }
+
+/***************************************************************************
+    Has word? Can be in string, list or dict.
+    options: "recursive", "verbose"
+
+    Use to configurate:
+
+        "opt2"              No has word "opt1"
+        "opt1|opt2"         Yes, has word "opt1"
+        ["opt1", "opt2"]    Yes, has word "opt1"
+        {
+            "opt1": true,   Yes, has word "opt1"
+            "opt2": false   No has word "opt1"
+        }
+
+ ***************************************************************************/
+PUBLIC BOOL kw_has_word(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    const char *word,
+    kw_flag_t flag
+)
+{
+    if(!kw) {
+        if(flag & KW_VERBOSE) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "kw_has_word() kw NULL",
+                NULL
+            );
+        }
+        return FALSE;
+    }
+
+    switch(json_typeof(kw)) {
+    case JSON_OBJECT:
+        if(kw_has_key(kw, word)) {
+            return json_is_true(json_object_get(kw, word))?TRUE:FALSE;
+        } else {
+            return FALSE;
+        }
+    case JSON_ARRAY:
+        {
+            int idx; json_t *jn_value;
+            json_array_foreach(kw, idx, jn_value) {
+                if(json_is_string(jn_value)) {
+                    if(strstr(json_string_value(jn_value), word)) {
+                        return TRUE;
+                    }
+                } else if(flag & KW_REQUIRED) {
+                    if(kw_has_word(gobj, jn_value, word, flag)) {
+                        return TRUE;
+                    }
+                }
+            }
+            return FALSE;
+        }
+    case JSON_STRING:
+        if(strstr(json_string_value(kw), word)) {
+            return TRUE;
+        } else {
+            return FALSE;
+        }
+    default:
+        if(flag & KW_VERBOSE) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Searching word needs object,array,string",
+                "word",         "%s", word,
+                NULL
+            );
+            gobj_trace_json(gobj, kw, "Searching word needs object,array,string");
+        }
+        return FALSE;
+    }
+}
