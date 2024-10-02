@@ -99,6 +99,8 @@ typedef enum {
     KW_WILD_NUMBER      = 0x0004,   // For numbers work with real/int/bool/string without error logging
     KW_EXTRACT          = 0x0008,   // Extract (delete) the key on read from dictionary.
     KW_BACKWARD         = 0x0010,   // Search backward in lists or arrays
+    KW_VERBOSE          = 0x0020,   //
+    KW_LOWER            = 0x0040,   //
 } kw_flag_t;
 
 PUBLIC int kw_add_binary_type(
@@ -431,15 +433,6 @@ PUBLIC int kw_walk(
         - If it's a list of dict: the records have "id" field as primary key
         - If it's a dict, the key is the `id`
  ***************************************************************************/
-PUBLIC json_t *kwid_get(
-    hgobj gobj,
-    json_t *kw,  // NOT owned
-    const char *id,
-    json_t *default_value,
-    kw_flag_t flag,
-    size_t *idx     // If not null set the idx in case of array
-);
-
 /**rst**
     Utility for databases.
     Being field `kw` a list of id record [{id...},...] return the record idx with `id`
@@ -467,6 +460,14 @@ PUBLIC json_t *kw_collapse(
     int collapse_dicts_limit
 );
 
+PUBLIC json_t *kwid_get(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
+    const char *path,
+    ...
+) JANSSON_ATTRS((format(printf, 4, 5)));
+
 /**rst**
     Utility for databases.
     Return a new list from a "dict of records" or "list of records"
@@ -479,9 +480,10 @@ PUBLIC json_t *kw_collapse(
 PUBLIC json_t *kwid_new_list(
     hgobj gobj,
     json_t *kw,  // NOT owned
+    kw_flag_t flag,
     const char *path,
     ...
-) JANSSON_ATTRS((format(printf, 3, 4)));
+) JANSSON_ATTRS((format(printf, 4, 5)));
 
 /**rst**
     Utility for databases.
@@ -495,9 +497,10 @@ PUBLIC json_t *kwid_new_list(
 PUBLIC json_t *kwid_new_dict(
     hgobj gobj,
     json_t *kw,  // NOT owned
+    kw_flag_t flag,
     const char *path,
     ...
-) JANSSON_ATTRS((format(printf, 3, 4)));
+) JANSSON_ATTRS((format(printf, 4, 5)));
 
 /**rst**
     HACK Convention: private data begins with "_".

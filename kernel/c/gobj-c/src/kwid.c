@@ -2004,111 +2004,6 @@ PUBLIC int kw_walk(
 
 /***************************************************************************
     Utility for databases.
-    Get a json list or dict, get the **first** record that match `id`
-    Convention:
-        - If it's a list of dict: the records have "id" field as primary key
-        - If it's a dict, the key is the `id`
- ***************************************************************************/
-PUBLIC json_t *kwid_get(
-    hgobj gobj,
-    json_t *kw,  // NOT owned
-    const char *id,
-    json_t *default_value,
-    kw_flag_t flag,
-    size_t *idx_     // If not null set the idx in case of array
-)
-{
-    json_t *v = NULL;
-    BOOL backward = flag & KW_BACKWARD;
-
-    if(idx_) { // error case
-        *idx_ = 0;
-    }
-
-    if(empty_string(id)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "id NULL",
-            NULL
-        );
-        return NULL;
-    }
-
-    switch(json_typeof(kw)) {
-    case JSON_OBJECT:
-        v = json_object_get(kw, id);
-        if(!v) {
-            if(flag & KW_REQUIRED) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "record NOT FOUND, default value returned",
-                    "id",           "%s", id,
-                    NULL
-                );
-                gobj_trace_json(gobj, kw, "record NOT FOUND, default value returned, id='%s'", id);
-            }
-            return default_value;
-        }
-        return v;
-
-    case JSON_ARRAY:
-        {
-            if(!backward) {
-                size_t idx;
-                json_array_foreach(kw, idx, v) {
-                    const char *id_ = json_string_value(json_object_get(v, "id"));
-                    if(id_ && strcmp(id_, id)==0) {
-                        if(idx_) {
-                            *idx_ = idx;
-                        }
-                        return v;
-                    }
-                }
-            } else {
-                int idx;
-                json_array_backward(kw, idx, v) {
-                    const char *id_ = json_string_value(json_object_get(v, "id"));
-                    if(id_ && strcmp(id_, id)==0) {
-                        if(idx_) {
-                            *idx_ = idx;
-                        }
-                        return v;
-                    }
-                }
-            }
-
-            if(flag & KW_REQUIRED) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "record NOT FOUND, default value returned",
-                    "id",           "%s", id,
-                    NULL
-                );
-                gobj_trace_json(gobj, kw, "record NOT FOUND, default value returned, id='%s'", id);
-            }
-            return default_value;
-        }
-        break;
-
-    default:
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "kw must be dict or list",
-            "id",           "%s", id,
-            NULL
-        );
-        break;
-    }
-
-    return NULL;
-}
-
-/***************************************************************************
-    Utility for databases.
     Being field `kw` a list of id record [{id...},...] return the record idx with `id`
     Return -1 if not found
  ***************************************************************************/
@@ -2276,17 +2171,111 @@ PUBLIC json_t *kw_collapse(
 
 /***************************************************************************
     Utility for databases.
-    Return a new list from a "dict of records" or "list of records"
-    WARNING the "id" of a dict's record is hardcorded to his key.
+    Get a json item walking by the tree (routed by path)
     Convention:
         - all arrays are list of records (dicts) with "id" field as primary key
-        - delimiter is '`' and '.'
-
-    If path is empty then use kw
+        - delimiter are '`' and '.'
  ***************************************************************************/
-PUBLIC json_t *kwid_new_list(
+PRIVATE json_t *_kwid_get(
     hgobj gobj,
     json_t *kw,  // NOT owned
+    char *path,
+    kw_flag_t flag
+)
+{
+    BOOL backward = flag & KW_BACKWARD;
+    BOOL verbose = flag & KW_VERBOSE;
+
+
+    if(flag & KW_LOWER) {
+        strntolower(path, strlen(path));
+    }
+
+    int list_size;
+    const char **segments = split2(path, "`.", &list_size);
+
+    json_t *v = kw;
+    BOOL fin = FALSE;
+    for(int i=0; i<list_size && !fin; i++) {
+        const char *segment = *(segments +i);
+
+        if(!v) {
+            if(verbose) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "short path",
+                    "path",         "%s", path,
+                    "segment",      "%s", segment,
+                    NULL
+                );
+            }
+            break;
+        }
+
+        switch(json_typeof(v)) {
+        case JSON_OBJECT:
+            v = json_object_get(v, segment);
+            if(!v) {
+                fin = TRUE;
+            }
+            break;
+        case JSON_ARRAY:
+            {
+                int idx; json_t *v_;
+                BOOL found = FALSE;
+                if(!backward) {
+                    json_array_foreach(v, idx, v_) {
+                        const char *id = json_string_value(json_object_get(v_, "id"));
+                        if(id && strcmp(id, segment)==0) {
+                            v = v_;
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        v = 0;
+                        fin = TRUE;
+                    }
+                } else {
+                    json_array_backward(v, idx, v_) {
+                        const char *id = json_string_value(json_object_get(v_, "id"));
+                        if(id && strcmp(id, segment)==0) {
+                            v = v_;
+                            found = TRUE;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        v = 0;
+                        fin = TRUE;
+                    }
+                }
+
+            }
+            break;
+        default:
+            fin = TRUE;
+            break;
+        }
+    }
+
+    split_free2(segments);
+
+    return v;
+}
+
+/***************************************************************************
+    Utility for databases.
+    Get a json item walking by the tree (routed by path)
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter are '`' and '.'
+ ***************************************************************************/
+PUBLIC json_t *kwid_get( // Return is NOT YOURS
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
     const char *path,
     ...
 )
@@ -2302,7 +2291,43 @@ PUBLIC json_t *kwid_new_list(
         ap
     );
 
-    json_t *jn = _kw_find_path(gobj, kw, temp, TRUE);
+    json_t *jn = _kwid_get(gobj, kw, temp, flag);
+
+    va_end(ap);
+
+    return jn;
+}
+
+/***************************************************************************
+    Utility for databases.
+    Return a new list from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to his key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+
+    If path is empty then use kw
+ ***************************************************************************/
+PUBLIC json_t *kwid_new_list(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    kw_flag_t flag,
+    const char *path,
+    ...
+)
+{
+    va_list ap;
+    char temp[4*1024]; temp[0] = 0;
+
+    va_start(ap, path);
+    vsnprintf(
+        temp,
+        sizeof(temp),
+        path,
+        ap
+    );
+
+    json_t *jn = _kwid_get(gobj, kw, temp, flag);
 
     va_end(ap);
 
@@ -2356,6 +2381,7 @@ PUBLIC json_t *kwid_new_list(
 PUBLIC json_t *kwid_new_dict(
     hgobj gobj,
     json_t *kw,  // NOT owned
+    kw_flag_t flag,
     const char *path,
     ...
 )
@@ -2371,7 +2397,7 @@ PUBLIC json_t *kwid_new_dict(
         ap
     );
 
-    json_t *jn = _kw_find_path(gobj, kw, temp, TRUE);
+    json_t *jn = _kwid_get(gobj, kw, temp, flag);
 
     va_end(ap);
 

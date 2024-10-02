@@ -20,6 +20,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define RECORD_KEY_VALUE_MAX NAME_MAX
 
 /***************************************************************
  *              Structures
@@ -128,10 +129,12 @@ PRIVATE BOOL treedb_trace = 0;
  ***************************************************************************/
 PUBLIC int current_snap_tag(json_t *tranger, const char *treedb_name)
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     char path[NAME_MAX];
     snprintf(path, sizeof(path), "treedbs_snaps`%s`activated_snap_tag", treedb_name);
 
-    return kw_get_int(0, tranger, path, 0, KW_REQUIRED);
+    return (int)kw_get_int(gobj, tranger, path, 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -142,8 +145,10 @@ PUBLIC json_t *treedb_topic_pkey2s( // Return list with pkey2s
     const char *topic_name
 )
 {
-    json_t *topic_desc = kw_get_subdict_value(tranger, "topics", topic_name, 0, 0);
-    json_t *list = kw_get_list(topic_desc, "pkey2s", 0, 0);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic_desc = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
+    json_t *list = kw_get_list(gobj, topic_desc, "pkey2s", 0, 0);
     return json_incref(list);
 }
 
@@ -157,6 +162,8 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
     const char *id
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     json_t *jn_filter = json_object();
     json_object_set_new(jn_filter, "id", json_string(id));
 
@@ -167,7 +174,7 @@ PUBLIC json_t *treedb_topic_pkey2s_filter(
         if(empty_string(pkey2_name)) {
             continue;
         }
-        json_t *jn_value = kw_get_dict_value(node, pkey2_name, 0, 0);
+        json_t *jn_value = kw_get_dict_value(gobj, node, pkey2_name, 0, 0);
         if(jn_value) {
             const char *value = json_string_value(jn_value);
             if(!empty_string(value)) {
@@ -233,9 +240,12 @@ PUBLIC json_t *treedb_get_id_index( // WARNING Return is NOT YOURS
     const char *topic_name
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     json_t *indexx = kw_get_dict(
+        gobj,
         tranger,
         path,
         0,
@@ -254,10 +264,13 @@ PRIVATE json_t *treedb_get_pkey2_index( // Return is NOT YOURS
     const char *pkey2_name
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     // De momento sin claves combinadas, el nombre de la pkey es el nombre del field
     char path[NAME_MAX];
     build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
     json_t *indexy = kw_get_dict(
+        gobj,
         tranger,
         path,
         0,
@@ -276,8 +289,9 @@ PRIVATE const char *get_key2_value(
     json_t *kw
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     // combined no, de momento solo claves simples
-    const char *pkey2_value = kw_get_str(kw, pkey2_name, "", 0);
+    const char *pkey2_value = kw_get_str(gobj, kw, pkey2_name, "", 0);
     return pkey2_value;
 }
 
@@ -338,6 +352,7 @@ PRIVATE json_t *exist_secondary_node(
     snprintf(key_, sizeof(key_), "%s", key);
 
     return kw_get_subdict_value(
+        0,
         indexy,
         key_,
         key2,
@@ -362,6 +377,7 @@ PRIVATE int add_secondary_node(
 
     JSON_INCREF(node);
     return kw_set_subdict_value(
+        0,
         indexy,
         key_,
         key2,
@@ -383,6 +399,7 @@ PRIVATE int delete_secondary_node(
     snprintf(key_, sizeof(key_), "%s", key);
 
     json_t *node = kw_get_subdict_value(
+        0,
         indexy,
         key_,
         key2,
@@ -632,6 +649,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     const char *options // "persistent"
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     char treedb_name[NAME_MAX];
     snprintf(treedb_name, sizeof(treedb_name), "%s", treedb_name_);
     char *p = strstr(treedb_name, ".treedb_schema.json");
@@ -639,11 +658,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         *p = 0;
     }
 
-    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     if(empty_string(treedb_name)) {
-        gobj_log_error(0,0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "treedb_name NULL",
@@ -660,11 +678,11 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
 
     char schema_full_path[NAME_MAX*2];
     snprintf(schema_full_path, sizeof(schema_full_path), "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         schema_filename
     );
 
-    json_int_t schema_new_version = kw_get_int(0, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
+    int schema_new_version = (int)kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
     int schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {
@@ -672,11 +690,13 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             BOOL recreating = FALSE;
             if(file_exists(schema_full_path, 0)) {
                 json_t *old_jn_schema = load_json_from_file(
+                    gobj,
                     schema_full_path,
                     "",
-                    kw_get_int(0, tranger, "on_critical_error", 0, KW_REQUIRED)
+                    kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED)
                 );
-                json_int_t schema_old_version = kw_get_int(0,
+                int schema_old_version = (int)kw_get_int(
+                    gobj,
                     old_jn_schema,
                     "schema_version",
                     -1,
@@ -693,8 +713,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     JSON_DECREF(old_jn_schema);
                 }
             }
-            log_info(0,
-                "gobj",             "%s", __FILE__,
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
                 "msg",              "%s", recreating?"Re-Creating TreeDB schema file":"Creating TreeDB schema file",
@@ -703,13 +722,14 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 "schema_file",      "%s", schema_full_path,
                 NULL
             );
-            JSON_INCREF(jn_schema);
+            JSON_INCREF(jn_schema)
             save_json_to_file(
-                kw_get_str(tranger, "directory", 0, KW_REQUIRED),
+                gobj,
+                kw_get_str(gobj, tranger, "directory", 0, KW_REQUIRED),
                 schema_filename,
-                kw_get_int(0, tranger, "xpermission", 0, KW_REQUIRED),
-                kw_get_int(0, tranger, "rpermission", 0, KW_REQUIRED),
-                kw_get_int(0, tranger, "on_critical_error", 0, KW_REQUIRED),
+                (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+                (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+                (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 TRUE, // Create file if not exists or overwrite.
                 FALSE, // only_read
                 jn_schema     // owned
@@ -718,8 +738,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         } while(0);
 
         if(!jn_schema) {
-            gobj_log_error(0,0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj,0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "Cannot load TreeDB schema from file.",
@@ -730,8 +749,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             return 0;
         }
     } else if(!jn_schema) {
-        gobj_log_error(0,0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "TreeDB without schema.",
@@ -754,10 +772,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  At least 'topics' must be.
      */
     //json_t *jn_schema_topics = kw_get_list(jn_schema, "topics", 0, KW_REQUIRED);
-    json_t *jn_schema_topics = kwid_new_list("verbose", jn_schema, "topics");
+    json_t *jn_schema_topics = kwid_new_list(gobj, jn_schema, "topics");
     if(!jn_schema_topics) {
-        gobj_log_error(0,0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "No topics found",
