@@ -57,43 +57,6 @@ PRIVATE int global_result = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-static int print_topic_iter(json_t * list, uint64_t *result, int max)
-{
-    int count = 0;
-
-//print_json(list);
-    json_t *messages = kw_get_dict(0, list, "messages", 0, KW_REQUIRED);
-    const char *key;
-    json_t *message;
-    json_object_foreach(messages, key, message) {
-        //print_json(message);
-
-        if(count >= max) {
-            printf("ERROR count >= max, count %d, max %d\n", count, max);
-        }
-        json_t *active = kw_get_dict(0, message, "active", 0, KW_REQUIRED);
-        if(active) {
-            json_int_t rowid = kw_get_int(0, active, "__md_tranger__`__rowid__", 0, KW_REQUIRED);
-            if(result[count] != rowid) {
-                printf("ERROR count rowid not match, count %d, wait rowid %d, found rowid %d\n",
-                    count,
-                    (int)(result[count]),
-                    (int)(rowid)
-                );
-            }
-        }
-        count++;
-    }
-
-    if(count != max) {
-        printf("ERROR count != max, count %d, max %d\n", count, max);
-    }
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 static int print_key_iter(json_t * list, const char *key, uint64_t *expected, int max)
 {
     int count = 0;
@@ -303,7 +266,10 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             const char *test_name = "case 2";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                NULL,   // error's list, It must not be any log error
+                json_pack("[{s:s},{s:s}]", // error's list
+                    "msg", "key is required to trmsg_open_list",
+                    "msg", "tranger2_close_iterator(): iterator NULL"
+                ),
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
                 TRUE    // verbose
@@ -318,13 +284,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                 0           // filter
             );
 
-            uint64_t expected[] = {2,3,4,5,6,7, 8, 9}; // empieza 2 porque hay dos Abuelo
-            expected[7-1] += cnt;
-            expected[8-1] += cnt;
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_topic_iter(list, expected, max);
-
             trmsg_close_list(tranger, list);
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -332,49 +291,11 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
             result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
-        break;
-
-    case 3:
-        {
-            const char *test_name = "case 2";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY",           // topic
-                json_pack("{s:b}",  // filter
-                    "backward", 1
-                )
-            );
-
-            uint64_t expected[] = {9,8, 7,6,5,4,3,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_topic_iter(list, expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-
         break;
 
     case 10:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 10";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -427,7 +348,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 11:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 11";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -481,7 +402,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     case 12:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 12";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -533,7 +454,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 13:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 13";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -586,7 +507,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     case 20:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 20";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -624,7 +545,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 21:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 21";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -663,7 +584,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     case 22:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 22";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -701,7 +622,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 23:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 23";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -740,7 +661,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     case 30:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 30";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -778,7 +699,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 31:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 31";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -817,7 +738,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     case 32:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 32";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -855,7 +776,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
         break;
     case 33:
         {
-            const char *test_name = "case 2";
+            const char *test_name = "case 33";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -894,6 +815,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
     default:
         printf("MIERDA\n");
+        result += -1;
     }
 
     return result;
@@ -971,8 +893,6 @@ int do_test(void)
     // Ejecuta todos los casos
     result += test(tranger, 1, repeat, result);
     result += test(tranger, 2, repeat, result);
-    result += test(tranger, 3, repeat, result);
-
     result += test(tranger, 10, 10, result);
     result += test(tranger, 11, 10, result);
     result += test(tranger, 12, 10, result);

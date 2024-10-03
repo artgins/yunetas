@@ -470,9 +470,7 @@ typedef int (*tranger2_load_record_callback_t)(
 );
 
 /**rst**
-    Open iterator
-
-    match_cond:
+    Iterator match_cond:
 
         backward
         only_md     (don't load jn_record on calling callbacks)

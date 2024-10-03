@@ -161,6 +161,10 @@ PUBLIC int trmsg_add_instance(
         select_fields       (dict or list of strings) Display ony selected fields
         match_fields        (dict or list of dicts) Load instances that matches fields
 
+    For the first level see:
+
+        `Iterator match_cond` in timeranger2.h
+
  */
 
 /*
