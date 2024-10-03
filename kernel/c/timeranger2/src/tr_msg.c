@@ -121,7 +121,7 @@ PRIVATE int load_record_callback(
     json_t *instances = kw_get_list(gobj, message, "instances", json_array(), KW_CREATE);
     json_t *active = kw_get_dict(gobj, message, "active", json_object(), KW_CREATE);
 
-    if(jn_record) {
+    if(!jn_record) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
