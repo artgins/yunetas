@@ -2,7 +2,7 @@
  *          test.c
 
 rowid   tm
-1       972902859     'Abuelo'      foreward [2,3,4,5,6,7, cnt+8, cnt+9]
+1       972902859     'Abuelo'      forward [2,3,4,5,6,7, cnt+8, cnt+9]
 2       972899259     'Abuelo'      backward [9,8,7,6,5,4,3,1]
 3       972809259     'Abuela'
 4       1603961259    'Padre'
@@ -22,7 +22,7 @@ rowid   tm
 18      2390460459    'Nieto'
 19      2421996459    'Nieta'
 
- *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2018 Niyamaka, 2024- ArtGins
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
@@ -32,108 +32,28 @@ rowid   tm
 #include <inttypes.h>
 #include <locale.h>
 #include <time.h>
-#include <ghelpers.h>
+#include <yunetas.h>
 
 /***************************************************************************
- *      Constants
+ *              Constants
  ***************************************************************************/
-
-/***************************************************************************
- *      Structures
- ***************************************************************************/
-
-/*
- *  Used by main to communicate with parse_opt.
- */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
-struct arguments
-{
-    char *args[MAX_ARGS+1];     /* positional args */
-
-    int repeat;
-    int caso;
-};
+#define DATABASE    "tr_msg"
+#define TOPIC_NAME  "topic_test"
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
+PUBLIC void yuno_catch_signals(void);
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
-
-// Set by yuneta_entry_point()
-// const char *argp_program_version = APP_NAME " " APP_VERSION;
-// const char *argp_program_bug_address = APP_SUPPORT;
-
-/* Program documentation. */
-static char doc[] = "";
-
-/* A description of the arguments we accept. */
-static char args_doc[] = "";
-
-/*
- *  The options we understand.
- *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
- */
-static struct argp_option options[] = {
-{"repeat",          'r',    "TIMES",    0,      "Repeat execution 'repeat' times. Set -1 to infinite loop. Default: 1000000", 1},
-{"caso",            'c',    "CASE",     0,      "Test case.", 1},
-{0}
-};
-
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc
-};
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state)
-{
-    /*
-     *  Get the input argument from argp_parse,
-     *  which we know is a pointer to our arguments structure.
-     */
-    struct arguments *arguments = state->input;
-
-    switch (key) {
-    case 'r':
-        if(arg) {
-            arguments->repeat = atoi(arg);
-        }
-        break;
-
-    case 'c':
-        arguments->caso = atoi(arg);
-        break;
-
-    case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments. */
-            argp_usage (state);
-        }
-        arguments->args[state->arg_num] = arg;
-        break;
-
-    case ARGP_KEY_END:
-        if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments. */
-            argp_usage (state);
-        }
-        break;
-
-    default:
-        return ARGP_ERR_UNKNOWN;
-    }
-    return 0;
-}
+yev_loop_t *yev_loop;
+yev_event_t *yev_event_once;
+yev_event_t *yev_event_periodic;
+int wait_time = 1;
+int times_once = 0;
+int times_periodic = 0;
 
 /***************************************************************************
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
@@ -160,34 +80,6 @@ void pretty_bytes(char* bf, int bfsize, uint64_t bytes)
         snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
     else
         snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-static inline double ts_diff2 (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    //printf("KKK = %f\n", ((double)(e-s))/1000000);
-    return ((double)(e-s))/1000000;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-static inline struct timespec ts_diff (struct timespec start, struct timespec end)
-{
-    struct timespec temp;
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-        temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
-    } else {
-        temp.tv_sec = end.tv_sec - start.tv_sec;
-        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-    return temp;
 }
 
 /***************************************************************************
@@ -274,7 +166,6 @@ static int print_key_iter(json_t * list, const char *key, uint64_t *result, int 
  ***************************************************************************/
 static void test(json_t *rc2, int caso, uint64_t cnt)
 {
-    uint64_t i;
     struct timespec st, et;
     double dt;
 
@@ -1033,4 +924,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-

@@ -59,6 +59,8 @@ extern "C"{
 
 #include <timeranger2.h>
 #include <tr_treedb.h>
+#include <tr_msg.h>
+#include <tr_msg2db.h>
 
 #include <c_ota.h>
 #include <c_prot_modbus_master.h>

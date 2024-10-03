@@ -16,6 +16,9 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
+/***************************************************************
+ *              Constants
+ ***************************************************************/
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2

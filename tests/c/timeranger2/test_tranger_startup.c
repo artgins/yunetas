@@ -12,6 +12,9 @@
 #include <yunetas_ev_loop.h>
 #include <testing.h>
 
+/***************************************************************
+ *              Constants
+ ***************************************************************/
 #define DATABASE    "tr_tranger_startup"
 #define TOPIC_NAME  "topic_sample"
 
