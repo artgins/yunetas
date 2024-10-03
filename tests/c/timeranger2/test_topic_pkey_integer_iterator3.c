@@ -33,10 +33,6 @@ PUBLIC void yuno_catch_signals(void);
  *              Data
  ***************************************************************/
 PRIVATE yev_loop_t *yev_loop;
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int global_result = 0;
 PRIVATE uint64_t leidos = 0;
 PRIVATE json_int_t counter_rowid = 0;
