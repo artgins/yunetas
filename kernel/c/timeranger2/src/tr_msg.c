@@ -45,10 +45,11 @@ PUBLIC int trmsg_open_topics(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    int ret = 0;
     for(int i=0; descs[i].topic_name!=0; i++) {
         const topic_desc_t *topic_desc = descs + i;
 
-        tranger2_create_topic(
+        json_t *topic = tranger2_create_topic(
             tranger,    // If the topic exists then only needs (tranger,name) parameters
             topic_desc->topic_name,
             topic_desc->pkey,
@@ -58,9 +59,12 @@ PUBLIC int trmsg_open_topics(
             topic_desc->json_desc?create_json_record(gobj, topic_desc->json_desc):0, // owned
             0
         );
+        if(!topic) {
+            ret += -1;
+        }
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
