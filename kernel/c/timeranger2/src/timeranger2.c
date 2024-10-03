@@ -4321,7 +4321,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
     const char *iterator_id,     // iterator id, optional, if empty will be the key
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
-    json_t *extra       // owned, this json will be added to return iterator
+    json_t *extra       // owned, user data, this json will be added to the return iterator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));

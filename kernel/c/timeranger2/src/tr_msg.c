@@ -49,7 +49,7 @@ PUBLIC int trmsg_open_topics(
         const topic_desc_t *topic_desc = descs + i;
 
         tranger2_create_topic(
-            tranger,    // If topic exists then only needs (tranger,name) parameters
+            tranger,    // If the topic exists then only needs (tranger,name) parameters
             topic_desc->topic_name,
             topic_desc->pkey,
             topic_desc->tkey,
@@ -277,13 +277,6 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
     json_t *jn_filter  // owned
 )
 {
-    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:o}",
-        "topic_name", topic_name,
-        "match_cond", jn_filter?jn_filter:json_object(),
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-        "messages", json_object()
-    );
-
     json_t *list = tranger2_open_iterator(
         tranger,
         topic_name,
@@ -292,9 +285,8 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         load_record_callback, // called on LOADING and APPENDING
         "",     // iterator id, optional, if empty will be the key
         NULL,   // to store LOADING data, not owned
-        NULL    // options, owned
+        json_pack("{s:{}}", "messages")    // options, owned
     );
-
 
     return list;
 }
@@ -304,10 +296,10 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
  ***************************************************************************/
 PUBLIC int trmsg_close_list(
     json_t *tranger,
-    json_t *tr_list
+    json_t *list
 )
 {
-    // TODO return tranger_close_list(tranger, tr_list);
+    return tranger2_close_iterator(tranger, list);
 }
 
 /***************************************************************************

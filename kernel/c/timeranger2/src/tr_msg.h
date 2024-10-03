@@ -184,7 +184,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
 
 PUBLIC int trmsg_close_list(
     json_t *tranger,
-    json_t *tr_list
+    json_t *list
 );
 
 /*
