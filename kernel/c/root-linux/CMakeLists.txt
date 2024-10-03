@@ -64,7 +64,7 @@ set (HDRS
     src/ydaemon.h
     src/rotatory.h
 
-#    src/yunetas.h  // TODO tiene que ser generado por menuconfig
+    src/yunetas.h  # TODO tiene que ser generado por menuconfig
 )
 
 
