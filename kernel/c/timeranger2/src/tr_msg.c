@@ -174,8 +174,8 @@ PRIVATE int load_record_callback(
      *  Create instance
      */
     json_t *instance = jn_record?jn_record:json_object();
-    json_t *jn_record_md = tranger2_md2json(md_record);
-    json_object_set_new(instance, "__md_tranger__", jn_record_md);
+// TODO   json_t *jn_record_md = tranger2_md2json(md_record);
+//    json_object_set_new(instance, "__md_tranger__", jn_record_md);
 
     /*
      *  Check active
