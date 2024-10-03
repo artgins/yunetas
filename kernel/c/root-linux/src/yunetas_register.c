@@ -5,6 +5,20 @@
  *              Copyright (c) 2014-2015 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
+#include "c_linux_yuno.h"         // the grandmother
+#include "c_linux_transport.h"
+#include "c_linux_uart.h"
+#include "c_timer.h"
+#include "c_authz.h"
+#include "c_ievent_cli.h"
+#include "c_node.h"
+#include "c_prot_http_cl.h"
+#include "c_prot_http_sr.h"
+#include "c_task.h"
+#include "c_task_authz.h"
+#include "c_tranger.h"
+#include "c_treedb.h"
+
 #include "yunetas_register.h"
 
 /***************************************************************************
@@ -21,59 +35,20 @@ PUBLIC int yunetas_register_c_core(void)
         return -1;
     }
 
-//    /*
-//     *  Services
-//     */
-//    gobj_register_gclass(GCLASS_TREEDB);
-//    gobj_register_gclass(GCLASS_NODE);
-//    gobj_register_gclass(GCLASS_TRANGER);
-//    gobj_register_gclass(GCLASS_RESOURCE);
-//    gobj_register_gclass(GCLASS_RESOURCE2);
-//    gobj_register_gclass(GCLASS_IEVENT_SRV);
-//    gobj_register_gclass(GCLASS_IEVENT_CLI);
-//
-//    /*
-//     *  Gadgets
-//     */
-//    gobj_register_gclass(GCLASS_MQIOGATE);
-//    gobj_register_gclass(GCLASS_QIOGATE);
-//    gobj_register_gclass(GCLASS_IOGATE);
-//    gobj_register_gclass(GCLASS_CHANNEL);
-//    gobj_register_gclass(GCLASS_COUNTER);
-//    gobj_register_gclass(GCLASS_TASK);
-//    gobj_register_gclass(GCLASS_DYNRULE);
-//    gobj_register_gclass(GCLASS_TIMETRANSITION);
-//    gobj_register_gclass(GCLASS_RSTATS);
-
-    /*
-     *  Protocols
-     */
+    // TODO include with menuconfig
+    register_c_authz();
+    register_c_ievent_cli();
     register_c_linux_transport();
-    register_c_linux_uart();    // TODO include with menuconfig
-
-//    gobj_register_gclass(GCLASS_CONNEX);
-//    gobj_register_gclass(GCLASS_GWEBSOCKET);
-//    gobj_register_gclass(GCLASS_PROT_HEADER4);
-//    gobj_register_gclass(GCLASS_PROT_RAW);
-//    gobj_register_gclass(GCLASS_PROT_HTTP);
-//    gobj_register_gclass(GCLASS_PROT_HTTP_SRV);
-//    gobj_register_gclass(GCLASS_PROT_HTTP_CLI);
-//    gobj_register_gclass(GCLASS_SERIAL);
-
-    /*
-     *  Mixin io_uring-gobj
-     */
+    register_c_linux_uart();
+    register_c_linux_yuno();
+    register_c_node();
+    register_c_prot_http_cl();
+    //register_c_prot_http_sr();
+    register_c_task();
+    register_c_task_authenticate();
     register_c_timer();
-//    gobj_register_gclass(GCLASS_GSS_UDP_S0);
-//    gobj_register_gclass(GCLASS_TCP0);
-//    gobj_register_gclass(GCLASS_TCP_S0);
-//    gobj_register_gclass(GCLASS_UDP_S0);
-//    gobj_register_gclass(GCLASS_UDP0);
-//    gobj_register_gclass(GCLASS_TIMETRANSITION);
-//    gobj_register_gclass(GCLASS_TIMER);
-//    gobj_register_gclass(GCLASS_FS);
-
-//    register_ievent_answer_filter();
+    register_c_tranger();
+    register_c_treedb();
 
     initialized = TRUE;
 

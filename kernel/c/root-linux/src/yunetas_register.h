@@ -10,7 +10,7 @@
 extern "C"{
 #endif
 
-#include "gobj.h"
+#include <gobj.h>
 
 /*********************************************************************
  *  Prototypes
