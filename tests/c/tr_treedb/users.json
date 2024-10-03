@@ -1,0 +1,123 @@
+{
+    "treedbs": {
+        "treedb_test": {
+            "users": [
+                {
+                    "id": "ba115bf6-5a7c-4ac7-9852-ce32135b427f",
+                    "username": "dueño@email.com",
+                    "firstName": "Don",
+                    "lastName": "Duenño",
+                    "email": "dueño@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                        "departments^direction"
+                    ],
+                    "departments": [
+                        "departments^direction"
+                    ]
+                },
+                {
+                    "id": "b6eb2c61-622c-41d3-afa0-548b3fa882cd",
+                    "username": "admin@email.com",
+                    "firstName": "Admin",
+                    "lastName": "Martínez",
+                    "email": "admin@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                        "departments^administration"
+                    ],
+                    "departments": [
+                        "departments^administration"
+                    ]
+                },
+                {
+                    "id": "9594f724-c029-4190-8311-a42438f74a99",
+                    "username": "escritor@email.com",
+                    "firstName": "Escritor",
+                    "lastName": "Martínez",
+                    "email": "escritor@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                    ],
+                    "departments": [
+                        "departments^administration"
+                    ]
+                },
+                {
+                    "id": "cda33bc2-d191-41e6-b779-471977869463",
+                    "username": "op1@email.com",
+                    "firstName": "Op1",
+                    "lastName": "Martínez",
+                    "email": "op1@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                    ],
+                    "departments": [
+                        "departments^operation"
+                    ]
+                },
+                {
+                    "id": "95a4820d-89b0-4bd0-8144-2ef997638b80",
+                    "username": "op2@email.com",
+                    "firstName": "Op2",
+                    "lastName": "Martínez",
+                    "email": "op2@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                    ],
+                    "departments": [
+                        "departments^operation"
+                    ]
+                },
+                {
+                    "id": "b24aff31-36da-4014-95ec-8b10a1279cf3",
+                    "username": "dev1@email.com",
+                    "firstName": "Dev1",
+                    "lastName": "Martínez",
+                    "email": "dev1@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                    ],
+                    "departments": [
+                        "departments^development"
+                    ]
+                },
+                {
+                    "id": "a3586af9-2e57-489e-b6d3-ede04ea77bd0",
+                    "username": "dev2@email.com",
+                    "firstName": "Dev2",
+                    "lastName": "Martínez",
+                    "email": "dev2@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                    ],
+                    "departments": [
+                        "departments^development"
+                    ]
+                },
+                {
+                    "id": "cf2495a7-1cb9-4ce5-85f5-7a90dc5859d8",
+                    "username": "devboss@email.com",
+                    "firstName": "DevBoss",
+                    "lastName": "Martínez",
+                    "email": "devboss@email.com",
+                    "roles": [],
+                    "attributes": [],
+                    "manager": [
+                        "departments^development"
+                    ],
+                    "departments": [
+                        "departments^development"
+                    ]
+                }
+            ]
+        }
+    }
+}

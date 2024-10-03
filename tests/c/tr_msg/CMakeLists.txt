@@ -20,14 +20,10 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_tranger_startup.c
-    test_topic_pkey_integer.c
-    test_topic_pkey_integer_iterator.c
-    test_topic_pkey_integer_iterator2.c
-    test_topic_pkey_integer_iterator3.c
-    test_topic_pkey_integer_iterator4.c
-    test_topic_pkey_integer_iterator5.c
-    test_topic_pkey_integer_iterator6.c
+    test_tr_msg1.c
+#    test_tr_msg2.c
+#    test_tr_msg3.c
+#    test_tr_msg4.c
 )
 
 ##############################################
@@ -47,9 +43,7 @@ foreach(test ${SRCS})
         liburing.a
         libpcre2-8.a
         m
-        #z rt m
         uuid
-        #util
         bfd     # to stacktrace
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
