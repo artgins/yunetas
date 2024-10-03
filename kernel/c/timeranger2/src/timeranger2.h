@@ -382,11 +382,6 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
 );
 
 /**rst**
-    Return json object with record metadata
-**rst**/
-PUBLIC json_t *tranger2_md2json(md2_record_t *md2_record);
-
-/**rst**
     Append a new item to record.
     Return the new record's metadata.
 **rst**/
