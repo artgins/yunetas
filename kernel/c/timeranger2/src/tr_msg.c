@@ -100,7 +100,7 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *list,       // iterator or rt_mem/rt_disk
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
@@ -277,18 +277,30 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
     json_t *jn_filter  // owned
 )
 {
-    json_t *list = tranger2_open_iterator(
-        tranger,
-        topic_name,
-        "",     // key,
-        jn_filter?jn_filter:json_object(),  // match_cond, owned
-        load_record_callback, // called on LOADING and APPENDING
-        "",     // iterator id, optional, if empty will be the key
-        NULL,   // to store LOADING data, not owned
-        json_pack("{s:{}}", "messages")    // options, owned
-    );
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    return list;
+    const char *key = kw_get_str(gobj, jn_filter, "key", 0, 0);
+    if(!empty_string(key)) {
+        json_t *list = tranger2_open_iterator(
+            tranger,
+            topic_name,
+            "",     // key,
+            jn_filter?jn_filter:json_object(),  // match_cond, owned
+            load_record_callback, // called on LOADING and APPENDING
+            "",     // iterator id, optional, if empty will be the key
+            NULL,   // to store LOADING data, not owned
+            json_pack("{s:{}}", "messages")    // options, owned
+        );
+        return list;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "key is required to trmsg_open_list",
+            NULL
+        );
+        return NULL;
+    }
 }
 
 /***************************************************************************

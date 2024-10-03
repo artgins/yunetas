@@ -42,7 +42,7 @@ PRIVATE int load_rango_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,
+    json_t *list,
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *record      // must be owned

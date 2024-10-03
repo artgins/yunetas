@@ -230,7 +230,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *list,       // iterator or rt_mem/rt_disk
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *record      // must be owned
@@ -1175,7 +1175,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *list,       // iterator or rt_mem/rt_disk
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *record      // must be owned

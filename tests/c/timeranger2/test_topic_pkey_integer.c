@@ -47,7 +47,7 @@ int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_t *md2_record,
     json_t *record      // must be owned
@@ -63,7 +63,7 @@ int one_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_t *md2_record,
     json_t *record      // must be owned
