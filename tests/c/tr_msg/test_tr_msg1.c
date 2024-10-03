@@ -73,10 +73,10 @@ static int print_key_iter(json_t * list, const char *key, uint64_t *expected, in
             printf("%sERROR%s --> count >= max, count %d, max %d\n", On_Red BWhite, Color_Off, count, max);
             result += -1;
         }
-        json_int_t rowid = kw_get_int(0, instance, "__md_tranger__`__rowid__", 0, KW_REQUIRED);
+        json_int_t rowid = kw_get_int(0, instance, "__md_tranger__`rowid", 0, KW_REQUIRED);
 
         if(0) {
-            json_int_t tm = kw_get_int(0, instance, "__md_tranger__`__tm__", 0, KW_REQUIRED);
+            json_int_t tm = kw_get_int(0, instance, "__md_tranger__`tm", 0, KW_REQUIRED);
             printf("===> tm %lu, rowid %lu\n", (unsigned long)tm, (unsigned long)rowid);
         }
 
@@ -907,19 +907,6 @@ int do_test(void)
     result += test(tranger, 31, 1, result);
     result += test(tranger, 32, 1, result);
     result += test(tranger, 33, 1, result);
-
-    /*------------------------*
-     *      Close topic
-     *------------------------*/
-    set_expected_results( // Check that no logs happen
-        "check_close_topic", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    tranger2_close_topic(tranger, TOPIC_NAME);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger

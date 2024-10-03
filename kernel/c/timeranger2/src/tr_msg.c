@@ -242,12 +242,12 @@ PRIVATE int load_record_callback(
         /*
          *  Order by tm
          */
-        json_int_t tm = kw_get_int(gobj, instance, "__md_tranger__`__tm__", 0, KW_REQUIRED);
+        json_int_t tm = kw_get_int(gobj, instance, "__md_tranger__`tm", 0, KW_REQUIRED);
         json_int_t last_instance = json_array_size(instances);
         json_int_t idx = last_instance;
         while(idx > 0) {
             json_t *instance_ = json_array_get(instances, idx-1);
-            json_int_t tm_ = kw_get_int(gobj, instance_, "__md_tranger__`__tm__", 0, KW_REQUIRED);
+            json_int_t tm_ = kw_get_int(gobj, instance_, "__md_tranger__`tm", 0, KW_REQUIRED);
             if(tm >= tm_) {
                 break;
             }
@@ -425,7 +425,7 @@ PUBLIC json_t *trmsg_data_tree(
             json_t *instances = kw_get_dict_value(gobj, message, "instances", 0, KW_REQUIRED);
             json_int_t active_rowid = kw_get_int(
                 gobj,
-                jn_active, "__md_tranger__`__rowid__", 0, KW_REQUIRED
+                jn_active, "__md_tranger__`rowid", 0, KW_REQUIRED
             );
             BOOL active_found = FALSE;
             int idx; json_t *instance;
@@ -433,7 +433,7 @@ PUBLIC json_t *trmsg_data_tree(
                 if(!active_found) {
                     json_int_t instance_rowid = kw_get_int(
                         gobj,
-                        instance, "__md_tranger__`__rowid__", 0, KW_REQUIRED
+                        instance, "__md_tranger__`rowid", 0, KW_REQUIRED
                     );
                     if(instance_rowid == active_rowid) {
                         // Active record is already added and it's the root (with 'data' hook)
