@@ -4398,6 +4398,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
+    json_object_update_missing_new(iterator, extra);
 
     /*-------------------------------------------------------------------------*
      *  WITH HISTORY:
@@ -4560,7 +4561,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         iterator
     );
 
-    json_object_update_missing_new(iterator, extra);
     return iterator;
 }
 
@@ -4574,7 +4574,7 @@ PUBLIC int tranger2_close_iterator(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!iterator) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_close_iterator(): iterator NULL",

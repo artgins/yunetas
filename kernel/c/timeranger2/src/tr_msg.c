@@ -288,7 +288,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         json_t *list = tranger2_open_iterator(
             tranger,
             topic_name,
-            "",     // key,
+            key,
             jn_filter?jn_filter:json_object(),  // match_cond, owned
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key

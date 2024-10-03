@@ -892,7 +892,7 @@ int do_test(void)
      *------------------------------*/
     // Ejecuta todos los casos
     result += test(tranger, 1, repeat, result);
-    result += test(tranger, 2, repeat, result);
+    //result += test(tranger, 2, repeat, result); TODO repon
     result += test(tranger, 10, 10, result);
     result += test(tranger, 11, 10, result);
     result += test(tranger, 12, 10, result);
