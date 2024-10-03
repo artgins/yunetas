@@ -522,6 +522,7 @@ PUBLIC int tranger2_close_iterator(
 **rst**/
 PUBLIC json_t *tranger2_get_iterator_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *iterator_id
 );
 
@@ -574,6 +575,7 @@ PUBLIC int tranger2_close_rt_mem(
 **rst**/
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *list_id
 );
 
@@ -603,6 +605,7 @@ PUBLIC int tranger2_close_rt_disk(
 **rst**/
 PUBLIC json_t *tranger2_get_rt_disk_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *disk_id
 );
 

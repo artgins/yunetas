@@ -107,7 +107,7 @@ PRIVATE int load_record_callback(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *list = tranger2_get_iterator_by_id(tranger, rt_id);
+    json_t *list = 0; // TODO tranger2_get_iterator_by_id(tranger, topic_name, rt_id);
     json_t *jn_messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
     json_t *jn_filter2 = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
 

@@ -1115,7 +1115,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                 // Master to close the mem rt
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
-                //char *topic_name = pop_last_segment(full_path);
+                char *topic_name = pop_last_segment(full_path);
 
                 if(strcmp(disks, "disks")!=0) {
                     /*
@@ -1132,7 +1132,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     break;
                 }
 
-                json_t *rt = tranger2_get_rt_mem_by_id(tranger, rt_id);
+                json_t *rt = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_id);
                 tranger2_close_rt_mem(tranger, rt);
             }
             break;
@@ -1187,7 +1187,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     // (4) MONITOR update directory /disks/rt_id/ on new records
     // TODO perhaps /rt_id/ is not necessary ?
     // Create a hard link of md2 file
-    json_t *rt = tranger2_get_rt_mem_by_id(tranger, rt_id);
+    json_t *rt = tranger2_get_rt_mem_by_id(tranger, tranger2_topic_name(topic), rt_id);
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
 
     /*
@@ -3203,7 +3203,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         id = id_;
     }
 
-    if(tranger2_get_rt_mem_by_id(tranger, id)) {
+    if(tranger2_get_rt_mem_by_id(tranger, topic_name, id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -3294,6 +3294,7 @@ PUBLIC int tranger2_close_rt_mem(
  ***************************************************************************/
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *id
 )
 {
@@ -3302,10 +3303,9 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
     if(empty_string(id)) {
         return 0;
     }
-    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
 
-    const char *topic_name; json_t *topic;
-    json_object_foreach(topics, topic_name, topic) {
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(topic) {
         json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
         int idx; json_t *list;
         json_array_foreach(lists, idx, list) {
@@ -3376,7 +3376,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         id = id_;
     }
 
-    if(tranger2_get_rt_disk_by_id(tranger, id)) {
+    if(tranger2_get_rt_disk_by_id(tranger, topic_name, id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -3557,7 +3557,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     );
                     break;
                 }
-                json_t *iterator = tranger2_get_iterator_by_id(tranger, rt_id);
+                json_t *iterator = tranger2_get_iterator_by_id(tranger, topic_name, rt_id);
                 if(!iterator) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -3835,6 +3835,7 @@ PUBLIC int tranger2_close_rt_disk(
  ***************************************************************************/
 PUBLIC json_t *tranger2_get_rt_disk_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *id
 )
 {
@@ -3843,10 +3844,8 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     if(empty_string(id)) {
         return 0;
     }
-    json_t *topics = kw_get_dict_value(gobj, tranger, "topics", 0, KW_REQUIRED);
-
-    const char *topic_name; json_t *topic;
-    json_object_foreach(topics, topic_name, topic) {
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(topic) {
         json_t *disks = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
         int idx; json_t *disk;
         json_array_foreach(disks, idx, disk) {
@@ -3856,6 +3855,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
             }
         }
     }
+
     return 0;
 }
 
@@ -4363,7 +4363,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         iterator_id = key;
     }
 
-    if(tranger2_get_iterator_by_id(tranger, iterator_id)) {
+    if(tranger2_get_iterator_by_id(tranger, topic_name, iterator_id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -4639,25 +4639,24 @@ PUBLIC int tranger2_close_iterator(
  ***************************************************************************/
 PUBLIC json_t *tranger2_get_iterator_by_id(
     json_t *tranger,
+    const char *topic_name,
     const char *id
 )
 {
     if(empty_string(id)) {
         return 0;
     }
-    json_t *topics = json_object_get(tranger, "topics");
 
-    const char *topic_name; json_t *topic;
-    json_object_foreach(topics, topic_name, topic) {
-        json_t *iterators = json_object_get(topic, "iterators");
-        int idx; json_t *iterator;
-        json_array_foreach(iterators, idx, iterator) {
-            const char *iterator_id = json_string_value(json_object_get(iterator, "id"));
-            if(strcmp(id, iterator_id)==0) {
-                return iterator;
-            }
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    json_t *iterators = json_object_get(topic, "iterators");
+    int idx; json_t *iterator;
+    json_array_foreach(iterators, idx, iterator) {
+        const char *iterator_id = json_string_value(json_object_get(iterator, "id"));
+        if(strcmp(id, iterator_id)==0) {
+            return iterator;
         }
     }
+
     return 0;
 }
 

@@ -399,7 +399,7 @@ PRIVATE int mt_subscription_added(
     }
 
     // TODO review, old tranger_get_list
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, __list_id__);
+    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
     if(!list) {
         return gobj_send_event(
             subscriber,
@@ -889,7 +889,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
     if(list) {
         return msg_iev_build_response(
             gobj,
@@ -1064,7 +1064,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
+    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1213,7 +1213,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, list_id);
+    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1266,7 +1266,7 @@ PRIVATE int load_record_callback(
 )
 {
     hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *list = tranger2_get_iterator_by_id(tranger, rt_id);
+    json_t *list = 0;// TODO tranger2_get_iterator_by_id(tranger, topic_name, rt_id);
     json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
     BOOL has_fields = kw_has_key(match_cond, "fields");
 

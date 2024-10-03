@@ -1433,7 +1433,7 @@ PUBLIC int treedb_close_topic(
 
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    json_t *list = tranger2_get_iterator_by_id(tranger, path);
+    json_t *list = tranger2_get_iterator_by_id(tranger, topic_name, path);
     if(list) {
         tranger2_close_iterator(tranger, list);
     } else {
@@ -1459,7 +1459,7 @@ PUBLIC int treedb_close_topic(
         }
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
 
-        json_t *list_ = tranger2_get_iterator_by_id(tranger, path);
+        json_t *list_ = tranger2_get_iterator_by_id(tranger, topic_name, path);
         if(list_) {
             tranger2_close_iterator(tranger, list_);
         } else {

@@ -122,7 +122,7 @@ PRIVATE int do_test(json_t *tranger)
      *-------------------------------------*/
     if(1) {
         const char *KEY = "0000000000000000001";
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
+//        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         time_measure_t time_measure;
         json_t *match_cond;
 
@@ -240,10 +240,10 @@ PRIVATE int do_test(json_t *tranger)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    if(tranger2_get_iterator_by_id(tranger,"it_by_disk")) {
+    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk")) {
         result += tranger2_close_iterator(
             tranger,
-            tranger2_get_iterator_by_id(tranger,"it_by_disk")
+            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk")
         );
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
@@ -316,17 +316,17 @@ PRIVATE int close_all(json_t *tranger)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    if(tranger2_get_iterator_by_id(tranger,"it_by_mem")) {
+    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_mem")) {
         result += tranger2_close_iterator(
             tranger,
-            tranger2_get_iterator_by_id(tranger,"it_by_mem")
+            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_mem")
         );
         yev_loop_run_once(yev_loop);
     }
-    if(tranger2_get_iterator_by_id(tranger,"it_by_disk")) {
+    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk")) {
         result += tranger2_close_iterator(
             tranger,
-            tranger2_get_iterator_by_id(tranger,"it_by_disk")
+            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk")
         );
         yev_loop_run_once(yev_loop);
     }
