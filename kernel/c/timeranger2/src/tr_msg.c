@@ -14,7 +14,6 @@
 
 ***********************************************************************/
 #include <string.h>
-#include <stdio.h>
 
 #include <kwid.h>
 #include "tr_msg.h"
