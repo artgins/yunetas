@@ -15,7 +15,9 @@
 ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
-#include "31_tr_msg.h"
+
+#include <kwid.h>
+#include "tr_msg.h"
 
 /***************************************************************
  *              Constants
@@ -42,16 +44,19 @@ PUBLIC int trmsg_open_topics(
     const topic_desc_t *descs
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     for(int i=0; descs[i].topic_name!=0; i++) {
         const topic_desc_t *topic_desc = descs + i;
 
-        tranger_create_topic(
+        tranger2_create_topic(
             tranger,    // If topic exists then only needs (tranger,name) parameters
             topic_desc->topic_name,
             topic_desc->pkey,
             topic_desc->tkey,
+            NULL,
             topic_desc->system_flag,
-            topic_desc->json_desc?create_json_record(topic_desc->json_desc):0, // owned
+            topic_desc->json_desc?create_json_record(gobj, topic_desc->json_desc):0, // owned
             0
         );
     }
@@ -67,10 +72,12 @@ PUBLIC int trmsg_add_instance(
     const char *topic_name,
     json_t *jn_msg_,  // owned
     cols_flag_t cols_flag,
-    md_record_t *md_record
+    md2_record_t *md_record
 )
 {
-    md_record_t md_record_;
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    md2_record_t md_record_;
     json_t *jn_msg = 0;
     if(!md_record) {
         md_record = &md_record_;
@@ -78,15 +85,15 @@ PUBLIC int trmsg_add_instance(
 
     if(cols_flag & fc_only_desc_cols) {
         // Esto por cada inserción? you are fool!
-        json_t *topic = tranger_topic(tranger, topic_name);
-        json_t *cols = kw_get_dict(topic, "cols", 0, 0);
-        JSON_INCREF(cols);
-        jn_msg = kw_clone_by_keys(jn_msg_, cols, FALSE); // TODO los test fallan si pongo true
+        json_t *topic = tranger2_topic(tranger, topic_name);
+        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, 0);
+        JSON_INCREF(cols)
+        jn_msg = kw_clone_by_keys(gobj, jn_msg_, cols, FALSE); // TODO los test fallan si pongo true
     } else {
         jn_msg = jn_msg_;
     }
 
-    if(tranger_append_record(
+    if(tranger2_append_record(
         tranger,
         topic_name,
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
@@ -107,30 +114,24 @@ PUBLIC int trmsg_add_instance(
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
-    md_record_t *md_record,
+    const char *key,
+    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    md2_record_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
-    if(!jn_record) {
-        jn_record = tranger_read_record_content(tranger, topic, md_record);
-    }
-    json_t *jn_messages = kw_get_dict(list, "messages", 0, KW_REQUIRED);
-    json_t *jn_filter2 = kw_get_dict(list, "match_cond", 0, KW_REQUIRED);
-
-    char *key = md_record->key.s; // convierte las claves int a string
-    char key_[64];
-    if(md_record->__system_flag__ & (sf_int_key|sf_rowid_key)) {
-        snprintf(key_, sizeof(key_), "%"PRIu64, md_record->key.i);
-        key = key_;
-    }
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *list = tranger2_get_iterator_by_id(tranger, rt_id);
+    json_t *jn_messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
+    json_t *jn_filter2 = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
 
     /*
      *  Search the message for this key
      */
-    json_t *message = kw_get_dict_value(jn_messages, key, json_object(), KW_CREATE);
-    json_t *instances = kw_get_list(message, "instances", json_array(), KW_CREATE);
-    json_t *active = kw_get_dict(message, "active", json_object(), KW_CREATE);
+    json_t *message = kw_get_dict_value(gobj, jn_messages, key, json_object(), KW_CREATE);
+    json_t *instances = kw_get_list(gobj, message, "instances", json_array(), KW_CREATE);
+    json_t *active = kw_get_dict(gobj, message, "active", json_object(), KW_CREATE);
 
     /*---------------------------------*
      *  Apply filter of second level
@@ -140,15 +141,16 @@ PRIVATE int load_record_callback(
          *  Match fields
          */
         json_t *match_fields = kw_get_dict_value(
+            gobj,
             jn_filter2,
             "match_fields",
             0,
             0
         );
         if(match_fields) {
-            JSON_INCREF(match_fields);
+            JSON_INCREF(match_fields)
             if(!kw_match_simple(jn_record, match_fields)) {
-                JSON_DECREF(jn_record);
+                JSON_DECREF(jn_record)
                 return 0;  // Timeranger does not load the record, it's me.
             }
         }
@@ -157,6 +159,7 @@ PRIVATE int load_record_callback(
          *  Select fields
          */
         json_t *select_fields = kw_get_dict_value(
+            gobj,
             jn_filter2,
             "select_fields",
             0,
@@ -164,7 +167,7 @@ PRIVATE int load_record_callback(
         );
         if(select_fields) {
             JSON_INCREF(select_fields);
-            jn_record = kw_clone_by_keys(jn_record, select_fields, TRUE);
+            jn_record = kw_clone_by_keys(gobj, jn_record, select_fields, TRUE);
         }
     }
 
@@ -172,7 +175,7 @@ PRIVATE int load_record_callback(
      *  Create instance
      */
     json_t *instance = jn_record?jn_record:json_object();
-    json_t *jn_record_md = tranger_md2json(md_record);
+    json_t *jn_record_md = tranger2_md2json(md_record);
     json_object_set_new(instance, "__md_tranger__", jn_record_md);
 
     /*
@@ -186,6 +189,7 @@ PRIVATE int load_record_callback(
      */
     trmsg_instance_callback_t trmsg_instance_callback =
         (trmsg_instance_callback_t)(size_t)kw_get_int(
+        gobj,
         list,
         "trmsg_instance_callback",
         0,
@@ -200,12 +204,12 @@ PRIVATE int load_record_callback(
         );
 
         if(ret < 0) {
-            JSON_DECREF(instance);
+            JSON_DECREF(instance)
             return -1;  // break the load
         } else if(ret>0) {
             // continue below, add the instance
         } else { // == 0
-            JSON_DECREF(instance);
+            JSON_DECREF(instance)
             return 0;  // Timeranger does not load the record, it's me.
         }
     }
@@ -214,6 +218,7 @@ PRIVATE int load_record_callback(
      *  max_key_instances
      */
     unsigned max_key_instances = kw_get_int(
+        gobj,
         jn_filter2,
         "max_key_instances",
         0,
@@ -237,16 +242,16 @@ PRIVATE int load_record_callback(
     /*
      *  Inserta
      */
-    if(kw_get_bool(jn_filter2, "order_by_tm", 0, 0)) {
+    if(kw_get_bool(gobj, jn_filter2, "order_by_tm", 0, 0)) {
         /*
          *  Order by tm
          */
-        json_int_t tm = kw_get_int(instance, "__md_tranger__`__tm__", 0, KW_REQUIRED);
+        json_int_t tm = kw_get_int(gobj, instance, "__md_tranger__`__tm__", 0, KW_REQUIRED);
         json_int_t last_instance = json_array_size(instances);
         json_int_t idx = last_instance;
         while(idx > 0) {
             json_t *instance_ = json_array_get(instances, idx-1);
-            json_int_t tm_ = kw_get_int(instance_, "__md_tranger__`__tm__", 0, KW_REQUIRED);
+            json_int_t tm_ = kw_get_int(gobj, instance_, "__md_tranger__`__tm__", 0, KW_REQUIRED);
             if(tm >= tm_) {
                 break;
             }
@@ -287,11 +292,11 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         "messages", json_object()
     );
 
-    json_t *list = tranger_open_list(
-        tranger,
-        jn_list // owned
-    );
-    return list;
+// TODO   json_t *list = tranger_open_list(
+//        tranger,
+//        jn_list // owned
+//    );
+//    return list;
 }
 
 /***************************************************************************
@@ -302,7 +307,7 @@ PUBLIC int trmsg_close_list(
     json_t *tr_list
 )
 {
-    return tranger_close_list(tranger, tr_list);
+    // TODO return tranger_close_list(tranger, tr_list);
 }
 
 /***************************************************************************
@@ -312,7 +317,8 @@ PUBLIC json_t *trmsg_get_messages(
     json_t *list
 )
 {
-    return kw_get_dict(list, "messages", 0, KW_REQUIRED);
+    hgobj gobj = 0;
+    return kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -323,8 +329,9 @@ PUBLIC json_t *trmsg_get_message(
     const char *key
 )
 {
-    json_t *messages = kw_get_dict(list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(messages, key, 0, 0);
+    hgobj gobj = 0;
+    json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
+    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
 
     return message;
 }
@@ -337,12 +344,13 @@ PUBLIC json_t *trmsg_get_active_message(
     const char *key
 )
 {
-    json_t *messages = kw_get_dict(list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(messages, key, 0, 0);
+    hgobj gobj = 0;
+    json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
+    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
     if(!message) {
         return 0;
     }
-    json_t *active = kw_get_dict_value(message, "active", 0, KW_REQUIRED);
+    json_t *active = kw_get_dict_value(gobj, message, "active", 0, KW_REQUIRED);
     return active;
 }
 
@@ -354,13 +362,14 @@ PUBLIC json_t *trmsg_get_active_md(
     const char *key
 )
 {
-    json_t *messages = kw_get_dict(list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(messages, key, 0, 0);
+    hgobj gobj = 0;
+    json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
+    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
     if(!message) {
         return 0;
     }
-    json_t *active = kw_get_dict_value(message, "active", 0, KW_REQUIRED);
-    json_t *md = kw_get_dict(active, "__md_tranger__", 0, KW_REQUIRED);
+    json_t *active = kw_get_dict_value(gobj, message, "active", 0, KW_REQUIRED);
+    json_t *md = kw_get_dict(gobj, active, "__md_tranger__", 0, KW_REQUIRED);
     return md;
 }
 
@@ -372,12 +381,13 @@ PUBLIC json_t *trmsg_get_instances(
     const char *key
 )
 {
-    json_t *messages = kw_get_dict(list, "messages", 0, KW_REQUIRED);
-    json_t *message = kw_get_dict(messages, key, 0, 0);
+    hgobj gobj = 0;
+    json_t *messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
+    json_t *message = kw_get_dict(gobj, messages, key, 0, 0);
     if(!message) {
         return 0;
     }
-    json_t *instances= kw_get_dict_value(message, "instances", 0, KW_REQUIRED);
+    json_t *instances= kw_get_dict_value(gobj, message, "instances", 0, KW_REQUIRED);
     return instances;
 }
 
@@ -391,20 +401,22 @@ PUBLIC json_t *trmsg_data_tree(
     json_t *jn_filter  // owned
 )
 {
+    hgobj gobj = 0;
     json_t *jn_records = json_array();
     json_t *messages = trmsg_get_messages(list);
 
     const char *key;
     json_t *message;
     json_object_foreach(messages, key, message) {
-        json_t *active = kw_get_dict_value(message, "active", 0, KW_REQUIRED);
+        json_t *active = kw_get_dict_value(gobj, message, "active", 0, KW_REQUIRED);
         JSON_INCREF(jn_filter);
         if(kw_match_simple(active, jn_filter)) {
             json_t *jn_active = json_incref(active);
             json_array_append_new(jn_records, jn_active);
-            json_t *jn_data = kw_get_list(jn_active, "data", json_array(), KW_CREATE);
-            json_t *instances = kw_get_dict_value(message, "instances", 0, KW_REQUIRED);
+            json_t *jn_data = kw_get_list(gobj, jn_active, "data", json_array(), KW_CREATE);
+            json_t *instances = kw_get_dict_value(gobj, message, "instances", 0, KW_REQUIRED);
             json_int_t active_rowid = kw_get_int(
+                gobj,
                 jn_active, "__md_tranger__`__rowid__", 0, KW_REQUIRED
             );
             BOOL active_found = FALSE;
@@ -412,6 +424,7 @@ PUBLIC json_t *trmsg_data_tree(
             json_array_foreach(instances, idx, instance) {
                 if(!active_found) {
                     json_int_t instance_rowid = kw_get_int(
+                        gobj,
                         instance, "__md_tranger__`__rowid__", 0, KW_REQUIRED
                     );
                     if(instance_rowid == active_rowid) {
@@ -430,7 +443,7 @@ PUBLIC json_t *trmsg_data_tree(
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return jn_records;
 }
 
@@ -458,7 +471,7 @@ PUBLIC json_t *trmsg_active_records(
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return jn_records;
 }
 
@@ -486,7 +499,7 @@ PUBLIC json_t *trmsg_record_instances(
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return jn_records;
 }
 
@@ -519,13 +532,13 @@ PUBLIC int trmsg_foreach_active_messages(
             json_t *jn_active = json_incref(active); // Your copy
 
             if(callback(list, key, jn_active, user_data1, user_data2)<0) {
-                JSON_DECREF(jn_filter);
+                JSON_DECREF(jn_filter)
                 return -1;
             }
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return 0;
 }
 
@@ -564,12 +577,12 @@ PUBLIC int trmsg_foreach_instances_messages(
             }
         }
         if(callback(list, key, jn_instances, user_data1, user_data2)<0) {
-            JSON_DECREF(jn_filter);
+            JSON_DECREF(jn_filter)
             return -1;
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return 0;
 }
 
@@ -609,12 +622,12 @@ PUBLIC int trmsg_foreach_messages(
             }
 
             if(callback(list, key, jn_message, user_data1, user_data2)<0) {
-                JSON_DECREF(jn_filter);
+                JSON_DECREF(jn_filter)
                 return -1;
             }
         }
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return 0;
 }
