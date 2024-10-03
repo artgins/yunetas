@@ -396,8 +396,6 @@ GOBJ_DEFINE_GCLASS(C_PROT_HTTP_SR);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_DISCONNECTED);
-GOBJ_DEFINE_STATE(ST_CONNECTED);
 
 /*------------------------*
  *      Events

@@ -20,33 +20,49 @@ extern "C"{
 
 #include <ansi_escape_codes.h>
 #include <comm_prot.h>
+#include <command_parser.h>
 #include <ghttp_parser.h>
 #include <gobj_environment.h>
 #include <helpers.h>
 #include <istream.h>
 #include <json_config.h>
 #include <kwid.h>
+#include <log_udp_handler.h>
 #include <parse_url.h>
 #include <replace_string.h>
 #include <stacktrace_with_bfd.h>
 #include <stats_parser.h>
 #include <testing.h>
 
-#include "c_linux_yuno.h"         // the grandmother
-#include "c_linux_transport.h"
-#include "c_linux_uart.h"
-#include "c_timer.h"
-#include "dbsimple.h"
-#include "yunetas_ev_loop.h"
-#include "entry_point.h"
-#include "fs_watcher.h"
-#include "rotatory.h"
-#include "ydaemon.h"
-#include "yunetas_environment.h"
-#include "yunetas_ev_loop.h"
-#include "yunetas_register.h"
+#include <c_linux_yuno.h>         // the grandmother
+#include <c_linux_transport.h>
+#include <c_linux_uart.h>
+#include <c_timer.h>
+#include <c_authz.h>
+#include <c_ievent_cli.h>
+#include <c_node.h>
+#include <c_prot_http_cli.h>
+#include <c_prot_http_sr.h>
+#include <c_task.h>
+#include <c_task_authz.h>
+#include <c_tranger.h>
+#include <c_treedb.h>
+#include <dbsimple.h>
+#include <yunetas_ev_loop.h>
+#include <entry_point.h>
+#include <fs_watcher.h>
+#include <rotatory.h>
+#include <ydaemon.h>
+#include <yunetas_environment.h>
+#include <yunetas_ev_loop.h>
+#include <yunetas_register.h>
 
 #include <timeranger2.h>
+#include <tr_treedb.h>
+
+#include <c_ota.h>
+#include <c_prot_modbus_master.h>
+#include <c_prot_tcp4h.h>
 
 /*
  *  Services
