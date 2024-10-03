@@ -69,27 +69,13 @@ PUBLIC int trmsg_open_topics(
 PUBLIC int trmsg_add_instance(
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_msg_,  // owned
-    cols_flag_t cols_flag,
+    json_t *jn_msg,  // owned
     md2_record_t *md_record
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
     md2_record_t md_record_;
-    json_t *jn_msg = 0;
     if(!md_record) {
         md_record = &md_record_;
-    }
-
-    if(cols_flag & fc_only_desc_cols) {
-        // Esto por cada inserción? you are fool!
-        json_t *topic = tranger2_topic(tranger, topic_name);
-        json_t *cols = kw_get_dict(gobj, topic, "cols", 0, 0);
-        JSON_INCREF(cols)
-        jn_msg = kw_clone_by_keys(gobj, jn_msg_, cols, FALSE); // TODO los test fallan si pongo true
-    } else {
-        jn_msg = jn_msg_;
     }
 
     if(tranger2_append_record(

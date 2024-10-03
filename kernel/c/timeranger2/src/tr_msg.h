@@ -76,9 +76,6 @@ extern "C"{
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef enum { // add instance flags
-    fc_only_desc_cols       = 0x00000001,   // filter record by keys defined in cols
-} cols_flag_t;
 
 
 /***************************************************************
@@ -148,7 +145,6 @@ PUBLIC int trmsg_add_instance(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_msg,  // owned
-    cols_flag_t cols_flag,
     md2_record_t *md_record
 );
 
@@ -190,16 +186,6 @@ PUBLIC int trmsg_close_list(
     json_t *tranger,
     json_t *tr_list
 );
-
-PUBLIC json_t *trmsg_backup_topic( // TODO not implemented
-    json_t *tranger,
-    const char *topic_name,
-    const char *backup_path,
-    const char *backup_name,
-    BOOL overwrite_backup,
-    tranger_backup_deleting_callback_t tranger_backup_deleting_callback
-);
-
 
 /*
  *  Functions returning items of list (NOT YOURS).
