@@ -4331,7 +4331,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
     const char *iterator_id,     // iterator id, optional, if empty will be the key
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
-    json_t *options     // owned TODO "Disk-exclusive" the output is only for us. Don't broadcast to others.
+    json_t *extra       // owned, this json will be added to return iterator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -4356,7 +4356,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             NULL
         );
         JSON_DECREF(match_cond)
-        JSON_DECREF(options)
+        JSON_DECREF(extra)
         return NULL;
     }
     if(empty_string(iterator_id)) {
@@ -4374,7 +4374,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             NULL
         );
         JSON_DECREF(match_cond)
-        JSON_DECREF(options)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -4559,7 +4559,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     NULL
                 );
                 JSON_DECREF(iterator)
-                JSON_DECREF(options)
+                JSON_DECREF(extra)
                 return NULL;
             }
         }
@@ -4570,7 +4570,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         iterator
     );
 
-    JSON_DECREF(options)
+    json_object_update_missing_new(iterator, extra);
     return iterator;
 }
 
