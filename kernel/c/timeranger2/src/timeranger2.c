@@ -1274,11 +1274,16 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
  ***************************************************************************/
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
-    json_t *topic,
+    const char *topic_name,
     json_t *match_cond  // owned, uses "key" and "rkey"
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *topic = tranger2_topic( // WARNING returned json IS NOT YOURS
+        tranger,
+        topic_name
+    );
+
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
 
     char full_path[PATH_MAX];
@@ -1306,7 +1311,7 @@ PUBLIC uint64_t tranger2_topic_size(
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
-        topic,
+        topic_name,
         NULL
     );
 
@@ -4320,7 +4325,7 @@ PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic, const char *key)
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDING: add real time data
     json_t *tranger,
-    json_t *topic,
+    const char *topic_name,
     const char *key,    // ONLY one key by iterator
     json_t *match_cond, // owned
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
@@ -4330,6 +4335,11 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        return 0;
+    }
 
     /*----------------------*
      *  Check parameters
@@ -4342,7 +4352,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_iterator(): What key?",
-            "topic_name",   "%s", tranger2_topic_name(topic),
+            "topic_name",   "%s", topic_name,
             NULL
         );
         JSON_DECREF(match_cond)
@@ -4358,7 +4368,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_iterator(): Iterator already exists",
-            "topic_name",   "%s", tranger2_topic_name(topic),
+            "topic_name",   "%s", topic_name,
             "key",          "%s", key,
             "id",           "%s", iterator_id,
             NULL
@@ -4386,7 +4396,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
     json_object_set_new(iterator, "key", json_string(key));
-    json_object_set_new(iterator, "topic_name", json_string(tranger2_topic_name(topic)));
+    json_object_set_new(iterator, "topic_name", json_string(topic_name));
     json_object_set_new(iterator, "match_cond", match_cond);    // owned
     json_object_set_new(iterator, "segments", segments);        // owned
 
@@ -4520,7 +4530,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             if(rt_by_mem) {
                 rt = tranger2_open_rt_mem(
                     tranger,
-                    tranger2_topic_name(topic),
+                    topic_name,
                     key,                    // if empty receives all keys, else only this key
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
@@ -4530,7 +4540,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             } else {
                 rt = tranger2_open_rt_disk(
                     tranger,
-                    tranger2_topic_name(topic),
+                    topic_name,
                     key,                    // if empty receives all keys, else only this key
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
@@ -4543,7 +4553,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
-                    "topic_name",   "%s", tranger2_topic_name(topic),
+                    "topic_name",   "%s", topic_name,
                     "key",          "%s", key,
                     "id",           "%s", iterator_id,
                     NULL

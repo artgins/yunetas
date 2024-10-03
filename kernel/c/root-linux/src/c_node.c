@@ -3002,8 +3002,8 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     json_t *list = tranger2_open_iterator(
         priv->tranger,
-        topic,
-        "key",
+        topic_name,
+        "key", // TODO
         jn_filter,  //match_cond,  // owned
         NULL,       //load_record_callback, // called on LOADING and APPENDING
         "",         // iterator_id,     // iterator id, optional, if empty will be the key

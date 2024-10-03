@@ -114,7 +114,6 @@ PRIVATE int search_data(
 
     leidos = 0;
     counter_rowid = from_rowid;
-    json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
     json_t *match_cond = json_pack("{s:b, s:I, s:I}",
         "backward", BACKWARD,
         "from_rowid", (json_int_t)from_rowid,
@@ -124,7 +123,7 @@ PRIVATE int search_data(
 
     json_t *iterator = tranger2_open_iterator(
         tranger,
-        topic,
+        TOPIC_NAME,
         key,                    // key
         match_cond,             // match_cond, owned
         load_rango_callback,    // load_record_callback

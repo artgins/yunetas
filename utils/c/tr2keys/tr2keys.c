@@ -394,7 +394,7 @@ PRIVATE int list_messages(void)
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
-        topic,
+        arguments.topic,
         json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
     print_json2("Keys", jn_keys);

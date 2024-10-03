@@ -537,7 +537,7 @@ PRIVATE int list_messages(void)
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
-        topic,
+        arguments.topic,
         json_incref(match_cond)  // owned, uses "key" and "rkey"
     );
 
@@ -546,7 +546,7 @@ PRIVATE int list_messages(void)
         const char *key = json_string_value(jn_key);
         json_t *tr_list = tranger2_open_iterator(
             tranger,
-            topic,
+            arguments.topic,
             key,
             json_incref(match_cond),  // owned
             load_record_callback, // called on LOADING and APPENDING

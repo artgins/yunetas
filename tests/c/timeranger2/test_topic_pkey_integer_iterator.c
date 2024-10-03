@@ -109,7 +109,7 @@ PRIVATE int do_test(void)
     );
     json_t *iterator = tranger2_open_iterator(
         tranger,
-        topic,
+        TOPIC_NAME,
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
         NULL,   // load_record_callback

@@ -118,42 +118,50 @@ PRIVATE int load_record_callback(
     json_t *instances = kw_get_list(gobj, message, "instances", json_array(), KW_CREATE);
     json_t *active = kw_get_dict(gobj, message, "active", json_object(), KW_CREATE);
 
+    if(jn_record) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "jn_record NULL",
+            NULL
+        );
+        return -1;
+    }
+
     /*---------------------------------*
      *  Apply filter of second level
      *---------------------------------*/
-    if(jn_record) {
-        /*
-         *  Match fields
-         */
-        json_t *match_fields = kw_get_dict_value(
-            gobj,
-            jn_filter2,
-            "match_fields",
-            0,
-            0
-        );
-        if(match_fields) {
-            JSON_INCREF(match_fields)
-            if(!kw_match_simple(jn_record, match_fields)) {
-                JSON_DECREF(jn_record)
-                return 0;  // Timeranger does not load the record, it's me.
-            }
+    /*
+     *  Match fields
+     */
+    json_t *match_fields = kw_get_dict_value(
+        gobj,
+        jn_filter2,
+        "match_fields",
+        0,
+        0
+    );
+    if(match_fields) {
+        JSON_INCREF(match_fields)
+        if(!kw_match_simple(jn_record, match_fields)) {
+            JSON_DECREF(jn_record)
+            return 0;  // Timeranger does not load the record, it's me.
         }
+    }
 
-        /*
-         *  Select fields
-         */
-        json_t *select_fields = kw_get_dict_value(
-            gobj,
-            jn_filter2,
-            "select_fields",
-            0,
-            0
-        );
-        if(select_fields) {
-            JSON_INCREF(select_fields);
-            jn_record = kw_clone_by_keys(gobj, jn_record, select_fields, TRUE);
-        }
+    /*
+     *  Select fields
+     */
+    json_t *select_fields = kw_get_dict_value(
+        gobj,
+        jn_filter2,
+        "select_fields",
+        0,
+        0
+    );
+    if(select_fields) {
+        JSON_INCREF(select_fields);
+        jn_record = kw_clone_by_keys(gobj, jn_record, select_fields, TRUE);
     }
 
     /*
@@ -165,7 +173,7 @@ PRIVATE int load_record_callback(
 
     /*
      *  Check active
-     *  The last loaded msg will be the active msg
+     *  The last-loaded msg will be the active msg
      */
     BOOL is_active = TRUE;
 
@@ -277,11 +285,19 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         "messages", json_object()
     );
 
-// TODO   json_t *list = tranger_open_list(
-//        tranger,
-//        jn_list // owned
-//    );
-//    return list;
+    json_t *list = tranger2_open_iterator(
+        tranger,
+        topic_name,
+        "",     // key,
+        jn_filter?jn_filter:json_object(),  // match_cond, owned
+        load_record_callback, // called on LOADING and APPENDING
+        "",     // iterator id, optional, if empty will be the key
+        NULL,   // to store LOADING data, not owned
+        NULL    // options, owned
+    );
+
+
+    return list;
 }
 
 /***************************************************************************

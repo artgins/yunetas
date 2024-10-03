@@ -290,7 +290,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 **rst**/
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
-    json_t *topic,
+    const char *topic_name,
     json_t *match_cond  // owned, uses "key" and "rkey"
 );
 
@@ -499,7 +499,7 @@ typedef int (*tranger2_load_record_callback_t)(
  */
 PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
-    json_t *topic,
+    const char *topic_name,
     const char *key,
     json_t *match_cond,  // owned
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING

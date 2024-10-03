@@ -26,7 +26,6 @@ rowid   tm
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -168,7 +167,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -180,7 +178,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -193,7 +190,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -206,7 +202,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -219,7 +214,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -232,7 +226,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -244,7 +237,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -257,7 +249,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
             trmsg_add_instance(
@@ -270,7 +261,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                     "level", 0
                 ),
-                fc_only_desc_cols,
                 0
             );
 
@@ -285,7 +275,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                         "level", i+1
                     ),
-                    fc_only_desc_cols,
                     0
                 );
                 trmsg_add_instance(
@@ -298,7 +287,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
 
                         "level", i+1
                     ),
-                    fc_only_desc_cols,
                     0
                 );
             }
@@ -410,7 +398,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                         "address", "a",
                         "level", i
                     ),
-                    fc_only_desc_cols,
                     0
                 );
             }
@@ -464,7 +451,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                         "address", "a",
                         "level", i
                     ),
-                    fc_only_desc_cols,
                     0
                 );
             }
@@ -518,7 +504,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                         "address", "a",
                         "level", i
                     ),
-                    fc_only_desc_cols,
                     0
                 );
             }
@@ -571,7 +556,6 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                         "address", "a",
                         "level", i
                     ),
-                    fc_only_desc_cols,
                     0
                 );
             }

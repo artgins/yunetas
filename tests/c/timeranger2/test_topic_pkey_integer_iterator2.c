@@ -134,7 +134,7 @@ PRIVATE int do_test(void)
     t = tm = 946684800-1;
     tranger2_open_iterator(
         tranger,
-        tranger2_topic(tranger, TOPIC_NAME),
+        TOPIC_NAME,
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
@@ -162,7 +162,7 @@ PRIVATE int do_test(void)
     t = tm = 946684800-1;
     json_t *iterator2 = tranger2_open_iterator(
         tranger,
-        tranger2_topic(tranger, TOPIC_NAME),
+        TOPIC_NAME,
         "0000000000000000002",     // key,
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
@@ -210,7 +210,7 @@ PRIVATE int do_test(void)
     );
     json_t *iterator22 = tranger2_open_iterator(
         tranger,
-        tranger2_topic(tranger, TOPIC_NAME),
+        TOPIC_NAME,
         "0000000000000000002",     // key,
         NULL,   // match_cond, owned
         NULL,   // load_record_callback

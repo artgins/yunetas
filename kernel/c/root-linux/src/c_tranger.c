@@ -1009,7 +1009,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     list = tranger2_open_iterator(
         priv->tranger,
-        topic,
+        topic_name,
         key,
         match_cond,  // owned
         load_record_callback, // called on LOADING and APPENDING

@@ -2417,7 +2417,6 @@ PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload
             priv->tranger,
             "users_accesses",
             user, // owned
-            0,
             0
         );
     }
@@ -2446,7 +2445,6 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
             priv->tranger,
             "users_accesses",
             user, // owned
-            0,
             0
         );
     }

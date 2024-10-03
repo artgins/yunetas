@@ -200,13 +200,12 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:b}",
             "backward", 0
         );
         json_t *iterator = tranger2_open_iterator(
             tranger,
-            topic,
+            TOPIC_NAME,
             KEY,                    // key
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
@@ -314,13 +313,12 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         json_t *match_cond = json_pack("{s:b}",
             "backward", 1
         );
         json_t *iterator = tranger2_open_iterator(
             tranger,
-            topic,
+            TOPIC_NAME,
             KEY,                    // key
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
