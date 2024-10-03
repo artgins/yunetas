@@ -912,7 +912,7 @@ PRIVATE int build_new_treedb_schema(
             gobj
         );
 
-        json_t *jn_cols = kwid_new_list("", jn_topic, "cols");
+        json_t *jn_cols = kwid_new_list(gobj, jn_topic, 0, "cols");
         if(!jn_cols) {
             json_decref(topic);
             continue;

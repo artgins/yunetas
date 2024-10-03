@@ -817,7 +817,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-    json_t *desc = kwid_new_dict(gobj, priv->tranger, "topics`%s`cols", topic_name);
+    json_t *desc = kwid_new_dict(gobj, priv->tranger, 0, "topics`%s`cols", topic_name);
 
     return msg_iev_build_response(gobj,
         desc?0:-1,

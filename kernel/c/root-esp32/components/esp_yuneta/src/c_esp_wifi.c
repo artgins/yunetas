@@ -776,7 +776,7 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
 
     json_t *jn_wifi_list = gobj_read_json_attr(gobj, "wifi_list");
     size_t idx;
-    json_t *jn_record = kwid_get(gobj, jn_wifi_list, id, 0, 0, &idx);
+    json_t *jn_record = 0; // TODO kwid_get(gobj, jn_wifi_list, id, 0, 0, &idx);
     if(!jn_record) {
         priv->idx_wifi_list = 0;
         json_array_insert(jn_wifi_list, 0, kw);
