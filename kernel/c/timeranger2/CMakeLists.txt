@@ -20,6 +20,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set (SRCS
+    src/fs_watcher.c
     src/timeranger2.c
 #    src/tr_msg.c
 #    src/tr_msg2db.c
@@ -28,6 +29,7 @@ set (SRCS
 )
 
 set (HDRS
+    src/fs_watcher.h
     src/timeranger2.h
     src/tr_msg.h
     src/tr_msg2db.h

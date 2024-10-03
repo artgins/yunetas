@@ -836,7 +836,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *--------------------------------*/
     gobj_publish_event(
         gobj,
-        "EV_AUTHZ_USER_LOGIN",
+        EV_AUTHZ_USER_LOGIN,
         json_pack("{s:s, s:s, s:o, s:o, s:o, s:o}",
             "username", username,
             "dst_service", dst_service,
@@ -2524,7 +2524,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_publish_event(
                 gobj,
-                "EV_AUTHZ_USER_LOGOUT",
+                EV_AUTHZ_USER_LOGOUT,
                 json_pack("{s:s, s:O, s:o}",
                     "username", username,
                     "user", user,
