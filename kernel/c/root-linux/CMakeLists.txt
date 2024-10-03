@@ -34,7 +34,6 @@ set (SRCS
     src/c_tranger.c
     src/c_treedb.c
     src/yunetas_environment.c
-    src/yunetas_ev_loop.c
     src/dbsimple.c
     src/entry_point.c
     src/msg_ievent.c
@@ -58,7 +57,6 @@ set (HDRS
     src/c_tranger.h
     src/c_treedb.h
     src/yunetas_environment.h
-    src/yunetas_ev_loop.h
     src/dbsimple.h
     src/entry_point.h
     src/msg_ievent.h
@@ -66,7 +64,7 @@ set (HDRS
     src/ydaemon.h
     src/rotatory.h
 
-    src/yunetas.h
+#    src/yunetas.h  // TODO tiene que ser generado por menuconfig
 )
 
 

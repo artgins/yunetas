@@ -17,7 +17,7 @@
 
 #include <helpers.h>
 #include <kwid.h>
-#include <fs_watcher.h>
+#include "fs_watcher.h"
 #include "timeranger2.h"
 
 extern void jsonp_free(void *ptr); // json low level

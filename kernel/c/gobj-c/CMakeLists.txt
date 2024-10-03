@@ -37,6 +37,7 @@ set (SRCS
     src/testing.c
     src/json_config.c
     src/replace_string.c
+    src/yunetas_ev_loop.c
 
     src/stacktrace_with_bfd.c
 )
@@ -58,6 +59,7 @@ set (HDRS
     src/testing.h
     src/json_config.h
     src/replace_string.h
+    src/yunetas_ev_loop.h
 
     src/stacktrace_with_bfd.h
 )
