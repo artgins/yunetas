@@ -230,7 +230,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,
+    json_t *list,       // iterator or rt_mem/rt_disk
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *record      // must be owned
@@ -1175,7 +1175,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,
+    json_t *list,       // iterator or rt_mem/rt_disk
     json_int_t rowid,
     md2_record_t *md_record,
     json_t *record      // must be owned
@@ -1187,7 +1187,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
     // (4) MONITOR update directory /disks/rt_id/ on new records
     // TODO perhaps /rt_id/ is not necessary ?
     // Create a hard link of md2 file
-    json_t *rt = tranger2_get_rt_mem_by_id(tranger, tranger2_topic_name(topic), rt_id);
+    json_t *rt = list;
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
 
     /*
@@ -2662,15 +2662,6 @@ PUBLIC int tranger2_append_record(
     json_array_foreach(lists, idx, list) {
         const char *key_ = json_string_value(json_object_get(list, "key"));
         if(empty_string(key_) || strcmp(key_, key_value)==0) {
-            const char *id = json_string_value(json_object_get(list, "id"));
-//            tranger2_load_record_callback_t load_record_callback =
-//                (tranger2_load_record_callback_t)(size_t)kw_get_int(
-//                gobj,
-//                list,
-//                "load_record_callback",
-//                0,
-//                KW_REQUIRED
-//            );
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)json_integer_value(
                     json_object_get(list, "load_record_callback")
@@ -2682,7 +2673,7 @@ PUBLIC int tranger2_append_record(
                     tranger,
                     topic,
                     key_value,
-                    id,
+                    list,
                     relative_rowid,
                     md_record,
                     json_incref(jn_record)
@@ -3737,12 +3728,11 @@ PRIVATE int publish_new_rt_disk_records(
 
                 if(load_record_callback) {
                     // Inform to the user list: record realtime from disk
-                    const char *id = json_string_value(json_object_get(disk, "id"));
                     load_record_callback(
                         tranger,
                         topic,
                         key,
-                        id,
+                        disk,
                         rowid,
                         &md_record,
                         json_incref(record)
@@ -4484,7 +4474,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         tranger,
                         topic,
                         key,    // key
-                        iterator_id,
+                        iterator,
                         rowid,  // rowid
                         &md_record,
                         json_incref(record) // must be owned

@@ -463,7 +463,7 @@ typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record  // must be owned

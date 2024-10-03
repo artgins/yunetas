@@ -100,14 +100,13 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_t *list,       // iterator or rt_mem/rt_disk
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *list = 0; // TODO tranger2_get_iterator_by_id(tranger, topic_name, rt_id);
     json_t *jn_messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
     json_t *jn_filter2 = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
 

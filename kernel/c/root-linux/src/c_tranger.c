@@ -56,7 +56,7 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_t *list,       // iterator or rt_mem/rt_disk
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record  // must be owned
@@ -1259,14 +1259,13 @@ PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *rt_id,  // iterator id or rt_mem/rt_disk id
+    json_t *list,       // iterator or rt_mem/rt_disk
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record  // must be owned
 )
 {
     hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *list = 0;// TODO tranger2_get_iterator_by_id(tranger, topic_name, rt_id);
     json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
     BOOL has_fields = kw_has_key(match_cond, "fields");
 
