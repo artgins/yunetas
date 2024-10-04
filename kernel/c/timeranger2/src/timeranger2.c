@@ -4529,7 +4529,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             if(!rt) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
                     "topic_name",   "%s", topic_name,
                     "key",          "%s", key,
