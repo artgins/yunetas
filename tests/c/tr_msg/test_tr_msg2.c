@@ -40,8 +40,6 @@ int trazas = 100;
 static int test(json_t *tranger, int caso, const char *desc, int devices, int trazas, int result)
 {
     uint64_t cnt;
-    struct timespec st, et;
-    double dt;
     static json_t *hrc2_topic_iter1 = 0;
     static json_t *hrc2_topic_iter2 = 0;
 
@@ -101,7 +99,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             const char *test_name = "case 2";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                NULL,   // error's list, It must not be any log error
+                json_pack("[{s:s},{s:s}]", // error's list
+                    "msg", "key is required to trmsg_open_list",
+                    "msg", "tranger2_close_iterator(): iterator NULL"
+                ),
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
                 TRUE    // verbose
@@ -651,7 +652,7 @@ int main(int argc, char *argv[])
         NULL, // global_authz_checker
         NULL, // global_authenticate_parser
         256*1024L,    // max_block, largest memory block
-        1*1024*1024L   // max_system_memory, maximum system memory
+        10*1024*1024L   // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();

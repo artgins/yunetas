@@ -283,15 +283,13 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 
 /**rst**
    Return list of keys of the topic
-    match_cond:
-        key
         rkey    regular expression of key
 
 **rst**/
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
     const char *topic_name,
-    json_t *match_cond  // owned, uses "key" and "rkey"
+    const char *rkey
 );
 
 /**rst**

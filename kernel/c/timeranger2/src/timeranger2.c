@@ -197,7 +197,7 @@ PRIVATE BOOL match_record(
 PRIVATE json_t *find_keys_in_disk(
     hgobj gobj,
     const char *directory,
-    json_t *match_cond  // not owned, uses "key" and "rkey"
+    const char *rkey
 );
 PRIVATE int load_topic_cache(
     hgobj gobj,
@@ -1275,7 +1275,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
     const char *topic_name,
-    json_t *match_cond  // owned, uses "key" and "rkey"
+    const char *rkey
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -1291,8 +1291,7 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
         directory
     );
 
-    json_t *jn_keys = find_keys_in_disk(gobj, full_path, match_cond);
-    JSON_DECREF(match_cond)
+    json_t *jn_keys = find_keys_in_disk(gobj, full_path, rkey);
     return jn_keys;
 }
 
@@ -3855,24 +3854,12 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 PRIVATE json_t *find_keys_in_disk(
     hgobj gobj,
     const char *directory,
-    json_t *match_cond  // not owned, uses "key" and "rkey"
+    const char *rkey
 )
 {
     json_t *jn_keys = json_array();
 
-    /*
-     *  Only wants a key ?
-     */
-    const char *key = json_string_value(json_object_get(match_cond, "key"));
-    if(!empty_string(key)) {
-        if(subdir_exists(directory, key)) {
-            json_array_append_new(jn_keys, json_string(key));
-            return jn_keys;
-        }
-    }
-
     const char *pattern;
-    const char *rkey = json_string_value(json_object_get(match_cond, "rkey"));
     if(!empty_string(rkey)) {
         pattern = rkey;
     } else {

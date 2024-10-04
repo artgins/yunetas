@@ -151,6 +151,9 @@ PUBLIC int trmsg_add_instance(
 /*
     jn_filter (match_cond) of second level:
 
+        key                 (str) key
+        rkey                (str) regular expression of key
+
         max_key_instances   (int) Maximum number of instances per key.
 
         order_by_tm         (bool) Not use with max_key_instances=1

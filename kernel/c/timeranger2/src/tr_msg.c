@@ -30,6 +30,12 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE json_t *open_multiple_keys(
+    json_t *tranger,
+    const char *topic_name,
+    const char *rkey,
+    json_t *jn_filter  // owned
+);
 
 /***************************************************************
  *              Data
@@ -171,8 +177,6 @@ PRIVATE int load_record_callback(
      *  Create instance
      */
     json_t *instance = jn_record?jn_record:json_object();
-// TODO   json_t *jn_record_md = tranger2_md2json(md_record);
-//    json_object_set_new(instance, "__md_tranger__", jn_record_md);
 
     /*
      *  Check active
@@ -297,14 +301,31 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         );
         return list;
     } else {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "key is required to trmsg_open_list",
-            NULL
-        );
-        return NULL;
+        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
+        if(empty_string(rkey)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "key is required to trmsg_open_list",
+                NULL
+            );
+            return NULL;
+        }
+        return open_multiple_keys(tranger, topic_name, rkey, jn_filter);
     }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *open_multiple_keys(
+    json_t *tranger,
+    const char *topic_name,
+    const char *rkey,
+    json_t *jn_filter  // owned
+)
+{
+
 }
 
 /***************************************************************************
