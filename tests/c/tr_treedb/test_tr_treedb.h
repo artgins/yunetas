@@ -5,31 +5,12 @@
  ****************************************************************************/
 #pragma once
 
-#include <ghelpers.h>
+#include <gobj.h>
+#include <tr_treedb.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-PUBLIC void set_expected_results(
-    const char *name,
-    json_t *errors_list,
-    int verbose
-);
-
-PUBLIC BOOL match_record(
-    json_t *record, // NOT owned
-    json_t *expected, // NOT owned
-    int verbose,
-    GBUFFER *gbuf_path
-);
-PUBLIC BOOL match_list(
-    json_t *list, // NOT owned
-    json_t *expected, // NOT owned
-    int verbose,
-    GBUFFER *gbuf_path
-);
-PUBLIC BOOL check_log_result(const char *test, int verbose);
 
 PUBLIC BOOL test_departments(
     json_t *tranger,
@@ -79,4 +60,3 @@ PUBLIC BOOL test_final_foto2(
 #ifdef __cplusplus
 }
 #endif
-
