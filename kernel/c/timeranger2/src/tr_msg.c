@@ -314,6 +314,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 NULL
             );
             JSON_DECREF(jn_filter)
+            JSON_DECREF(list)
             return NULL;
         }
 
@@ -377,6 +378,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 NULL
             );
             JSON_DECREF(jn_filter)
+            JSON_DECREF(list)
             return NULL;
         }
 

@@ -264,9 +264,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             const char *test_name = "case 2";
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                json_pack("[{s:s},{s:s}]", // error's list
-                    "msg", "key is required to trmsg_open_list",
-                    "msg", "tranger2_close_iterator(): iterator NULL"
+                json_pack("[{s:s}]", // error's list
+                    "msg", "key is required to trmsg_open_list"
                 ),
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
