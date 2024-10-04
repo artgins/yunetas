@@ -3232,21 +3232,21 @@ PUBLIC json_t *tranger2_open_rt_mem(
  ***************************************************************************/
 PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
-    json_t *list
+    json_t *mem
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    if(!list) {
+    if(!mem) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_close_rt_mem(): list NULL",
+            "msg",          "%s", "tranger2_close_rt_mem(): mem NULL",
             NULL
         );
         return -1;
     }
 
-    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, mem, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
     json_t *lists = kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED);
@@ -3260,7 +3260,7 @@ PUBLIC int tranger2_close_rt_mem(
         return -1;
     }
 
-    int idx = json_array_find_idx(lists, list);
+    int idx = json_array_find_idx(lists, mem);
     if(idx >=0 && idx < json_array_size(lists)) {
         json_array_remove(
             lists,

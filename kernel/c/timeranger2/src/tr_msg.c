@@ -287,6 +287,8 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
     json_t *list = json_object();
     json_object_set_new(list, "messages", json_object());
 
+    BOOL realtime = FALSE;
+
     const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
     if(!empty_string(key)) {
         json_t *ll = tranger2_open_iterator(
@@ -299,6 +301,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
             NULL,   // to store LOADING data, not owned
             json_incref(list)    // options, owned
         );
+        realtime |= kw_get_bool(gobj, ll, "realtime", 0, KW_REQUIRED);
         tranger2_close_iterator(tranger, ll);
 
     } else {
@@ -330,48 +333,53 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 NULL,   // to store LOADING data, not owned
                 json_incref(list)    // options, owned
             );
+            realtime |= kw_get_bool(gobj, ll, "realtime", 0, KW_REQUIRED);
 
             tranger2_close_iterator(tranger, ll);
         }
     }
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-    BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
-    if(!master) {
-        rt_by_mem = FALSE;
-    }
+    if(realtime) {
+        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
+        if(!master) {
+            rt_by_mem = FALSE;
+        }
 
-    json_t *rt;
-    if(rt_by_mem) {
-        rt = tranger2_open_rt_mem(
-            tranger,
-            topic_name,
-            key,                    // if empty receives all keys, else only this key
-            json_incref(jn_filter),
-            load_record_callback,   // called on append new record
-            ""
-        );
-        json_object_set(list, "rt_mem", rt);
-    } else {
-        rt = tranger2_open_rt_disk(
-            tranger,
-            topic_name,
-            key,                    // if empty receives all keys, else only this key
-            json_incref(jn_filter),
-            load_record_callback,   // called on append new record
-            ""
-        );
-        json_object_set(list, "rt_disk", rt);
-    }
-    if(!rt) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        return NULL;
+        json_t *rt;
+        if(rt_by_mem) {
+            rt = tranger2_open_rt_mem(
+                tranger,
+                topic_name,
+                key,                    // if empty receives all keys, else only this key
+                json_incref(jn_filter),
+                load_record_callback,   // called on append new record
+                ""
+            );
+            json_object_set(list, "rt_mem", rt);
+        } else {
+            rt = tranger2_open_rt_disk(
+                tranger,
+                topic_name,
+                key,                    // if empty receives all keys, else only this key
+                json_incref(jn_filter),
+                load_record_callback,   // called on append new record
+                ""
+            );
+            json_object_set(list, "rt_disk", rt);
+        }
+        if(!rt) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            JSON_DECREF(jn_filter)
+            return NULL;
+        }
+
     }
 
     JSON_DECREF(jn_filter)
@@ -386,7 +394,18 @@ PUBLIC int trmsg_close_list(
     json_t *list
 )
 {
-    return tranger2_close_iterator(tranger, list);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *rt_mem = kw_get_dict(gobj, list, "rt_mem", 0, 0);
+    if(rt_mem) {
+        tranger2_close_rt_mem(tranger, rt_mem);
+    }
+    json_t *rt_disk = kw_get_dict(gobj, list, "rt_disk", 0, 0);
+    if(rt_disk) {
+        tranger2_close_rt_disk(tranger, rt_disk);
+    }
+    json_decref(list);
+    return 0;
 }
 
 /***************************************************************************

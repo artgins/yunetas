@@ -562,7 +562,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
 **rst**/
 PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
-    json_t *list
+    json_t *mem
 );
 
 /**rst**
@@ -571,7 +571,7 @@ PUBLIC int tranger2_close_rt_mem(
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *list_id
+    const char *mem_id
 );
 
 /**rst**
