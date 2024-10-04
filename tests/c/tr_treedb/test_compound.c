@@ -14,6 +14,8 @@
 #include <locale.h>
 #include <time.h>
 
+#include <kwid.h>
+#include <testing.h>
 #include "test_tr_treedb.h"
 
 
@@ -276,4 +278,3 @@ PUBLIC BOOL test_compound(
 
     return ret<0?FALSE:TRUE;
 }
-

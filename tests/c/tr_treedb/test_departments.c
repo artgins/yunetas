@@ -14,6 +14,8 @@
 #include <locale.h>
 #include <time.h>
 
+#include <kwid.h>
+#include <testing.h>
 #include "test_tr_treedb.h"
 
 
@@ -56,12 +58,15 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create direction, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "direction",
@@ -108,13 +113,17 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_bad_tests) {
         const char *test = "Create administration, wrong, no id";
-        set_expected_results(
-            test,
+        set_expected_results( // Check that no logs happen
+            test,   // test name
             json_pack("[{s:s}]",  // error's list
                 "msg", "Field 'id' required"
             ),
-            verbose
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s}",
             "name", "Administración"
@@ -155,12 +164,15 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create administration, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "administration",
@@ -206,12 +218,15 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Get administration, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "administration",
@@ -253,13 +268,18 @@ PUBLIC BOOL test_departments(
      *------------------------------------*/
     if(!without_bad_tests) {
         const char *test = "link direction->administration: wrong hook";
-        set_expected_results(
-            test,
+        set_expected_results( // Check that no logs happen
+            test,   // test name
             json_pack("[{s:s}]",  // error's list
                 "msg", "hook field not found"
             ),
-            verbose
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         treedb_link_nodes(
             tranger,
             "departmentsx",
@@ -273,12 +293,16 @@ PUBLIC BOOL test_departments(
 
     if(!without_ok_tests) {
         const char *test = "link direction->administration, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         treedb_link_nodes(
             tranger,
             "departments",
@@ -331,12 +355,16 @@ PUBLIC BOOL test_departments(
     if(!without_ok_tests) {
         // Comprueba con timeranger
         const char *test = "match treedb with timeranger rowid 1, id 1 Dirección";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         md_record_t md_record;
         tranger_get_record(
             tranger,
@@ -390,12 +418,16 @@ PUBLIC BOOL test_departments(
     if(!without_ok_tests) {
         // Comprueba con timeranger
         const char *test = "match treedb with timeranger rowid 3, id 2 Administración";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         md_record_t md_record;
         tranger_get_record(
             tranger,
@@ -457,13 +489,17 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_bad_tests) {
         const char *test = "Create operation, wrong, duplicated key";
-        set_expected_results(
-            test,
+        set_expected_results( // Check that no logs happen
+            test,   // test name
             json_pack("[{s:s}]",  // error's list
                 "msg", "Node already exists"
             ),
-            verbose
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "administration",
@@ -492,12 +528,15 @@ PUBLIC BOOL test_departments(
 
     if(!without_ok_tests) {
         const char *test = "Create operation, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "operation",
@@ -543,12 +582,16 @@ PUBLIC BOOL test_departments(
      *------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "link administration->operation, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         treedb_link_nodes(
             tranger,
             "departments",
@@ -601,12 +644,16 @@ PUBLIC BOOL test_departments(
     if(!without_ok_tests) {
         // Comprueba con timeranger
         const char *test = "match treedb with timeranger rowid 5, id 3 Gestión";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         md_record_t md_record;
         tranger_get_record(
             tranger,
@@ -668,12 +715,15 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create development, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "development",
@@ -719,12 +769,16 @@ PUBLIC BOOL test_departments(
      *---------------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "link administration->development, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         treedb_link_nodes(
             tranger,
             "departments",
@@ -787,12 +841,16 @@ PUBLIC BOOL test_departments(
     if(!without_ok_tests) {
         // Comprueba con timeranger
         const char *test = "match treedb with timeranger rowid 7, id 4 Desarrollo";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         md_record_t md_record;
         tranger_get_record(
             tranger,
@@ -849,12 +907,15 @@ PUBLIC BOOL test_departments(
      *------------------------------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Link and unlink node";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "xxx",
@@ -1061,12 +1122,16 @@ char foto_final[]= "\
 
     if(!without_ok_tests) {
         const char *test = "departments: foto final";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         helper_quote2doublequote(foto_final);
         expected = legalstring2json(foto_final, TRUE);
         json_t *treedb = kw_get_dict(tranger, "treedbs", 0, 0);

@@ -14,6 +14,8 @@
 #include <locale.h>
 #include <time.h>
 
+#include <kwid.h>
+#include <testing.h>
 #include "test_tr_treedb.h"
 
 
@@ -589,4 +591,3 @@ char foto_final[]= "\
 
     return ret;
 }
-

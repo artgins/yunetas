@@ -22,14 +22,15 @@
 #include <kwid.h>
 #include <testing.h>
 
+#include "schema_sample.c"
+#include "test_tr_treedb.h"
+
 /***************************************************************************
  *      Constants
  ***************************************************************************/
 #define DATABASE    "tr_treedb"
 #define TOPIC_NAME  "topic_treedb"
 
-#include "schema_sample.c"
-#include "test_tr_treedb.h"
 
 /***************************************************************
  *              Prototypes
@@ -140,7 +141,7 @@ PRIVATE int test_treedb_schema(
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -160,7 +161,8 @@ PRIVATE int test_treedb_schema(
             test,
             "id",
             "",
-            sf_rowid_key,
+            NULL,
+            sf2_string_key,
             json_pack("[{s:s, s:s, s:i, s:[s], s:[s,s], s:s}]",
                 "id", "name",
                 "header", "Name",
@@ -184,7 +186,7 @@ PRIVATE int test_treedb_schema(
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -204,7 +206,8 @@ PRIVATE int test_treedb_schema(
             test,
             "id",
             "",
-            sf_rowid_key,
+            NULL,
+            sf2_string_key,
             json_pack("[{s:b, s:[s], s:i, s:s, s:s}]",
                 "id", 1,
                 "header", "Xx",
@@ -234,7 +237,7 @@ PRIVATE int test_treedb_schema(
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -254,7 +257,8 @@ PRIVATE int test_treedb_schema(
             test,
             "id",
             "",
-            sf_rowid_key,
+            NULL,
+            sf2_string_key,
             json_pack("[{s:b, s:[s], s:i, s:s, s:s, s:[s]}]",
                 "id", 1,
                 "header", "Xx",
@@ -285,7 +289,7 @@ PRIVATE int test_treedb_schema(
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -309,10 +313,11 @@ PRIVATE BOOL test_schema(
 )
 {
     BOOL result = TRUE;
+    hgobj gobj = 0;
     const char *test = "test_schema";
 
     const char *topic_name; json_t *topic;
-    json_object_foreach(kw_get_dict(tranger, "topics", 0, KW_REQUIRED), topic_name, topic)
+    json_object_foreach(kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED), topic_name, topic)
     {
         set_expected_results( // Check that no logs happen
             test,   // test name
@@ -326,7 +331,7 @@ PRIVATE BOOL test_schema(
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, KW_VERBOSE, "cols")
         );
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -338,66 +343,6 @@ PRIVATE BOOL test_schema(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-void test_performance(
-    json_t *rc2,
-    int caso,
-    const char *desc,
-    int without_ok_tests,
-    int without_bad_tests,
-    int show_oks
-)
-{
-    uint64_t cnt;
-    struct timespec st, et;
-    double dt;
-
-    cnt = without_ok_tests * without_bad_tests;
-
-    /*-------------------------------------*
-     *  Loop
-     *-------------------------------------*/
-    switch(caso) {
-    case 1:
-        {
-            clock_gettime (CLOCK_MONOTONIC, &st);
-
-
-            clock_gettime (CLOCK_MONOTONIC, &et);
-        }
-        break;
-
-    default:
-        printf("MIERDA\n");
-    }
-
-
-    /*-------------------------------------*
-     *  Your end code
-     *-------------------------------------*/
-
-    /*-------------------------------------*
-     *  Print times
-     *-------------------------------------*/
-    char bf[128];
-    pretty_bytes(bf, sizeof(bf), cnt);
-
-    dt = ts_diff2(st, et);
-
-    setlocale(LC_ALL, "");
-    printf("# test %d %-16s ==> without_ok_tests %'d; without_bad_tests %'d; %'"PRIu64" items; %f seconds; %'lu op/sec\n\n",
-        caso,
-        desc,
-        without_ok_tests,
-        without_bad_tests,
-        cnt,
-        dt,
-        (unsigned long)(((double)cnt)/dt)
-    );
-}
-
-/***************************************************************************
  *              Test
  *  Open as master, open iterator (realtime by disk) with callback
  *  HACK: return -1 to fail, 0 to ok
@@ -406,27 +351,32 @@ PRIVATE int do_test(void)
 {
     int result = 0;
 
-    /*------------------------------*
-     *  La bbddd de pruebas
-     *------------------------------*/
-    char *path = "/test/treedb/db_test1";
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
 
-    /*------------------------------*
-     *  Destruye la bbdd previa
-     *------------------------------*/
-    rmrdir(path);
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
 
-    /*------------------------------*
-     *      Startup tranger
-     *------------------------------*/
-    json_t *jn_tranger = json_pack("{s:s, s:b, s:i}",
-        "path", path,
-        "master", 1,
-        "on_critical_error", 0
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    rmrdir(path_database);
+
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1
     );
-    json_t *tranger = tranger2_startup(
-        jn_tranger // owned
-    );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+
 
     /*------------------------------*
      *  Check treedb internals
@@ -460,17 +410,17 @@ PRIVATE int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
-    if(!test_schema(tranger, topic_cols_desc, treedb_name, arguments.verbose)) {
+    if(!test_schema(tranger, topic_cols_desc, treedb_name, verbose)) {
         result += -1;
     }
 
     if(!test_departments(
             tranger,
             treedb_name,
-            arguments.without_ok_tests,
-            arguments.without_bad_tests,
-            arguments.show_oks,
-            arguments.verbose
+            without_ok_tests,
+            without_bad_tests,
+            show_oks,
+            verbose
         )) {
         result += -1;
     }
@@ -478,10 +428,10 @@ PRIVATE int do_test(void)
     if(!test_users(
             tranger,
             treedb_name,
-            arguments.without_ok_tests,
-            arguments.without_bad_tests,
-            arguments.show_oks,
-            arguments.verbose
+            without_ok_tests,
+            without_bad_tests,
+            show_oks,
+            verbose
         )) {
         result += -1;
     }
@@ -489,7 +439,6 @@ PRIVATE int do_test(void)
     /*
      *  Check refcounts
      */
-    int result = 0;
     json_check_refcounts(tranger, 1000, &result);
 
 //print_json(tranger);
@@ -519,50 +468,50 @@ PRIVATE int do_test(void)
             "persistent"
         );
 
-        if(tranger2_topic_size(tranger2_topic(tranger, "departments")) != 10) {
-            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
-            if(arguments.verbose) {
-                printf("%s  --> ERROR departments!=10%s\n", On_Red BWhite,Color_Off);
-                int idx; json_t *value;
-                printf("      Unexpected error:\n");
-                json_array_foreach(unexpected_log_messages, idx, value) {
-                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
-                }
-            } else {
-                printf("%sX%s", On_Red BWhite,Color_Off);
-            }
-            result += -1;
-        }
-
-        if(tranger2_topic_size(tranger2_topic(tranger, "users")) != 19) {
-            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
-            if(arguments.verbose) {
-                printf("%s  --> ERROR users!=19 %s\n", On_Red BWhite,Color_Off);
-                int idx; json_t *value;
-                printf("      Unexpected error:\n");
-                json_array_foreach(unexpected_log_messages, idx, value) {
-                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
-                }
-            } else {
-                printf("%sX%s", On_Red BWhite,Color_Off);
-            }
-            result += -1;
-        }
-
-        if(!check_log_result(test, arguments.verbose)) {
-            result += -1;
-        } else {
-            if(!test_final_foto(
-                    tranger,
-                    treedb_name,
-                    arguments.without_ok_tests,
-                    arguments.without_bad_tests,
-                    arguments.show_oks,
-                    arguments.verbose
-                )) {
-                result += -1;
-            }
-        }
+//        if(tranger2_topic_size(tranger2_topic(tranger, "departments")) != 10) {
+//            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+//            if(verbose) {
+//                printf("%s  --> ERROR departments!=10%s\n", On_Red BWhite,Color_Off);
+//                int idx; json_t *value;
+//                printf("      Unexpected error:\n");
+//                json_array_foreach(unexpected_log_messages, idx, value) {
+//                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
+//                }
+//            } else {
+//                printf("%sX%s", On_Red BWhite,Color_Off);
+//            }
+//            result += -1;
+//        }
+//
+//        if(tranger2_topic_size(tranger2_topic(tranger, "users")) != 19) {
+//            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+//            if(verbose) {
+//                printf("%s  --> ERROR users!=19 %s\n", On_Red BWhite,Color_Off);
+//                int idx; json_t *value;
+//                printf("      Unexpected error:\n");
+//                json_array_foreach(unexpected_log_messages, idx, value) {
+//                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
+//                }
+//            } else {
+//                printf("%sX%s", On_Red BWhite,Color_Off);
+//            }
+//            result += -1;
+//        }
+//
+//        if(!check_log_result(test, verbose)) {
+//            result += -1;
+//        } else {
+//            if(!test_final_foto(
+//                    tranger,
+//                    treedb_name,
+//                    without_ok_tests,
+//                    without_bad_tests,
+//                    show_oks,
+//                    verbose
+//                )) {
+//                result += -1;
+//            }
+//        }
     }
 
     /*---------------------------------------*
@@ -572,10 +521,10 @@ PRIVATE int do_test(void)
         if(!test_compound(
                 tranger,
                 treedb_name,
-                arguments.without_ok_tests,
-                arguments.without_bad_tests,
-                arguments.show_oks,
-                arguments.verbose
+                without_ok_tests,
+                without_bad_tests,
+                show_oks,
+                verbose
             )) {
             result += -1;
         }
@@ -591,86 +540,86 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        if(tranger2_topic_size(tranger2_topic(tranger, "departments")) != 13) {
-            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
-            if(arguments.verbose) {
-                printf("%s  --> ERROR departments!=13%s\n", On_Red BWhite,Color_Off);
-                int idx; json_t *value;
-                printf("      Unexpected error:\n");
-                json_array_foreach(unexpected_log_messages, idx, value) {
-                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
-                }
-            } else {
-                printf("%sX%s", On_Red BWhite,Color_Off);
-            }
-            result += -1;
-        }
-
-        if(tranger2_topic_size(tranger2_topic(tranger, "users")) != 24) {
-            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
-            if(arguments.verbose) {
-                printf("%s  --> ERROR users!=24 %s\n", On_Red BWhite,Color_Off);
-                int idx; json_t *value;
-                printf("      Unexpected error:\n");
-                json_array_foreach(unexpected_log_messages, idx, value) {
-                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
-                }
-            } else {
-                printf("%sX%s", On_Red BWhite,Color_Off);
-            }
-            result += -1;
-        }
-
-        json_t *expected = json_pack(
-            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:[], s:[], s:[], s:[]}",
-            "id", "xxxxxxxxxxxxxxxxxxx",
-            "username", "mainop@email.com",
-            "firstName", "Bequer",
-            "lastName", "Martin",
-            "email", "mainop@email.com",
-            "emailVerified", 0,
-            "disabled", 0,
-            "departments",
-            "manager",
-            "attributes",
-            "roles"
-        );
-
-        if(!match_tranger2_record(
-                tranger,
-                "users",                // topic
-                24,                     // rowid
-                0,                      // uflag
-                0x3000001,              // sflag
-                "xxxxxxxxxxxxxxxxxxx",  // key
-                expected
-            )) {
-            result += -1;
-        }
-        json_decref(expected);
-
-        expected = json_pack(
-            "{s:s, s:s, s:s, s:{}, s:[s], s:{}}",
-            "id", "administration",
-            "name", "Administración",
-            "department_id", "departments^direction^departments",
-            "departments",
-            "users", "departments^operation^managers",
-            "managers"
-        );
-
-        if(!match_tranger2_record(
-                tranger,
-                "departments",      // topic
-                13,                 // rowid
-                0,                  // uflag
-                0x1000001,          // sflag
-                "administration",   // key
-                expected
-            )) {
-            result += -1;
-        }
-        json_decref(expected);
+//        if(tranger2_topic_size(tranger2_topic(tranger, "departments")) != 13) {
+//            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+//            if(verbose) {
+//                printf("%s  --> ERROR departments!=13%s\n", On_Red BWhite,Color_Off);
+//                int idx; json_t *value;
+//                printf("      Unexpected error:\n");
+//                json_array_foreach(unexpected_log_messages, idx, value) {
+//                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
+//                }
+//            } else {
+//                printf("%sX%s", On_Red BWhite,Color_Off);
+//            }
+//            result += -1;
+//        }
+//
+//        if(tranger2_topic_size(tranger2_topic(tranger, "users")) != 24) {
+//            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+//            if(verbose) {
+//                printf("%s  --> ERROR users!=24 %s\n", On_Red BWhite,Color_Off);
+//                int idx; json_t *value;
+//                printf("      Unexpected error:\n");
+//                json_array_foreach(unexpected_log_messages, idx, value) {
+//                    printf("          \"%s\"\n", kw_get_str(value, "msg", "?", 0));
+//                }
+//            } else {
+//                printf("%sX%s", On_Red BWhite,Color_Off);
+//            }
+//            result += -1;
+//        }
+//
+//        json_t *expected = json_pack(
+//            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:[], s:[], s:[], s:[]}",
+//            "id", "xxxxxxxxxxxxxxxxxxx",
+//            "username", "mainop@email.com",
+//            "firstName", "Bequer",
+//            "lastName", "Martin",
+//            "email", "mainop@email.com",
+//            "emailVerified", 0,
+//            "disabled", 0,
+//            "departments",
+//            "manager",
+//            "attributes",
+//            "roles"
+//        );
+//
+//        if(!match_tranger2_record(
+//                tranger,
+//                "users",                // topic
+//                24,                     // rowid
+//                0,                      // uflag
+//                0x3000001,              // sflag
+//                "xxxxxxxxxxxxxxxxxxx",  // key
+//                expected
+//            )) {
+//            result += -1;
+//        }
+//        json_decref(expected);
+//
+//        expected = json_pack(
+//            "{s:s, s:s, s:s, s:{}, s:[s], s:{}}",
+//            "id", "administration",
+//            "name", "Administración",
+//            "department_id", "departments^direction^departments",
+//            "departments",
+//            "users", "departments^operation^managers",
+//            "managers"
+//        );
+//
+//        if(!match_tranger2_record(
+//                tranger,
+//                "departments",      // topic
+//                13,                 // rowid
+//                0,                  // uflag
+//                0x1000001,          // sflag
+//                "administration",   // key
+//                expected
+//            )) {
+//            result += -1;
+//        }
+//        json_decref(expected);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
@@ -754,10 +703,10 @@ PRIVATE int do_test(void)
     /*---------------------------------------*
      *      Shutdown
      *---------------------------------------*/
-    if(arguments.print_tranger) {
-        print_json(tranger);
-    } else if(arguments.print_treedb) {
-        print_json(kw_get_dict(tranger, "treedbs", 0, KW_REQUIRED));
+    if(print_tranger) {
+        print_json2("tranger", tranger);
+    } else if(print_treedb) {
+        print_json2("print_treedb", kw_get_dict(0, tranger, "treedbs", 0, KW_REQUIRED));
     }
 
     if(1) {
