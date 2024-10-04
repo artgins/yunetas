@@ -18,7 +18,7 @@
 
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
-#define MAX_KEYS    1 // TODO 2
+#define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
 
 PRIVATE int pinta_md = 1;
