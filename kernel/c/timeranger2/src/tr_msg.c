@@ -288,6 +288,10 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
     json_object_set_new(list, "messages", json_object());
 
     BOOL realtime = FALSE;
+    json_int_t to_rowid = kw_get_int(gobj, jn_filter, "to_rowid", 0, KW_WILD_NUMBER);
+    if(to_rowid == 0) {
+        realtime = TRUE;
+    }
 
     const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
     if(!empty_string(key)) {
@@ -301,12 +305,11 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
             NULL,   // to store LOADING data, not owned
             json_incref(list)    // options, owned
         );
-        realtime |= kw_get_bool(gobj, ll, "realtime", 0, KW_REQUIRED);
         tranger2_close_iterator(tranger, ll);
 
     } else {
         const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
-        if(empty_string(rkey)) {
+        if(!rkey) { // check null, a "" is valid and equivalent to ".*"
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -319,24 +322,27 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         }
 
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
+        if(json_array_size(jn_keys)>0) {
+            /*
+             *  Load from disk
+             */
+            int idx; json_t *jn_key;
+            json_array_foreach(jn_keys, idx, jn_key) {
+                const char *key_ = json_string_value(jn_key);
 
-        int idx; json_t *jn_key;
-        json_array_foreach(jn_keys, idx, jn_key) {
-            const char *key_ = json_string_value(jn_key);
+                json_t *ll = tranger2_open_iterator(
+                    tranger,
+                    topic_name,
+                    key_,
+                    json_incref(jn_filter),  // match_cond, owned
+                    load_record_callback, // called on LOADING and APPENDING
+                    "",     // iterator id, optional, if empty will be the key
+                    NULL,   // to store LOADING data, not owned
+                    json_incref(list)    // options, owned
+                );
 
-            json_t *ll = tranger2_open_iterator(
-                tranger,
-                topic_name,
-                key_,
-                json_incref(jn_filter),  // match_cond, owned
-                load_record_callback, // called on LOADING and APPENDING
-                "",     // iterator id, optional, if empty will be the key
-                NULL,   // to store LOADING data, not owned
-                json_incref(list)    // options, owned
-            );
-            realtime |= kw_get_bool(gobj, ll, "realtime", 0, KW_REQUIRED);
-
-            tranger2_close_iterator(tranger, ll);
+                tranger2_close_iterator(tranger, ll);
+            }
         }
     }
 

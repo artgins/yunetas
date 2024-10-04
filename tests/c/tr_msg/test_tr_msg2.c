@@ -31,9 +31,6 @@ PRIVATE json_t *jn_mem_topic = 0;
 PRIVATE yev_loop_t *yev_loop;
 PRIVATE int global_result = 0;
 
-int devices = 1000;
-int trazas = 100;
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -51,7 +48,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
     switch(caso) {
     case 1:
         {
-            const char *test_name = "case 1";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -96,13 +93,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 2:
         {
-            const char *test_name = "case 2";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                json_pack("[{s:s},{s:s}]", // error's list
-                    "msg", "key is required to trmsg_open_list",
-                    "msg", "tranger2_close_iterator(): iterator NULL"
-                ),
+                NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
                 TRUE    // verbose
@@ -114,7 +108,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             hrc2_topic_iter1 = trmsg_open_list(
                 tranger,
                 "gpss2",    // topic
-                0          // filter
+                json_pack("{s:s}", "rkey", "") // filter
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -126,7 +120,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 3:
         {
-            const char *test_name = "case 3";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -141,7 +135,8 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             hrc2_topic_iter2 = trmsg_open_list(
                 tranger,
                 "gpss2",    // topic
-                json_pack("{s:b, s:b}",  // filter
+                json_pack("{s:s, s:b, s:b}",  // filter
+                    "rkey", "",
                     "backward", 1,
                     "order_by_tm", 1
                 )
@@ -156,7 +151,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 4:
         {
-            const char *test_name = "case 4";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -186,7 +181,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 5:
         {
-            const char *test_name = "case 5";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -215,7 +210,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 6:
         {
-            const char *test_name = "case 6";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -244,7 +239,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 7:
         {
-            const char *test_name = "case 7";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -273,7 +268,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 8:
         {
-            const char *test_name = "case 8";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -302,7 +297,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 9:
         {
-            const char *test_name = "case 9";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -334,7 +329,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             trmsg_close_list(tranger, hrc2_topic_iter1);
             trmsg_close_list(tranger, hrc2_topic_iter2);
 
-            const char *test_name = "case 11";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -384,7 +379,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 12:
         {
-            const char *test_name = "case 12";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -411,7 +406,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 14:
         {
-            const char *test_name = "case 14";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -439,7 +434,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 15:
         {
-            const char *test_name = "case 15";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -467,7 +462,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
     case 16:
         {
-            const char *test_name = "case 16";
+            const char *test_name = desc;
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -559,8 +554,8 @@ int do_test(void)
     };
 
     static topic_desc_t db_test_desc[] = {
-    // Topic Name,  Pkey    Key Type                            Tkey            Topic Json Desc
-    {"gpss2",      "imei",  sf2_string_key|sf2_no_disk,  "gps_date",     traces_json_desc},
+    // Topic Name,  Pkey    Key Type                    Tkey            Topic Json Desc
+    {"gpss2",      "imei",  sf2_string_key|sf2_no_disk, "gps_date",     traces_json_desc},
     {0}
     };
 
@@ -569,6 +564,9 @@ int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
+    int devices = 1000;
+    int trazas = 100;
+
     result += test(tranger, 2, "LOAD FORWARD", devices, trazas, result);
     result += test(tranger, 3, "LOAD BACKWARD/TM", devices, trazas, result);
     result += test(tranger, 1, "ADD RECORDS", devices, trazas, result);
