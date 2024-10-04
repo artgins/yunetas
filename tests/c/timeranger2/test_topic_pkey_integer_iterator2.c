@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+
 #include <gobj.h>
 #include <timeranger2.h>
 #include <stacktrace_with_bfd.h>
@@ -20,7 +21,6 @@
 #define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
 #define MAX_RECORDS 90000 // 1 day and 1 hour
-#define MAX_RECS    10 // Records to find
 
 /***************************************************************
  *              Prototypes

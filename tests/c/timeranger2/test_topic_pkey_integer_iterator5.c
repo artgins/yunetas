@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+
 #include <gobj.h>
 #include <kwid.h>
 #include <timeranger2.h>
@@ -409,108 +410,6 @@ PRIVATE int do_test(void)
         result += tranger2_close_iterator(tranger, iterator);
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
-
-    /*-------------------------------------*
-     *      Open rt list
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "open rt list 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    all_leidos = 0;
-//    one_leidos = 0;
-//
-//    json_t *tr_list = tranger2_open_rt_mem(
-//        tranger,
-//        TOPIC_NAME,
-//        "",             // key
-//        all_load_record_callback,
-//        ""              // list id
-//    );
-//
-//    tranger2_open_rt_mem(
-//        tranger,
-//        TOPIC_NAME,
-//        "0000000000000000001",       // key
-//        one_load_record_callback,
-//        "list2"              // list id
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
-     *      Add records
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "append records 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    uint64_t t1 = 946684800; // 2000-01-01T00:00:00+0000
-//    for(json_int_t i=0; i<MAX_KEYS; i++) {
-//        uint64_t tm = t1;
-//        for(json_int_t j=0; j<MAX_RECORDS; j++) {
-//            json_t *jn_record1 = json_pack("{s:I, s:I, s:s}",
-//               "id", i + 1,
-//               "tm", tm+j,
-//               "content",
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
-//               "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
-//            );
-//            md2_record_t md_record;
-//            tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
-//        }
-//    }
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-
-    /*-------------------------------------*
-     *      Close rt lists
-     *-------------------------------------*/
-//    set_expected_results( // Check that no logs happen
-//        "close rt lists 2", // test name
-//        NULL,   // error's list, It must not be any log error
-//        NULL,   // expected, NULL: we want to check only the logs
-//        NULL,   // ignore_keys
-//        TRUE    // verbose
-//    );
-//
-//    tranger2_close_rt_mem(
-//        tranger,
-//        tr_list
-//    );
-//
-//    json_t *list2 =tranger2_get_rt_mem_by_id(
-//        tranger,
-//        "list2"
-//    );
-//    tranger2_close_rt_mem(
-//        tranger,
-//        list2
-//    );
-//
-//    result += test_json(NULL);  // NULL: we want to check only the logs
-//
-//    if(all_leidos != MAX_KEYS*MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//           (int)all_leidos, MAX_KEYS*MAX_RECORDS
-//        );
-//        result += -1;
-//    }
-//
-//    if(one_leidos != MAX_RECORDS) {
-//        printf("%sRecords read not match%s, leidos %d, records %d\n", On_Red BWhite,Color_Off,
-//            (int)one_leidos, MAX_RECORDS
-//        );
-//        result += -1;
-//    }
 
     /*-------------------------------*
      *  tranger_backup_topic
