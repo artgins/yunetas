@@ -388,6 +388,7 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'realtime': true, \
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': 'it1', \
@@ -430,6 +431,7 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
+                            'realtime': true, \
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': '0000000000000000002', \

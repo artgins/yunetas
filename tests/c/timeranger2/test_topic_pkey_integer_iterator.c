@@ -263,6 +263,7 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 0, \
                             'cur_rowid': 0, \
+                            'realtime': true, \
                             'load_record_callback': 0 \
                         } \
                     ] \
