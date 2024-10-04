@@ -37,9 +37,7 @@ rowid   tm
  *              Constants
  ***************************************************************************/
 #define DATABASE    "tr_msg"
-#define TOPIC_NAME  "topic_test"
-#define MAX_KEYS    2
-#define MAX_RECORDS 90000 // 1 day and 1 hour
+#define TOPIC_NAME  "topic_msg1"
 
 int repeat = 10000; // Mínimo 10
 
@@ -892,7 +890,7 @@ int do_test(void)
      *------------------------------*/
     // Ejecuta todos los casos
     result += test(tranger, 1, repeat, result);
-    //result += test(tranger, 2, repeat, result); TODO repon
+    result += test(tranger, 2, repeat, result);
     result += test(tranger, 10, 10, result);
     result += test(tranger, 11, 10, result);
     result += test(tranger, 12, 10, result);

@@ -117,7 +117,7 @@ PRIVATE sdata_desc_t pm_create_topic[] = {
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_STRING,    "pkey",         0,              "id",       "Primary Key"),
 SDATAPM (DTP_STRING,    "tkey",         0,              "tm",       "Time Key"),
-SDATAPM (DTP_STRING,    "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf2_string_key|sf2_int_key|sf2_t_ms|sf2_tm_ms|sf2_no_record_disk, future: sf2_zip_record|sf2_cipher_record"),
+SDATAPM (DTP_STRING,    "system_flag",  0,              "sf_string_key|sf_t_ms", "System flag: sf2_string_key|sf2_int_key|sf2_t_ms|sf2_tm_ms|sf2_no_disk, future: sf2_zip_record|sf2_cipher_record"),
 SDATAPM (DTP_JSON,      "jn_cols",      0,              0,          "Cols"),
 SDATAPM (DTP_JSON,      "jn_var",       0,              0,          "Var"),
 SDATA_END()

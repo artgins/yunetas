@@ -102,7 +102,7 @@ typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf2_save_md_in_record   = 0x0040,     // save md in record's file too
     sf2_t_ms                = 0x0100,     // record time in miliseconds
     sf2_tm_ms               = 0x0200,     // message time in miliseconds
-    sf2_no_record_disk      = 0x1000,
+    sf2_no_disk             = 0x1000,
     sf2_loading_from_disk   = 0x2000,
 } system_flag2_t;
 

@@ -1,7 +1,7 @@
 /****************************************************************************
  *          test.c
  *
- *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2018 Niyamaka, 2024- ArtGins
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
@@ -11,170 +11,33 @@
 #include <inttypes.h>
 #include <locale.h>
 #include <time.h>
-#include <ghelpers.h>
+#include <yunetas.h>
 
 /***************************************************************************
  *      Constants
  ***************************************************************************/
-
-/***************************************************************************
- *      Structures
- ***************************************************************************/
-
-/*
- *  Used by main to communicate with parse_opt.
- */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
-struct arguments
-{
-    char *args[MAX_ARGS+1];     /* positional args */
-
-    int devices;
-    int trazas;
-};
+#define DATABASE    "tr_msg"
+#define TOPIC_NAME  "topic_msg2"
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
+PUBLIC void yuno_catch_signals(void);
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
-static json_t *jn_mem_topic = 0;
+PRIVATE json_t *jn_mem_topic = 0;
+PRIVATE yev_loop_t *yev_loop;
+PRIVATE int global_result = 0;
 
-// Set by yuneta_entry_point()
-// const char *argp_program_version = APP_NAME " " APP_VERSION;
-// const char *argp_program_bug_address = APP_SUPPORT;
-
-/* Program documentation. */
-static char doc[] = "";
-
-/* A description of the arguments we accept. */
-static char args_doc[] = "";
-
-/*
- *  The options we understand.
- *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
- */
-static struct argp_option options[] = {
-{"devices",         'd',    "DEVICES",  0,      "Nº of devices.  Default: 1000", 1},
-{"trazas",          't',    "TRAZAS",   0,      "Nº of traces (1/sec). Default:100.", 1},
-{0}
-};
-
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc
-};
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state)
-{
-    /*
-     *  Get the input argument from argp_parse,
-     *  which we know is a pointer to our arguments structure.
-     */
-    struct arguments *arguments = state->input;
-
-    switch (key) {
-    case 'd':
-        if(arg) {
-            arguments->devices = atoi(arg);
-        }
-        break;
-
-    case 't':
-        if(arg) {
-            arguments->trazas = atoi(arg);
-        }
-        break;
-
-    case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments. */
-            argp_usage (state);
-        }
-        arguments->args[state->arg_num] = arg;
-        break;
-
-    case ARGP_KEY_END:
-        if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments. */
-            argp_usage (state);
-        }
-        break;
-
-    default:
-        return ARGP_ERR_UNKNOWN;
-    }
-    return 0;
-}
-
-/***************************************************************************
- *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
- *  https://www.mbeckler.org/blog/?p=114
- ***************************************************************************/
-void pretty_bytes(char* bf, int bfsize, uint64_t bytes)
-{
-    const char* suffixes[7];
-    suffixes[0] = "B";
-    suffixes[1] = "Miles";
-    suffixes[2] = "Millones";
-    suffixes[3] = "GB";
-    suffixes[4] = "TB";
-    suffixes[5] = "PB";
-    suffixes[6] = "EB";
-    uint s = 0; // which suffix to use
-    double count = bytes;
-    while (count >= 1000 && s < 7)
-    {
-        s++;
-        count /= 1000;
-    }
-    if (count - floor(count) == 0.0)
-        snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
-    else
-        snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
-}
+int devices = 1000;
+int trazas = 100;
 
 /***************************************************************************
  *
  ***************************************************************************/
-static inline double ts_diff2 (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    return ((double)(e-s))/1000000;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-static inline struct timespec ts_diff (struct timespec start, struct timespec end)
-{
-    struct timespec temp;
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-        temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
-    } else {
-        temp.tv_sec = end.tv_sec - start.tv_sec;
-        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-    return temp;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-static void test(json_t *rc2, int caso, const char *desc, int devices, int trazas)
+static int test(json_t *tranger, int caso, const char *desc, int devices, int trazas, int result)
 {
     uint64_t cnt;
     struct timespec st, et;
@@ -190,7 +53,17 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
     switch(caso) {
     case 1:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 1";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             for(long trace=1; trace<=trazas; trace++) { // traces de 1 hora, a 1/segundo
                 for(int imei=1; imei<=devices; imei++) {
@@ -198,7 +71,7 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                     char simei[32];
                     snprintf(simei, sizeof(simei), "%016d", imei);
                     trmsg_add_instance(
-                        rc2,
+                        tranger,
                         "gpss2",     // topic
                         json_pack("{s:s, s:s, s:I, s:f, s:f, s:i, s:i, s:b, s:b}",
                             "imei", simei,
@@ -211,36 +84,61 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                             "on", 0,
                             "idle", 0
                         ),
-                        fc_only_desc_cols,
                         0
                     );
                 }
             }
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 2:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 2";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             hrc2_topic_iter1 = trmsg_open_list(
-                rc2,
+                tranger,
                 "gpss2",    // topic
                 0          // filter
             );
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 3:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 3";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             hrc2_topic_iter2 = trmsg_open_list(
-                rc2,
+                tranger,
                 "gpss2",    // topic
                 json_pack("{s:b, s:b}",  // filter
                     "backward", 1,
@@ -248,13 +146,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                 )
             );
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 4:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 4";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000001";
@@ -265,13 +176,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 5:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 5";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000500";
@@ -281,13 +205,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 6:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 6";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000999";
@@ -297,13 +234,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 7:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 7";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000001";
@@ -313,13 +263,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 8:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 8";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000500";
@@ -329,13 +292,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 9:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 9";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000999";
@@ -345,16 +321,29 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             if(!msg) printf("Merde\n");
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 11:
         {
-            tranger_close_list(rc2, hrc2_topic_iter1);
-            tranger_close_list(rc2, hrc2_topic_iter2);
+            trmsg_close_list(tranger, hrc2_topic_iter1);
+            trmsg_close_list(tranger, hrc2_topic_iter2);
 
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 11";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             json_t *jn_topic = json_object();
             for(long trace=1; trace<=trazas; trace++) { // traces de 1 hora, a 1/segundo
@@ -385,13 +374,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
             );
             json_decref(jn_topic);
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 12:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 12";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             json_error_t error;
             jn_mem_topic = json_load_file("/test/trmsg/db_test2/json_topic.json", 0, &error);
@@ -399,13 +401,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                 printf("ERROR jn_mem_topic \n");
             }
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 14:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 14";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000001";
@@ -414,13 +429,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                 printf("ERROR msg %s not found\n", key);
             }
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 15:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 15";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000500";
@@ -429,13 +457,26 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                 printf("ERROR msg %s not found\n", key);
             }
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     case 16:
         {
-            clock_gettime (CLOCK_MONOTONIC, &st);
+            const char *test_name = "case 16";
+            set_expected_results( // Check that no logs happen
+                test_name, // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                TRUE    // verbose
+            );
+
+            time_measure_t time_measure;
+            MT_START_TIME(time_measure)
 
             cnt = 1;
             const char *key = "0000000000000999";
@@ -444,37 +485,119 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
                 printf("ERROR msg %s not found\n", key);
             }
 
-            clock_gettime (CLOCK_MONOTONIC, &et);
+            MT_INCREMENT_COUNT(time_measure, cnt)
+            MT_PRINT_TIME(time_measure, test_name)
+
+            result += test_json(NULL, result);  // NULL: we want to check only the logs
         }
         break;
 
     default:
         printf("MIERDA\n");
+        result += -1;
     }
 
+    return result;
+}
 
-    /*-------------------------------------*
-     *  Your end code
-     *-------------------------------------*/
+/***************************************************************************
+ *              Test
+ *  Open as master, check main files, add records, open rt lists
+ *  HACK: return -1 to fail, 0 to ok
+ ***************************************************************************/
+int do_test(void)
+{
+    int result = 0;
 
-    /*-------------------------------------*
-     *  Print times
-     *-------------------------------------*/
-    char bf[128];
-    pretty_bytes(bf, sizeof(bf), cnt);
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
 
-    dt = ts_diff2(st, et);
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    mkrdir(path_root, 02770);
 
-    setlocale(LC_ALL, "");
-    printf("# test %d %-16s ==> devices %'d; trazas %'d; %'"PRIu64" items; %f seconds; %'lu op/sec\n\n",
-        caso,
-        desc,
-        devices,
-        trazas,
-        cnt,
-        dt,
-        (unsigned long)(((double)cnt)/dt)
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    rmrdir(path_database);
+
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0,
+        "filename_mask", "%Y",
+        "xpermission" , 02770,
+        "rpermission", 0600,
+        "trace_level", 1
     );
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+
+    /*------------------------------*
+     *  Crea la bbdd
+     *------------------------------*/
+    static const json_desc_t traces_json_desc[] = {
+        // Name             Type        Default
+        {"imei",            "str",      "",     0},
+        {"event",           "str",      "",     0},
+        {"gps_date",        "int",      "",     0},
+        {"latitude",        "int",      "",     0},
+        {"longitude",       "int",      "",     0},
+        {"altitude",        "int",      "",     0},
+        {"heading",         "int",      "",     0},
+        {"on",              "bool",     "false",0},
+        {"idle",            "bool",     "true", 0},
+        {0}
+    };
+
+    static topic_desc_t db_test_desc[] = {
+    // Topic Name,  Pkey    Key Type                            Tkey            Topic Json Desc
+    {"gpss2",      "imei",  sf2_string_key|sf2_no_disk,  "gps_date",     traces_json_desc},
+    {0}
+    };
+
+    result += trmsg_open_topics(tranger, db_test_desc);
+
+    /*------------------------------*
+     *  Ejecuta los tests
+     *------------------------------*/
+    result += test(tranger, 2, "LOAD FORWARD", devices, trazas, result);
+    result += test(tranger, 3, "LOAD BACKWARD/TM", devices, trazas, result);
+    result += test(tranger, 1, "ADD RECORDS", devices, trazas, result);
+    result += test(tranger, 4, "FIND fore first", devices, trazas, result);
+    result += test(tranger, 5, "FIND fore medium", devices, trazas, result);
+    result += test(tranger, 6, "FIND fore last", devices, trazas, result);
+    result += test(tranger, 7, "FIND back first", devices, trazas, result);
+    result += test(tranger, 8, "FIND back medium", devices, trazas, result);
+    result += test(tranger, 9, "FIND back last", devices, trazas, result);
+
+    result += test(tranger, 11, "CREATE JSON DB", devices, trazas, result);
+    result += test(tranger, 12, "LOAD JSON", devices, trazas, result);
+    result += test(tranger, 14, "FIND first", devices, trazas, result);
+    result += test(tranger, 15, "FIND medium", devices, trazas, result);
+    result += test(tranger, 16, "FIND last", devices, trazas, result);
+
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    tranger2_shutdown(tranger);
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+    return result;
 }
 
 /***************************************************************************
@@ -482,150 +605,135 @@ static void test(json_t *rc2, int caso, const char *desc, int devices, int traza
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    struct arguments arguments;
-    /*
-     *  Default values
-     */
-    memset(&arguments, 0, sizeof(arguments));
-    arguments.devices = 1000;
-    arguments.trazas = 100;
+    setlocale(LC_ALL, "");
 
-    /*
-     *  Parse arguments
-     */
-    argp_parse (&argp, argc, argv, 0, 0, &arguments);
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
 
-    /*-------------------------------------*
-     *  Your start code
-     *-------------------------------------*/
-    log_startup(
-        "test",             // application name
-        "1.0.0",            // applicacion version
-        "test_glogger"     // executable program, to can trace stack
+    gobj_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
     );
-    log_add_handler("test_stdout", "stdout", LOG_OPT_UP_WARNING|LOG_HND_OPT_BEATIFUL_JSON, 0);
 
-    static uint32_t mem_list[] = {0, 0};
-    gbmem_trace_alloc_free(0, mem_list);
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
 
-    /*------------------------------------------------*
-     *          Setup memory
-     *------------------------------------------------*/
-    #define MEM_MIN_BLOCK   512
-    uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
-    MEM_MAX_SYSTEM_MEMORY /= 100LL;
-    MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
+//    gobj_set_deep_tracing(2);           // TODO TEST
+//    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
-    MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
+    unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
+    set_memory_check_list(memory_check_list);
 
-    uint64_t MEM_SUPERBLOCK = MEM_MAX_BLOCK;
+    init_backtrace_with_bfd(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_bfd);
 
-    if(0) {
-        gbmem_startup(
-            MEM_MIN_BLOCK,
-            MEM_MAX_BLOCK,
-            MEM_SUPERBLOCK,
-            MEM_MAX_SYSTEM_MEMORY,
-            NULL,
-            0
-        );
-    } else {
-        gbmem_startup_system(
-            MEM_MAX_BLOCK,
-            MEM_MAX_SYSTEM_MEMORY
-        );
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // startup_persistent_attrs
+        NULL, // end_persistent_attrs
+        0,  // load_persistent_attrs
+        0,  // save_persistent_attrs
+        0,  // remove_persistent_attrs
+        0,  // list_persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL, // global_authenticate_parser
+        256*1024L,    // max_block, largest memory block
+        1*1024*1024L   // max_system_memory, maximum system memory
+    );
+
+    yuno_catch_signals();
+
+    /*--------------------------------*
+     *      Log handlers
+     *--------------------------------*/
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+    gobj_log_add_handler(
+        "test_stdout",
+        "stdout",
+        LOG_OPT_UP_WARNING,
+        0
+    );
+
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        0,
+        2024,
+        &yev_loop
+    );
+
+    /*--------------------------------*
+     *      Test
+     *--------------------------------*/
+    int result = do_test();
+    result += global_result;
+
+    /*--------------------------------*
+     *  Stop the event loop
+     *--------------------------------*/
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    gobj_end();
+
+    if(get_cur_system_memory()!=0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        result += -1;
     }
 
-    /*
-     *  WARNING now all json is gbmem allocated
-     */
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
-    );
-    uv_replace_allocator(
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_calloc,
-        gbmem_free
-    );
-
-    /*------------------------------*
-     *  La bbddd de pruebas
-     *------------------------------*/
-    char *path = "/test/trmsg/db_test2";
-
-    /*------------------------------*
-     *  Destruye la bbdd previa
-     *------------------------------*/
-    rmrdir(path);
-
-    /*------------------------------*
-     *  Crea la bbdd
-     *------------------------------*/
-    static const json_desc_t traces_json_desc[] = {
-        // Name             Type        Default
-        {"imei",            "str",      ""},
-        {"event",           "str",      ""},
-        {"gps_date",        "int",      ""},
-        {"latitude",        "int",      ""},
-        {"longitude",       "int",      ""},
-        {"altitude",        "int",      ""},
-        {"heading",         "int",      ""},
-        {"on",              "bool",     "false"},
-        {"idle",            "bool",     "true"},
-        {0}
-    };
-
-    static topic_desc_t db_test_desc[] = {
-    // Topic Name,  Pkey    Key Type                    Tkey            Topic Json Desc
-    {"gpss2",      "imei",  sf_string_key|sf_no_disk,   "gps_date",     traces_json_desc},
-    {0}
-    };
-
-    json_t *jn_tranger = json_pack("{s:s, s:b}",
-        "path", path,
-        "master", 1
-    );
-    json_t *rc2 = tranger_startup(
-        jn_tranger // owned
-    );
-    trmsg_open_topics(rc2, db_test_desc);
-
-    /*------------------------------*
-     *  Ejecuta los tests
-     *------------------------------*/
-    printf("\n\n");
-    test(rc2, 2, "LOAD FORWARD", arguments.devices, arguments.trazas);
-    test(rc2, 3, "LOAD BACKWARD/TM", arguments.devices, arguments.trazas);
-    test(rc2, 1, "ADD RECORDS", arguments.devices, arguments.trazas);
-    test(rc2, 4, "FIND fore first", arguments.devices, arguments.trazas);
-    test(rc2, 5, "FIND fore medium", arguments.devices, arguments.trazas);
-    test(rc2, 6, "FIND fore last", arguments.devices, arguments.trazas);
-    test(rc2, 7, "FIND back first", arguments.devices, arguments.trazas);
-    test(rc2, 8, "FIND back medium", arguments.devices, arguments.trazas);
-    test(rc2, 9, "FIND back last", arguments.devices, arguments.trazas);
-
-    test(rc2, 11, "CREATE JSON DB", arguments.devices, arguments.trazas);
-    test(rc2, 12, "LOAD JSON", arguments.devices, arguments.trazas);
-    test(rc2, 14, "FIND first", arguments.devices, arguments.trazas);
-    test(rc2, 15, "FIND medium", arguments.devices, arguments.trazas);
-    test(rc2, 16, "FIND last", arguments.devices, arguments.trazas);
-
-    /*------------------------------*
-     *  Cierra la bbdd
-     *------------------------------*/
-    tranger_shutdown(rc2);
-    json_decref(jn_mem_topic);
-
-    /*---------------------------*
-     *      Destroy all
-     *---------------------------*/
-    gbmem_shutdown();
-    end_ghelpers_library();
-
-
-    return 0;
+    return result;
 }
 
+/***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int xtimes_once = 0;
+    xtimes_once++;
+    yev_loop->running = 0;
+    if(xtimes_once > 1) {
+        exit(-1);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+}

@@ -21,7 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_tr_msg1.c
-#    test_tr_msg2.c
+    test_tr_msg2.c
 #    test_tr_msg3.c
 #    test_tr_msg4.c
 )

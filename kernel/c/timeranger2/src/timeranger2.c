@@ -55,7 +55,7 @@ PRIVATE const char *sf_names[16+1] = {
     "sf2_tm_ms",                // 0x0200
     "",                         // 0x0400
     "",                         // 0x0800
-    "sf2_no_record_disk",       // 0x1000
+    "sf2_no_disk",              // 0x1000
     "sf2_loading_from_disk",    // 0x2000
     "",                         // 0x4000
     "",                         // 0x8000
@@ -1203,7 +1203,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
      */
     char filename[NAME_MAX];
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_record_disk)) {
+    if((system_flag & sf2_no_disk)) {
         return -1;
     }
     get_t_filename(
@@ -2010,7 +2010,7 @@ PRIVATE int get_topic_wr_fd( // optimized
     char filename[NAME_MAX];
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_record_disk)) {
+    if((system_flag & sf2_no_disk)) {
         return -1;
     }
 
@@ -2103,7 +2103,7 @@ PRIVATE int get_topic_rd_fd(
     char filename[NAME_MAX];
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_record_disk)) {
+    if((system_flag & sf2_no_disk)) {
         return -1;
     }
 
