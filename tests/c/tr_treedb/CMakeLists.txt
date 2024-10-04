@@ -1,34 +1,25 @@
 ##############################################
 #   CMake
 ##############################################
-cmake_minimum_required(VERSION 3.11)
-project(test_tr_treedb C)
-include(CheckIncludeFiles)
-include(CheckSymbolExists)
+cmake_minimum_required(VERSION 3.5)
+get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=c99")
-
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DDEBUG)
-  option(SHOWNOTES "Show preprocessor notes" OFF)
-
-  if(CMAKE_COMPILER_IS_GNUCC)
-    # GCC specific debug options
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -ggdb3 -gdwarf-2")
-    set(AVOID_VERSION -avoid-version)
-  endif(CMAKE_COMPILER_IS_GNUCC)
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
-add_definitions(-D_GNU_SOURCE)
-add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
-
-include_directories(/yuneta/development/output/include)
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+  set(YUNETAS_BASE_DIR $ENV{YUNETAS_BASE})
+else()
+  set(YUNETAS_BASE_DIR "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source
 ##############################################
-
-SET (YUNO_SRCS
+set(SRCS
     test_tr_treedb.c
     test_departments.c
     test_users.c
@@ -36,31 +27,29 @@ SET (YUNO_SRCS
     test_compound.c
     test_final_foto2.c
 )
-SET (YUNO_HDRS
-)
 
 ##############################################
-#   yuno
+#   Tests
 ##############################################
-ADD_EXECUTABLE(test_tr_treedb ${YUNO_SRCS} ${YUNO_HDRS})
+foreach(test ${SRCS})
+  set(binary "${test}.bin")
+  add_executable(${binary} ${test})
 
-TARGET_LINK_LIBRARIES(test_tr_treedb
-    /yuneta/development/output/lib/libghelpers.a
-    /yuneta/development/output/lib/libjansson.a
-    /yuneta/development/output/lib/libuv.a
-    /yuneta/development/output/lib/libpcre2-8.a
-    /yuneta/development/output/lib/libunwind.a
-    rt pthread dl lzma m uuid
-)
+  target_link_libraries(${binary}
+      libyunetas-c_prot.a
+      libyunetas-core-linux.a
+      libtimeranger2.a
+      libyunetas-gobj.a
 
-##############################################
-#   Installation
-##############################################
-install(
-    TARGETS test_tr_treedb
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_WRITE GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
-)
+      libjansson.a
+      liburing.a
+      libpcre2-8.a
+      m
+      uuid
+      bfd     # to stacktrace
+  )
+  target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
+
+  add_test("${current_directory_name}/${test}" ${binary})
+
+endforeach()
