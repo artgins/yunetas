@@ -345,6 +345,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 tranger2_close_iterator(tranger, ll);
             }
         }
+        json_decref(jn_keys);
     }
 
     if(realtime) {
