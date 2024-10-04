@@ -153,6 +153,8 @@ PUBLIC int trmsg_add_instance(
 
         key                 (str) key
         rkey                (str) regular expression of key
+                                  WARNING: loading form disk keys matched in rkey)
+                                           but loading realtime of all keys
 
         max_key_instances   (int) Maximum number of instances per key.
 

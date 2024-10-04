@@ -26,16 +26,9 @@
  *              Structures
  ***************************************************************/
 
-
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE json_t *open_multiple_keys(
-    json_t *tranger,
-    const char *topic_name,
-    const char *rkey,
-    json_t *jn_filter  // owned
-);
 
 /***************************************************************
  *              Data
@@ -291,55 +284,11 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
         jn_filter = json_object();
     }
 
-    const char *key = kw_get_str(gobj, jn_filter, "key", 0, 0);
-    if(!empty_string(key)) {
-        json_t *list = tranger2_open_iterator(
-            tranger,
-            topic_name,
-            key,
-            jn_filter,  // match_cond, owned
-            load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id, optional, if empty will be the key
-            NULL,   // to store LOADING data, not owned
-            json_pack("{s:{}}", "messages")    // options, owned
-        );
-        return list;
-    } else {
-        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
-        if(empty_string(rkey)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "key is required to trmsg_open_list",
-                NULL
-            );
-            return NULL;
-        }
-        return open_multiple_keys(tranger, topic_name, rkey, jn_filter);
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *open_multiple_keys(
-    json_t *tranger,
-    const char *topic_name,
-    const char *rkey,
-    json_t *jn_filter  // not owned
-)
-{
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
     json_t *list = json_object();
     json_object_set_new(list, "messages", json_object());
 
-    json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
-
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-
+    const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
+    if(!empty_string(key)) {
         json_t *ll = tranger2_open_iterator(
             tranger,
             topic_name,
@@ -350,8 +299,40 @@ PRIVATE json_t *open_multiple_keys(
             NULL,   // to store LOADING data, not owned
             json_incref(list)    // options, owned
         );
-
         tranger2_close_iterator(tranger, ll);
+
+    } else {
+        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
+        if(empty_string(rkey)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "key is required to trmsg_open_list",
+                NULL
+            );
+            JSON_DECREF(jn_filter)
+            return NULL;
+        }
+
+        json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
+
+        int idx; json_t *jn_key;
+        json_array_foreach(jn_keys, idx, jn_key) {
+            const char *key_ = json_string_value(jn_key);
+
+            json_t *ll = tranger2_open_iterator(
+                tranger,
+                topic_name,
+                key_,
+                json_incref(jn_filter),  // match_cond, owned
+                load_record_callback, // called on LOADING and APPENDING
+                "",     // iterator id, optional, if empty will be the key
+                NULL,   // to store LOADING data, not owned
+                json_incref(list)    // options, owned
+            );
+
+            tranger2_close_iterator(tranger, ll);
+        }
     }
 
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -365,7 +346,7 @@ PRIVATE json_t *open_multiple_keys(
         rt = tranger2_open_rt_mem(
             tranger,
             topic_name,
-            "",                    // if empty receives all keys, else only this key
+            key,                    // if empty receives all keys, else only this key
             json_incref(jn_filter),
             load_record_callback,   // called on append new record
             ""
@@ -375,7 +356,7 @@ PRIVATE json_t *open_multiple_keys(
         rt = tranger2_open_rt_disk(
             tranger,
             topic_name,
-            "",                    // if empty receives all keys, else only this key
+            key,                    // if empty receives all keys, else only this key
             json_incref(jn_filter),
             load_record_callback,   // called on append new record
             ""
@@ -393,8 +374,8 @@ PRIVATE json_t *open_multiple_keys(
         return NULL;
     }
 
+    JSON_DECREF(jn_filter)
     return list;
-
 }
 
 /***************************************************************************
