@@ -470,7 +470,8 @@ int do_test(void)
         "",             // key
         NULL,           // match_cond,
         all_load_record_callback,
-        "list1"
+        "list1",
+        NULL
     );
 
     tranger2_open_rt_mem(
@@ -479,7 +480,8 @@ int do_test(void)
         "0000000000000000001",       // key
         NULL,   // match_cond
         one_load_record_callback,
-        "list2"
+        "list2",
+        NULL
     );
 
     result += test_json(NULL, result);  // NULL: we want to check only the logs

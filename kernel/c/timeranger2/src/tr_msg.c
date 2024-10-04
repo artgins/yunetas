@@ -286,6 +286,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
 
     json_t *list = json_object();
     json_object_set_new(list, "messages", json_object());
+    json_object_set_new(list, "topic_name", json_string(topic_name));
 
     BOOL realtime = FALSE;
     json_int_t to_rowid = kw_get_int(gobj, jn_filter, "to_rowid", 0, KW_WILD_NUMBER);
@@ -353,6 +354,8 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
             rt_by_mem = FALSE;
         }
 
+        char uuid[64];
+        create_uuid(uuid, sizeof(uuid));
         json_t *rt;
         if(rt_by_mem) {
             rt = tranger2_open_rt_mem(
@@ -361,9 +364,12 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 key,                    // if empty receives all keys, else only this key
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
-                ""
+                uuid,
+                json_pack("{s:O}", "list", list)
             );
-            json_object_set(list, "rt_mem", rt);
+            if(rt) {
+                json_object_set_new(list, "rt_mem", json_string(uuid));
+            }
         } else {
             rt = tranger2_open_rt_disk(
                 tranger,
@@ -371,9 +377,12 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 key,                    // if empty receives all keys, else only this key
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
-                ""
+                uuid,
+                json_pack("{s:O}", "list", list)
             );
-            json_object_set(list, "rt_disk", rt);
+            if(rt) {
+                json_object_set_new(list, "rt_disk", json_string(uuid));
+            }
         }
         if(!rt) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -403,13 +412,15 @@ PUBLIC int trmsg_close_list(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *rt_mem = kw_get_dict(gobj, list, "rt_mem", 0, 0);
-    if(rt_mem) {
+    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    const char *rt_mem_id = kw_get_str(gobj, list, "rt_mem", 0, 0);
+    if(rt_mem_id) {
+        json_t *rt_mem = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
         tranger2_close_rt_mem(tranger, rt_mem);
     }
-    json_t *rt_disk = kw_get_dict(gobj, list, "rt_disk", 0, 0);
-    if(rt_disk) {
+    const char *rt_disk_id = kw_get_str(gobj, list, "rt_disk", 0, 0);
+    if(rt_disk_id) {
+        json_t *rt_disk = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
         tranger2_close_rt_disk(tranger, rt_disk);
     }
     json_decref(list);

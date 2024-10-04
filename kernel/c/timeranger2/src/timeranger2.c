@@ -998,7 +998,8 @@ PRIVATE BOOL find_rt_disk_cb(
             "only_md", 1
         ),
         mater_to_update_client_load_record_callback,   // called on append new record
-        rt_id
+        rt_id,
+        NULL
     );
 
     snprintf(full_path, PATH_MAX, "%s/%s", directory, filename);
@@ -1101,7 +1102,8 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                         "only_md", 1
                     ),
                     mater_to_update_client_load_record_callback,   // called on append new record
-                    rt_id
+                    rt_id,
+                    NULL
                 );
 
                 snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
@@ -4523,7 +4525,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     key,                    // if empty receives all keys, else only this key
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
-                    iterator_id
+                    iterator_id,
+                    NULL
                 );
                 json_object_set(iterator, "rt_mem", rt);
             } else {
@@ -4533,7 +4536,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     key,                    // if empty receives all keys, else only this key
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
-                    iterator_id
+                    iterator_id,
+                    NULL
                 );
                 json_object_set(iterator, "rt_disk", rt);
             }

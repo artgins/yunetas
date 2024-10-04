@@ -4980,6 +4980,9 @@ PUBLIC int count_char(const char *s, char c)
 PUBLIC int create_uuid(char *bf, int bfsize)
 {
     if(bfsize < 37) {
+        if(bfsize > 0) {
+            *bf = 0;
+        }
         return -1;
     }
     uuid_t out;
