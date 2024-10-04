@@ -3149,7 +3149,8 @@ PUBLIC json_t *tranger2_open_rt_mem(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
-    const char *id     // list id, optional
+    const char *id,         // list id, optional
+    json_t *extra           // owned, user data, this json will be added to the return iterator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3172,6 +3173,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
             NULL
         );
         JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3183,6 +3185,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
             NULL
         );
         JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3205,6 +3208,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(list)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3215,6 +3219,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         "match_cond", match_cond,
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     ));
+    json_object_update_missing_new(list, extra);
 
     /*
      *  Add the list to the topic
@@ -3321,7 +3326,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *id     // disk id, optional
+    const char *id,         // disk id, optional
+    json_t *extra           // owned, user data, this json will be added to the return iterator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3344,6 +3350,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
             NULL
         );
         JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3355,6 +3362,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
             NULL
         );
         JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3378,6 +3386,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(disk)
+        JSON_DECREF(extra)
         return NULL;
     }
 
@@ -3388,6 +3397,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         "match_cond", match_cond,
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     ));
+    json_object_update_missing_new(disk, extra);
 
     /*
      *  Add the list to the topic

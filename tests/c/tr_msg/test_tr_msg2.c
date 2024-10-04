@@ -5,7 +5,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -17,7 +16,7 @@
  *      Constants
  ***************************************************************************/
 #define DATABASE    "tr_msg"
-#define TOPIC_NAME  "topic_msg2"
+#define TOPIC_NAME  "gpss2"
 
 /***************************************************************************
  *              Prototypes
@@ -27,9 +26,10 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************************
  *      Data
  ***************************************************************************/
-PRIVATE json_t *jn_mem_topic = 0;
 PRIVATE yev_loop_t *yev_loop;
 PRIVATE int global_result = 0;
+PRIVATE json_t *hrc2_topic_iter1 = 0;
+PRIVATE json_t *hrc2_topic_iter2 = 0;
 
 /***************************************************************************
  *
@@ -37,8 +37,6 @@ PRIVATE int global_result = 0;
 static int test(json_t *tranger, int caso, const char *desc, int devices, int trazas, int result)
 {
     uint64_t cnt;
-    static json_t *hrc2_topic_iter1 = 0;
-    static json_t *hrc2_topic_iter2 = 0;
 
     cnt = devices * trazas;
 
@@ -67,7 +65,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                     snprintf(simei, sizeof(simei), "%016d", imei);
                     trmsg_add_instance(
                         tranger,
-                        "gpss2",     // topic
+                        TOPIC_NAME,     // topic
                         json_pack("{s:s, s:s, s:I, s:f, s:f, s:i, s:i, s:b, s:b}",
                             "imei", simei,
                             "event", event,
@@ -107,8 +105,11 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
             hrc2_topic_iter1 = trmsg_open_list(
                 tranger,
-                "gpss2",    // topic
-                json_pack("{s:s}", "rkey", "") // filter
+                TOPIC_NAME,    // topic
+                json_pack("{s:s, s:b}",  // filter
+                    "rkey", "",
+                    "rt_by_mem", 1
+                )
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -134,9 +135,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
 
             hrc2_topic_iter2 = trmsg_open_list(
                 tranger,
-                "gpss2",    // topic
-                json_pack("{s:s, s:b, s:b}",  // filter
+                TOPIC_NAME,    // topic
+                json_pack("{s:s, s:b, s:b, s:b}",  // filter
                     "rkey", "",
+                    "rt_by_mem", 1,
                     "backward", 1,
                     "order_by_tm", 1
                 )
@@ -166,11 +168,16 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             cnt = 1;
             const char *key = "0000000000000001";
 
+print_json2("", hrc2_topic_iter1); // TODO TEST
+
             json_t *msg = trmsg_get_active_message(
                 hrc2_topic_iter1,
                 key
             );
-            if(!msg) printf("Merde\n");
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
+            }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -199,7 +206,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 hrc2_topic_iter1,
                 key
             );
-            if(!msg) printf("Merde\n");
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
+            }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -228,7 +238,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 hrc2_topic_iter1,
                 key
             );
-            if(!msg) printf("Merde\n");
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
+            }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -257,7 +270,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 hrc2_topic_iter2,
                 key
             );
-            if(!msg) printf("Merde\n");
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
+            }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -286,7 +302,10 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 hrc2_topic_iter2,
                 key
             );
-            if(!msg) printf("Merde\n");
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
+            }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -315,170 +334,9 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 hrc2_topic_iter2,
                 key
             );
-            if(!msg) printf("Merde\n");
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 11:
-        {
-            trmsg_close_list(tranger, hrc2_topic_iter1);
-            trmsg_close_list(tranger, hrc2_topic_iter2);
-
-            const char *test_name = desc;
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *jn_topic = json_object();
-            for(long trace=1; trace<=trazas; trace++) { // traces de 1 hora, a 1/segundo
-                for(int imei=1; imei<=devices; imei++) {
-                    char simei[32];
-                    snprintf(simei, sizeof(simei), "%016d", imei);
-                    json_object_set_new(
-                        jn_topic,
-                        simei,
-                        json_pack("{s:s, s:I, s:f, s:f, s:i, s:i, s:b, s:b}",
-                            "imei", simei,
-                            "gps_date", (json_int_t)trace,
-                            "latitude", 0.0,
-                            "longitude", 0.0,
-                            "altitude", 0,
-                            "heading", 0,
-                            "on", 0,
-                            "idle", 0
-                        )
-                    );
-                }
-            }
-            // WARNING esto no es equivalente a rc_tranger, aquí salvamos al final, no row a row
-            json_dump_file(
-                jn_topic,
-                "/test/trmsg/db_test2/json_topic.json",
-                JSON_INDENT(4)
-            );
-            json_decref(jn_topic);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 12:
-        {
-            const char *test_name = desc;
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_error_t error;
-            jn_mem_topic = json_load_file("/test/trmsg/db_test2/json_topic.json", 0, &error);
-            if(!jn_mem_topic) {
-                printf("ERROR jn_mem_topic \n");
-            }
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 14:
-        {
-            const char *test_name = desc;
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            cnt = 1;
-            const char *key = "0000000000000001";
-            json_t *jn_item = json_object_get(jn_mem_topic, key);
-            if(!jn_item) {
-                printf("ERROR msg %s not found\n", key);
-            }
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 15:
-        {
-            const char *test_name = desc;
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            cnt = 1;
-            const char *key = "0000000000000500";
-            json_t *jn_item = json_object_get(jn_mem_topic, key);
-            if(!jn_item) {
-                printf("ERROR msg %s not found\n", key);
-            }
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 16:
-        {
-            const char *test_name = desc;
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            cnt = 1;
-            const char *key = "0000000000000999";
-            json_t *jn_item = json_object_get(jn_mem_topic, key);
-            if(!jn_item) {
-                printf("ERROR msg %s not found\n", key);
+            if(!msg) {
+                result += -1;
+                printf("Merde\n");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -555,7 +413,7 @@ int do_test(void)
 
     static topic_desc_t db_test_desc[] = {
     // Topic Name,  Pkey    Key Type                    Tkey            Topic Json Desc
-    {"gpss2",      "imei",  sf2_string_key|sf2_no_disk, "gps_date",     traces_json_desc},
+    {TOPIC_NAME,      "imei",  sf2_string_key|sf2_no_disk, "gps_date",     traces_json_desc},
     {0}
     };
 
@@ -567,6 +425,7 @@ int do_test(void)
     int devices = 1000;
     int trazas = 100;
 
+
     result += test(tranger, 2, "LOAD FORWARD", devices, trazas, result);
     result += test(tranger, 3, "LOAD BACKWARD/TM", devices, trazas, result);
     result += test(tranger, 1, "ADD RECORDS", devices, trazas, result);
@@ -577,11 +436,8 @@ int do_test(void)
     result += test(tranger, 8, "FIND back medium", devices, trazas, result);
     result += test(tranger, 9, "FIND back last", devices, trazas, result);
 
-    result += test(tranger, 11, "CREATE JSON DB", devices, trazas, result);
-    result += test(tranger, 12, "LOAD JSON", devices, trazas, result);
-    result += test(tranger, 14, "FIND first", devices, trazas, result);
-    result += test(tranger, 15, "FIND medium", devices, trazas, result);
-    result += test(tranger, 16, "FIND last", devices, trazas, result);
+    trmsg_close_list(tranger, hrc2_topic_iter1);
+    trmsg_close_list(tranger, hrc2_topic_iter2);
 
     /*-------------------------------*
      *      Shutdown timeranger

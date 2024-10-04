@@ -554,7 +554,8 @@ PUBLIC json_t *tranger2_open_rt_mem(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
-    const char *list_id     // list id, optional
+    const char *list_id,    // list id, optional
+    json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
 /**rst**
@@ -584,7 +585,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *disk_id     // disk id, optional
+    const char *disk_id,    // disk id, optional
+    json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
 /**rst**
