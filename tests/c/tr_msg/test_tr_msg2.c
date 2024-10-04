@@ -17,6 +17,8 @@
  ***************************************************************************/
 #define DATABASE    "tr_msg"
 #define TOPIC_NAME  "gpss2"
+#define DEVICES 1000
+#define TRAZAS  100
 
 /***************************************************************************
  *              Prototypes
@@ -34,11 +36,9 @@ PRIVATE json_t *hrc2_topic_iter2 = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-static int test(json_t *tranger, int caso, const char *desc, int devices, int trazas, int result)
+static int test(json_t *tranger, int caso, const char *desc, int result)
 {
-    uint64_t cnt;
-
-    cnt = devices * trazas;
+    uint64_t cnt = 1;
 
     /*-------------------------------------*
      *  Loop
@@ -58,8 +58,8 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             time_measure_t time_measure;
             MT_START_TIME(time_measure)
 
-            for(long trace=1; trace<=trazas; trace++) { // traces de 1 hora, a 1/segundo
-                for(int imei=1; imei<=devices; imei++) {
+            for(long trace=1; trace<=TRAZAS; trace++) { // traces de 1 hora, a 1/segundo
+                for(int imei=1; imei<=DEVICES; imei++) {
                     const char *event = "CycleOff";
                     char simei[32];
                     snprintf(simei, sizeof(simei), "%016d", imei);
@@ -82,6 +82,7 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
                 }
             }
 
+            cnt = DEVICES * TRAZAS;
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
@@ -168,15 +169,23 @@ static int test(json_t *tranger, int caso, const char *desc, int devices, int tr
             cnt = 1;
             const char *key = "0000000000000001";
 
-print_json2("", hrc2_topic_iter1); // TODO TEST
-
             json_t *msg = trmsg_get_active_message(
                 hrc2_topic_iter1,
                 key
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -208,7 +217,17 @@ print_json2("", hrc2_topic_iter1); // TODO TEST
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -240,7 +259,17 @@ print_json2("", hrc2_topic_iter1); // TODO TEST
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -272,7 +301,17 @@ print_json2("", hrc2_topic_iter1); // TODO TEST
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -304,7 +343,17 @@ print_json2("", hrc2_topic_iter1); // TODO TEST
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -336,7 +385,17 @@ print_json2("", hrc2_topic_iter1); // TODO TEST
             );
             if(!msg) {
                 result += -1;
-                printf("Merde\n");
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "No message found");
+            }
+            const char *key_ = kw_get_str(0, msg, "imei", "", KW_REQUIRED);
+            if(strcmp(key, key_)!=0) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD id");
+            }
+            json_int_t gps_date = kw_get_int(0, msg, "gps_date", -1, KW_REQUIRED);
+            if(gps_date != 100) {
+                result += -1;
+                printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD gps_date");
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -422,19 +481,15 @@ int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
-    int devices = 1000;
-    int trazas = 100;
-
-
-    result += test(tranger, 2, "LOAD FORWARD", devices, trazas, result);
-    result += test(tranger, 3, "LOAD BACKWARD/TM", devices, trazas, result);
-    result += test(tranger, 1, "ADD RECORDS", devices, trazas, result);
-    result += test(tranger, 4, "FIND fore first", devices, trazas, result);
-    result += test(tranger, 5, "FIND fore medium", devices, trazas, result);
-    result += test(tranger, 6, "FIND fore last", devices, trazas, result);
-    result += test(tranger, 7, "FIND back first", devices, trazas, result);
-    result += test(tranger, 8, "FIND back medium", devices, trazas, result);
-    result += test(tranger, 9, "FIND back last", devices, trazas, result);
+    result += test(tranger, 2, "LOAD FORWARD", result);
+    result += test(tranger, 3, "LOAD BACKWARD/TM", result);
+    result += test(tranger, 1, "ADD RECORDS", result);
+    result += test(tranger, 4, "FIND fore first", result);
+    result += test(tranger, 5, "FIND fore medium", result);
+    result += test(tranger, 6, "FIND fore last", result);
+    result += test(tranger, 7, "FIND back first", result);
+    result += test(tranger, 8, "FIND back medium", result);
+    result += test(tranger, 9, "FIND back last", result);
 
     trmsg_close_list(tranger, hrc2_topic_iter1);
     trmsg_close_list(tranger, hrc2_topic_iter2);
@@ -506,7 +561,7 @@ int main(int argc, char *argv[])
         NULL, // global_authz_checker
         NULL, // global_authenticate_parser
         256*1024L,    // max_block, largest memory block
-        10*1024*1024L   // max_system_memory, maximum system memory
+        1024*1024*1024L   // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();

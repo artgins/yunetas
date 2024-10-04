@@ -304,7 +304,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key
             NULL,   // to store LOADING data, not owned
-            json_incref(list)    // options, owned
+            json_incref(list)    // extra, owned
         );
         tranger2_close_iterator(tranger, ll);
 
@@ -339,7 +339,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id, optional, if empty will be the key
                     NULL,   // to store LOADING data, not owned
-                    json_incref(list)    // options, owned
+                    json_incref(list)    // extra, owned
                 );
 
                 tranger2_close_iterator(tranger, ll);
@@ -365,7 +365,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
                 uuid,
-                json_pack("{s:O}", "list", list)
+                json_incref(list)    // extra, owned
             );
             if(rt) {
                 json_object_set_new(list, "rt_mem", json_string(uuid));
@@ -378,7 +378,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
                 uuid,
-                json_pack("{s:O}", "list", list)
+                json_incref(list)    // extra, owned
             );
             if(rt) {
                 json_object_set_new(list, "rt_disk", json_string(uuid));
@@ -414,14 +414,15 @@ PUBLIC int trmsg_close_list(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
     const char *rt_mem_id = kw_get_str(gobj, list, "rt_mem", 0, 0);
+    json_t *rt;
     if(rt_mem_id) {
-        json_t *rt_mem = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
-        tranger2_close_rt_mem(tranger, rt_mem);
+        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
+        tranger2_close_rt_mem(tranger, rt);
     }
     const char *rt_disk_id = kw_get_str(gobj, list, "rt_disk", 0, 0);
     if(rt_disk_id) {
-        json_t *rt_disk = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
-        tranger2_close_rt_disk(tranger, rt_disk);
+        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
+        tranger2_close_rt_disk(tranger, rt);
     }
     json_decref(list);
     return 0;

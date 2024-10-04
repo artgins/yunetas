@@ -2638,6 +2638,8 @@ PUBLIC int tranger2_append_record(
             JSON_DECREF(jn_record)
             return -1;
         }
+    } else {
+        __md_tranger__ = md2json(md_record, relative_rowid);
     }
 
     // TEST performance with sf2_save_md_in_record 98000
