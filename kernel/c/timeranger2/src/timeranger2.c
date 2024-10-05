@@ -1828,8 +1828,8 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
         fields
     );
 
-    json_t *cols = kw_get_dict_value(gobj, topic, "cols", json_null(), KW_REQUIRED);
-    json_object_set(desc, "cols", cols);
+    json_t *cols = kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
+    json_object_set_new(desc, "cols", cols);
 
     return desc;
 }
