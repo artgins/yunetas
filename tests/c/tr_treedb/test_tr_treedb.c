@@ -25,7 +25,6 @@
  *      Constants
  ***************************************************************************/
 #define DATABASE    "tr_treedb"
-#define TOPIC_NAME  "topic_treedb"
 
 
 /***************************************************************
@@ -353,15 +352,12 @@ PRIVATE int do_test(void)
     const char *home = getenv("HOME");
     char path_root[PATH_MAX];
     char path_database[PATH_MAX];
-    char path_topic[PATH_MAX];
 
     build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
     mkrdir(path_root, 02770);
 
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     rmrdir(path_database);
-
-    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
     /*-------------------------------------------------*
      *      Startup the timeranger db
