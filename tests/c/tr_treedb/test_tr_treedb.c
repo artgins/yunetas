@@ -300,14 +300,14 @@ PRIVATE int test_treedb_schema(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL test_schema(
+PRIVATE int test_schema(
     json_t *tranger,
     json_t *topic_cols_desc,
     const char *treedb_name,
     int verbose
 )
 {
-    BOOL result = TRUE;
+    int result = 0;
     hgobj gobj = 0;
     const char *test = "test_schema";
 
@@ -400,31 +400,25 @@ PRIVATE int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
-    if(!test_schema(tranger, topic_cols_desc, treedb_name, verbose)) {
-        result += -1;
-    }
+    result += test_schema(tranger, topic_cols_desc, treedb_name, verbose);
 
-    if(!test_departments(
-            tranger,
-            treedb_name,
-            without_ok_tests,
-            without_bad_tests,
-            show_oks,
-            verbose
-        )) {
-        result += -1;
-    }
+    result += test_departments(
+        tranger,
+        treedb_name,
+        without_ok_tests,
+        without_bad_tests,
+        show_oks,
+        verbose
+    );
 
-    if(!test_users(
-            tranger,
-            treedb_name,
-            without_ok_tests,
-            without_bad_tests,
-            show_oks,
-            verbose
-        )) {
-        result += -1;
-    }
+    result += test_users(
+        tranger,
+        treedb_name,
+        without_ok_tests,
+        without_bad_tests,
+        show_oks,
+        verbose
+    );
 
     /*
      *  Check refcounts

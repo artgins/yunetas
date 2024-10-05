@@ -75,10 +75,9 @@ PUBLIC int test_compound(
             data                        // data
         );
 
-        result += test_json(mainop, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(mainop, result);
     }
 
     /*-----------------------------------*
@@ -122,10 +121,9 @@ PUBLIC int test_compound(
             mainop
         );
 
-        result += test_json(NULL, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);
     }
 
     /*-----------------------------------*
@@ -161,10 +159,9 @@ PUBLIC int test_compound(
             administration
         );
 
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
 
     /*-----------------------------------*
@@ -227,10 +224,9 @@ PUBLIC int test_compound(
             0
         );
 
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
 
     /*-----------------------------------*

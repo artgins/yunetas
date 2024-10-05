@@ -85,10 +85,9 @@ PUBLIC int test_departments(
             "departments",              // topic_name
             data                        // data
         );
-        result += test_json(direction, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(direction, result);
     }
 
     /*-----------------------------------*
@@ -118,10 +117,9 @@ PUBLIC int test_departments(
             data                       // data
         );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     /*-----------------------------------*
@@ -159,10 +157,9 @@ PUBLIC int test_departments(
             data
         );
 
-        result += test_json(administration, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(administration, result);
     }
 
     /*-----------------------------------*
@@ -195,10 +192,9 @@ PUBLIC int test_departments(
             "administration"
         );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     /*-------------------------------------*
@@ -225,10 +221,9 @@ PUBLIC int test_departments(
             administration
         );
 
-        result += test_json(NULL, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);
     }
 
     if(!without_ok_tests) {
@@ -272,10 +267,9 @@ PUBLIC int test_departments(
             "direction"
         );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     if(!without_ok_tests) {
@@ -313,10 +307,9 @@ PUBLIC int test_departments(
 //            &md_record
 //        );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     if(!without_ok_tests) {
@@ -354,10 +347,9 @@ PUBLIC int test_departments(
 //            &md_record
 //        );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
 /*------------------------------------------------------------*
@@ -397,10 +389,9 @@ PUBLIC int test_departments(
             printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
         }
 
-        result += test_json(NULL, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);
     }
 
     if(!without_ok_tests) {
@@ -434,10 +425,9 @@ PUBLIC int test_departments(
             data
         );
 
-        result += test_json(operation, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(operation, result);
     }
 
     /*-------------------------------------*
@@ -484,10 +474,9 @@ PUBLIC int test_departments(
             "administration"
         );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     if(!without_ok_tests) {
@@ -525,10 +514,9 @@ PUBLIC int test_departments(
 //            &md_record
 //        );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
 /*------------------------------------------------------------**
@@ -570,10 +558,9 @@ PUBLIC int test_departments(
             data
         );
 
-        result += test_json(development, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(development, result);
     }
 
     /*---------------------------------------------*
@@ -630,10 +617,9 @@ PUBLIC int test_departments(
             "administration"
         );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     if(!without_ok_tests) {
@@ -671,10 +657,9 @@ PUBLIC int test_departments(
 //            &md_record
 //        );
 
-        result += test_json(found, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(found, result);
     }
 
     /*------------------------------------------------------------*
@@ -721,10 +706,9 @@ PUBLIC int test_departments(
             0
         );
 
-        result += test_json(NULL, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);
         // La foto final tiene que seguir igual
     }
 
@@ -908,10 +892,9 @@ char foto_final[]= "\
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
 
     return result;

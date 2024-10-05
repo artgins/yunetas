@@ -562,10 +562,9 @@ char foto_final[]= "\
 
         json_t *users = treedb_get_id_index(tranger, treedb_name, "users"); // Return is NOT YOURS
 
-        result += test_json(users, result);
-
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+        result += test_json(users, result);
 
         json_check_refcounts(file_json, 1000, &result);
         JSON_DECREF(file_json)
