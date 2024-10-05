@@ -7,10 +7,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
 #include <locale.h>
 #include <time.h>
 
@@ -28,7 +24,7 @@
                 |
                  -> Desarrollo
  ***************************************************************************/
-PUBLIC BOOL test_departments(
+PUBLIC int test_departments(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -58,15 +54,6 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create direction, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "direction",
@@ -82,32 +69,23 @@ PUBLIC BOOL test_departments(
 
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected,   // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         direction = treedb_create_node(
             tranger, treedb_name,       // treedb
             "departments",              // topic_name
             data                        // data
         );
-        if(!match_record(direction, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, direction, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, direction, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
-
-        result += test_json(user_record, result);
+        result += test_json(direction, result);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
@@ -133,7 +111,6 @@ PUBLIC BOOL test_departments(
         data = json_pack("{s:s}",
             "name", "Administración"
         );
-        expected = 0;
 
         found = treedb_create_node( // Must return 0
             tranger, treedb_name,
@@ -141,27 +118,10 @@ PUBLIC BOOL test_departments(
             data                       // data
         );
 
-        if(found) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR Administracion %s\n", On_Red BWhite, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
+        result += test_json(found, result);
 
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(found);
-        JSON_DECREF(expected);
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -169,15 +129,6 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create administration, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
 
         data = json_pack("{s:s, s:s}",
             "id", "administration",
@@ -192,30 +143,26 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         administration = treedb_create_node(
             tranger, treedb_name,
             "departments",
             data
         );
-        if(!match_record(administration, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, administration, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, administration, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
+
+        result += test_json(administration, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -223,16 +170,6 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Get administration, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "administration",
             "name", "Administración",
@@ -242,30 +179,26 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected,
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         found = treedb_get_node(
             tranger, treedb_name,
             "departments",
             "administration"
         );
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-------------------------------------*
@@ -291,30 +224,15 @@ PUBLIC BOOL test_departments(
             direction,
             administration
         );
-        if(!check_log_result(test, verbose)) {
-            result = FALSE;
-        }
+
+        result += test_json(NULL, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     if(!without_ok_tests) {
         const char *test = "link direction->administration, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        treedb_link_nodes(
-            tranger,
-            "departments",
-            direction,
-            administration
-        );
-
         expected = json_pack("{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[]}}, s:{}, s:[]}",
             "id", "direction",
             "name", "Dirección",
@@ -331,58 +249,38 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
-        found = treedb_get_node(
-            tranger, treedb_name,
-            "departments",
-            "direction"
-        );
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 1, id 1 Dirección";
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
+            expected,  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        md_record_t md_record;
-        tranger_get_record(
+        treedb_link_nodes(
             tranger,
-            tranger_topic(tranger, "departments"),
-            1, //__rowid__
-            &md_record,
-            TRUE
+            "departments",
+            direction,
+            administration
         );
-        found = tranger_read_record_content(
-            tranger,
-            tranger_topic(tranger, "departments"),
-            &md_record
+
+        found = treedb_get_node(
+            tranger, treedb_name,
+            "departments",
+            "direction"
         );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+    }
+
+    if(!without_ok_tests) {
+        // Comprueba con timeranger
+        const char *test = "match treedb with timeranger rowid 1, id 1 Dirección";
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "direction",
             "name", "Dirección",
@@ -391,61 +289,39 @@ PUBLIC BOOL test_departments(
             "managers",
             "users"
         );
-        if(!expected) {
-            if(verbose) {
-                printf("%s  --> expected NULL in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        }
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(found);
-        JSON_DECREF(expected);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 3, id 2 Administración";
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
+            expected,   // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        md_record_t md_record;
-        tranger_get_record(
-            tranger,
-            tranger_topic(tranger, "departments"),
-            3, //__rowid__
-            &md_record,
-            TRUE
-        );
-        found = tranger_read_record_content(
-            tranger,
-            tranger_topic(tranger, "departments"),
-            &md_record
-        );
+// TODO       md2_record_t md_record;
+//        tranger2_get_record(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            1, //__rowid__
+//            &md_record,
+//            TRUE
+//        );
+//        found = tranger_read_record_content(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            &md_record
+//        );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+    }
+
+    if(!without_ok_tests) {
+        // Comprueba con timeranger
+        const char *test = "match treedb with timeranger rowid 3, id 2 Administración";
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "administration",
             "name", "Administración",
@@ -454,34 +330,34 @@ PUBLIC BOOL test_departments(
             "managers",
             "users"
         );
-        if(!expected) {
-            if(verbose) {
-                printf("%s  --> expected NULL in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        }
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(found);
-        JSON_DECREF(expected);
+// TODO       md2_record_t md_record;
+//        tranger2_get_record(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            3, //__rowid__
+//            &md_record,
+//            TRUE
+//        );
+//        found = tranger_read_record_content(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            &md_record
+//        );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
 /*------------------------------------------------------------*
@@ -517,32 +393,18 @@ PUBLIC BOOL test_departments(
             data
         );
         if(operation) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, operation, "Record found");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
+            result += -1;
+            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
         }
+
+        result += test_json(NULL, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     if(!without_ok_tests) {
         const char *test = "Create operation, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
         data = json_pack("{s:s, s:s}",
             "id", "operation",
             "name", "Gestión"
@@ -556,30 +418,26 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         operation = treedb_create_node(
             tranger, treedb_name,
             "departments",
             data
         );
-        if(!match_record(operation, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, operation, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, operation, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
+
+        result += test_json(operation, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-------------------------------------*
@@ -587,23 +445,6 @@ PUBLIC BOOL test_departments(
      *------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "link administration->operation, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        treedb_link_nodes(
-            tranger,
-            "departments",
-            administration,
-            operation
-        );
-
         expected = json_pack("{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[]}}, s:{}, s:[]}",
             "id", "administration",
             "name", "Administración",
@@ -620,58 +461,38 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
-        found = treedb_get_node(
-            tranger, treedb_name,
-            "departments",
-            "administration"
-        );
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 5, id 3 Gestión";
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
+            expected, // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        md_record_t md_record;
-        tranger_get_record(
+        treedb_link_nodes(
             tranger,
-            tranger_topic(tranger, "departments"),
-            5, //__rowid__
-            &md_record,
-            TRUE
+            "departments",
+            administration,
+            operation
         );
-        found = tranger_read_record_content(
-            tranger,
-            tranger_topic(tranger, "departments"),
-            &md_record
+
+        found = treedb_get_node(
+            tranger, treedb_name,
+            "departments",
+            "administration"
         );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+    }
+
+    if(!without_ok_tests) {
+        // Comprueba con timeranger
+        const char *test = "match treedb with timeranger rowid 5, id 3 Gestión";
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "operation",
             "name", "Gestión",
@@ -680,34 +501,34 @@ PUBLIC BOOL test_departments(
             "managers",
             "users"
         );
-        if(!expected) {
-            if(verbose) {
-                printf("%s  --> expected NULL in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        }
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(found);
-        JSON_DECREF(expected);
+// TODO       md_record_t md_record;
+//        tranger_get_record(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            5, //__rowid__
+//            &md_record,
+//            TRUE
+//        );
+//        found = tranger_read_record_content(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            &md_record
+//        );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
 /*------------------------------------------------------------**
@@ -720,16 +541,6 @@ PUBLIC BOOL test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create development, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
         data = json_pack("{s:s, s:s}",
             "id", "development",
             "name", "Desarrollo"
@@ -743,30 +554,26 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         development = treedb_create_node(
             tranger, treedb_name,
             "departments",
             data
         );
-        if(!match_record(development, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, development, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, development, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
+
+        result += test_json(development, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*---------------------------------------------*
@@ -774,23 +581,6 @@ PUBLIC BOOL test_departments(
      *---------------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "link administration->development, good";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        treedb_link_nodes(
-            tranger,
-            "departments",
-            administration,
-            development
-        );
-
         expected = json_pack("{s:s, s:s, s:s, s:"
                 "{s:{s:s, s:s, s:s, s:{}, s:{}, s:[]}, "
                 "s:{s:s, s:s, s:s, s:{}, s:{}, s:[]}},"
@@ -817,58 +607,38 @@ PUBLIC BOOL test_departments(
             "users"
         );
 
-        found = treedb_get_node(
-            tranger, treedb_name,
-            "departments",
-            "administration"
-        );
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 7, id 4 Desarrollo";
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
+            expected, // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        md_record_t md_record;
-        tranger_get_record(
+        treedb_link_nodes(
             tranger,
-            tranger_topic(tranger, "departments"),
-            7, //__rowid__
-            &md_record,
-            TRUE
+            "departments",
+            administration,
+            development
         );
-        found = tranger_read_record_content(
-            tranger,
-            tranger_topic(tranger, "departments"),
-            &md_record
+
+        found = treedb_get_node(
+            tranger, treedb_name,
+            "departments",
+            "administration"
         );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+    }
+
+    if(!without_ok_tests) {
+        // Comprueba con timeranger
+        const char *test = "match treedb with timeranger rowid 7, id 4 Desarrollo";
         expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
             "id", "development",
             "name", "Desarrollo",
@@ -877,34 +647,34 @@ PUBLIC BOOL test_departments(
             "managers",
             "users"
         );
-        if(!expected) {
-            if(verbose) {
-                printf("%s  --> expected NULL in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        }
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected, // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
-        if(!match_record(found, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, found, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(found);
-        JSON_DECREF(expected);
+//  TODO      md_record_t md_record;
+//        tranger_get_record(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            7, //__rowid__
+//            &md_record,
+//            TRUE
+//        );
+//        found = tranger_read_record_content(
+//            tranger,
+//            tranger_topic(tranger, "departments"),
+//            &md_record
+//        );
+
+        result += test_json(found, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*------------------------------------------------------------*
@@ -951,9 +721,10 @@ PUBLIC BOOL test_departments(
             0
         );
 
-        if(!check_log_result(test, verbose)) {
-            result = FALSE;
-        }
+        result += test_json(NULL, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
         // La foto final tiene que seguir igual
     }
 
@@ -1130,32 +901,17 @@ char foto_final[]= "\
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            NULL,   // expected, NULL: we want to check only the logs
+            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        helper_quote2doublequote(foto_final);
-        expected = legalstring2json(foto_final, TRUE);
-        json_t *treedb = kw_get_dict(tranger, "treedbs", 0, 0);
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
 
-        if(!match_record(treedb, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, found, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        JSON_DECREF(expected);
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     return result;

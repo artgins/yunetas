@@ -7,17 +7,13 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <math.h>
-#include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
 #include <locale.h>
 #include <time.h>
 
 #include <kwid.h>
 #include <testing.h>
 #include "test_tr_treedb.h"
-
 
 /***************************************************************************
  *
@@ -29,6 +25,7 @@ PUBLIC int load_topic_new_data(
     json_t *new_data // owned
 )
 {
+    hgobj gobj = 0;
     int result = 0;
 
     /*--------------------------------------------------------------*
@@ -44,8 +41,7 @@ PUBLIC int load_topic_new_data(
             new_record
         );
         if(!record) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "treedb_create_node() FAILED",
@@ -74,11 +70,11 @@ PUBLIC int load_topic_new_data(
     /*
      *  Loop desc cols searching fkey
      */
-    json_t *cols= kwid_new_dict("", tranger, "topics`%s`cols", topic_name);
+    json_t *cols= kwid_new_dict(gobj, tranger, 0, "topics`%s`cols", topic_name);
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
-        json_t *fkey = kwid_get("", col, "fkey");
+        json_t *fkey = kwid_get(gobj, col, 0, "fkey");
         if(!fkey) {
             continue;
         }
@@ -96,10 +92,9 @@ PUBLIC int load_topic_new_data(
                 /*
                  *  In "id" of new_record there we put the "true" id of child record
                  */
-                const char *child_id = kw_get_str(new_record, "id", 0, 0);
+                const char *child_id = kw_get_str(gobj, new_record, "id", 0, 0);
                 if(empty_string(child_id)) {
-                    log_error(0,
-                        "gobj",         "%s", __FILE__,
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "Record without id",
@@ -123,8 +118,7 @@ PUBLIC int load_topic_new_data(
                     child_id
                 );
                 if(!child_record) {
-                    log_error(0,
-                        "gobj",         "%s", __FILE__,
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "Node not found",
@@ -141,7 +135,7 @@ PUBLIC int load_topic_new_data(
                 /*
                  *  Get ids from new_record fkey field
                  */
-                json_t *ids = kwid_get_ids(kw_get_dict_value(new_record, col_name, 0, 0));
+                json_t *ids = kwid_get_ids(kw_get_dict_value(gobj, new_record, col_name, 0, 0));
                 int ids_idx; json_t *jn_mix_id;
                 json_array_foreach(ids, ids_idx, jn_mix_id) {
                     const char *topic_and_id = json_string_value(jn_mix_id);
@@ -153,8 +147,7 @@ PUBLIC int load_topic_new_data(
                     const char **ss = split2(topic_and_id, "^", &tai_size);
                     if(tai_size != 2) {
                         split_free2(ss);
-                        log_error(0,
-                            "gobj",         "%s", __FILE__,
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                             "msg",          "%s", "Wrong mix fkey",
@@ -181,8 +174,7 @@ PUBLIC int load_topic_new_data(
                         id
                     );
                     if(!parent_record) {
-                        log_error(0,
-                            "gobj",         "%s", __FILE__,
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                             "msg",          "%s", "Node not found",
@@ -204,8 +196,7 @@ PUBLIC int load_topic_new_data(
                         parent_record,    // not owned
                         child_record      // not owned
                     )<0) {
-                        log_error(0,
-                            "gobj",         "%s", __FILE__,
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                             "msg",          "%s", "treedb_link_nodes() FAILED",
@@ -239,6 +230,7 @@ PUBLIC int load_treedbs(
     const char *operation
 )
 {
+    hgobj gobj = 0;
     int result = 0;
 
     /*--------------------------------------------------------*
@@ -249,10 +241,9 @@ PUBLIC int load_treedbs(
      *--------------------------------------------------------*/
     const char *treedb_name; json_t *jn_treedb;
     json_object_foreach(jn_treedbs, treedb_name, jn_treedb) {
-        json_t *treedb = kwid_get("", tranger, "treedbs`%s", treedb_name);
+        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
         if(!treedb) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Treedb not found in tranger",
@@ -265,10 +256,9 @@ PUBLIC int load_treedbs(
 
         const char *topic_name; json_t *jn_new_data;
         json_object_foreach(jn_treedb, topic_name, jn_new_data) {
-            json_t *topic_desc = kwid_get("", tranger, "topics`%s", topic_name);
+            json_t *topic_desc = kwid_get(gobj, tranger, 0, "topics`%s", topic_name);
             if(!topic_desc) {
-                log_error(0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "Topic not found in treedb",
@@ -284,8 +274,7 @@ PUBLIC int load_treedbs(
             json_int_t current_data_size = json_object_size(current_data);
 
             if(strcmp(operation, "update")==0) {
-                log_error(0,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "update operation not implemented",
@@ -297,8 +286,7 @@ PUBLIC int load_treedbs(
                 continue;
             } else { // "create"
                 if(current_data_size>0) {
-                    log_error(0,
-                        "gobj",         "%s", __FILE__,
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                         "msg",          "%s", "Topic data NOT EMPTY",
@@ -309,7 +297,7 @@ PUBLIC int load_treedbs(
                     result += -1;
                     continue;
                 }
-                json_t *new_data = kwid_new_list("", jn_treedb, topic_name);
+                json_t *new_data = kwid_new_list(gobj, jn_treedb, 0, "%s", topic_name);
                 result = load_topic_new_data(tranger, treedb_name, topic_name, new_data);
             }
         }
@@ -322,7 +310,7 @@ PUBLIC int load_treedbs(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC BOOL test_users(
+PUBLIC int test_users(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -331,8 +319,8 @@ PUBLIC BOOL test_users(
     int verbose
 )
 {
-    BOOL result = TRUE;
-    json_t *expected;
+    hgobj gobj = 0;
+    int result = 0;
 
 char foto_final[]= "\
 {\n\
@@ -530,8 +518,12 @@ char foto_final[]= "\
 ";
 
     if(!without_ok_tests) {
-        const char *path =
-        "/yuneta/development/yuneta/^gobj-ecosistema/tests-g/ghelpers/tests/tr_treedb/users.json";
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "%s", __FILE__);
+        pop_last_segment(path);
+        strncat(path, "users.json", sizeof(path) - strlen(path) - strlen("users.json"));
+//        const char *path =
+//        "/yuneta/development/yuneta/^gobj-ecosistema/tests-g/ghelpers/tests/tr_treedb/users.json";
 
         size_t flags = 0;
         json_error_t error;
@@ -542,51 +534,41 @@ char foto_final[]= "\
         }
 
         const char *test = "Load users from a treedb-json-file";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
 
         const char *operation = "create"; // "update" TODO
 
-        json_t *jn_treedbs = kw_get_dict(file_json, "treedbs", 0, 0);
+        json_t *jn_treedbs = kw_get_dict(gobj, file_json, "treedbs", 0, 0);
         if(!jn_treedbs) {
             printf("First level keyword 'treedbs' not found in this file\n  %s\n", path);
-            JSON_DECREF(file_json);
-            return FALSE;
+            JSON_DECREF(file_json)
+            return -1;
         }
 
         JSON_INCREF(jn_treedbs);
         if(load_treedbs(tranger, jn_treedbs, operation)<0) {
-            result = FALSE;
+            result += -1;
         }
 
         json_t *users = treedb_get_id_index(tranger, treedb_name, "users"); // Return is NOT YOURS
 
-        helper_quote2doublequote(foto_final);
-        expected = legalstring2json(foto_final, TRUE);
+        result += test_json(users, result);
 
-        if(!match_record(users, expected, verbose, 0)) {
-            result = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, users, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result = FALSE;
-            }
-        }
-        JSON_DECREF(expected);
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
 
-        int result;
         json_check_refcounts(file_json, 1000, &result);
-        JSON_DECREF(file_json);
+        JSON_DECREF(file_json)
     }
 
     return result;

@@ -19,7 +19,6 @@
 #include <testing.h>
 
 #include "schema_sample.c"
-#include "test_final_foto.c"
 #include "test_tr_treedb.h"
 
 /***************************************************************************

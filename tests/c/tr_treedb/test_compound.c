@@ -6,11 +6,6 @@
  *          Copyright (c) 2019 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <argp.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
 #include <locale.h>
 #include <time.h>
 
@@ -18,11 +13,10 @@
 #include <testing.h>
 #include "test_tr_treedb.h"
 
-
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC BOOL test_compound(
+PUBLIC int test_compound(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -31,7 +25,7 @@ PUBLIC BOOL test_compound(
     int verbose
 )
 {
-    BOOL result = 0;
+    int result = 0;
     json_t *data = 0;
     json_t *expected = 0;
 
@@ -40,12 +34,6 @@ PUBLIC BOOL test_compound(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Create new user, good";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
-        );
 
         data = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b}",
             "id", "xxxxxxxxxxxxxxxxxxx",
@@ -70,30 +58,27 @@ PUBLIC BOOL test_compound(
             "roles"
         );
 
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            expected,   // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         json_t *mainop = treedb_create_node(
             tranger, treedb_name,       // treedb
             "users",              // topic_name
             data                        // data
         );
-        if(!match_record(mainop, expected, verbose, 0)) {
-            result += -1;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, mainop, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                result += -1;
-            }
-        }
-        if(show_oks) {
-            log_debug_json(0, mainop, "Record found");
-            log_debug_json(0, expected, "Record expected");
-        }
-        JSON_DECREF(expected);
+
+        result += test_json(mainop, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -101,12 +86,17 @@ PUBLIC BOOL test_compound(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Link simple node";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,   // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         json_t *operation = treedb_get_node(
             tranger, treedb_name,
@@ -132,9 +122,10 @@ PUBLIC BOOL test_compound(
             mainop
         );
 
-        if(!check_log_result(test, verbose)) {
-            result += -1;
-        }
+        result += test_json(NULL, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -142,12 +133,15 @@ PUBLIC BOOL test_compound(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Link compound node";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            string2json(helper_quote2doublequote(foto_final2), TRUE),  // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         json_t *administration = treedb_get_node(
             tranger, treedb_name,
@@ -166,20 +160,11 @@ PUBLIC BOOL test_compound(
             operation,
             administration
         );
-        if(!check_log_result(test, verbose)) {
-            result += -1;
-        } else {
-            if(!test_final_foto2(
-                    tranger,
-                    treedb_name,
-                    without_ok_tests,
-                    without_bad_tests,
-                    show_oks,
-                    verbose
-                )) {
-                result += -1;
-            }
-        }
+
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -187,12 +172,17 @@ PUBLIC BOOL test_compound(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Unlink simple/compound node";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
         );
+
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
 
         json_t *administration = treedb_get_node(
             tranger, treedb_name,
@@ -237,20 +227,10 @@ PUBLIC BOOL test_compound(
             0
         );
 
-        if(!check_log_result(test, verbose)) {
-            result += -1;
-        } else {
-            if(!test_final_foto(
-                    tranger,
-                    treedb_name,
-                    without_ok_tests,
-                    without_bad_tests,
-                    show_oks,
-                    verbose
-                )) {
-                result += -1;
-            }
-        }
+        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -276,5 +256,5 @@ PUBLIC BOOL test_compound(
         );
     }
 
-    return result<0?FALSE:TRUE;
+    return result;
 }

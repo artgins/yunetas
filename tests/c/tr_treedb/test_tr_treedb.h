@@ -12,7 +12,7 @@
 extern "C"{
 #endif
 
-PUBLIC BOOL test_departments(
+PUBLIC int test_departments(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -21,7 +21,7 @@ PUBLIC BOOL test_departments(
     int verbose
 );
 
-PUBLIC BOOL test_users(
+PUBLIC int test_users(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -30,7 +30,7 @@ PUBLIC BOOL test_users(
     int verbose
 );
 
-PUBLIC BOOL test_final_foto(
+PUBLIC int test_compound(
     json_t *tranger,
     const char *treedb_name,
     int without_ok_tests,
@@ -39,23 +39,8 @@ PUBLIC BOOL test_final_foto(
     int verbose
 );
 
-PUBLIC BOOL test_compound(
-    json_t *tranger,
-    const char *treedb_name,
-    int without_ok_tests,
-    int without_bad_tests,
-    int show_oks,
-    int verbose
-);
-
-PUBLIC BOOL test_final_foto2(
-    json_t *tranger,
-    const char *treedb_name,
-    int without_ok_tests,
-    int without_bad_tests,
-    int show_oks,
-    int verbose
-);
+extern char foto_final[];
+extern char foto_final2[];
 
 #ifdef __cplusplus
 }
