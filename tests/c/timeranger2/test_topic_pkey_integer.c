@@ -530,14 +530,16 @@ int do_test(void)
                             'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999, \
+                            'list_type': 'rt_mem'\
                         }, \
                         { \
                             'id': 'list2', \
                             'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999, \
+                            'list_type': 'rt_mem'\
                         } \
                     ], \
                     'disks': [], \
@@ -651,14 +653,16 @@ int do_test(void)
                             'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999, \
+                            'list_type': 'rt_mem'\
                         }, \
                         { \
                             'id': 'list2', \
                             'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999, \
+                            'list_type': 'rt_mem' \
                         } \
                     ], \
                     'disks': [], \

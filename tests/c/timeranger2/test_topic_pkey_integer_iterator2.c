@@ -343,14 +343,16 @@ PRIVATE int do_test(void)
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999. \
+                            'list_type': 'rt_disk'\
                         }, \
                         { \
                             'id': '0000000000000000002', \
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000002', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999 \
+                            'load_record_callback': 99999. \
+                            'list_type': 'rt_disk'\
                         } \
                     ], \
                     'iterators': [\
@@ -388,6 +390,7 @@ PRIVATE int do_test(void)
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
                             'realtime': true, \
+                            'list_type': 'iterator',\
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': 'it1', \
@@ -431,6 +434,7 @@ PRIVATE int do_test(void)
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
                             'realtime': true, \
+                            'list_type': 'iterator',\
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': '0000000000000000002', \
