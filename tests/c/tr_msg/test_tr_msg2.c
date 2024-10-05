@@ -110,7 +110,8 @@ static int test(json_t *tranger, int caso, const char *desc, int result)
                 json_pack("{s:s, s:b}",  // filter
                     "rkey", "",
                     "rt_by_mem", 1
-                )
+                ),
+                NULL
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -142,7 +143,8 @@ static int test(json_t *tranger, int caso, const char *desc, int result)
                     "rt_by_mem", 1,
                     "backward", 1,
                     "order_by_tm", 1
-                )
+                ),
+                NULL
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)

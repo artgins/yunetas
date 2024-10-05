@@ -15,6 +15,7 @@
 #include <kwid.h>
 #include <helpers.h>
 #include "timeranger2.h"
+#include "tr_msg.h"
 #include "tr_treedb.h"
 
 /***************************************************************
@@ -961,22 +962,21 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b}",
-            "backward", 1
+        json_t *jn_filter = json_pack("{s:b, s:I}",
+            "backward", 1,
+            "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback
         );
-
-        json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:s, s:{}}",
+        json_t *jn_extra = json_pack("{s:s, s:s, s:{}}",
             "id", path,
-            "topic_name", snaps_topic_name,
-            "match_cond", jn_filter,
-            "load_record_callback", (json_int_t)(size_t)load_id_callback,
             "treedb_name", treedb_name,
             "deleted_records"
         );
-// TODO       tranger_open_list(
-//            tranger,
-//            jn_list // owned
-//        );
+        trmsg_open_list( // OLD tranger_open_list
+            tranger,
+            snaps_topic_name,
+            jn_filter,  // owned
+            jn_extra    // owned
+        );
     }
 
     /*------------------------------*
@@ -988,22 +988,22 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b}",
-            "backward", 1
+        json_t *jn_filter = json_pack("{s:b, s:I}",
+            "backward", 1,
+            "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback
         );
 
-        json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:s, s:{}}",
+        json_t *jn_extra = json_pack("{s:s, s:s, s:{}}",
             "id", path,
-            "topic_name", graphs_topic_name,
-            "match_cond", jn_filter,
-            "load_record_callback", (json_int_t)(size_t)load_id_callback,
             "treedb_name", treedb_name,
             "deleted_records"
         );
-// TODO       tranger_open_list(
-//            tranger,
-//            jn_list // owned
-//        );
+        trmsg_open_list( // OLD tranger_open_list
+            tranger,
+            graphs_topic_name,
+            jn_filter,  // owned
+            jn_extra    // owned
+        );
     }
 
     /*------------------------------*
@@ -1356,7 +1356,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "topic_name", topic_name,
         "snap_tag", (int)snap_tag,
         "match_cond", jn_filter,
-        "load_record_callback", (json_int_t)(size_t)load_id_callback,
+        "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback,
         "treedb_name", treedb_name,
         "deleted_records"
     );
@@ -1390,7 +1390,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "topic_name", topic_name,
             "snap_tag", (int)snap_tag,
             "match_cond", jn_filter_,
-            "load_record_callback", (json_int_t)(size_t)load_pkey2_callback,
+            "trmsg_instance_callback", (json_int_t)(size_t)load_pkey2_callback,
             "treedb_name", treedb_name,
             "pkey2_name", pkey2_name,
             "deleted_records"

@@ -272,10 +272,11 @@ PRIVATE int load_record_callback(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar de las aplicaciones
+PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter  // owned
+    json_t *jn_filter,  // owned
+    json_t *extra       // owned
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -318,6 +319,7 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 NULL
             );
             JSON_DECREF(jn_filter)
+            JSON_DECREF(extra)
             JSON_DECREF(list)
             return NULL;
         }
@@ -394,11 +396,13 @@ PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar d
                 NULL
             );
             JSON_DECREF(jn_filter)
+            JSON_DECREF(extra)
             JSON_DECREF(list)
             return NULL;
         }
-
     }
+
+    json_object_update_missing_new(list, extra);
 
     JSON_DECREF(jn_filter)
     return list;

@@ -278,7 +278,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY",   // topic
-                0           // filter
+                NULL,       // filter
+                NULL        // extra
             );
 
             trmsg_close_list(tranger, list);
@@ -327,7 +328,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "key", "Bisnieto",
                     "backward", 0,
                     "order_by_tm", 1
-                )
+                ),
+                NULL    // extra
             );
 
             uint64_t expected[] = {2,4,3,6,5,7,8,9,10,1};
@@ -380,7 +382,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "key", "Bisnieto",
                     "backward", 1,
                     "order_by_tm", 1
-                )
+                ),
+                NULL    // extra
             );
 
             uint64_t expected[] = {2,4,3,6,5,8,7,10,9,1};
@@ -433,7 +436,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "key", "Bisnieto",
                     "backward", 0,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {1,2,3,4,5,6,7,8,9,10};
@@ -485,7 +489,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "key", "Bisnieto",
                     "backward", 1,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {10,9,8,7,6,5,4,3,2,1};
@@ -524,7 +529,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 2,
                     "backward", 0,
                     "order_by_tm", 1
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {10,1};
@@ -562,7 +568,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 2,
                     "backward", 1,
                     "order_by_tm", 1
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {9,1};
@@ -601,7 +608,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 2,
                     "backward", 0,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {9,10};
@@ -639,7 +647,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 2,
                     "backward", 1,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {2,1};
@@ -678,7 +687,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 1,
                     "backward", 0,
                     "order_by_tm", 1
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {10}; // WARNING debería ser el 1. No uses tm con inst 1!!
@@ -716,7 +726,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 1,
                     "backward", 1,
                     "order_by_tm", 1
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {1};
@@ -755,7 +766,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 1,
                     "backward", 0,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {10};
@@ -793,7 +805,8 @@ static int test(json_t *tranger, int caso, int cnt, int result)
                     "max_key_instances", 1,
                     "backward", 1,
                     "order_by_tm", 0
-                )
+                ),
+                NULL
             );
 
             uint64_t expected[] = {1};

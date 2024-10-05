@@ -185,10 +185,11 @@ typedef int (*trmsg_instance_callback_t)(
     json_t *instance    // not yours
 );
 
-PUBLIC json_t *trmsg_open_list( // TODO esta fn provoca el retardo en arrancar de las aplicaciones
+PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter  // owned
+    json_t *jn_filter,  // owned
+    json_t *extra       // owned
 );
 
 PUBLIC int trmsg_close_list(

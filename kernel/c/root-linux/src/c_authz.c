@@ -461,7 +461,8 @@ PRIVATE int mt_start(hgobj gobj)
         "users_accesses",   // topic
         json_pack("{s:i}",  // filter
             "max_key_instances", 1
-        )
+        ),
+        NULL
     );
 
     return 0;
