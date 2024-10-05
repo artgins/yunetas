@@ -1,41 +1,3 @@
-/****************************************************************************
- *          test.c
- *
- *          Load topic with code.
- *
- *          Copyright (c) 2019 Niyamaka.
- *          All Rights Reserved.
- ****************************************************************************/
-#include <argp.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
-#include <locale.h>
-#include <time.h>
-
-#include <kwid.h>
-#include <testing.h>
-#include "test_tr_treedb.h"
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL test_final_foto(
-    json_t *tranger,
-    const char *treedb_name,
-    int without_ok_tests,
-    int without_bad_tests,
-    int show_oks,
-    int verbose
-)
-{
-    BOOL ret = TRUE;
-    json_t *expected = 0;
-    /*------------------------------------------------------------*
-     *          Foto final
-     *------------------------------------------------------------*/
 char foto_final[]= "\
 {\n\
     'treedb_test': {\n\
@@ -1071,37 +1033,3 @@ char foto_final[]= "\
     }\n\
 }\n\
 ";
-
-    if(!without_ok_tests) {
-        const char *test = "departments: foto final 1";
-        set_expected_results(
-            test,
-            json_pack("[]"  // error's list
-            ),
-            verbose
-        );
-        helper_quote2doublequote(foto_final);
-        expected = legalstring2json(foto_final, TRUE);
-        json_t *treedb = kw_get_dict(tranger, "treedbs", 0, 0);
-
-        GBUFFER *gbuf_path = gbuf_create(32*1024, 32*1024, 0, 0);
-        if(!match_record(treedb, expected, verbose, gbuf_path)) {
-            ret = FALSE;
-            if(verbose) {
-                printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
-                log_debug_json(0, treedb, "Record found");
-                log_debug_json(0, expected, "Record expected");
-            } else {
-                printf("%sX%s", On_Red BWhite, Color_Off);
-            }
-        } else {
-            if(!check_log_result(test, verbose)) {
-                ret = FALSE;
-            }
-        }
-        GBUF_DESTROY(gbuf_path);
-        JSON_DECREF(expected);
-    }
-
-    return ret;
-}

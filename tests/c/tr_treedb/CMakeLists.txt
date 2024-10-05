@@ -21,11 +21,10 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_tr_treedb.c
-    test_departments.c
-    test_users.c
-    test_final_foto.c
-    test_compound.c
-    test_final_foto2.c
+#    test_departments.c
+#    test_users.c
+#    test_compound.c
+#    test_final_foto2.c
 )
 
 ##############################################
