@@ -2191,7 +2191,7 @@ PRIVATE json_t *_kwid_get(
         strntolower(path, strlen(path));
     }
 
-    int list_size;
+    int list_size = 0;
     const char **segments = split2(path, "`.", &list_size);
 
     json_t *v = kw;

@@ -2037,6 +2037,7 @@ PUBLIC int parse_hooks(
                             "link_field",       "%s", s_link_field,
                             NULL
                         );
+                        gobj_trace_json(gobj, link_topic, "link field not found");
                         ret += -1;
                     }
 

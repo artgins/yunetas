@@ -1221,10 +1221,8 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
 PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
 {
     char *ptr;
-    int max_items = 0;
 
     if(plist_size) {
-        max_items = *plist_size;
         *plist_size = 0; // error case
     }
     char *buffer = GBMEM_STRDUP(str);
@@ -1237,16 +1235,11 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
         list_size++;
     }
-    GBMEM_FREE(buffer);
+    GBMEM_FREE(buffer)
 
     buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
     if(!buffer) {
         return 0;
-    }
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
     }
 
     // Alloc list
@@ -1262,7 +1255,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
             break;
         }
     }
-    GBMEM_FREE(buffer);
+    GBMEM_FREE(buffer)
 
     if(plist_size) {
         *plist_size = i;
@@ -1278,11 +1271,11 @@ PUBLIC void split_free2(const char **list)
     if(list) {
         char **p = (char **)list;
         while(*p) {
-            GBMEM_FREE(*p);
+            GBMEM_FREE(*p)
             *p = 0;
             p++;
         }
-        GBMEM_FREE(list);
+        GBMEM_FREE(list)
     }
 }
 
@@ -1296,10 +1289,8 @@ PUBLIC void split_free2(const char **list)
 PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
 {
     char *ptr, *p;
-    int max_items = 0;
 
     if(plist_size) {
-        max_items = *plist_size;
         *plist_size = 0; // error case
     }
     char *buffer = GBMEM_STRDUP(str);
@@ -1314,12 +1305,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
     while ((ptr = strsep(&p, delim)) != NULL) {
         list_size++;
     }
-    GBMEM_FREE(buffer);
-
-    // Limit list
-    if(max_items > 0) {
-        list_size = MIN(max_items, list_size);
-    }
+    GBMEM_FREE(buffer)
 
     buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
     if(!buffer) {
@@ -1341,7 +1327,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
             break;
         }
     }
-    GBMEM_FREE(buffer);
+    GBMEM_FREE(buffer)
 
     if(plist_size) {
         *plist_size = list_size;
@@ -1357,11 +1343,11 @@ PUBLIC void split_free3(const char **list)
     if(list) {
         char **p = (char **)list;
         while(*p) {
-            GBMEM_FREE(*p);
+            GBMEM_FREE(*p)
             *p = 0;
             p++;
         }
-        GBMEM_FREE(list);
+        GBMEM_FREE(list)
     }
 }
 
