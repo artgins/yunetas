@@ -374,12 +374,10 @@ PRIVATE int do_test(void)
      *  Check treedb internals
      *------------------------------*/
     json_t *topic_cols_desc =_treedb_create_topic_cols_desc();
-    if(!test_treedb_schema(
+    result += test_treedb_schema(
         tranger,
         topic_cols_desc
-    )) {
-        result += -1;
-    }
+    );
 
     /*------------------------------*
      *      Check treedb sample
