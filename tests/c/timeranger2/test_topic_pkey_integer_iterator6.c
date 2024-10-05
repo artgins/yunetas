@@ -69,7 +69,7 @@ PRIVATE int rt_disk_record_callback(
     last_tm_by_disk = get_time_tm(md_record);
 
     system_flag2_t system_flag = get_system_flag(md_record);
-    if(system_flag & sf2_loading_from_disk) {
+    if(system_flag & sf_loading_from_disk) {
         first_t_by_disk = get_time_t(md_record);
         first_tm_by_disk = get_time_tm(md_record);
     }

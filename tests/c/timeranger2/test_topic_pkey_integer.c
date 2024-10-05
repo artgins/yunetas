@@ -166,7 +166,7 @@ int do_test(void)
             "xpermission" , 02700,
             "rpermission", 0600
         ),
-        sf2_int_key,  // system_flag
+        sf_int_key,  // system_flag
         json_pack("{s:s, s:I, s:s}", // jn_cols, owned
             "id", "",
             "tm", (json_int_t)0,
@@ -436,7 +436,7 @@ int do_test(void)
             "xpermission" , 02700,
             "rpermission", 0600
         ),
-        sf2_int_key,    // system_flag
+        sf_int_key,    // system_flag
         json_pack("{s:s, s:I, s:s}", // jn_cols, owned
             "id", "",
             "tm", (json_int_t)0,

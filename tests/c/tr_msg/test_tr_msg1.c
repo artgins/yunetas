@@ -874,11 +874,11 @@ int do_test(void)
 
     static topic_desc_t db_test_desc[] = {
         // Topic Name,  Pkey        Key Type        Tkey            Topic Json Desc
-        {"FAMILY",      "name",     sf2_string_key, "birthday",     family_json_desc},
-        {"FAMILY2",     "name",     sf2_string_key, "birthday",     family_json_desc},
-        {"FAMILY3",     "name",     sf2_string_key, "birthday",     family_json_desc},
-        {"FAMILY4",     "name",     sf2_string_key, "birthday",     family_json_desc},
-        {"FAMILY5",     "name",     sf2_string_key, "birthday",     family_json_desc},
+        {"FAMILY",      "name",     sf_string_key, "birthday",     family_json_desc},
+        {"FAMILY2",     "name",     sf_string_key, "birthday",     family_json_desc},
+        {"FAMILY3",     "name",     sf_string_key, "birthday",     family_json_desc},
+        {"FAMILY4",     "name",     sf_string_key, "birthday",     family_json_desc},
+        {"FAMILY5",     "name",     sf_string_key, "birthday",     family_json_desc},
         {0}
     };
 

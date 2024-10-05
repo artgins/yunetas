@@ -472,7 +472,7 @@ int do_test(void)
 
     static topic_desc_t db_test_desc[] = {
     // Topic Name,  Pkey    Key Type                    Tkey            Topic Json Desc
-    {TOPIC_NAME,      "imei",  sf2_string_key|sf2_no_disk, "gps_date",     traces_json_desc},
+    {TOPIC_NAME,      "imei",  sf_string_key|sf_no_disk, "gps_date",     traces_json_desc},
     {0}
     };
 

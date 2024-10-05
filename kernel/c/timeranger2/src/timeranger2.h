@@ -94,15 +94,15 @@ extern "C"{
 #define KEY_TYPE_MASK2        0x000F
 
 typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
-    sf2_string_key          = 0x0001,
-    sf2_int_key             = 0x0004,
-    sf2_zip_record          = 0x0010,
-    sf2_cipher_record       = 0x0020,
-    sf2_save_md_in_record   = 0x0040,     // save md in record's file too
-    sf2_t_ms                = 0x0100,     // record time in miliseconds
-    sf2_tm_ms               = 0x0200,     // message time in miliseconds
-    sf2_no_disk             = 0x1000,
-    sf2_loading_from_disk   = 0x2000,
+    sf_string_key           = 0x0001,
+    sf_int_key              = 0x0004,
+    sf_zip_record           = 0x0010,
+    sf_cipher_record        = 0x0020,
+    sf_save_md_in_record    = 0x0040,     // save md in record's file too
+    sf_t_ms                 = 0x0100,     // record time in miliseconds
+    sf_tm_ms                = 0x0200,     // message time in miliseconds
+    sf_no_disk              = 0x1000,
+    sf_loading_from_disk    = 0x2000,
 } system_flag2_t;
 
 #pragma pack(1)
@@ -244,9 +244,9 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
    if key type is not specified, then it will be:
         if pkey defined:
-            sf2_string_key
+            sf_string_key
         else
-            sf2_int_key;
+            sf_int_key;
 
 **rst**/
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS

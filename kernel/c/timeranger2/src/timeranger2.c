@@ -43,20 +43,20 @@ PRIVATE const char *topic_fields[] = {
 };
 
 PRIVATE const char *sf_names[16+1] = {
-    "sf2_string_key",           // 0x0001
+    "sf_string_key",            // 0x0001
     "",                         // 0x0002
-    "sf2_int_key",              // 0x0004
+    "sf_int_key",               // 0x0004
     "",                         // 0x0008
     "sf2_zip_record",           // 0x0010
     "sf2_cipher_record",        // 0x0020
-    "sf2_save_md_in_record",    // 0x0040
+    "sf_save_md_in_record",     // 0x0040
     "",                         // 0x0080
-    "sf2_t_ms",                 // 0x0100
-    "sf2_tm_ms",                // 0x0200
+    "sf_t_ms",                  // 0x0100
+    "sf_tm_ms",                 // 0x0200
     "",                         // 0x0400
     "",                         // 0x0800
-    "sf2_no_disk",              // 0x1000
-    "sf2_loading_from_disk",    // 0x2000
+    "sf_no_disk",               // 0x1000
+    "sf_loading_from_disk",     // 0x2000
     "",                         // 0x4000
     "",                         // 0x8000
     0
@@ -625,9 +625,9 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
-                system_flag |= sf2_string_key;
+                system_flag |= sf_string_key;
             } else {
-                system_flag |= sf2_int_key;
+                system_flag |= sf_int_key;
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
@@ -1205,7 +1205,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
      */
     char filename[NAME_MAX];
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_disk)) {
+    if((system_flag & sf_no_disk)) {
         return -1;
     }
     get_t_filename(
@@ -1214,7 +1214,7 @@ PRIVATE int mater_to_update_client_load_record_callback(
         tranger,
         topic,
         FALSE,
-        (system_flag & sf2_t_ms)? get_time_t(md_record)/1000 : get_time_t(md_record)
+        (system_flag & sf_t_ms)? get_time_t(md_record)/1000 : get_time_t(md_record)
     );
     snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
 
@@ -2011,7 +2011,7 @@ PRIVATE int get_topic_wr_fd( // optimized
     char filename[NAME_MAX];
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_disk)) {
+    if((system_flag & sf_no_disk)) {
         return -1;
     }
 
@@ -2024,7 +2024,7 @@ PRIVATE int get_topic_wr_fd( // optimized
         tranger,
         topic,
         for_data,
-        (system_flag & sf2_t_ms)? __t__/1000:__t__
+        (system_flag & sf_t_ms)? __t__/1000:__t__
     );
 
     /*-----------------------------*
@@ -2104,7 +2104,7 @@ PRIVATE int get_topic_rd_fd(
     char filename[NAME_MAX];
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    if((system_flag & sf2_no_disk)) {
+    if((system_flag & sf_no_disk)) {
         return -1;
     }
 
@@ -2326,7 +2326,7 @@ PUBLIC int tranger2_append_record(
     //uint32_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
     system_flag2_t __system_flag__ = json_integer_value(json_object_get(topic, "system_flag"));
     if(!__t__) {
-        if(__system_flag__ & (sf2_t_ms)) {
+        if(__system_flag__ & (sf_t_ms)) {
             __t__ = time_in_miliseconds();
         } else {
             __t__ = time_in_seconds();
@@ -2352,7 +2352,7 @@ PUBLIC int tranger2_append_record(
     char key_int[NAME_MAX+1];
 
     switch(system_flag_key_type) {
-        case sf2_string_key:
+        case sf_string_key:
             {
                 //key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
                 key_value = json_string_value(json_object_get(jn_record, pkey));
@@ -2388,7 +2388,7 @@ PUBLIC int tranger2_append_record(
             }
             break;
 
-        case sf2_int_key:
+        case sf_int_key:
             {
                 //uint64_t i = (uint64_t)kw_get_int(
                 //    gobj,
@@ -2434,7 +2434,7 @@ PUBLIC int tranger2_append_record(
             if(json_is_string(jn_tval)) {
                 timestamp_t timestamp;
                 timestamp = approxidate(json_string_value(jn_tval));
-                // TODO if(__system_flag__ & (sf2_tm_ms)) {
+                // TODO if(__system_flag__ & (sf_tm_ms)) {
                 //    timestamp *= 1000; // TODO lost milisecond precision?
                 //}
                 md_record->__tm__ = timestamp;
@@ -2575,7 +2575,7 @@ PUBLIC int tranger2_append_record(
          *  NEW: write __md_tranger__ to json file
          *--------------------------------------------*/
         __md_tranger__ = md2json(md_record, relative_rowid);
-        if(__system_flag__ & (sf2_save_md_in_record) && content_fp >= 0) {
+        if(__system_flag__ & (sf_save_md_in_record) && content_fp >= 0) {
             /*-------------------------------------------------------*
              *  Continue if this part fails, it's extra information
              *-------------------------------------------------------*/
@@ -2642,8 +2642,8 @@ PUBLIC int tranger2_append_record(
         __md_tranger__ = md2json(md_record, relative_rowid);
     }
 
-    // TEST performance with sf2_save_md_in_record 98000
-    // TEST performance sin sf2_save_md_in_record 124000
+    // TEST performance with sf_save_md_in_record 98000
+    // TEST performance sin sf_save_md_in_record 124000
 
     /*-----------------------------------------------------*
      *  Add the message metadata to the record
@@ -4472,7 +4472,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     }
                 }
 
-                set_system_flag(&md_record, sf2_loading_from_disk);
+                set_system_flag(&md_record, sf_loading_from_disk);
 
                 // Inform to the user list, historic
                 if(load_record_callback) {
@@ -4946,7 +4946,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_t), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_t));
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            // TODO if(__system_flag__ & (sf_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
             from_t = (json_int_t)timestamp;
@@ -4977,7 +4977,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_t), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_t));
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            // TODO if(__system_flag__ & (sf_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
             to_t = (json_int_t)timestamp;
@@ -5014,7 +5014,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_tm));
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            // TODO if(__system_flag__ & (sf_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
             from_tm = (json_int_t)timestamp;
@@ -5045,7 +5045,7 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_tm));
-            // TODO if(__system_flag__ & (sf2_tm_ms)) {
+            // TODO if(__system_flag__ & (sf_tm_ms)) {
             //    timestamp *= 1000; // TODO lost milisecond precision?
             //}
             to_tm = (json_int_t)timestamp;
@@ -6590,7 +6590,7 @@ PUBLIC void tranger2_print_md0_record(
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
 
-    if(system_flag & sf2_t_ms) {
+    if(system_flag & sf_t_ms) {
         time_t t = (time_t)get_time_t(md_record);
         t /= 1000;
         strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
@@ -6602,7 +6602,7 @@ PUBLIC void tranger2_print_md0_record(
     }
 
     char fecha_tm[80];
-    if(system_flag & sf2_tm_ms) {
+    if(system_flag & sf_tm_ms) {
         time_t t_m = (time_t)get_time_tm(md_record);
         t_m /= 1000;
         strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S%z", gmtime(&t_m));
@@ -6615,7 +6615,7 @@ PUBLIC void tranger2_print_md0_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf2_int_key|sf2_string_key)) {
+    if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
@@ -6660,7 +6660,7 @@ PUBLIC void tranger2_print_md1_record(
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     unsigned user_flag = 0; // TODO
 
-    if(system_flag & sf2_t_ms) {
+    if(system_flag & sf_t_ms) {
         time_t t = (time_t)get_time_t(md_record);
         unsigned ms = t % 1000;
         t /= 1000;
@@ -6673,7 +6673,7 @@ PUBLIC void tranger2_print_md1_record(
     }
 
     char fecha_tm[80];
-    if(system_flag & sf2_tm_ms) {
+    if(system_flag & sf_tm_ms) {
         time_t t_m = (time_t)get_time_tm(md_record);
         unsigned ms = t_m % 1000;
         time_t t_m_ = t_m/1000;
@@ -6687,7 +6687,7 @@ PUBLIC void tranger2_print_md1_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf2_int_key|sf2_string_key)) {
+    if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
@@ -6741,7 +6741,7 @@ PUBLIC void tranger2_print_md2_record(
         tranger,
         topic,
         TRUE,   // TRUE for data, FALSE for md2
-        (system_flag & sf2_t_ms)? t/1000:t  // WARNING must be in seconds!
+        (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
     );
 
     snprintf(bf, bfsize,
@@ -6776,7 +6776,7 @@ PUBLIC void tranger2_print_record_filename(
         tranger,
         topic,
         TRUE,   // TRUE for data, FALSE for md2
-        (system_flag & sf2_t_ms)? t/1000:t  // WARNING must be in seconds!
+        (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
     );
 }
 

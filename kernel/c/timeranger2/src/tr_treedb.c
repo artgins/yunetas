@@ -849,7 +849,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         "id",
         "",
         NULL,
-        sf2_string_key,
+        sf_string_key,
         tag_snaps_schema,
         jn_snaps_topic_var
     );
@@ -934,7 +934,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         "id",
         "",
         NULL,
-        sf2_string_key,
+        sf_string_key,
         tag_graphs_schema,
         jn_graphs_topic_var
     );
