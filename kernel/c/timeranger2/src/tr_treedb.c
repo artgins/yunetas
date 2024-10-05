@@ -962,8 +962,11 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:I}",
+        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
             "backward", 1,
+            "rkey", "",
+            "rt_by_mem", 1,
+            "max_key_instances", 1,
             "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:s, s:{}}",
@@ -988,8 +991,11 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:I}",
+        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
             "backward", 1,
+            "rkey", "",
+            "rt_by_mem", 1,
+            "max_key_instances", 1,
             "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback
         );
 
@@ -1340,9 +1346,14 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-    json_t *jn_filter = json_pack("{s:b}",
-        "backward", 1
+    json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+        "backward", 1,
+        "rkey", "",
+        "rt_by_mem", 1,
+        "max_key_instances", 1,
+        "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback
     );
+
     if(snap_tag) {
         // pon el current tag
         json_object_set_new(
@@ -1351,19 +1362,18 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             json_integer(snap_tag)
         );
     }
-    json_t *jn_list = json_pack("{s:s, s:s, s:i, s:o, s:I, s:s, s:{}}",
+    json_t *jn_extra = json_pack("{s:s, s:i, s:s, s:{}}",
         "id", path,
-        "topic_name", topic_name,
         "snap_tag", (int)snap_tag,
-        "match_cond", jn_filter,
-        "trmsg_instance_callback", (json_int_t)(size_t)load_id_callback,
         "treedb_name", treedb_name,
         "deleted_records"
     );
-// TODO   tranger_open_list(
-//        tranger,
-//        jn_list // owned
-//    );
+    trmsg_open_list( // OLD tranger_open_list
+        tranger,
+        topic_name,
+        jn_filter,  // owned
+        jn_extra    // owned
+    );
 
     /*----------------------*
      *   Secondary indexes
@@ -1382,25 +1392,38 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter_ = json_pack("{s:b}",
-            "backward", 1
+        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+            "backward", 1,
+            "rkey", "",
+            "rt_by_mem", 1,
+            "max_key_instances", 1,
+            "trmsg_instance_callback", (json_int_t)(size_t)load_pkey2_callback
         );
-        json_t *jn_list_ = json_pack("{s:s, s:s, s:i, s:o, s:I, s:s, s:s, s:{}}",
+
+//        if(snap_tag) { // TODO esto no está en timeranger1
+//            // pon el current tag
+//            json_object_set_new(
+//                jn_filter,
+//                "user_flag",
+//                json_integer(snap_tag)
+//            );
+//        }
+        json_t *jn_extra = json_pack("{s:s, s:i, s:s, s:s, s:{}}",
             "id", path,
-            "topic_name", topic_name,
             "snap_tag", (int)snap_tag,
-            "match_cond", jn_filter_,
-            "trmsg_instance_callback", (json_int_t)(size_t)load_pkey2_callback,
             "treedb_name", treedb_name,
             "pkey2_name", pkey2_name,
             "deleted_records"
         );
-// TODO       tranger_open_list(
-//            tranger,
-//            jn_list_ // owned
-//        );
+
+        trmsg_open_list( // OLD tranger_open_list
+            tranger,
+            topic_name,
+            jn_filter,  // owned
+            jn_extra    // owned
+        );
     }
-    JSON_DECREF(jn_topic_var);
+    JSON_DECREF(jn_topic_var)
 
     return topic;
 }
