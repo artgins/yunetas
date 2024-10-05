@@ -3193,10 +3193,10 @@ PUBLIC json_t *tranger2_open_rt_mem(
         return NULL;
     }
 
-    json_t *list = json_object();
+    json_t *mem = json_object();
     char id_[64];
     if(empty_string(id)) {
-        snprintf(id_, sizeof(id_), "%"PRIu64, (uint64_t )(size_t)list);
+        snprintf(id_, sizeof(id_), "%"PRIu64, (uint64_t )(size_t)mem);
         id = id_;
     }
 
@@ -3211,29 +3211,30 @@ PUBLIC json_t *tranger2_open_rt_mem(
             NULL
         );
         JSON_DECREF(match_cond)
-        JSON_DECREF(list)
+        JSON_DECREF(mem)
         JSON_DECREF(extra)
         return NULL;
     }
 
-    json_object_update_new(list, json_pack("{s:s, s:s, s:s, s:o, s:I}",
+    json_object_update_new(mem, json_pack("{s:s, s:s, s:s, s:o, s:I}",
         "id", id,
         "topic_name", topic_name,
         "key", key,
         "match_cond", match_cond,
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     ));
-    json_object_update_missing_new(list, extra);
+    json_object_set_new(mem, "list_type", json_string("rt_mem"));
+    json_object_update_missing_new(mem, extra);
 
     /*
-     *  Add the list to the topic
+     *  Add the mem to the topic
      */
     json_array_append_new(
         kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED),
-        list
+        mem
     );
 
-    return list;
+    return mem;
 }
 
 /***************************************************************************
@@ -3402,6 +3403,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     ));
     json_object_update_missing_new(disk, extra);
+    json_object_set_new(disk, "list_type", json_string("rt_disk"));
 
     /*
      *  Add the list to the topic
@@ -4394,6 +4396,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_object_set_new(iterator, "cur_segment", json_integer(0));
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
     json_object_set_new(iterator, "realtime", json_boolean(realtime));
+    json_object_set_new(iterator, "list_type", json_string("iterator"));
 
     json_object_set_new(
         iterator,

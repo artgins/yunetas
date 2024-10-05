@@ -85,9 +85,8 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
-// TODO review, key size now has not limit
 #define RECORD_KEY_VALUE_MAX   (48)
-#define tranger_max_key_size() (RECORD_KEY_VALUE_MAX-1)
+#define tranger2_max_key_size() (RECORD_KEY_VALUE_MAX-1)
 
 /***************************************************************
  *              Structures  timeranger2

@@ -7240,7 +7240,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
                 gobj,
                 ids_list,
                 kw_get_str(gobj, node, "id", 0, 0),
-                tranger_max_key_size())
+                tranger2_max_key_size())
             ) {
                 continue;
             }
@@ -7255,7 +7255,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
     } else if(json_is_object(indexx)) {
         const char *id; json_t *node;
         json_object_foreach(indexx, id, node) {
-            if(!kwid_match_nid(gobj, ids_list, id, tranger_max_key_size())) {
+            if(!kwid_match_nid(gobj, ids_list, id, tranger2_max_key_size())) {
                 continue;
             }
             if(match_fn(topic_desc, node, jn_filter)) {
@@ -7407,7 +7407,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
         if(json_is_object(indexy)) {
             const char *id; json_t *pkey2_dict;
             json_object_foreach(indexy, id, pkey2_dict) {
-                if(!kwid_match_nid(gobj, ids_list, id, tranger_max_key_size())) {
+                if(!kwid_match_nid(gobj, ids_list, id, tranger2_max_key_size())) {
                     continue;
                 }
                 const char *pkey2; json_t *node;
