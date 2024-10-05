@@ -475,6 +475,9 @@ PRIVATE int do_test(void)
             result += -1;
         }
 
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+
         result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
 
@@ -563,6 +566,7 @@ PRIVATE int do_test(void)
 
         MT_INCREMENT_COUNT(time_measure, 2)
         MT_PRINT_TIME(time_measure, test)
+
         result += test_json(department_record, result);
     }
 
@@ -598,6 +602,7 @@ PRIVATE int do_test(void)
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
@@ -631,6 +636,7 @@ PRIVATE int do_test(void)
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
@@ -673,6 +679,7 @@ PRIVATE int do_test(void)
          *---------------------------*/
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
+
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 

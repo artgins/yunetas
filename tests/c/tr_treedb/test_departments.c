@@ -37,7 +37,7 @@ PUBLIC BOOL test_departments(
     int verbose
 )
 {
-    BOOL ret = TRUE;
+    int result = 0;
     json_t *direction = 0;
     json_t *administration = 0;
     json_t *operation = 0;
@@ -88,7 +88,7 @@ PUBLIC BOOL test_departments(
             data                        // data
         );
         if(!match_record(direction, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, direction, "Record found");
@@ -98,7 +98,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -106,6 +106,11 @@ PUBLIC BOOL test_departments(
             log_debug_json(0, expected, "Record expected");
         }
         JSON_DECREF(expected);
+
+        result += test_json(user_record, result);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
     }
 
     /*-----------------------------------*
@@ -137,7 +142,7 @@ PUBLIC BOOL test_departments(
         );
 
         if(found) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR Administracion %s\n", On_Red BWhite, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -147,7 +152,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
 
@@ -193,7 +198,7 @@ PUBLIC BOOL test_departments(
             data
         );
         if(!match_record(administration, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, administration, "Record found");
@@ -203,7 +208,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -243,7 +248,7 @@ PUBLIC BOOL test_departments(
             "administration"
         );
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -253,7 +258,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -287,7 +292,7 @@ PUBLIC BOOL test_departments(
             administration
         );
         if(!check_log_result(test, verbose)) {
-            ret = FALSE;
+            result = FALSE;
         }
     }
 
@@ -332,7 +337,7 @@ PUBLIC BOOL test_departments(
             "direction"
         );
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -342,7 +347,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -394,7 +399,7 @@ PUBLIC BOOL test_departments(
             }
         }
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -404,7 +409,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -458,7 +463,7 @@ PUBLIC BOOL test_departments(
         }
 
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -468,7 +473,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -512,7 +517,7 @@ PUBLIC BOOL test_departments(
             data
         );
         if(operation) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, operation, "Record found");
@@ -521,7 +526,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
     }
@@ -557,7 +562,7 @@ PUBLIC BOOL test_departments(
             data
         );
         if(!match_record(operation, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, operation, "Record found");
@@ -567,7 +572,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -621,7 +626,7 @@ PUBLIC BOOL test_departments(
             "administration"
         );
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -631,7 +636,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -684,7 +689,7 @@ PUBLIC BOOL test_departments(
         }
 
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -694,7 +699,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -744,7 +749,7 @@ PUBLIC BOOL test_departments(
             data
         );
         if(!match_record(development, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, development, "Record found");
@@ -754,7 +759,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -818,7 +823,7 @@ PUBLIC BOOL test_departments(
             "administration"
         );
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -828,7 +833,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -881,7 +886,7 @@ PUBLIC BOOL test_departments(
         }
 
         if(!match_record(found, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -891,7 +896,7 @@ PUBLIC BOOL test_departments(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         if(show_oks) {
@@ -947,7 +952,7 @@ PUBLIC BOOL test_departments(
         );
 
         if(!check_log_result(test, verbose)) {
-            ret = FALSE;
+            result = FALSE;
         }
         // La foto final tiene que seguir igual
     }
@@ -1137,7 +1142,7 @@ char foto_final[]= "\
         json_t *treedb = kw_get_dict(tranger, "treedbs", 0, 0);
 
         if(!match_record(treedb, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, found, "Record found");
@@ -1147,11 +1152,11 @@ char foto_final[]= "\
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         JSON_DECREF(expected);
     }
 
-    return ret;
+    return result;
 }

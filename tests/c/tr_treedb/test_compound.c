@@ -31,7 +31,7 @@ PUBLIC BOOL test_compound(
     int verbose
 )
 {
-    BOOL ret = 0;
+    BOOL result = 0;
     json_t *data = 0;
     json_t *expected = 0;
 
@@ -76,7 +76,7 @@ PUBLIC BOOL test_compound(
             data                        // data
         );
         if(!match_record(mainop, expected, verbose, 0)) {
-            ret += -1;
+            result += -1;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, mainop, "Record found");
@@ -86,7 +86,7 @@ PUBLIC BOOL test_compound(
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret += -1;
+                result += -1;
             }
         }
         if(show_oks) {
@@ -119,13 +119,13 @@ PUBLIC BOOL test_compound(
             "xxxxxxxxxxxxxxxxxxx"
         );
 
-        ret += treedb_link_nodes(
+        result += treedb_link_nodes(
             tranger,
             "managers",
             operation,
             mainop
         );
-        ret += treedb_link_nodes(
+        result += treedb_link_nodes(
             tranger,
             "users",
             operation,
@@ -133,7 +133,7 @@ PUBLIC BOOL test_compound(
         );
 
         if(!check_log_result(test, verbose)) {
-            ret += -1;
+            result += -1;
         }
     }
 
@@ -160,14 +160,14 @@ PUBLIC BOOL test_compound(
             "operation"
         );
 
-        ret += treedb_link_nodes(
+        result += treedb_link_nodes(
             tranger,
             "managers",
             operation,
             administration
         );
         if(!check_log_result(test, verbose)) {
-            ret += -1;
+            result += -1;
         } else {
             if(!test_final_foto2(
                     tranger,
@@ -177,7 +177,7 @@ PUBLIC BOOL test_compound(
                     show_oks,
                     verbose
                 )) {
-                ret += -1;
+                result += -1;
             }
         }
     }
@@ -210,20 +210,20 @@ PUBLIC BOOL test_compound(
             "xxxxxxxxxxxxxxxxxxx"
         );
 
-        ret += treedb_unlink_nodes(
+        result += treedb_unlink_nodes(
             tranger,
             "users",
             operation,
             mainop
         );
-        ret += treedb_unlink_nodes(
+        result += treedb_unlink_nodes(
             tranger,
             "managers",
             operation,
             mainop
         );
 
-        ret += treedb_unlink_nodes(
+        result += treedb_unlink_nodes(
             tranger,
             "managers",
             operation,
@@ -238,7 +238,7 @@ PUBLIC BOOL test_compound(
         );
 
         if(!check_log_result(test, verbose)) {
-            ret += -1;
+            result += -1;
         } else {
             if(!test_final_foto(
                     tranger,
@@ -248,7 +248,7 @@ PUBLIC BOOL test_compound(
                     show_oks,
                     verbose
                 )) {
-                ret += -1;
+                result += -1;
             }
         }
     }
@@ -268,7 +268,7 @@ PUBLIC BOOL test_compound(
             "operation"
         );
 
-        ret += treedb_link_nodes(
+        result += treedb_link_nodes(
             tranger,
             "managers",
             operation,
@@ -276,5 +276,5 @@ PUBLIC BOOL test_compound(
         );
     }
 
-    return ret<0?FALSE:TRUE;
+    return result<0?FALSE:TRUE;
 }

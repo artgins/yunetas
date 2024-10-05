@@ -29,7 +29,7 @@ PUBLIC int load_topic_new_data(
     json_t *new_data // owned
 )
 {
-    int ret = 0;
+    int result = 0;
 
     /*--------------------------------------------------------------*
      *  load topic records except hook fields content
@@ -53,7 +53,7 @@ PUBLIC int load_topic_new_data(
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            ret += -1;
+            result += -1;
         }
 
         // Override loading id by id set by treedb
@@ -109,7 +109,7 @@ PUBLIC int load_topic_new_data(
                         "new_record",   "%j", new_record,
                         NULL
                     );
-                    ret += -1;
+                    result += -1;
                     continue;
                 }
 
@@ -134,7 +134,7 @@ PUBLIC int load_topic_new_data(
                         "id",           "%j", child_id,
                         NULL
                     );
-                    ret += -1;
+                    result += -1;
                     continue;
                 }
 
@@ -165,7 +165,7 @@ PUBLIC int load_topic_new_data(
                             "record",       "%j", new_record,
                             NULL
                         );
-                        ret += -1;
+                        result += -1;
                         continue;
                     }
 
@@ -192,7 +192,7 @@ PUBLIC int load_topic_new_data(
                             "id",           "%s", id,
                             NULL
                         );
-                        ret += -1;
+                        result += -1;
                         split_free2(ss);
                         continue;
                     }
@@ -216,7 +216,7 @@ PUBLIC int load_topic_new_data(
                             "child_record", "%j", child_record,
                             NULL
                         );
-                        ret += -1;
+                        result += -1;
                     }
                 }
 
@@ -227,7 +227,7 @@ PUBLIC int load_topic_new_data(
     JSON_DECREF(cols);
     JSON_DECREF(new_data);
 
-    return ret;
+    return result;
 }
 
 /***************************************************************************
@@ -239,7 +239,7 @@ PUBLIC int load_treedbs(
     const char *operation
 )
 {
-    int ret = 0;
+    int result = 0;
 
     /*--------------------------------------------------------*
      *  Firt step:  Check file json
@@ -259,7 +259,7 @@ PUBLIC int load_treedbs(
                 "treedb_name",  "%s", treedb_name,
                 NULL
             );
-            ret += -1;
+            result += -1;
             continue;
         }
 
@@ -276,7 +276,7 @@ PUBLIC int load_treedbs(
                     "topic_name",   "%s", topic_name,
                     NULL
                 );
-                ret += -1;
+                result += -1;
                 continue;
             }
 
@@ -293,7 +293,7 @@ PUBLIC int load_treedbs(
                     "topic_name",   "%s", topic_name,
                     NULL
                 );
-                ret += -1;
+                result += -1;
                 continue;
             } else { // "create"
                 if(current_data_size>0) {
@@ -306,17 +306,17 @@ PUBLIC int load_treedbs(
                         "topic_name",   "%s", topic_name,
                         NULL
                     );
-                    ret += -1;
+                    result += -1;
                     continue;
                 }
                 json_t *new_data = kwid_new_list("", jn_treedb, topic_name);
-                ret = load_topic_new_data(tranger, treedb_name, topic_name, new_data);
+                result = load_topic_new_data(tranger, treedb_name, topic_name, new_data);
             }
         }
     }
 
     JSON_DECREF(jn_treedbs);
-    return ret;
+    return result;
 }
 
 /***************************************************************************
@@ -331,7 +331,7 @@ PUBLIC BOOL test_users(
     int verbose
 )
 {
-    BOOL ret = TRUE;
+    BOOL result = TRUE;
     json_t *expected;
 
 char foto_final[]= "\
@@ -560,7 +560,7 @@ char foto_final[]= "\
 
         JSON_INCREF(jn_treedbs);
         if(load_treedbs(tranger, jn_treedbs, operation)<0) {
-            ret = FALSE;
+            result = FALSE;
         }
 
         json_t *users = treedb_get_id_index(tranger, treedb_name, "users"); // Return is NOT YOURS
@@ -569,7 +569,7 @@ char foto_final[]= "\
         expected = legalstring2json(foto_final, TRUE);
 
         if(!match_record(users, expected, verbose, 0)) {
-            ret = FALSE;
+            result = FALSE;
             if(verbose) {
                 printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
                 log_debug_json(0, users, "Record found");
@@ -579,7 +579,7 @@ char foto_final[]= "\
             }
         } else {
             if(!check_log_result(test, verbose)) {
-                ret = FALSE;
+                result = FALSE;
             }
         }
         JSON_DECREF(expected);
@@ -589,5 +589,5 @@ char foto_final[]= "\
         JSON_DECREF(file_json);
     }
 
-    return ret;
+    return result;
 }
