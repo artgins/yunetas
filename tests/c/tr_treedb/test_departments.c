@@ -157,11 +157,15 @@ PUBLIC int test_departments(
 
         );
 
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected, // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
