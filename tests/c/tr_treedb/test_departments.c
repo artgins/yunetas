@@ -330,86 +330,6 @@ PUBLIC int test_departments(
         result += test_json(json_incref(found), result);
     }
 
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 1, id 1 Dirección";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
-            "id", "direction",
-            "name", "Dirección",
-            "department_id", "",
-            "departments",
-            "managers",
-            "users"
-        );
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            expected,   // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-// TODO       md2_record_t md_record;
-//        tranger2_get_record(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            1, //__rowid__
-//            &md_record,
-//            TRUE
-//        );
-//        found = tranger_read_record_content(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            &md_record
-//        );
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 3, id 2 Administración";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
-            "id", "administration",
-            "name", "Administración",
-            "department_id", "departments^direction^departments",
-            "departments",
-            "managers",
-            "users"
-        );
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            expected, // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-// TODO       md2_record_t md_record;
-//        tranger2_get_record(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            3, //__rowid__
-//            &md_record,
-//            TRUE
-//        );
-//        found = tranger_read_record_content(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            &md_record
-//        );
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
-    }
-
 /*------------------------------------------------------------*
          -> Administración
                 |
@@ -458,20 +378,33 @@ PUBLIC int test_departments(
             "id", "operation",
             "name", "Gestión"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
+        expected = json_pack(
+            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}",
             "id", "operation",
             "name", "Gestión",
             "department_id", "",
             "departments",
             "managers",
-            "users"
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__tag__", 0,
+                "__rowid__", 0,
+                "__pure_node__", true
         );
 
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected, // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -485,7 +418,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(operation, result);
+        result += test_json(json_incref(operation), result);
     }
 
     /*-------------------------------------*
@@ -493,7 +426,8 @@ PUBLIC int test_departments(
      *------------------------------------*/
     if(!without_ok_tests) {
         const char *test = "link administration->operation, good";
-        expected = json_pack("{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[]}}, s:{}, s:[]}",
+        expected = json_pack(
+            "{s:s, s:s, s:s, s:{s:{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}}}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "departments^direction^departments",
@@ -505,15 +439,35 @@ PUBLIC int test_departments(
                     "departments",
                     "managers",
                     "users",
+                    "__md_treedb__",
+                        "treedb_name", "treedb_test",
+                        "topic_name", "departments",
+                        "__t__", 9999,
+                        "__tm__", 0,
+                        "__tag__", 0,
+                        "__rowid__", 0,
+                        "__pure_node__", true,
             "managers",
-            "users"
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__tag__", 0,
+                "__rowid__", 0,
+                "__pure_node__", true
         );
 
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected, // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -534,47 +488,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 5, id 3 Gestión";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
-            "id", "operation",
-            "name", "Gestión",
-            "department_id", "departments^administration^departments",
-            "departments",
-            "managers",
-            "users"
-        );
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            expected, // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-// TODO       md_record_t md_record;
-//        tranger_get_record(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            5, //__rowid__
-//            &md_record,
-//            TRUE
-//        );
-//        found = tranger_read_record_content(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            &md_record
-//        );
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
+        result += test_json(json_incref(found), result);
     }
 
 /*------------------------------------------------------------**
@@ -591,20 +505,33 @@ PUBLIC int test_departments(
             "id", "development",
             "name", "Desarrollo"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
+        expected = json_pack(
+            "{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}",
             "id", "development",
             "name", "Desarrollo",
             "department_id", "",
             "departments",
             "managers",
-            "users"
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__tag__", 0,
+                "__rowid__", 0,
+                "__pure_node__", true
         );
 
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected, // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -618,7 +545,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(development, result);
+        result += test_json(json_incref(development), result);
     }
 
     /*---------------------------------------------*
@@ -677,47 +604,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
-    }
-
-    if(!without_ok_tests) {
-        // Comprueba con timeranger
-        const char *test = "match treedb with timeranger rowid 7, id 4 Desarrollo";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
-            "id", "development",
-            "name", "Desarrollo",
-            "department_id", "departments^administration^departments",
-            "departments",
-            "managers",
-            "users"
-        );
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error's list
-            expected, // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-//  TODO      md_record_t md_record;
-//        tranger_get_record(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            7, //__rowid__
-//            &md_record,
-//            TRUE
-//        );
-//        found = tranger_read_record_content(
-//            tranger,
-//            tranger_topic(tranger, "departments"),
-//            &md_record
-//        );
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
+        result += test_json(json_incref(found), result);
     }
 
     /*------------------------------------------------------------*
