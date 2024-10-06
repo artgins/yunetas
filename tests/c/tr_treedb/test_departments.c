@@ -97,7 +97,7 @@ PUBLIC int test_departments(
         );
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(direction, result);
+        result += test_json(json_incref(direction), result);
     }
 
     /*-----------------------------------*
@@ -181,7 +181,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(administration, result);
+        result += test_json(json_incref(administration), result);
     }
 
     /*-----------------------------------*
@@ -228,7 +228,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
+        result += test_json(json_incref(found), result);
     }
 
     /*-------------------------------------*
@@ -288,6 +288,8 @@ PUBLIC int test_departments(
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
+print_json2("direction", direction);
+print_json2("administration", administration);
         treedb_link_nodes(
             tranger,
             "departments",
@@ -303,7 +305,7 @@ PUBLIC int test_departments(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(found, result);
+        result += test_json(json_incref(found), result);
     }
 
     if(!without_ok_tests) {

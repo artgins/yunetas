@@ -43,9 +43,11 @@ PRIVATE int load_all_links(
 PRIVATE int load_id_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record // must be owned, can be null if sf_loading_from_disk
+    json_t *jn_record  // must be owned
 );
 PRIVATE int load_pkey2_callback(
     json_t *tranger,
@@ -3077,9 +3079,11 @@ PRIVATE json_t *_md2json(
 PRIVATE int load_id_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record // must be owned, can be null if sf_loading_from_disk
+    json_t *jn_record  // must be owned
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));

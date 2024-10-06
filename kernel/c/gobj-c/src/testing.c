@@ -526,7 +526,10 @@ PUBLIC int test_json_file(const char *file, int current_result)
 /***************************************************************************
  *  Return 0 if ok, -1 if error
  ***************************************************************************/
-PUBLIC int test_json(json_t *jn_found, int current_result)
+PUBLIC int test_json(
+    json_t *jn_found,   // owned
+    int current_result
+)
 {
     int result = 0;
 
