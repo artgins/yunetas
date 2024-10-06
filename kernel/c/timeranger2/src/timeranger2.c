@@ -1835,6 +1835,42 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *tranger2_list_topic_desc_cols( // Return MUST be decref
+    json_t *tranger,
+    const char *topic_name
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        // Error already logged
+        return 0;
+    }
+    return kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
+    json_t *tranger,
+    const char *topic_name
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        // Error already logged
+        return 0;
+    }
+    return kwid_new_dict(gobj, topic, KW_VERBOSE, "cols");
+}
+
+/***************************************************************************
  *  Get fullpath of filename in content or md2 level
  *  The directory will be create if it's master
  ***************************************************************************/

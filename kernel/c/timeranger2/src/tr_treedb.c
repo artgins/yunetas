@@ -2871,7 +2871,7 @@ PUBLIC int set_volatil_values(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2934,7 +2934,7 @@ PRIVATE int set_missing_values(
     json_t *record  // NOT owned
 )
 {
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2999,7 +2999,7 @@ PRIVATE json_t *record2tranger(
     BOOL create // create or update
 )
 {
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3596,7 +3596,7 @@ PRIVATE int load_links(
     const char *treedb_name = kw_get_str(gobj, child_node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, child_node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
 
-    json_t *cols = tranger2_topic_desc(
+    json_t *cols = tranger2_dict_topic_desc_cols(
         tranger,
         topic_name
     );
@@ -3992,7 +3992,7 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
 
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
@@ -4041,7 +4041,7 @@ PRIVATE json_t *get_node_up_refs(  // Return MUST be decref
 
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, KW_REQUIRED);
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
@@ -4157,7 +4157,7 @@ PRIVATE BOOL copy_inherit_fields(
 {
     BOOL ret = FALSE;
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4204,7 +4204,7 @@ PRIVATE BOOL inherit_links(
 {
     BOOL ret = FALSE;
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4751,7 +4751,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Update fields
      *-------------------------------*/
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5465,7 +5465,7 @@ PRIVATE int search_and_remove_wrong_up_ref(
     const char *ref
 )
 {
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
@@ -6472,7 +6472,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7078,7 +7078,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
      *-------------------------------*/
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_dict_topic_desc_cols(tranger, topic_name);
 
     BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid =  kw_get_bool(gobj, jn_options, "without_rowid", 0, KW_WILD_NUMBER);
@@ -7241,7 +7241,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
     /*
      *  Filtra de jn_filter solo las keys del topic
      */
-    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_dict_topic_desc_cols(tranger, topic_name);
     jn_filter = kw_clone_by_keys(
         gobj,
         jn_filter,     // owned
@@ -7378,7 +7378,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
     /*
      *  Filtra de jn_filter solo las keys del topic
      */
-    json_t *topic_desc = tranger2_topic_desc(tranger, topic_name);
+    json_t *topic_desc = tranger2_dict_topic_desc_cols(tranger, topic_name);
     jn_filter = kw_clone_by_keys(
         gobj,
         jn_filter,     // owned
@@ -7743,7 +7743,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
      *-------------------------------*/
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     json_t *col = kw_get_dict_value(gobj, cols, fkey, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
@@ -7908,7 +7908,7 @@ PRIVATE json_t *_list_childs(
      *-------------------------------*/
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     json_t *col = kw_get_dict_value(gobj, cols, hook, 0, 0);
     if(!col) {
         gobj_log_error(gobj, 0,
@@ -8253,7 +8253,7 @@ PUBLIC json_t *treedb_get_topic_links(
     }
     JSON_DECREF(topics)
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     json_t *jn_list = json_array();
 
     const char *col_name; json_t *col;
@@ -8294,7 +8294,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
     }
     JSON_DECREF(topics)
 
-    json_t *cols = tranger2_topic_desc(tranger, topic_name);
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     json_t *jn_list = json_array();
 
     const char *col_name; json_t *col;

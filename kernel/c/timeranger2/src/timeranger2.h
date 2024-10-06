@@ -378,6 +378,16 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     const char *topic_name
 );
 
+PUBLIC json_t *tranger2_list_topic_desc_cols( // Return MUST be decref
+    json_t *tranger,
+    const char *topic_name
+);
+
+PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
+    json_t *tranger,
+    const char *topic_name
+);
+
 /**rst**
     Append a new item to record.
     Return the new record's metadata.
