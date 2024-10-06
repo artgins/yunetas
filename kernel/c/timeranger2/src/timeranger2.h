@@ -106,9 +106,9 @@ typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf_loading_from_disk    = 0x1000,
     sf_soft_deleted_record  = 0x2000,
     sf_hard_deleted_record  = 0x4000,
-    sf_deleted_record       = 0x6000,   // sf_soft_deleted_record + sf_hard_deleted_record
-
 } system_flag2_t;
+
+#define sf_deleted_record (sf_soft_deleted_record | sf_hard_deleted_record)
 
 #pragma pack(1)
 

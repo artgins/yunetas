@@ -52,9 +52,11 @@ PRIVATE int load_id_callback(
 PRIVATE int load_pkey2_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record // must be owned, can be null if sf_loading_from_disk
+    json_t *jn_record  // must be owned
 );
 
 PRIVATE json_t *get_fkey_refs(
@@ -3196,128 +3198,126 @@ PRIVATE int load_id_callback(
 PRIVATE int load_pkey2_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
+    const char *key,
+    json_t *list,       // iterator or rt_mem/rt_disk, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
-    json_t *jn_record // must be owned, can be null if sf_loading_from_disk
+    json_t *jn_record  // must be owned
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-// TODO   const char *pkey2_name = kw_get_str(
-//        gobj,
-//        list, "pkey2_name", "", KW_REQUIRED
-//    );
-//    json_t *deleted_records = kw_get_dict(
-//        gobj,
-//        list, "deleted_records", 0, KW_REQUIRED
-//    );
-//
-//    const char *treedb_name = kw_get_str(
-//        gobj,
-//        list, "treedb_name", 0, KW_REQUIRED
-//    );
-//    const char *topic_name = kw_get_str(
-//        gobj,
-//        list, "topic_name", 0, KW_REQUIRED
-//    );
-//
-//    /*---------------------------------*
-//     *  Get indexy: to load from disk
-//     *---------------------------------*/
-//    json_t *indexy = treedb_get_pkey2_index(
-//        tranger,
-//        treedb_name,
-//        topic_name,
-//        pkey2_name
-//    );
-//    if(!indexy) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-//            "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
-//            "topic_name",   "%s", topic_name,
-//            "pkey2_name",   "%s", pkey2_name,
-//            NULL
-//        );
-//        JSON_DECREF(jn_record);
-//        return 0;  // Timeranger: does not load the record, it's mine.
-//    }
+    const char *pkey2_name = kw_get_str(
+        gobj,
+        list, "pkey2_name", "", KW_REQUIRED
+    );
+    json_t *deleted_records = kw_get_dict(
+        gobj,
+        list, "deleted_records", 0, KW_REQUIRED
+    );
 
-// TODO   if(system_flag & (sf_loading_from_disk)) {
-//        /*---------------------------------*
-//         *  Loading treedb from disk
-//         *---------------------------------*/
-//        if(system_flag & (sf_mark1)) {
-//            /*---------------------------------*
-//             *      Record deleted
-//             *---------------------------------*/
-//            json_object_set_new(
-//                deleted_records,
-//                key,
-//                json_true()
-//            );
-//        } else {
-//            /*-------------------------------------*
-//             *  If not deleted record append node
-//             *-------------------------------------*/
-//            if(!json_object_get(deleted_records, key)) {
-//                /*-------------------------------*
-//                 *  Exists already the node?
-//                 *-------------------------------*/
-//                const char *pkey2_value = get_key2_value(
-//                    tranger,
-//                    topic_name,
-//                    pkey2_name,
-//                    jn_record
-//                );
-//                if(exist_secondary_node(indexy, key, pkey2_value)) {
-//                    // Ignore
-//                    // The node with this key already exists
-//                    // HACK using backward, the first record is the last record
-//                } else {
-//                    /*-------------------------------*
-//                     *  Append new node
-//                     *-------------------------------*/
-//                    /*---------------------------------------------*
-//                     *  Build metadata, loading node from tranger
-//                     *---------------------------------------------*/
-//                    json_t *jn_record_md = _md2json(
-//                        treedb_name,
-//                        topic_name,
-//                        md_record
-//                    );
-//                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
-//
-//                    /*--------------------------------------------*
-//                     *  Set missing data
-//                     *--------------------------------------------*/
-//                    set_missing_values( // crea campos vacios
-//                        tranger,
-//                        topic_name,
-//                        jn_record // NOT owned
-//                    );
-//
-//                    /*-------------------------------*
-//                     *  Write node in memory: pkey2
-//                     *-------------------------------*/
-//                    add_secondary_node(
-//                        indexy,
-//                        key,
-//                        pkey2_value,
-//                        jn_record
-//                    );
-//                }
-//            }
-//        }
-//    } else {
-//        /*---------------------------------*
-//         *      Working in memory
-//         *---------------------------------*/
-//        if(json_object_get(deleted_records, key)) {
-//            // This key is operative again
-//            json_object_del(deleted_records, key);
-//        }
-//    }
+    const char *treedb_name = kw_get_str(
+        gobj,
+        list, "treedb_name", 0, KW_REQUIRED
+    );
+    const char *topic_name = kw_get_str(
+        gobj,
+        list, "topic_name", 0, KW_REQUIRED
+    );
+
+    /*---------------------------------*
+     *  Get indexy: to load from disk
+     *---------------------------------*/
+    json_t *indexy = treedb_get_pkey2_index(
+        tranger,
+        treedb_name,
+        topic_name,
+        pkey2_name
+    );
+    if(!indexy) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
+            "topic_name",   "%s", topic_name,
+            "pkey2_name",   "%s", pkey2_name,
+            NULL
+        );
+        JSON_DECREF(jn_record)
+        return 0;  // Timeranger: does not load the record, it's mine.
+    }
+
+    system_flag2_t system_flag = get_system_flag(md_record);
+    if(system_flag & (sf_loading_from_disk)) {
+        /*---------------------------------*
+         *  Loading treedb from disk
+         *---------------------------------*/
+        if(system_flag & (sf_deleted_record)) {
+            /*---------------------------------*
+             *      Record deleted
+             *---------------------------------*/
+            json_object_set_new(
+                deleted_records,
+                key,
+                json_true()
+            );
+        } else {
+            /*-------------------------------------*
+             *  If not deleted record append node
+             *-------------------------------------*/
+            if(!json_object_get(deleted_records, key)) {
+                /*-------------------------------*
+                 *  Exists already the node?
+                 *-------------------------------*/
+                const char *pkey2_value = get_key2_value(
+                    tranger,
+                    topic_name,
+                    pkey2_name,
+                    jn_record
+                );
+                if(exist_secondary_node(indexy, key, pkey2_value)) {
+                    // Ignore
+                    // The node with this key already exists
+                    // HACK using backward, the first record is the last record
+                } else {
+                    /*-------------------------------*
+                     *  Append new node
+                     *-------------------------------*/
+                    /*---------------------------------------------*
+                     *  Build metadata, loading node from tranger
+                     *---------------------------------------------*/
+
+                    /*--------------------------------------------*
+                     *  Set missing data
+                     *--------------------------------------------*/
+                    set_missing_values( // fill empty fields
+                        gobj,
+                        tranger,
+                        topic_name,
+                        jn_record // NOT owned
+                    );
+
+                    /*-------------------------------*
+                     *  Write node in memory: pkey2
+                     *-------------------------------*/
+                    add_secondary_node(
+                        indexy,
+                        key,
+                        pkey2_value,
+                        jn_record
+                    );
+                }
+            }
+        }
+    } else {
+        /*---------------------------------*
+         *      Working in memory
+         *---------------------------------*/
+        if(json_object_get(deleted_records, key)) {
+            // This key is operative again
+            json_object_del(deleted_records, key);
+        }
+    }
 
     JSON_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
@@ -4959,7 +4959,7 @@ PUBLIC int treedb_delete_node(
      *  List of deleted id's in memory
      *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(0) { // TODO tranger_write_mark1(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(tranger2_write_mark1(tranger, topic_name, __rowid__, TRUE)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
