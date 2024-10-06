@@ -722,7 +722,9 @@ char foto_final[]= "\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
                                         'rowid': 5, \n\
-                                        't': 1568007729, \n\
+                                        't': 99999, \n\
+                                        'tm': 0, \n\
+                                        'pure_node': true, \n\
                                         'tag': 0 \n\
                                     } \n\
                                 }, \n\
@@ -737,7 +739,9 @@ char foto_final[]= "\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
                                         'rowid': 7, \n\
-                                        't': 1568007729, \n\
+                                        't': 99999, \n\
+                                        'tm': 0, \n\
+                                        'pure_node': true, \n\
                                         'tag': 0 \n\
                                     } \n\
                                 } \n\
@@ -748,7 +752,9 @@ char foto_final[]= "\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'rowid': 3, \n\
-                                't': 1568007729, \n\
+                                't': 99999, \n\
+                                'tm': 0, \n\
+                                'pure_node': true, \n\
                                 'tag': 0 \n\
                             } \n\
                         } \n\
@@ -759,7 +765,9 @@ char foto_final[]= "\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'rowid': 1, \n\
-                        't': 1568007729, \n\
+                        't': 99999, \n\
+                        'tm': 0, \n\
+                        'pure_node': true, \n\
                         'tag': 0 \n\
                     } \n\
                 }, \n\
@@ -779,7 +787,9 @@ char foto_final[]= "\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'rowid': 5, \n\
-                                't': 1568007729, \n\
+                                't': 99999, \n\
+                                'tm': 0, \n\
+                                'pure_node': true, \n\
                                 'tag': 0 \n\
                             } \n\
                         }, \n\
@@ -794,7 +804,9 @@ char foto_final[]= "\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
                                 'rowid': 7, \n\
-                                't': 1568007729, \n\
+                                't': 99999, \n\
+                                'tm': 0, \n\
+                                'pure_node': true, \n\
                                 'tag': 0 \n\
                             } \n\
                         } \n\
@@ -805,7 +817,9 @@ char foto_final[]= "\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'rowid': 3, \n\
-                        't': 1568007729, \n\
+                        't': 99999, \n\
+                        'tm': 0, \n\
+                        'pure_node': true, \n\
                         'tag': 0 \n\
                     } \n\
                 }, \n\
@@ -820,7 +834,9 @@ char foto_final[]= "\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'rowid': 5, \n\
-                        't': 1568007729, \n\
+                        't': 99999, \n\
+                        'tm': 0, \n\
+                        'pure_node': true, \n\
                         'tag': 0 \n\
                     } \n\
                 }, \n\
@@ -835,7 +851,9 @@ char foto_final[]= "\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
                         'rowid': 7, \n\
-                        't': 1568007729, \n\
+                        't': 99999, \n\
+                        'tm': 0, \n\
+                        'pure_node': true, \n\
                         'tag': 0 \n\
                     } \n\
                 } \n\
@@ -858,6 +876,7 @@ char foto_final[]= "\
         const char *test = "departments: foto final";
         const char *ignore_keys[]= {
             "t",
+            "rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
