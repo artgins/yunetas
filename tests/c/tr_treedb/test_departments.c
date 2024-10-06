@@ -721,7 +721,7 @@ char foto_final[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        'rowid': 5, \n\
+                                        'rowid': 1, \n\
                                         't': 99999, \n\
                                         'tm': 0, \n\
                                         'pure_node': true, \n\
@@ -738,7 +738,7 @@ char foto_final[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        'rowid': 7, \n\
+                                        'rowid': 1, \n\
                                         't': 99999, \n\
                                         'tm': 0, \n\
                                         'pure_node': true, \n\
@@ -751,7 +751,7 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 3, \n\
+                                'rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -786,7 +786,7 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 5, \n\
+                                'rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -803,7 +803,7 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 7, \n\
+                                'rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -816,7 +816,7 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 3, \n\
+                        'rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -833,7 +833,7 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 5, \n\
+                        'rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -850,7 +850,7 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 7, \n\
+                        'rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -876,7 +876,6 @@ char foto_final[]= "\
         const char *test = "departments: foto final";
         const char *ignore_keys[]= {
             "t",
-            "rowid", // TODO vuelve a poner cuando estén los rowid
             NULL
         };
         set_expected_results( // Check that no logs happen
