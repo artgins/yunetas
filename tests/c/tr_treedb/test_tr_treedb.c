@@ -507,6 +507,11 @@ PRIVATE int do_test(void)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
+
+json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
+print_json2("ZZZZ", treedb);
+
+print_json2("YYYY", tranger);
 return result; // TODO remove
 
 

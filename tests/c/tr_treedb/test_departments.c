@@ -904,7 +904,8 @@ char foto_final[]= "\
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
+        json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
+        result += test_json(treedb, result);
     }
     return result;
 }
