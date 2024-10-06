@@ -636,13 +636,14 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         -1 break the load
 
 **rst**/
-static const json_desc_t list_json_desc[] = {
+static const json_desc_t list_filter_desc[] = {
 // Name                         Type        Default     Fillspace
     {"id",                      "str",      "",         ""},
     {"key",                     "str",      "",         ""},
     {"rkey",                    "str",      "",         ""},
     {"match_cond",              "dict",     "{}",       ""},
     {"load_record_callback",    "int",      "",         ""},
+    // And all of `Iterator match_cond` in timeranger2.h
     {0}
 };
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications

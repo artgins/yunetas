@@ -6619,7 +6619,7 @@ PRIVATE json_t *read_record_content(
                                   WARNING: loading form disk keys matched in rkey)
                                            but loading realtime of all keys
 
-        tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
+        load_record_callback (tranger2_load_record_callback_t ), // called on LOADING and APPENDING
 
     For the first level see:
 
