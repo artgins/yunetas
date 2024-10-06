@@ -54,11 +54,11 @@ PRIVATE const char *sf_names[16+1] = {
     "",                         // 0x0080
     "sf_t_ms",                  // 0x0100
     "sf_tm_ms",                 // 0x0200
-    "",                         // 0x0400
+    "sf_no_disk",               // 0x0400
     "",                         // 0x0800
-    "sf_no_disk",               // 0x1000
-    "sf_loading_from_disk",     // 0x2000
-    "",                         // 0x4000
+    "sf_loading_from_disk",     // 0x1000
+    "sf_soft_deleted_record",   // 0x2000
+    "sf_hard_deleted_record",   // 0x4000
     "",                         // 0x8000
     0
 };

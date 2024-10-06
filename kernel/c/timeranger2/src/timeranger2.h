@@ -92,17 +92,22 @@ extern "C"{
  *              Structures  timeranger2
  ***************************************************************/
 #define KEY_TYPE_MASK2        0x000F
+#define NOT_INHERITED_MASK    0xF000 /* Remains will set to all records of topic */
 
 typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf_string_key           = 0x0001,
     sf_int_key              = 0x0004,
     sf_zip_record           = 0x0010,
     sf_cipher_record        = 0x0020,
-    sf_save_md_in_record    = 0x0040,     // save md in record's file too
-    sf_t_ms                 = 0x0100,     // record time in miliseconds
-    sf_tm_ms                = 0x0200,     // message time in miliseconds
-    sf_no_disk              = 0x1000,
-    sf_loading_from_disk    = 0x2000,
+    sf_save_md_in_record    = 0x0040,   // save md in record's file too
+    sf_t_ms                 = 0x0100,   // record time in miliseconds
+    sf_tm_ms                = 0x0200,   // message time in miliseconds
+    sf_no_disk              = 0x0400,
+    sf_loading_from_disk    = 0x1000,
+    sf_soft_deleted_record  = 0x2000,
+    sf_hard_deleted_record  = 0x4000,
+    sf_deleted_record       = 0x6000,   // sf_soft_deleted_record + sf_hard_deleted_record
+
 } system_flag2_t;
 
 #pragma pack(1)

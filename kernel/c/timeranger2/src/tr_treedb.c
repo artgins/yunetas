@@ -3093,7 +3093,7 @@ PRIVATE int load_id_callback(
         list, "deleted_records", 0, KW_REQUIRED
     );
 
-    const char *treedb_name = kw_get_str(
+    const char *treedb_name = kw_get_str( // TODO change to json_object_get()
         gobj,
         list, "treedb_name", 0, KW_REQUIRED
     );
@@ -3118,28 +3118,29 @@ PRIVATE int load_id_callback(
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
-    if(md_record->__system_flag__ & (sf_loading_from_disk)) {
+    system_flag2_t system_flag = get_system_flag(md_record);
+    if(system_flag & sf_loading_from_disk) {
         /*---------------------------------*
          *  Loading treedb from disk
          *---------------------------------*/
-        if(md_record->__system_flag__ & (sf_mark1)) {
+        if(system_flag & (sf_deleted_record)) {
             /*---------------------------------*
              *      Record deleted
              *---------------------------------*/
             json_object_set_new(
                 deleted_records,
-                md_record->key.s,
+                key,
                 json_true()
             );
         } else {
             /*-------------------------------------*
              *  If not deleted record append node
              *-------------------------------------*/
-            if(!json_object_get(deleted_records, md_record->key.s)) {
+            if(!json_object_get(deleted_records, key)) {
                 /*-------------------------------*
                  *  Exists already the node?
                  *-------------------------------*/
-                if(exist_primary_node(indexx, md_record->key.s)) {
+                if(exist_primary_node(indexx, key)) {
                     // Ignore
                     // The node with this key already exists
                     // HACK using backward, the first record is the last record
@@ -3150,18 +3151,14 @@ PRIVATE int load_id_callback(
                     /*---------------------------------------------*
                      *  Build metadata, loading node from tranger
                      *---------------------------------------------*/
-                    json_t *jn_record_md = _md2json(
-                        treedb_name,
-                        topic_name,
-                        md_record
-                    );
+                    json_t *jn_record_md = json_object_get(jn_record, "__md_treedb__");
                     json_object_set_new(jn_record_md, "__pending_links__", json_true());
-                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
 
                     /*--------------------------------------------*
                      *  Set missing data
                      *--------------------------------------------*/
-                    set_missing_values( // crea campos vacios
+                    set_missing_values( // fill empty fields
+                        gobj,
                         tranger,
                         topic_name,
                         jn_record  // NOT owned
@@ -3172,7 +3169,7 @@ PRIVATE int load_id_callback(
                      *-------------------------------*/
                     add_primary_node(
                         indexx,
-                        md_record->key.s,
+                        key,
                         jn_record
                     );
                 }
@@ -3182,9 +3179,9 @@ PRIVATE int load_id_callback(
         /*---------------------------------*
          *      Working in memory
          *---------------------------------*/
-        if(json_object_get(deleted_records, md_record->key.s)) {
+        if(json_object_get(deleted_records, key)) {
             // This key is operative again
-            json_object_del(deleted_records, md_record->key.s);
+            json_object_del(deleted_records, key);
         }
     }
 
@@ -3246,24 +3243,24 @@ PRIVATE int load_pkey2_callback(
 //        return 0;  // Timeranger: does not load the record, it's mine.
 //    }
 
-// TODO   if(md_record->__system_flag__ & (sf_loading_from_disk)) {
+// TODO   if(system_flag & (sf_loading_from_disk)) {
 //        /*---------------------------------*
 //         *  Loading treedb from disk
 //         *---------------------------------*/
-//        if(md_record->__system_flag__ & (sf_mark1)) {
+//        if(system_flag & (sf_mark1)) {
 //            /*---------------------------------*
 //             *      Record deleted
 //             *---------------------------------*/
 //            json_object_set_new(
 //                deleted_records,
-//                md_record->key.s,
+//                key,
 //                json_true()
 //            );
 //        } else {
 //            /*-------------------------------------*
 //             *  If not deleted record append node
 //             *-------------------------------------*/
-//            if(!json_object_get(deleted_records, md_record->key.s)) {
+//            if(!json_object_get(deleted_records, key)) {
 //                /*-------------------------------*
 //                 *  Exists already the node?
 //                 *-------------------------------*/
@@ -3273,7 +3270,7 @@ PRIVATE int load_pkey2_callback(
 //                    pkey2_name,
 //                    jn_record
 //                );
-//                if(exist_secondary_node(indexy, md_record->key.s, pkey2_value)) {
+//                if(exist_secondary_node(indexy, key, pkey2_value)) {
 //                    // Ignore
 //                    // The node with this key already exists
 //                    // HACK using backward, the first record is the last record
@@ -3305,7 +3302,7 @@ PRIVATE int load_pkey2_callback(
 //                     *-------------------------------*/
 //                    add_secondary_node(
 //                        indexy,
-//                        md_record->key.s,
+//                        key,
 //                        pkey2_value,
 //                        jn_record
 //                    );
@@ -3316,9 +3313,9 @@ PRIVATE int load_pkey2_callback(
 //        /*---------------------------------*
 //         *      Working in memory
 //         *---------------------------------*/
-//        if(json_object_get(deleted_records, md_record->key.s)) {
+//        if(json_object_get(deleted_records, key)) {
 //            // This key is operative again
-//            json_object_del(deleted_records, md_record->key.s);
+//            json_object_del(deleted_records, key);
 //        }
 //    }
 
