@@ -3101,11 +3101,11 @@ PRIVATE json_t *_md2json(
         "topic_name",
         json_string(topic_name)
     );
-    json_object_set_new(jn_md, "__rowid__", json_integer(rowid));
-    json_object_set_new(jn_md, "__t__", json_integer((json_int_t)md_record->__t__));
-    json_object_set_new(jn_md, "__tm__", json_integer((json_int_t)md_record->__tm__));
-    json_object_set_new(jn_md, "__tag__", json_integer(get_user_flag(md_record)));
-    json_object_set_new(jn_md, "__pure_node__", json_true());
+    json_object_set_new(jn_md, "rowid", json_integer(rowid));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "tag", json_integer(get_user_flag(md_record)));
+    json_object_set_new(jn_md, "pure_node", json_true());
 
     return jn_md;
 }
@@ -4476,6 +4476,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         rowid
     );
     json_object_set_new(record, "__md_treedb__", jn_record_md);
+    json_object_del(record, "__md_tranger__");
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -4630,7 +4631,7 @@ PUBLIC int treedb_save_node(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -4659,7 +4660,7 @@ PUBLIC int treedb_save_node(
     /*-------------------------------------*
      *  Write to tranger (save, updating)
      *-------------------------------------*/
-    uint32_t tag = kw_get_int(gobj, node, "__md_treedb__`__tag__", 0, KW_REQUIRED);
+    uint32_t tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
 
     JSON_INCREF(record)
     md2_record_t md_record;
@@ -4756,7 +4757,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -4835,7 +4836,7 @@ PUBLIC int treedb_delete_node(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -4859,8 +4860,8 @@ PUBLIC int treedb_delete_node(
     /*-------------------------------*
      *      Get record info
      *-------------------------------*/
-    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`__rowid__", 0, KW_REQUIRED);
-    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`__tag__", 0, KW_REQUIRED);
+    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
+    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
         // añade opción de borrar un snap que desmarque los nodos?
         gobj_log_error(gobj, 0,
@@ -5138,7 +5139,7 @@ PUBLIC int treedb_delete_instance(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5162,8 +5163,8 @@ PUBLIC int treedb_delete_instance(
     /*-------------------------------*
      *      Get record info
      *-------------------------------*/
-    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`__rowid__", 0, KW_REQUIRED);
-    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`__tag__", 0, KW_REQUIRED);
+    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
+    json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
         // añade opción de borrar un snap que desmarque los nodos?
         gobj_log_error(gobj, 0,
@@ -5525,7 +5526,7 @@ PRIVATE int _link_nodes(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, parent_node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, parent_node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5539,7 +5540,7 @@ PRIVATE int _link_nodes(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, child_node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, child_node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5909,7 +5910,7 @@ PRIVATE int _unlink_nodes(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, parent_node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, parent_node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5923,7 +5924,7 @@ PRIVATE int _unlink_nodes(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, child_node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, child_node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -6359,7 +6360,7 @@ PUBLIC int treedb_clean_node(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -6479,7 +6480,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7086,7 +7087,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7751,7 +7752,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -7917,7 +7918,7 @@ PRIVATE json_t *_list_childs(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8037,7 +8038,7 @@ PUBLIC json_t *treedb_node_childs(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8198,7 +8199,7 @@ PUBLIC json_t *treedb_node_jtree(
     /*------------------------------*
      *      Check original node
      *------------------------------*/
-    if(!kw_get_bool(gobj, node, "__md_treedb__`__pure_node__", 0, 0)) {
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -8556,7 +8557,7 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
         const char *node_id; json_t *node;
         json_object_foreach(indexx, node_id, node) {
             treedb_save_node(tranger, node);
-            uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`__rowid__", 0, KW_REQUIRED);
+            uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
 
             ret += tranger2_write_user_flag(
                 tranger,
