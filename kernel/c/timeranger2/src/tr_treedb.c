@@ -966,7 +966,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
@@ -977,12 +977,21 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        tranger2_open_list( // OLD tranger_open_list
+        if(!tranger2_open_list( // OLD tranger_open_list
             tranger,
             snaps_topic_name,
             jn_filter,  // owned
             jn_extra    // owned
-        );
+        )) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msg",          "%s", "tranger2_open_list() failed",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", "__snaps__",
+                NULL
+            );
+        }
     }
 
     /*------------------------------*
@@ -994,11 +1003,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
-            "max_key_instances", 1,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
 
@@ -1007,12 +1015,21 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        tranger2_open_list( // OLD tranger_open_list
+        if(!tranger2_open_list( // OLD tranger_open_list
             tranger,
             graphs_topic_name,
             jn_filter,  // owned
             jn_extra    // owned
-        );
+        )) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_TREEDB_ERROR,
+                "msg", "%s", "tranger2_open_list() failed",
+                "treedb_name", "%s", treedb_name,
+                "topic_name", "%s", "__graphs__",
+                NULL
+            );
+        }
     }
 
     /*------------------------------*
@@ -1117,6 +1134,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
 
     JSON_DECREF(jn_schema_topics)
     JSON_DECREF(jn_schema)
+
     return treedb;
 }
 
@@ -1282,8 +1300,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         JSON_DECREF(pkey2s)
     }
 
-    JSON_INCREF(cols);
-    JSON_INCREF(jn_topic_var);
+    JSON_INCREF(cols)
+    JSON_INCREF(jn_topic_var)
     topic = tranger2_create_topic( // User topic
         tranger,    // If topic exists then only needs (tranger,name) parameters
         topic_name,
@@ -1349,11 +1367,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-    json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+    json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
         "backward", 1,
         "rkey", "",
         "rt_by_mem", 1,
-        "max_key_instances", 1,
         "load_record_callback", (json_int_t)(size_t)load_id_callback
     );
 
@@ -1371,12 +1388,22 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "treedb_name", treedb_name,
         "deleted_records"
     );
-    tranger2_open_list( // OLD tranger_open_list
+    json_t *list = tranger2_open_list( // OLD tranger_open_list
         tranger,
         topic_name,
         jn_filter,  // owned
         jn_extra    // owned
     );
+    if(!list) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "tranger2_open_list() failed",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+    }
 
     /*----------------------*
      *   Secondary indexes
@@ -1395,11 +1422,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter2 = json_pack("{s:b, s:s, s:b, s:i, s:I}",
+        json_t *jn_filter2 = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
-            "max_key_instances", 1,
             "load_record_callback", (json_int_t)(size_t)load_pkey2_callback
         );
 
@@ -1411,7 +1437,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 //                json_integer(snap_tag)
 //            );
 //        }
-        json_t *jn_extra = json_pack("{s:s, s:i, s:s, s:s, s:{}}",
+        json_t *jn_extra_ = json_pack("{s:s, s:i, s:s, s:s, s:{}}",
             "id", path,
             "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name,
@@ -1419,12 +1445,22 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "deleted_records"
         );
 
-        tranger2_open_list( // OLD tranger_open_list
+        json_t *list2 = tranger2_open_list( // OLD tranger_open_list
             tranger,
             topic_name,
             jn_filter2,  // owned
-            jn_extra    // owned
+            jn_extra_    // owned
         );
+        if(!list2) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msg",          "%s", "tranger2_open_list() failed",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+        }
     }
     JSON_DECREF(jn_topic_var)
 
@@ -3089,7 +3125,7 @@ PRIVATE int load_id_callback(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
+    const char *topic_name = json_string_value(json_object_get(topic, "topic_name"));
     json_t *deleted_records = kw_get_dict( // TODO review how delete
         gobj,
         list, "deleted_records", 0, KW_REQUIRED
@@ -3098,10 +3134,6 @@ PRIVATE int load_id_callback(
     const char *treedb_name = kw_get_str( // TODO change to json_object_get()
         gobj,
         list, "treedb_name", 0, KW_REQUIRED
-    );
-    const char *topic_name = kw_get_str(
-        gobj,
-        list, "topic_name", 0, KW_REQUIRED
     );
 
     /*----------------------------------*
@@ -6796,7 +6828,7 @@ PRIVATE BOOL match_fkey(json_t *jn_filter_value, json_t *jn_fkey_value)
         return match;
 
     } else {
-        // What fuck?
+        // What merde?
         return FALSE;
     }
 }

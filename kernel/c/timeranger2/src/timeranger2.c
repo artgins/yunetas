@@ -3608,7 +3608,6 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                         "rt_id",        "%s", rt_id,
                         NULL
                     );
-                    print_json2("iterator NOT FOUND", tranger);
                     break;
                 }
 
@@ -6745,6 +6744,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         json_decref(jn_keys);
     }
 
+    json_object_update_missing_new(list, extra);
+
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
@@ -6791,13 +6792,10 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 NULL
             );
             JSON_DECREF(jn_filter)
-            JSON_DECREF(extra)
             JSON_DECREF(list)
             return NULL;
         }
     }
-
-    json_object_update_missing_new(list, extra);
 
     JSON_DECREF(jn_filter)
     return list;
