@@ -110,9 +110,9 @@ PRIVATE BOOL check_log_result(int current_result)
 
     if(verbose) {
         if(current_result < 0) {
-            printf("<-- %sERROR%s   '%s'\n\n", On_Red BWhite, Color_Off, test_name);
+            printf("<-- %sERROR---%s   '%s'\n\n", On_Red BWhite, Color_Off, test_name);
         } else {
-            printf("<-- OK   '%s'\n\n", test_name);
+            printf("<-- %sOK%s   '%s'\n\n", On_Green BWhite, Color_Off, test_name);
         }
     }
     return TRUE;
@@ -501,9 +501,9 @@ PUBLIC int test_json_file(const char *file, int current_result)
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
+            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
@@ -540,9 +540,9 @@ PUBLIC int test_json(
     if(jn_found && expected && !match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
         if(verbose) {
-            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
+            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }

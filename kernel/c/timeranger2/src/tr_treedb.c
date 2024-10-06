@@ -3179,7 +3179,7 @@ PRIVATE int load_id_callback(
                      *  Build metadata, loading node from tranger
                      *---------------------------------------------*/
                     json_t *jn_record_md = json_object_get(jn_record, "__md_treedb__");
-                    json_object_set_new(jn_record_md, "__pending_links__", json_true());
+                    json_object_set_new(jn_record_md, "pending_links", json_true());
 
                     /*--------------------------------------------*
                      *  Set missing data
@@ -3754,14 +3754,14 @@ PRIVATE int load_all_links(
         const char *child_id; json_t *child_node;
         json_object_foreach(indexx, child_id, child_node) {
             json_t *__md_treedb__ = kw_get_dict(gobj, child_node, "__md_treedb__", 0, KW_REQUIRED);
-            BOOL __pending_links__ = kw_get_bool(
+            BOOL pending_links = kw_get_bool(
                 gobj,
                 __md_treedb__,
-                "__pending_links__",
+                "pending_links",
                 0,
                 KW_EXTRACT
             );
-            if(!__pending_links__) {
+            if(!pending_links) {
                 continue;
             }
 
@@ -3910,6 +3910,7 @@ PRIVATE json_t *get_hook_refs(
                             break;
                         }
                     }
+                    break;
                 default:
                     gobj_log_error(gobj, 0,
                         "function",             "%s", __FUNCTION__,
@@ -4683,11 +4684,11 @@ PUBLIC int treedb_save_node(
      *--------------------------------------------*/
     json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
     json_object_set_new(__md_treedb__,
-        "__t__",
+        "t",
         json_integer(md_record.__t__)
     );
     json_object_set_new(__md_treedb__,
-        "__tm__",
+        "tm",
         json_integer(md_record.__tm__)
     );
 

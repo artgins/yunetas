@@ -69,15 +69,15 @@ PUBLIC int test_departments(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -153,15 +153,15 @@ PUBLIC int test_departments(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
 
         );
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -201,15 +201,14 @@ PUBLIC int test_departments(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
-
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -281,25 +280,25 @@ PUBLIC int test_departments(
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
-                        "__t__", 9999,
-                        "__tm__", 0,
-                        "__tag__", 0,
-                        "__rowid__", 0,
-                        "__pure_node__", true,
+                        "t", 9999,
+                        "tm", 0,
+                        "tag", 0,
+                        "rowid", 0,
+                        "pure_node", true,
             "managers",
             "users",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -364,7 +363,6 @@ PUBLIC int test_departments(
         );
         if(operation) {
             result += -1;
-            printf("%s  --> ERROR in test: '%s'%s\n", On_Red BWhite, test, Color_Off);
         }
 
         MT_INCREMENT_COUNT(time_measure, 1)
@@ -389,15 +387,15 @@ PUBLIC int test_departments(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -442,25 +440,25 @@ PUBLIC int test_departments(
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
-                        "__t__", 9999,
-                        "__tm__", 0,
-                        "__tag__", 0,
-                        "__rowid__", 0,
-                        "__pure_node__", true,
+                        "t", 9999,
+                        "tm", 0,
+                        "tag", 0,
+                        "rowid", 0,
+                        "pure_node", true,
             "managers",
             "users",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -516,15 +514,15 @@ PUBLIC int test_departments(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -571,11 +569,11 @@ PUBLIC int test_departments(
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
-                        "__t__", 9999,
-                        "__tm__", 0,
-                        "__tag__", 0,
-                        "__rowid__", 0,
-                        "__pure_node__", true,
+                        "t", 9999,
+                        "tm", 0,
+                        "tag", 0,
+                        "rowid", 0,
+                        "pure_node", true,
                 "development",
                     "id", "development",
                     "name", "Desarrollo",
@@ -586,25 +584,25 @@ PUBLIC int test_departments(
                     "__md_treedb__",
                         "treedb_name", "treedb_test",
                         "topic_name", "departments",
-                        "__t__", 9999,
-                        "__tm__", 0,
-                        "__tag__", 0,
-                        "__rowid__", 0,
-                        "__pure_node__", true,
+                        "t", 9999,
+                        "tm", 0,
+                        "tag", 0,
+                        "rowid", 0,
+                        "pure_node", true,
             "managers",
             "users",
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "departments",
-                "__t__", 9999,
-                "__tm__", 0,
-                "__tag__", 0,
-                "__rowid__", 0,
-                "__pure_node__", true
+                "t", 9999,
+                "tm", 0,
+                "tag", 0,
+                "rowid", 0,
+                "pure_node", true
         );
 
         const char *ignore_keys[]= {
-            "__t__",
+            "t",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -723,9 +721,9 @@ char foto_final[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        '__rowid__': 5, \n\
-                                        '__t__': 1568007729, \n\
-                                        '__tag__': 0 \n\
+                                        'rowid': 5, \n\
+                                        't': 1568007729, \n\
+                                        'tag': 0 \n\
                                     } \n\
                                 }, \n\
                                 'development': { \n\
@@ -738,9 +736,9 @@ char foto_final[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        '__rowid__': 7, \n\
-                                        '__t__': 1568007729, \n\
-                                        '__tag__': 0 \n\
+                                        'rowid': 7, \n\
+                                        't': 1568007729, \n\
+                                        'tag': 0 \n\
                                     } \n\
                                 } \n\
                             }, \n\
@@ -749,9 +747,9 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                '__rowid__': 3, \n\
-                                '__t__': 1568007729, \n\
-                                '__tag__': 0 \n\
+                                'rowid': 3, \n\
+                                't': 1568007729, \n\
+                                'tag': 0 \n\
                             } \n\
                         } \n\
                     }, \n\
@@ -760,9 +758,9 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        '__rowid__': 1, \n\
-                        '__t__': 1568007729, \n\
-                        '__tag__': 0 \n\
+                        'rowid': 1, \n\
+                        't': 1568007729, \n\
+                        'tag': 0 \n\
                     } \n\
                 }, \n\
                 'administration': { \n\
@@ -780,9 +778,9 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                '__rowid__': 5, \n\
-                                '__t__': 1568007729, \n\
-                                '__tag__': 0 \n\
+                                'rowid': 5, \n\
+                                't': 1568007729, \n\
+                                'tag': 0 \n\
                             } \n\
                         }, \n\
                         'development': { \n\
@@ -795,9 +793,9 @@ char foto_final[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                '__rowid__': 7, \n\
-                                '__t__': 1568007729, \n\
-                                '__tag__': 0 \n\
+                                'rowid': 7, \n\
+                                't': 1568007729, \n\
+                                'tag': 0 \n\
                             } \n\
                         } \n\
                     }, \n\
@@ -806,9 +804,9 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        '__rowid__': 3, \n\
-                        '__t__': 1568007729, \n\
-                        '__tag__': 0 \n\
+                        'rowid': 3, \n\
+                        't': 1568007729, \n\
+                        'tag': 0 \n\
                     } \n\
                 }, \n\
                 'operation': { \n\
@@ -821,9 +819,9 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        '__rowid__': 5, \n\
-                        '__t__': 1568007729, \n\
-                        '__tag__': 0 \n\
+                        'rowid': 5, \n\
+                        't': 1568007729, \n\
+                        'tag': 0 \n\
                     } \n\
                 }, \n\
                 'development': { \n\
@@ -836,9 +834,9 @@ char foto_final[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        '__rowid__': 7, \n\
-                        '__t__': 1568007729, \n\
-                        '__tag__': 0 \n\
+                        'rowid': 7, \n\
+                        't': 1568007729, \n\
+                        'tag': 0 \n\
                     } \n\
                 } \n\
             } \n\
@@ -852,14 +850,21 @@ char foto_final[]= "\
     } \n\
 } \n\
 ";
-
+    json_t *jn_foto_final = string2json(helper_quote2doublequote(foto_final), TRUE);
+    if(!jn_foto_final) {
+        result += -1;
+    }
     if(!without_ok_tests) {
         const char *test = "departments: foto final";
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
-            NULL,   // ignore_keys
+            jn_foto_final,  // expected
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
