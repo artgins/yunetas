@@ -266,6 +266,19 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic not found",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        JSON_DECREF(jn_filter)
+        JSON_DECREF(extra)
+        return NULL;
+    }
     if(!jn_filter) {
         jn_filter = json_object();
     }
@@ -297,7 +310,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     } else {
         const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
         if(!rkey) { // check null, a "" is valid and equivalent to ".*"
-            gobj_log_warning(gobj, 0,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "key is required to trmsg_open_list",

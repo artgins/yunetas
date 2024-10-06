@@ -15,7 +15,6 @@
 #include <kwid.h>
 #include <helpers.h>
 #include "timeranger2.h"
-#include "tr_msg.h"
 #include "tr_treedb.h"
 
 /***************************************************************

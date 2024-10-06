@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include <ansi_escape_codes.h>
 #include <helpers.h>
 #include <kwid.h>
 #include "fs_watcher.h"
@@ -1061,7 +1062,6 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
 /***************************************************************************
  *  Clients will create a rt disk directory in /disks when open a rt disk
  ***************************************************************************/
-#include <ansi_escape_codes.h> // TODO remove
 PRIVATE int fs_master_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
@@ -1075,7 +1075,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
             {
-                printf("  %sMASTER Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                //printf("  %sMASTER Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 // (3) MONITOR Client has opened a rt disk for the topic,
                 // Master to open a mem rt to update /disks/rt_id/
                 char *rt_id = pop_last_segment(full_path);
@@ -1112,7 +1112,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             break;
         case FS_SUBDIR_DELETED_TYPE:
             {
-                printf("  %sMASTER Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                //printf("  %sMASTER Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 // MONITOR Client has closed a rt disk for the topic,
                 // Master to close the mem rt
                 char *rt_id = pop_last_segment(full_path);
@@ -1139,7 +1139,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             }
             break;
         case FS_FILE_CREATED_TYPE:
-            printf("  %sMASTER File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sMASTER File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1148,7 +1148,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             );
             break;
         case FS_FILE_DELETED_TYPE:
-            printf("  %sMASTER File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sMASTER File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1157,7 +1157,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
             );
             break;
         case FS_FILE_MODIFIED_TYPE:
-            printf("  %sMASTER File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sMASTER File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3534,7 +3534,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
             // Key directory created, ignore
 
-            printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
                 pop_last_segment(full_path);    // char *key =
                 pop_last_segment(full_path);    // char *rt_id =
@@ -3557,7 +3557,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             break;
         case FS_SUBDIR_DELETED_TYPE:
             // Key directory deleted, ignore, it's me
-            printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3570,7 +3570,7 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             // Record to key added, read
             // Delete the hard link of md2 file when read
             {
-                //printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                ////printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 if(unlink(full_path)<0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -3627,10 +3627,10 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
             }
             break;
         case FS_FILE_DELETED_TYPE:
-            //printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            ////printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             break;
         case FS_FILE_MODIFIED_TYPE:
-            printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            //printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -6606,6 +6606,223 @@ PRIVATE json_t *read_record_content(
     }
 
     return jn_record;
+}
+
+/***************************************************************************
+ *
+    Open list, load records in memory
+
+    jn_filter (match_cond) of second level:
+        id                  (str) id
+        key                 (str) key
+        rkey                (str) regular expression of key
+                                  WARNING: loading form disk keys matched in rkey)
+                                           but loading realtime of all keys
+
+        tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
+
+    For the first level see:
+
+        `Iterator match_cond` in timeranger2.h
+
+    HACK Return of callback:
+        0 do nothing (callback will create their own list, or not),
+        -1 break the load
+
+ ***************************************************************************/
+PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
+    json_t *tranger,
+    const char *topic_name,
+    json_t *jn_filter,  // owned
+    json_t *extra       // owned
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic not found",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        JSON_DECREF(jn_filter)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+
+    tranger2_load_record_callback_t load_record_callback =
+        (tranger2_load_record_callback_t)(size_t)json_integer_value(
+            json_object_get(jn_filter, "load_record_callback")
+        );
+    if(!load_record_callback) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "load_record_callback is required to tranger2_open_list",
+            NULL
+        );
+        JSON_DECREF(jn_filter)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+
+    if(!jn_filter) {
+        jn_filter = json_object();
+    }
+
+    json_t *list = json_object();
+    json_object_set_new(list, "topic_name", json_string(topic_name));
+
+    /*
+     *  Load volatil, defining in run-time
+     */
+    kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
+
+    BOOL realtime = FALSE;
+    json_int_t to_rowid = kw_get_int(gobj, jn_filter, "to_rowid", 0, KW_WILD_NUMBER);
+    if(to_rowid == 0) {
+        realtime = TRUE;
+    }
+
+    const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
+    if(!empty_string(key)) {
+        json_t *ll = tranger2_open_iterator(
+            tranger,
+            topic_name,
+            key,
+            json_incref(jn_filter),  // match_cond, owned
+            load_record_callback, // called on LOADING and APPENDING
+            "",     // iterator id, optional, if empty will be the key
+            NULL,   // to store LOADING data, not owned
+            json_incref(list)    // extra, owned
+        );
+        tranger2_close_iterator(tranger, ll);
+
+    } else {
+        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
+        if(!rkey) { // check null, a "" is valid and equivalent to ".*"
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "key is required to trmsg_open_list",
+                NULL
+            );
+            JSON_DECREF(jn_filter)
+            JSON_DECREF(extra)
+            JSON_DECREF(list)
+            return NULL;
+        }
+
+        json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
+        if(json_array_size(jn_keys)>0) {
+            /*
+             *  Load from disk
+             */
+            int idx; json_t *jn_key;
+            json_array_foreach(jn_keys, idx, jn_key) {
+                const char *key_ = json_string_value(jn_key);
+
+                json_t *ll = tranger2_open_iterator(
+                    tranger,
+                    topic_name,
+                    key_,
+                    json_incref(jn_filter),  // match_cond, owned
+                    load_record_callback, // called on LOADING and APPENDING
+                    "",     // iterator id, optional, if empty will be the key
+                    NULL,   // to store LOADING data, not owned
+                    json_incref(list)    // extra, owned
+                );
+
+                tranger2_close_iterator(tranger, ll);
+            }
+        }
+        json_decref(jn_keys);
+    }
+
+    if(realtime) {
+        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+        BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
+        if(!master) {
+            rt_by_mem = FALSE;
+        }
+
+        char uuid[64];
+        create_uuid(uuid, sizeof(uuid));
+        json_t *rt;
+        if(rt_by_mem) {
+            rt = tranger2_open_rt_mem(
+                tranger,
+                topic_name,
+                key,                    // if empty receives all keys, else only this key
+                json_incref(jn_filter),
+                load_record_callback,   // called on append new record
+                uuid,
+                json_incref(list)    // extra, owned
+            );
+            if(rt) {
+                json_object_set_new(list, "rt_mem", json_string(uuid));
+            }
+        } else {
+            rt = tranger2_open_rt_disk(
+                tranger,
+                topic_name,
+                key,                    // if empty receives all keys, else only this key
+                json_incref(jn_filter),
+                load_record_callback,   // called on append new record
+                uuid,
+                json_incref(list)    // extra, owned
+            );
+            if(rt) {
+                json_object_set_new(list, "rt_disk", json_string(uuid));
+            }
+        }
+        if(!rt) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            JSON_DECREF(jn_filter)
+            JSON_DECREF(extra)
+            JSON_DECREF(list)
+            return NULL;
+        }
+    }
+
+    json_object_update_missing_new(list, extra);
+
+    JSON_DECREF(jn_filter)
+    return list;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
+    const char *rt_mem_id = kw_get_str(gobj, list, "rt_mem", 0, 0);
+    json_t *rt;
+    if(rt_mem_id) {
+        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
+        tranger2_close_rt_mem(tranger, rt);
+    }
+    const char *rt_disk_id = kw_get_str(gobj, list, "rt_disk", 0, 0);
+    if(rt_disk_id) {
+        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
+        tranger2_close_rt_disk(tranger, rt);
+    }
+    json_decref(list);
+    return 0;
 }
 
 /***************************************************************************

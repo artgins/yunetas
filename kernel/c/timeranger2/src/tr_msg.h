@@ -172,7 +172,7 @@ PUBLIC int trmsg_add_instance(
  */
 
 /*
- *  HACK Return of callback:
+ *  HACK Return of callback: TODO review
  *      0 do nothing (callback will create their own list, or not),
  *      1 add record to returned list.data,
  *      -1 break the load

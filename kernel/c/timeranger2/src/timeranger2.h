@@ -615,6 +615,60 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     const char *disk_id
 );
 
+/**rst**
+    Open list, load records in memory
+
+    jn_filter (match_cond) of second level:
+        id                  (str) id
+        key                 (str) key
+        rkey                (str) regular expression of key
+                                  WARNING: loading form disk keys matched in rkey)
+                                           but loading realtime of all keys
+
+        tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
+
+    For the first level see:
+
+        `Iterator match_cond` in timeranger2.h
+
+    HACK Return of callback:
+        0 do nothing (callback will create their own list, or not),
+        -1 break the load
+
+**rst**/
+static const json_desc_t list_json_desc[] = {
+// Name                         Type        Default     Fillspace
+    {"id",                      "str",      "",         ""},
+    {"key",                     "str",      "",         ""},
+    {"rkey",                    "str",      "",         ""},
+    {"match_cond",              "dict",     "{}",       ""},
+    {"load_record_callback",    "int",      "",         ""},
+    {0}
+};
+PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
+    json_t *tranger,
+    const char *topic_name,
+    json_t *jn_filter,  // owned
+    json_t *extra       // owned
+);
+
+///**rst**
+//    Get list by his id
+//**rst**/
+//PUBLIC json_t *tranger2_get_list(
+//    json_t *tranger,
+//    const char *id
+//);
+//
+/**rst**
+    Close list
+**rst**/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+);
+
+
 /*
  *  print_md0_record: Print rowid, t, tm, key
  *  print_md1_record: Print rowid, uflag, sflag, t, tm, key
