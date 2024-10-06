@@ -670,7 +670,7 @@ PUBLIC int test_departments(
             development,
             xxx
         );
-        JSON_INCREF(xxx);
+        JSON_INCREF(xxx)
         treedb_delete_node(
             tranger,
             xxx,
@@ -680,8 +680,22 @@ PUBLIC int test_departments(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);
+        json_decref(xxx);
         // La foto final tiene que seguir igual
     }
+
+    return result;
+}
+
+PUBLIC int test_departments_final(
+    json_t *tranger,
+    const char *treedb_name,
+    int without_ok_tests,
+    int without_bad_tests,
+    int show_oks,
+    int verbose
+) {
+    int result = 0;
 
     /*------------------------------------------------------------*
      *          Foto final
@@ -892,6 +906,5 @@ char foto_final[]= "\
         MT_PRINT_TIME(time_measure, test)
         result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
-
     return result;
 }

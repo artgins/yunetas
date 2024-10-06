@@ -20,6 +20,14 @@ PUBLIC int test_departments(
     int show_oks,
     int verbose
 );
+PUBLIC int test_departments_final(
+    json_t *tranger,
+    const char *treedb_name,
+    int without_ok_tests,
+    int without_bad_tests,
+    int show_oks,
+    int verbose
+);
 
 PUBLIC int test_users(
     json_t *tranger,

@@ -82,7 +82,7 @@ PRIVATE int test_treedb_schema(
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -127,7 +127,7 @@ PRIVATE int test_treedb_schema(
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -172,7 +172,7 @@ PRIVATE int test_treedb_schema(
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -214,7 +214,7 @@ PRIVATE int test_treedb_schema(
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",  // error's list
+            json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",  // error_list
                 "msg", "Wrong basic type",
                 "field", "id",
                 "msg", "Wrong basic type",
@@ -266,7 +266,7 @@ PRIVATE int test_treedb_schema(
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",  // error's list
+            json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",  // error_list
                 "msg", "Wrong basic type",
                 "field", "id",
                 "msg", "Wrong basic type",
@@ -316,7 +316,7 @@ PRIVATE int test_schema(
     {
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -362,13 +362,34 @@ PRIVATE int do_test(void)
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
-        "path", path_root,
-        "database", DATABASE,
-        "master", 1
-    );
-    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
+    json_t *tranger;
+    if(1) {
+        const char *test = "open tranger";
 
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            json_pack("[{s:s}]",  // error_list
+                "msg", "Creating __timeranger2__.json"
+            ),
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+            "path", path_root,
+            "database", DATABASE,
+            "master", 1
+        );
+        tranger = tranger2_startup(0, jn_tranger, 0);
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
+    }
 
     /*------------------------------*
      *  Check treedb internals
@@ -380,28 +401,79 @@ PRIVATE int do_test(void)
     );
 
     /*------------------------------*
-     *      Check treedb sample
+     *      Open treedb
      *------------------------------*/
-    helper_quote2doublequote(schema_sample);
-    json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
-    if(!jn_schema_sample) {
-        printf("Can't decode schema_sample json\n");
-        exit(-1);
+    const char *treedb_name = "treedb_test";
+    if(1) {
+        const char *test = "open treedb";
+
+        json_t *error_list = json_pack(
+            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}"
+            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}"
+            "{s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json",
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json"
+        );
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            error_list,   // error_list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        helper_quote2doublequote(schema_sample);
+        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+        if(!jn_schema_sample) {
+            printf("Can't decode schema_sample json\n");
+            exit(-1);
+        }
+
+        treedb_open_db(
+            tranger,  // owned
+            treedb_name,
+            jn_schema_sample,
+            0
+        );
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
-    const char *treedb_name = "treedb_test";
-    treedb_open_db(
-        tranger,  // owned
-        treedb_name,
-        jn_schema_sample,
-        0
-    );
-
     /*------------------------------*
-     *  Ejecuta los tests
+     *  Execute schema test
      *------------------------------*/
     result += test_schema(tranger, topic_cols_desc, treedb_name, verbose);
 
+    /*------------------------------*
+     *  Execute department test
+     *------------------------------*/
     result += test_departments(
         tranger,
         treedb_name,
@@ -411,6 +483,77 @@ PRIVATE int do_test(void)
         verbose
     );
 
+    /*
+     *  Close treedb
+     */
+    if(1) {
+        const char *test = "close treedb";
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error_list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        result += treedb_close_db(
+            tranger,
+            treedb_name
+        );
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
+    }
+
+    /*
+     *  Open treedb
+     */
+    if(1) {
+        const char *test = "re-open treedb";
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error_list
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        helper_quote2doublequote(schema_sample);
+        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+        if(!jn_schema_sample) {
+            printf("Can't decode schema_sample json\n");
+            exit(-1);
+        }
+
+        treedb_open_db(
+            tranger,  // owned
+            treedb_name,
+            jn_schema_sample,
+            0
+        );
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        result += test_json(NULL, result);  // NULL: we want to check only the logs
+    }
+
+    result += test_departments_final(
+        tranger,
+        treedb_name,
+        without_ok_tests,
+        without_bad_tests,
+        show_oks,
+        verbose
+    );
+
+    /*------------------------------*
+     *  Execute user test
+     *------------------------------*/
     result += test_users(
         tranger,
         treedb_name,
@@ -433,7 +576,7 @@ PRIVATE int do_test(void)
         const char *test = "Load treedb from tranger";
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -441,7 +584,7 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        jn_schema_sample = legalstring2json(schema_sample, TRUE);
+        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
 
         treedb_open_db(
             tranger,  // owned
@@ -500,7 +643,7 @@ PRIVATE int do_test(void)
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             expected, // expected
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -538,7 +681,7 @@ PRIVATE int do_test(void)
         );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             expected, // expected
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -565,7 +708,7 @@ PRIVATE int do_test(void)
 
         set_expected_results( // Check that no logs happen
             test,   // test name
-            json_pack("[{s:s}, {s:s}]",  // error's list
+            json_pack("[{s:s}, {s:s}]",  // error_list
                 "msg", "Cannot delete node: has down links",
                 "msg", "Cannot delete node: has up links"
             ),
@@ -598,7 +741,7 @@ PRIVATE int do_test(void)
 
         set_expected_results( // Check that no logs happen
             test,   // test name
-            json_pack("[{s:s}, {s:s}]",  // error's list
+            json_pack("[{s:s}, {s:s}]",  // error_list
                 "msg", "Cannot delete node: has down links",
                 "msg", "Cannot delete node: has up links"
             ),
@@ -646,7 +789,7 @@ PRIVATE int do_test(void)
         const char *test = "Close and shutdown";
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error's list
+            NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
