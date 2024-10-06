@@ -489,7 +489,6 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
     int list_size;
     const char **names = split2(system_flag, "|, ", &list_size);
 
-    // TODO check, no hay ya una función para esto?
     for(int i=0; i<list_size; i++) {
         int idx = idx_in_list(sf_names, *(names +i), TRUE);
         if(idx > 0) {
@@ -930,7 +929,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
     //kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
-    kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE); // TODO sobra?
+    kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
 
     /*
@@ -1066,8 +1065,6 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
-
-    print_json2("fs_master_callback", fs_event->jn_tracked_paths); // TODO TEST
 
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
@@ -1467,6 +1464,7 @@ PUBLIC json_t *tranger2_backup_topic(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    // TODO NOT tested
     /*
      *  Close topic
      */
@@ -2294,8 +2292,8 @@ PRIVATE json_t *md2json(
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
     json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record->__offset__));
     json_object_set_new(jn_md, "size", json_integer((json_int_t)md_record->__size__));
-//  TODO  json_object_set_new(jn_md, "__user_flag__", json_integer(user_flag));
-//    json_object_set_new(jn_md, "__system_flag__", json_integer(system_flag));
+    json_object_set_new(jn_md, "user_flag", json_integer(get_user_flag(md_record)));
+    json_object_set_new(jn_md, "system_flag", json_integer(get_system_flag(md_record)));
 
     return jn_md;
 }
@@ -2470,9 +2468,10 @@ PUBLIC int tranger2_append_record(
             if(json_is_string(jn_tval)) {
                 timestamp_t timestamp;
                 timestamp = approxidate(json_string_value(jn_tval));
-                // TODO if(__system_flag__ & (sf_tm_ms)) {
-                //    timestamp *= 1000; // TODO lost milisecond precision?
-                //}
+                system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+                if(system_flag & sf_tm_ms) {
+                    timestamp *= 1000;
+                }
                 md_record->__tm__ = timestamp;
             } else if(json_is_integer(jn_tval)) {
                 md_record->__tm__ = json_integer_value(jn_tval);
@@ -2984,7 +2983,7 @@ PUBLIC int tranger2_delete_record(
 /***************************************************************************
     Write record mark1
  ***************************************************************************/
-PUBLIC int tranger2_write_mark1(
+PUBLIC int tranger2_delete_soft_record(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid,
@@ -4982,9 +4981,10 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_t), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_t));
-            // TODO if(__system_flag__ & (sf_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
+            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+            if(system_flag & sf_tm_ms) {
+                timestamp *= 1000;
+            }
             from_t = (json_int_t)timestamp;
         } else {
             from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
@@ -5013,9 +5013,10 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_t), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_t));
-            // TODO if(__system_flag__ & (sf_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
+            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+            if(system_flag & sf_tm_ms) {
+                timestamp *= 1000;
+            }
             to_t = (json_int_t)timestamp;
         } else {
             to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
@@ -5050,9 +5051,10 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_from_tm));
-            // TODO if(__system_flag__ & (sf_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
+            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+            if(system_flag & sf_tm_ms) {
+                timestamp *= 1000;
+            }
             from_tm = (json_int_t)timestamp;
         } else {
             from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
@@ -5081,9 +5083,10 @@ PRIVATE json_t *get_segments(
         if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
             timestamp_t timestamp;
             timestamp = approxidate(json_string_value(jn_to_tm));
-            // TODO if(__system_flag__ & (sf_tm_ms)) {
-            //    timestamp *= 1000; // TODO lost milisecond precision?
-            //}
+            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+            if(system_flag & sf_tm_ms) {
+                timestamp *= 1000;
+            }
             to_tm = (json_int_t)timestamp;
         } else {
             to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
