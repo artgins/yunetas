@@ -59,21 +59,30 @@ PUBLIC int test_departments(
             "id", "direction",
             "name", "Dirección"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:b}}",
             "id", "direction",
             "name", "Dirección",
             "department_id", "",
             "departments",
             "managers",
-            "users"
-
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__pure_node__", true
         );
 
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected,   // expected
-            NULL,   // ignore_keys
+            ignore_keys, // ignore_keys
             TRUE    // verbose
         );
 
@@ -132,13 +141,20 @@ PUBLIC int test_departments(
             "id", "administration",
             "name", "Administración"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "",
             "departments",
             "managers",
-            "users"
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__pure_node__", true
+
         );
 
         set_expected_results( // Check that no logs happen

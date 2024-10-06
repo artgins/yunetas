@@ -4447,6 +4447,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         &md_record
     );
     json_object_set_new(record, "__md_treedb__", jn_record_md);
+    json_object_del(record, "__md_tranger__"); // TODO in more places?
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
