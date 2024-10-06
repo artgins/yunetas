@@ -1567,7 +1567,7 @@ PUBLIC json_t *treedb_list_treedb(
             "msg",          "%s", "NO TreeDB found.",
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return treedb_list;
     }
     const char *treedb_name; json_t *treedb;
@@ -4302,10 +4302,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             create_uuid(uuid, sizeof(uuid));
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
-//  TODO      } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
-//            json_int_t rowid = tranger2_topic_size(tranger2_topic(tranger, topic_name)) + 1;
-//            json_object_set_new(kw, "id", json_sprintf("%"JSON_INTEGER_FORMAT, rowid));
-//            id = kw_get_str(kw, "id", 0, 0);
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4455,7 +4451,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         rowid
     );
     json_object_set_new(record, "__md_treedb__", jn_record_md);
-    json_object_del(record, "__md_tranger__"); // TODO in more places?
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -4661,10 +4656,6 @@ PUBLIC int treedb_save_node(
      *  HACK only numeric fields! strings cannot
      *--------------------------------------------*/
     json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
-// TODO   json_object_set_new(__md_treedb__,
-//        "__rowid__",
-//        json_integer(md_record.__rowid__)
-//    );
     json_object_set_new(__md_treedb__,
         "__t__",
         json_integer(md_record.__t__)
@@ -4748,7 +4739,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -4795,7 +4786,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
         treedb_save_node(tranger, node);
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return node;
 }
 
@@ -4959,7 +4950,7 @@ PUBLIC int treedb_delete_node(
      *  List of deleted id's in memory
      *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(tranger2_write_mark1(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
@@ -5264,7 +5255,7 @@ PUBLIC int treedb_delete_instance(
      *  List of deleted id's in memory
      *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(0) { // TODO tranger_write_mark1(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
@@ -6815,7 +6806,7 @@ PRIVATE BOOL match_fkey(json_t *jn_filter_value, json_t *jn_fkey_value)
  ***************************************************************************/
 PRIVATE BOOL match_hook(json_t *jn_filter_value, json_t *jn_hook_value)
 {
-    hgobj gobj = 0; // TODO put as parameter?
+    hgobj gobj = 0;
 
     if(json_is_string(jn_filter_value)) {
         /*---------------------------*
@@ -8542,12 +8533,12 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
             treedb_save_node(tranger, node);
             uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`__rowid__", 0, KW_REQUIRED);
 
-// TODO           ret += tranger_write_user_flag(
-//                tranger,
-//                topic_name,
-//                __rowid__,
-//                user_flag
-//            );
+            ret += tranger2_write_user_flag(
+                tranger,
+                topic_name,
+                __rowid__,
+                user_flag
+            );
             if(ret < 0) {
                 gobj_log_critical(gobj, 0,
                     "function",     "%s", __FUNCTION__,
