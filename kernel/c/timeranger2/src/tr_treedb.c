@@ -32,7 +32,8 @@
 PRIVATE json_t *_md2json(
     const char *treedb_name,
     const char *topic_name,
-    md2_record_t *md_record
+    md2_record_t *md_record,
+    json_int_t rowid
 );
 
 PRIVATE int load_all_links(
@@ -3047,7 +3048,8 @@ PRIVATE json_t *record2tranger(
 PRIVATE json_t *_md2json(
     const char *treedb_name,
     const char *topic_name,
-    md2_record_t *md_record
+    md2_record_t *md_record,
+    json_int_t rowid
 )
 {
     json_t *jn_md = json_object();
@@ -3061,10 +3063,10 @@ PRIVATE json_t *_md2json(
         "topic_name",
         json_string(topic_name)
     );
-// TODO   json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
-    json_object_set_new(jn_md, "__t__", json_integer(md_record->__t__));
-    json_object_set_new(jn_md, "__tm__", json_integer(md_record->__tm__));
-//  TODO  json_object_set_new(jn_md, "__tag__", json_integer(md_record->__user_flag__));
+//    json_object_set_new(jn_md, "__rowid__", json_integer(rowid));
+    json_object_set_new(jn_md, "__t__", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "__tm__", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "__tag__", json_integer(get_user_flag(md_record)));
     json_object_set_new(jn_md, "__pure_node__", json_true());
 
     return jn_md;
@@ -4441,10 +4443,17 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*--------------------------------------------*
      *  Build metadata, creating node in memory
      *--------------------------------------------*/
+    json_int_t rowid = json_integer_value(
+        json_object_get(
+            json_object_get(record, "__md_tranger__"),
+            "rowid"
+        )
+    );
     json_t *jn_record_md = _md2json(
         treedb_name,
         topic_name,
-        &md_record
+        &md_record,
+        rowid
     );
     json_object_set_new(record, "__md_treedb__", jn_record_md);
     json_object_del(record, "__md_tranger__"); // TODO in more places?

@@ -163,7 +163,6 @@ PUBLIC int trmsg_add_instance(
         trmsg_instance_callback (int) callback function,
                                      inform of loaded instance, chance to change content
 
-        select_fields       (dict or list of strings) Display ony selected fields
         match_fields        (dict or list of dicts) Load instances that matches fields
 
     For the first level see:

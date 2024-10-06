@@ -59,7 +59,7 @@ PUBLIC int test_departments(
             "id", "direction",
             "name", "Dirección"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:b}}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:b}}",
             "id", "direction",
             "name", "Dirección",
             "department_id", "",
@@ -71,6 +71,7 @@ PUBLIC int test_departments(
                 "topic_name", "departments",
                 "__t__", 9999,
                 "__tm__", 0,
+                "__tag__", 0,
                 "__pure_node__", true
         );
 
@@ -141,7 +142,7 @@ PUBLIC int test_departments(
             "id", "administration",
             "name", "Administración"
         );
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:b}}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "",
@@ -153,10 +154,10 @@ PUBLIC int test_departments(
                 "topic_name", "departments",
                 "__t__", 9999,
                 "__tm__", 0,
+                "__tag__", 0,
                 "__pure_node__", true
 
         );
-
         const char *ignore_keys[]= {
             "__t__",
             NULL
@@ -165,9 +166,10 @@ PUBLIC int test_departments(
             test,   // test name
             NULL,   // error's list
             expected, // expected
-            ignore_keys,   // ignore_keys
+            ignore_keys, // ignore_keys
             TRUE    // verbose
         );
+
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
@@ -187,22 +189,34 @@ PUBLIC int test_departments(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Get administration, good";
-        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[]}",
+        expected = json_pack("{s:s, s:s, s:s, s:{}, s:{}, s:[], s:{s:s, s:s, s:i, s:i, s:i, s:b}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "",
             "departments",
             "managers",
-            "users"
-        );
+            "users",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "departments",
+                "__t__", 9999,
+                "__tm__", 0,
+                "__tag__", 0,
+                "__pure_node__", true
 
+        );
+        const char *ignore_keys[]= {
+            "__t__",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            expected,
-            NULL,   // ignore_keys
+            expected, // expected
+            ignore_keys, // ignore_keys
             TRUE    // verbose
         );
+
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 

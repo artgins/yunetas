@@ -152,24 +152,9 @@ PRIVATE int load_record_callback(
     }
 
     /*
-     *  Select fields
-     */
-    json_t *select_fields = kw_get_dict_value(
-        gobj,
-        jn_filter2,
-        "select_fields",
-        0,
-        0
-    );
-    if(select_fields) {
-        JSON_INCREF(select_fields);
-        jn_record = kw_clone_by_keys(gobj, jn_record, select_fields, TRUE);
-    }
-
-    /*
      *  Create instance
      */
-    json_t *instance = jn_record?jn_record:json_object();
+    json_t *instance = jn_record;
 
     /*
      *  Check active
