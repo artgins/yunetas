@@ -239,10 +239,14 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem1",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -295,10 +299,14 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem2",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -335,13 +343,17 @@ int do_test(void)
             NULL
         };
 
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_reopen_as_master",      // test name
             json_pack("[{s:s},{s:s}]", // error's list
                 "msg", "Cannot open json file",
                 "msg", "Open as not master, __timeranger2__.json locked"
             ),
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );

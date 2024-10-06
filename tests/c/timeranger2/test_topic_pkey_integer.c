@@ -301,10 +301,14 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem1",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -399,10 +403,14 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem2",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -554,10 +562,14 @@ int do_test(void)
             "load_record_callback",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem3",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -679,10 +691,14 @@ int do_test(void)
             "2000-01-02.md2",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem4",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
@@ -940,10 +956,14 @@ int do_test2(void)
             "__timeranger2__.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check_tranger_mem5",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );

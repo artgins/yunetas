@@ -343,7 +343,7 @@ PRIVATE int do_test(void)
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999. \
+                            'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
                         }, \
                         { \
@@ -351,7 +351,7 @@ PRIVATE int do_test(void)
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000002', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999. \
+                            'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
                         } \
                     ], \
@@ -397,7 +397,8 @@ PRIVATE int do_test(void)
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000001', \
                                 'match_cond': {}, \
-                                'load_record_callback': 99999 \
+                                'load_record_callback': 99999, \
+                                'list_type': 'rt_disk'\
                             } \
                         }, \
                         { \
@@ -441,7 +442,8 @@ PRIVATE int do_test(void)
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000002', \
                                 'match_cond': {}, \
-                                'load_record_callback': 99999 \
+                                'load_record_callback': 99999, \
+                                'list_type': 'rt_disk'\
                             } \
                         } \
                     ] \
@@ -460,10 +462,14 @@ PRIVATE int do_test(void)
             "2000-01-02.json",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check iterator mem",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );

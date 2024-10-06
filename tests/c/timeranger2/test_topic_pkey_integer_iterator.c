@@ -277,10 +277,14 @@ PRIVATE int do_test(void)
             "wr_time",
             NULL
         };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
         set_expected_results(
             "check tranger mem, with iterator open",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), TRUE),
+            expected_,
             ignore_keys,
             TRUE
         );
