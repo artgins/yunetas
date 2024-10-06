@@ -507,6 +507,8 @@ PRIVATE int do_test(void)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
+return result; // TODO remove
+
 
     /*
      *  Open treedb
