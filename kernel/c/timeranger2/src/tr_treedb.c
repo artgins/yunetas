@@ -3145,6 +3145,9 @@ PRIVATE int load_id_callback(
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
+    json_t *jn_record_md = json_object_get(jn_record, "__md_treedb__");
+    json_object_set_new(jn_record_md, "rowid", json_integer(rowid));
+
     system_flag2_t system_flag = get_system_flag(md_record);
     if(system_flag & sf_loading_from_disk) {
         /*---------------------------------*
@@ -3178,7 +3181,6 @@ PRIVATE int load_id_callback(
                     /*---------------------------------------------*
                      *  Build metadata, loading node from tranger
                      *---------------------------------------------*/
-                    json_t *jn_record_md = json_object_get(jn_record, "__md_treedb__");
                     json_object_set_new(jn_record_md, "pending_links", json_true());
 
                     /*--------------------------------------------*

@@ -72,7 +72,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -156,7 +156,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
 
         );
@@ -204,7 +204,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
         const char *ignore_keys[]= {
@@ -283,7 +283,7 @@ PUBLIC int test_departments(
                         "t", 9999,
                         "tm", 0,
                         "tag", 0,
-                        "rowid", 0,
+                        "rowid", 1,
                         "pure_node", true,
             "managers",
             "users",
@@ -293,7 +293,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -390,7 +390,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -443,7 +443,7 @@ PUBLIC int test_departments(
                         "t", 9999,
                         "tm", 0,
                         "tag", 0,
-                        "rowid", 0,
+                        "rowid", 1,
                         "pure_node", true,
             "managers",
             "users",
@@ -453,7 +453,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -517,7 +517,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -572,7 +572,7 @@ PUBLIC int test_departments(
                         "t", 9999,
                         "tm", 0,
                         "tag", 0,
-                        "rowid", 0,
+                        "rowid", 1,
                         "pure_node", true,
                 "development",
                     "id", "development",
@@ -587,7 +587,7 @@ PUBLIC int test_departments(
                         "t", 9999,
                         "tm", 0,
                         "tag", 0,
-                        "rowid", 0,
+                        "rowid", 1,
                         "pure_node", true,
             "managers",
             "users",
@@ -597,7 +597,7 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "rowid", 0,
+                "rowid", 1,
                 "pure_node", true
         );
 
@@ -876,7 +876,7 @@ char foto_final[]= "\
         const char *test = "departments: foto final";
         const char *ignore_keys[]= {
             "t",
-            "rowid",
+            "rowid", // TODO vuelve a poner cuando estén los rowid
             NULL
         };
         set_expected_results( // Check that no logs happen

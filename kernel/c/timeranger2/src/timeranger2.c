@@ -2604,7 +2604,7 @@ PUBLIC int tranger2_append_record(
             return -1;
         }
 
-        relative_rowid = (json_int_t)(offset/sizeof(md2_record_t));
+        relative_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
 
         /*--------------------------------------------*
          *  NEW: write __md_tranger__ to json file
