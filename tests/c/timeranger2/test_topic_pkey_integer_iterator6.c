@@ -220,9 +220,11 @@ PRIVATE int do_test(json_t *tranger)
 
         result += test_json(NULL, result);  // NULL: we want to check only the logs
 
-        yev_stop_event(yev_timer_finish_error);
-        yev_destroy_event(yev_timer_finish_error);
-        yev_timer_finish_error = 0;
+        if(yev_timer_finish_error) {
+            yev_stop_event(yev_timer_finish_error);
+            yev_destroy_event(yev_timer_finish_error);
+            yev_timer_finish_error = 0;
+        }
         yev_timer_finish_ok = yev_create_timer_event(
             yev_loop, yev_timer_finish_ok_callback, tranger
         );
