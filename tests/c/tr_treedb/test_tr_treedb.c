@@ -498,20 +498,32 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
+json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
+print_json2("tranger antes", tranger);
+print_json2("treedb antes", treedb);
+
+        /*
+         *  Check refcounts
+         */
+        json_check_refcounts(tranger, 1000, &result);
+
         result += treedb_close_db(
             tranger,
             treedb_name
         );
+
+        /*
+         *  Check refcounts
+         */
+        json_check_refcounts(tranger, 1000, &result);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
-json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
-print_json2("ZZZZ", treedb);
+print_json2("tranger despues", tranger);
 
-print_json2("YYYY", tranger);
 return result; // TODO remove
 
 
@@ -780,7 +792,6 @@ return result; // TODO remove
     /*
      *  Check refcounts
      */
-    result = 0;
     json_check_refcounts(tranger, 1000, &result);
 
     /*---------------------------------------*

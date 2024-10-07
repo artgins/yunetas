@@ -966,14 +966,14 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+            "id", path,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
-        json_t *jn_extra = json_pack("{s:s, s:s, s:{}}",
-            "id", path,
+        json_t *jn_extra = json_pack("{s:s, s:{}}",
             "treedb_name", treedb_name,
             "deleted_records"
         );
@@ -1003,15 +1003,14 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+            "id", path,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
-
-        json_t *jn_extra = json_pack("{s:s, s:s, s:{}}",
-            "id", path,
+        json_t *jn_extra = json_pack("{s:s, s:{}}",
             "treedb_name", treedb_name,
             "deleted_records"
         );
@@ -1367,7 +1366,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-    json_t *jn_filter = json_pack("{s:b, s:s, s:b, s:I}",
+    json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+        "id", path,
         "backward", 1,
         "rkey", "",
         "rt_by_mem", 1,
@@ -1382,8 +1382,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             json_integer(snap_tag)
         );
     }
-    json_t *jn_extra = json_pack("{s:s, s:i, s:s, s:{}}",
-        "id", path,
+    json_t *jn_extra = json_pack("{s:i, s:s, s:{}}",
         "snap_tag", (int)snap_tag,
         "treedb_name", treedb_name,
         "deleted_records"
@@ -1422,7 +1421,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter2 = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *jn_filter2 = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+            "id", path,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", 1,
@@ -1438,7 +1438,6 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 //            );
 //        }
         json_t *jn_extra_ = json_pack("{s:s, s:i, s:s, s:s, s:{}}",
-            "id", path,
             "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name,
             "pkey2_name", pkey2_name,
@@ -1495,9 +1494,9 @@ PUBLIC int treedb_close_topic(
 
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    json_t *list = tranger2_get_iterator_by_id(tranger, topic_name, path);
+    json_t *list = tranger2_get_list_by_id(tranger, topic_name, path);
     if(list) {
-        tranger2_close_iterator(tranger, list);
+        tranger2_close_list(tranger, list);
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1521,9 +1520,9 @@ PUBLIC int treedb_close_topic(
         }
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
 
-        json_t *list_ = tranger2_get_iterator_by_id(tranger, topic_name, path);
+        json_t *list_ = tranger2_get_list_by_id(tranger, topic_name, path);
         if(list_) {
-            tranger2_close_iterator(tranger, list_);
+            tranger2_close_list(tranger, list_);
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,

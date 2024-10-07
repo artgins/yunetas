@@ -658,14 +658,15 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     json_t *extra       // owned
 );
 
-///**rst**
-//    Get list by his id
-//**rst**/
-//PUBLIC json_t *tranger2_get_list(
-//    json_t *tranger,
-//    const char *id
-//);
-//
+/**rst**
+    Get list by his id
+**rst**/
+PUBLIC json_t *tranger2_get_list_by_id(
+    json_t *tranger,
+    const char *topic_name,
+    const char *id
+);
+
 /**rst**
     Close list
 **rst**/

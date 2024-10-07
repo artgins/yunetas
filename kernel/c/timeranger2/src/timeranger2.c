@@ -6749,12 +6749,11 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
+        const char *id = json_string_value(json_object_get(jn_filter, "id"));
         if(!master) {
             rt_by_mem = FALSE;
         }
 
-        char uuid[64];
-        create_uuid(uuid, sizeof(uuid));
         json_t *rt;
         if(rt_by_mem) {
             rt = tranger2_open_rt_mem(
@@ -6763,12 +6762,9 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 key,                    // if empty receives all keys, else only this key
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
-                uuid,
+                id,
                 json_incref(list)    // extra, owned
             );
-            if(rt) {
-                json_object_set_new(list, "rt_mem", json_string(uuid));
-            }
         } else {
             rt = tranger2_open_rt_disk(
                 tranger,
@@ -6776,12 +6772,9 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 key,                    // if empty receives all keys, else only this key
                 json_incref(jn_filter),
                 load_record_callback,   // called on append new record
-                uuid,
+                id,
                 json_incref(list)    // extra, owned
             );
-            if(rt) {
-                json_object_set_new(list, "rt_disk", json_string(uuid));
-            }
         }
         if(!rt) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -6799,6 +6792,30 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
 
     JSON_DECREF(jn_filter)
     return list;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *tranger2_get_list_by_id(
+    json_t *tranger,
+    const char *topic_name,
+    const char *id
+) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *topic = tranger2_topic(tranger, topic_name);
+
+    json_t *rt;
+    rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
+    if(rt) {
+        return rt;
+    }
+    rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
+    if(rt) {
+        return rt;
+    }
+    return 0;
+
 }
 
 /***************************************************************************
