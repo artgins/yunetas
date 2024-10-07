@@ -6635,7 +6635,7 @@ PRIVATE json_t *read_record_content(
         -1 break the load
 
  ***************************************************************************/
-PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
+PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond,  // owned
@@ -6655,7 +6655,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
-        return NULL;
+        return -1;
     }
 
     tranger2_load_record_callback_t load_record_callback =
@@ -6671,16 +6671,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
-        return NULL;
+        return -1;
     }
-
-    json_t *list = json_object();
-    json_object_set_new(list, "topic_name", json_string(topic_name));
-
-    /*
-     *  Load volatil, defining in run-time
-     */
-    kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
 
     BOOL realtime = FALSE;
     json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
@@ -6698,7 +6690,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key
             NULL,   // to store LOADING data, not owned
-            json_incref(list)    // extra, owned
+            NULL    // extra, owned
         );
         tranger2_close_iterator(tranger, ll);
 
@@ -6713,8 +6705,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             );
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
-            JSON_DECREF(list)
-            return NULL;
+            return -1;
         }
 
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
@@ -6734,7 +6725,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id, optional, if empty will be the key
                     NULL,   // to store LOADING data, not owned
-                    json_incref(list)    // extra, owned
+                    NULL    // extra, owned
                 );
 
                 tranger2_close_iterator(tranger, ll);
@@ -6742,8 +6733,6 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         }
         json_decref(jn_keys);
     }
-
-    json_object_update_missing_new(list, extra);
 
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -6762,7 +6751,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 id,
-                json_incref(list)    // extra, owned
+                json_incref(extra)    // extra, owned
             );
         } else {
             rt = tranger2_open_rt_disk(
@@ -6772,7 +6761,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 id,
-                json_incref(list)    // extra, owned
+                json_incref(extra)    // extra, owned
             );
         }
 
@@ -6785,37 +6774,13 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 NULL
             );
             JSON_DECREF(match_cond)
-            JSON_DECREF(list)
-            return NULL;
+            JSON_DECREF(extra)
+            return -1;
         }
     }
 
     json_decref(match_cond);
-    return list;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *tranger2_get_list_by_id(
-    json_t *tranger,
-    const char *topic_name,
-    const char *id
-) {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *topic = tranger2_topic(tranger, topic_name);
-
-    json_t *rt;
-    rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
-    if(rt) {
-        return rt;
-    }
-    rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
-    if(rt) {
-        return rt;
-    }
     return 0;
-
 }
 
 /***************************************************************************
@@ -6823,33 +6788,31 @@ PUBLIC json_t *tranger2_get_list_by_id(
  ***************************************************************************/
 PUBLIC int tranger2_close_list(
     json_t *tranger,
-    json_t *list
-)
-{
+    const char *topic_name,
+    const char *id
+) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
-    const char *id = kw_get_str(gobj, list, "id", "", KW_REQUIRED);
+
     json_t *rt;
-    if(strcmp(list_type, "rt_mem")==0) {
-        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
+    rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
+    if(rt) {
         tranger2_close_rt_mem(tranger, rt);
-    } else if(strcmp(list_type, "rt_disk")==0) {
-        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
-        tranger2_close_rt_disk(tranger, rt);
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger2_close_list(), list not found",
-            "topic",        "%s", topic_name,
-            "id",           "%s", id,
-            NULL
-        );
-        gobj_trace_json(gobj, list, "tranger2_close_list(), list not found");
+        return 0;
     }
-    json_decref(list);
-    return 0;
+    rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
+    if(rt) {
+        tranger2_close_rt_disk(tranger, rt);
+        return 0;
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "tranger2_close_list(), list not found",
+        "topic",        "%s", topic_name,
+        "id",           "%s", id,
+        NULL
+    );
+    return -1;
 }
 
 /***************************************************************************

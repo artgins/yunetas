@@ -961,7 +961,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __snaps__
      *------------------------------*/
-    if(1) {
+    if(0) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -977,7 +977,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        if(!tranger2_open_list( // OLD tranger_open_list
+        if(!tranger2_open_list(
             tranger,
             snaps_topic_name,
             match_cond,  // owned
@@ -998,7 +998,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __graphs__
      *------------------------------*/
-    if(1) {
+    if(0) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -1014,7 +1014,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        if(!tranger2_open_list( // OLD tranger_open_list
+        if(!tranger2_open_list(
             tranger,
             graphs_topic_name,
             match_cond,  // owned
@@ -1388,13 +1388,12 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "treedb_name", treedb_name,
         "deleted_records"
     );
-    json_t *list = tranger2_open_list( // OLD tranger_open_list
+    if(!tranger2_open_list(
         tranger,
         topic_name,
         match_cond,  // owned
         jn_extra    // owned
-    );
-    if(!list) {
+    )) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1445,13 +1444,12 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "deleted_records"
         );
 
-        json_t *list2 = tranger2_open_list( // OLD tranger_open_list
+        if(!tranger2_open_list(
             tranger,
             topic_name,
             match_cond2,  // owned
             jn_extra_    // owned
-        );
-        if(!list2) {
+        )) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1495,19 +1493,7 @@ PUBLIC int treedb_close_topic(
 
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    json_t *list = tranger2_get_list_by_id(tranger, topic_name, path);
-    if(list) {
-        tranger2_close_list(tranger, list);
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "List not found",
-            "treedb_name",  "%s", treedb_name,
-            "list",         "%s", path,
-            NULL
-        );
-    }
+    tranger2_close_list(tranger, topic_name, path);
 
     /*------------------------------*
      *  Close pkey2 lists
@@ -1520,20 +1506,7 @@ PUBLIC int treedb_close_topic(
             continue;
         }
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
-
-        json_t *list_ = tranger2_get_list_by_id(tranger, topic_name, path);
-        if(list_) {
-            tranger2_close_list(tranger, list_);
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                "msg",          "%s", "List not found.",
-                "treedb_name",  "%s", treedb_name,
-                "list",         "%s", path,
-                NULL
-            );
-        }
+        tranger2_close_list(tranger, topic_name, path);
     }
     JSON_DECREF(iter_pkey2s)
 

@@ -651,7 +651,7 @@ static const json_desc_t list_filter_desc[] = {
     // And all of `Iterator match_cond` in timeranger2.h
     {0}
 };
-PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
+PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *jn_filter,  // owned
@@ -659,20 +659,12 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
 );
 
 /**rst**
-    Get list by his id
-**rst**/
-PUBLIC json_t *tranger2_get_list_by_id(
-    json_t *tranger,
-    const char *topic_name,
-    const char *id
-);
-
-/**rst**
     Close list
 **rst**/
 PUBLIC int tranger2_close_list(
     json_t *tranger,
-    json_t *list
+    const char *topic_name,
+    const char *id
 );
 
 

@@ -503,10 +503,13 @@ PRIVATE int do_test(void)
         // result += debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
+print_json2("before treedb_close_db", tranger); // TODO TEST
+
         result += treedb_close_db(
             tranger,
             treedb_name
         );
+print_json2("after treedb_close_db", tranger); // TODO TEST
 
         /*
          *  Check refcounts
@@ -519,6 +522,8 @@ PRIVATE int do_test(void)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
+
+//print_json2("before tranger2_shutdown", tranger); // TODO TEST
 
 tranger2_shutdown(tranger);
 JSON_DECREF(topic_cols_desc)
@@ -862,7 +867,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {4950, 5027, 5713, 0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {4950, 4951, 4953, 4960, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
