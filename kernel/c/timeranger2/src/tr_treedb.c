@@ -966,7 +966,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+        json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
             "id", path,
             "backward", 1,
             "rkey", "",
@@ -980,7 +980,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         if(!tranger2_open_list( // OLD tranger_open_list
             tranger,
             snaps_topic_name,
-            jn_filter,  // owned
+            match_cond,  // owned
             jn_extra    // owned
         )) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1003,7 +1003,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+        json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
             "id", path,
             "backward", 1,
             "rkey", "",
@@ -1017,7 +1017,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         if(!tranger2_open_list( // OLD tranger_open_list
             tranger,
             graphs_topic_name,
-            jn_filter,  // owned
+            match_cond,  // owned
             jn_extra    // owned
         )) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1367,7 +1367,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-    json_t *jn_filter = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+    json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
         "id", path,
         "backward", 1,
         "rkey", "",
@@ -1378,7 +1378,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     if(snap_tag) {
         // pon el current tag
         json_object_set_new(
-            jn_filter,
+            match_cond,
             "user_flag",
             json_integer(snap_tag)
         );
@@ -1391,7 +1391,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     json_t *list = tranger2_open_list( // OLD tranger_open_list
         tranger,
         topic_name,
-        jn_filter,  // owned
+        match_cond,  // owned
         jn_extra    // owned
     );
     if(!list) {
@@ -1422,7 +1422,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        json_t *jn_filter2 = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+        json_t *match_cond2 = json_pack("{s:s, s:b, s:s, s:b, s:I}",
             "id", path,
             "backward", 1,
             "rkey", "",
@@ -1433,7 +1433,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 //        if(snap_tag) { // TODO esto no está en timeranger1
 //            // pon el current tag
 //            json_object_set_new(
-//                jn_filter,
+//                match_cond2,
 //                "user_flag",
 //                json_integer(snap_tag)
 //            );
@@ -1448,7 +1448,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         json_t *list2 = tranger2_open_list( // OLD tranger_open_list
             tranger,
             topic_name,
-            jn_filter2,  // owned
+            match_cond2,  // owned
             jn_extra_    // owned
         );
         if(!list2) {

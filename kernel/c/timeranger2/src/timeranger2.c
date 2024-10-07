@@ -6848,6 +6848,7 @@ PUBLIC int tranger2_close_list(
         );
         gobj_trace_json(gobj, list, "tranger2_close_list(), list not found");
     }
+    json_decref(list);
     return 0;
 }
 
