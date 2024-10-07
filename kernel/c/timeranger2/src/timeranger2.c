@@ -6779,6 +6779,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 json_incref(list)    // extra, owned
             );
         }
+        json_decref(jn_filter);
+
         if(!rt) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -6793,7 +6795,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         }
     }
 
-    JSON_DECREF(jn_filter)
+    json_decref(jn_filter);
     return list;
 }
 

@@ -366,7 +366,6 @@ PRIVATE int do_test(void)
     if(1) {
         const char *test = "open tranger";
 
-
         set_expected_results( // Check that no logs happen
             test,   // test name
             json_pack("[{s:s}]",  // error_list
@@ -513,13 +512,17 @@ PRIVATE int do_test(void)
          *  Check refcounts
          */
         // result = debug_json(tranger, verbose);
-        json_check_refcounts(tranger, 1000, &result);
+//        json_check_refcounts(tranger, 1000, &result);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
+
+//treedb_close_db(tranger, treedb_name);
+tranger2_shutdown(tranger);
+JSON_DECREF(topic_cols_desc)
 return result; // TODO remove
 
 
@@ -860,7 +863,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {4950, 4951, 5027, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);

@@ -30,7 +30,7 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
-//#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
+#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
 
 /***************************************************************
  *              GClass/GObj Structures
@@ -9270,7 +9270,7 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
         if(track_mem->ref  == memory_check_list[xx]) {
             gobj_log_debug(0, LOG_OPT_TRACE_STACK,
                 "msgset",       "%s", MSGSET_STATISTICS,
-                "msg",          "%s", "memory lost",
+                "msg",          "%s", "mem-not-free",
                 "ref",          "%ul", (unsigned long)track_mem->ref,
                 NULL
             );
