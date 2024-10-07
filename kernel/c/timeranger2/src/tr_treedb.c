@@ -1185,6 +1185,7 @@ PUBLIC int treedb_close_db(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    int ret = 0;
 
     /*------------------------------*
      *  Close treedb topics
@@ -1193,7 +1194,7 @@ PUBLIC int treedb_close_db(
     int idx; json_t *topic;
     json_array_foreach(topics, idx, topic) {
         const char *topic_name = json_string_value(topic);
-        treedb_close_topic(tranger, treedb_name, topic_name);
+        ret += treedb_close_topic(tranger, treedb_name, topic_name);
     }
     JSON_DECREF(topics)
 
@@ -1204,7 +1205,7 @@ PUBLIC int treedb_close_db(
     JSON_DECREF(treedb)
 
     json_decref(topic_cols_desc);
-    return 0;
+    return ret;
 }
 
 /***************************************************************************

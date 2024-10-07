@@ -498,13 +498,10 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
-print_json2("tranger antes", tranger);
-print_json2("treedb antes", treedb);
-
         /*
          *  Check refcounts
          */
+        // result = debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
         result += treedb_close_db(
@@ -515,14 +512,13 @@ print_json2("treedb antes", treedb);
         /*
          *  Check refcounts
          */
+        // result = debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
-
-print_json2("tranger despues", tranger);
 
 return result; // TODO remove
 
@@ -936,7 +932,7 @@ int main(int argc, char *argv[])
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
-        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
         result += -1;
     }
 

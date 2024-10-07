@@ -4649,6 +4649,7 @@ PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
 
 /***************************************************************************
  *  Check deeply the refcount of kw
+ *  TODO use debug_json()
  ***************************************************************************/
 PUBLIC int json_check_refcounts(
     json_t *jn, // not owned

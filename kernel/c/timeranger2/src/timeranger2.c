@@ -1881,9 +1881,11 @@ static inline char *get_t_filename(
     uint64_t __t__ // WARNING must be in seconds!
 )
 {
+    hgobj gobj = 0;
+
     struct tm *tm = gmtime((time_t *)&__t__);
     if(!tm) {
-        gobj_log_error(0, 0,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gmtime() FAILED",
@@ -5477,6 +5479,7 @@ PRIVATE json_int_t next_segment_row(
     json_int_t *rowid
 )
 {
+    hgobj gobj = 0;
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
     json_int_t cur_rowid = *rowid;
     *rowid = -1;
@@ -5510,7 +5513,7 @@ PRIVATE json_int_t next_segment_row(
             segment = json_array_get(segments, cur_segment);
             json_int_t segment_first_row = json_integer_value(json_object_get(segment, "first_row"));
             if(cur_rowid != segment_first_row) {
-                gobj_log_error(0, 0,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "next rowids not consecutive",
@@ -5549,7 +5552,7 @@ PRIVATE json_int_t next_segment_row(
 
             json_int_t segment_last_row = json_integer_value(json_object_get(segment, "last_row"));
             if(cur_rowid != segment_last_row) {
-                gobj_log_error(0, 0,
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "previous rowids not consecutive",
@@ -6828,18 +6831,26 @@ PUBLIC int tranger2_close_list(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    const char *rt_mem_id = kw_get_str(gobj, list, "rt_mem", 0, 0);
+    const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
+    const char *id = kw_get_str(gobj, list, "id", "", KW_REQUIRED);
     json_t *rt;
-    if(rt_mem_id) {
-        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
+    if(strcmp(list_type, "rt_mem")==0) {
+        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
         tranger2_close_rt_mem(tranger, rt);
-    }
-    const char *rt_disk_id = kw_get_str(gobj, list, "rt_disk", 0, 0);
-    if(rt_disk_id) {
-        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
+    } else if(strcmp(list_type, "rt_disk")==0) {
+        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
         tranger2_close_rt_disk(tranger, rt);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger2_close_list(), list not found",
+            "topic",        "%s", topic_name,
+            "id",           "%s", id,
+            NULL
+        );
+        gobj_trace_json(gobj, list, "tranger2_close_list(), list not found");
     }
-    json_decref(list);
     return 0;
 }
 
@@ -6856,6 +6867,7 @@ PUBLIC void tranger2_print_md0_record(
     int bfsize
 )
 {
+    hgobj gobj = 0;
     char fecha[90];
     char stamp[64];
 
@@ -6900,8 +6912,7 @@ PUBLIC void tranger2_print_md0_record(
             key
         );
     } else {
-        gobj_log_error(0, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "BAD metadata, without key type",
@@ -6924,6 +6935,7 @@ PUBLIC void tranger2_print_md1_record(
     int bfsize
 )
 {
+    hgobj gobj = 0;
     struct tm *tm;
     char fecha[90];
     char stamp[64];
@@ -6975,8 +6987,7 @@ PUBLIC void tranger2_print_md1_record(
             key
         );
     } else {
-        gobj_log_error(0, 0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "BAD metadata, without key type",
