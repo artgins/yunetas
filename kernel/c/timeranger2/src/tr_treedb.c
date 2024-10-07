@@ -961,7 +961,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __snaps__
      *------------------------------*/
-    if(0) {
+    if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -998,7 +998,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __graphs__
      *------------------------------*/
-    if(0) {
+    if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);

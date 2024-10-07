@@ -6779,7 +6779,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         }
     }
 
-    json_decref(match_cond);
+    JSON_DECREF(match_cond)
+    JSON_DECREF(extra)
     return 0;
 }
 

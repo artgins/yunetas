@@ -867,7 +867,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {4950, 4951, 4953, 4960, 0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {5580, 7253, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
