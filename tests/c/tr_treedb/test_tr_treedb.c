@@ -500,7 +500,7 @@ PRIVATE int do_test(void)
         /*
          *  Check refcounts
          */
-        // result = debug_json(tranger, verbose);
+        // result += debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
         result += treedb_close_db(
@@ -511,8 +511,8 @@ PRIVATE int do_test(void)
         /*
          *  Check refcounts
          */
-        // result = debug_json(tranger, verbose);
-//        json_check_refcounts(tranger, 1000, &result);
+        // result += debug_json(tranger, verbose);
+        json_check_refcounts(tranger, 1000, &result);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
@@ -520,7 +520,7 @@ PRIVATE int do_test(void)
     }
 
 
-//treedb_close_db(tranger, treedb_name);
+treedb_close_db(tranger, treedb_name);
 tranger2_shutdown(tranger);
 JSON_DECREF(topic_cols_desc)
 return result; // TODO remove

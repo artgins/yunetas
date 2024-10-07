@@ -6617,7 +6617,7 @@ PRIVATE json_t *read_record_content(
  *
     Open list, load records in memory
 
-    jn_filter (match_cond) of second level:
+    match_cond of second level:
         id                  (str) id
         key                 (str) key
         rkey                (str) regular expression of key
@@ -6638,7 +6638,7 @@ PRIVATE json_t *read_record_content(
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter,  // owned
+    json_t *match_cond,  // owned
     json_t *extra       // owned
 )
 {
@@ -6653,14 +6653,14 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_filter)
+        JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
     }
 
     tranger2_load_record_callback_t load_record_callback =
         (tranger2_load_record_callback_t)(size_t)json_integer_value(
-            json_object_get(jn_filter, "load_record_callback")
+            json_object_get(match_cond, "load_record_callback")
         );
     if(!load_record_callback) {
         gobj_log_error(gobj, 0,
@@ -6669,13 +6669,9 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             "msg",          "%s", "load_record_callback is required to tranger2_open_list",
             NULL
         );
-        JSON_DECREF(jn_filter)
+        JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
-    }
-
-    if(!jn_filter) {
-        jn_filter = json_object();
     }
 
     json_t *list = json_object();
@@ -6687,18 +6683,18 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     kw_get_list(gobj, list, "data", json_array(), KW_CREATE);
 
     BOOL realtime = FALSE;
-    json_int_t to_rowid = kw_get_int(gobj, jn_filter, "to_rowid", 0, KW_WILD_NUMBER);
+    json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
     if(to_rowid == 0) {
         realtime = TRUE;
     }
 
-    const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
+    const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
     if(!empty_string(key)) {
         json_t *ll = tranger2_open_iterator(
             tranger,
             topic_name,
             key,
-            json_incref(jn_filter),  // match_cond, owned
+            json_incref(match_cond),  // match_cond, owned
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key
             NULL,   // to store LOADING data, not owned
@@ -6707,7 +6703,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         tranger2_close_iterator(tranger, ll);
 
     } else {
-        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
+        const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
         if(!rkey) { // check null, a "" is valid and equivalent to ".*"
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -6715,7 +6711,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 "msg",          "%s", "key is required to trmsg_open_list",
                 NULL
             );
-            JSON_DECREF(jn_filter)
+            JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             JSON_DECREF(list)
             return NULL;
@@ -6734,7 +6730,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     tranger,
                     topic_name,
                     key_,
-                    json_incref(jn_filter),  // match_cond, owned
+                    json_incref(match_cond),  // match_cond, owned
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id, optional, if empty will be the key
                     NULL,   // to store LOADING data, not owned
@@ -6751,8 +6747,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
 
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-        BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
-        const char *id = json_string_value(json_object_get(jn_filter, "id"));
+        BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
+        const char *id = json_string_value(json_object_get(match_cond, "id"));
         if(!master) {
             rt_by_mem = FALSE;
         }
@@ -6763,7 +6759,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 tranger,
                 topic_name,
                 key,                    // if empty receives all keys, else only this key
-                json_incref(jn_filter),
+                json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 id,
                 json_incref(list)    // extra, owned
@@ -6773,13 +6769,12 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 tranger,
                 topic_name,
                 key,                    // if empty receives all keys, else only this key
-                json_incref(jn_filter),
+                json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 id,
                 json_incref(list)    // extra, owned
             );
         }
-        json_decref(jn_filter);
 
         if(!rt) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -6789,13 +6784,13 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            JSON_DECREF(jn_filter)
+            JSON_DECREF(match_cond)
             JSON_DECREF(list)
             return NULL;
         }
     }
 
-    json_decref(jn_filter);
+    json_decref(match_cond);
     return list;
 }
 
