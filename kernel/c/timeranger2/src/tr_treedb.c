@@ -981,7 +981,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             tranger,
             snaps_topic_name,
             match_cond,  // owned
-            jn_extra    // owned
+            jn_extra,    // owned
+            NULL
         )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1018,7 +1019,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             tranger,
             graphs_topic_name,
             match_cond,  // owned
-            jn_extra    // owned
+            jn_extra,    // owned
+            NULL
         )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1392,7 +1394,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         tranger,
         topic_name,
         match_cond,  // owned
-        jn_extra    // owned
+        jn_extra,    // owned
+        NULL
     )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1448,7 +1451,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             tranger,
             topic_name,
             match_cond2,  // owned
-            jn_extra_    // owned
+            jn_extra_,    // owned
+            NULL
         )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1493,7 +1497,7 @@ PUBLIC int treedb_close_topic(
 
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    tranger2_close_list(tranger, topic_name, path);
+    tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
 
     /*------------------------------*
      *  Close pkey2 lists
@@ -1506,7 +1510,7 @@ PUBLIC int treedb_close_topic(
             continue;
         }
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
-        tranger2_close_list(tranger, topic_name, path);
+        tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
     }
     JSON_DECREF(iter_pkey2s)
 

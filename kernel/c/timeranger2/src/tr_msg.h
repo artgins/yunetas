@@ -149,7 +149,7 @@ PUBLIC int trmsg_add_instance(
 );
 
 /*
-    jn_filter (match_cond) of second level:
+    match_cond of second level:
 
         key                 (str) key
         rkey                (str) regular expression of key
@@ -187,7 +187,7 @@ typedef int (*trmsg_instance_callback_t)(
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter,  // owned
+    json_t *match_cond,  // owned
     json_t *extra       // owned
 );
 

@@ -260,7 +260,7 @@ PRIVATE int load_record_callback(
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter,  // owned
+    json_t *match_cond,  // owned
     json_t *extra       // owned
 )
 {
@@ -275,135 +275,41 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_filter)
+        JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
     }
-    if(!jn_filter) {
-        jn_filter = json_object();
+    if(!match_cond) {
+        match_cond = json_object();
     }
 
-    json_t *list = json_object();
-    json_object_set_new(list, "messages", json_object());
-    json_object_set_new(list, "topic_name", json_string(topic_name));
+    json_t *jn_extra = json_pack("{s:o}",
+        "messages", json_object()
+    );
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(size_t)load_record_callback)
+    );
 
-    BOOL realtime = FALSE;
-    json_int_t to_rowid = kw_get_int(gobj, jn_filter, "to_rowid", 0, KW_WILD_NUMBER);
-    if(to_rowid == 0) {
-        realtime = TRUE;
-    }
-
-    const char *key = kw_get_str(gobj, jn_filter, "key", "", 0);
-    if(!empty_string(key)) {
-        json_t *ll = tranger2_open_iterator(
-            tranger,
-            topic_name,
-            key,
-            json_incref(jn_filter),  // match_cond, owned
-            load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id, optional, if empty will be the key
-            NULL,   // to store LOADING data, not owned
-            json_incref(list)    // extra, owned
+    json_t *rt;
+    if(tranger2_open_list(
+        tranger,
+        topic_name,
+        match_cond,  // owned
+        jn_extra,    // owned
+        &rt
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "tranger2_open_list() failed",
+            "topic_name",   "%s", "__snaps__",
+            NULL
         );
-        tranger2_close_iterator(tranger, ll);
-
-    } else {
-        const char *rkey = kw_get_str(gobj, jn_filter, "rkey", 0, 0);
-        if(!rkey) { // check null, a "" is valid and equivalent to ".*"
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "key is required to trmsg_open_list",
-                NULL
-            );
-            JSON_DECREF(jn_filter)
-            JSON_DECREF(extra)
-            JSON_DECREF(list)
-            return NULL;
-        }
-
-        json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
-        if(json_array_size(jn_keys)>0) {
-            /*
-             *  Load from disk
-             */
-            int idx; json_t *jn_key;
-            json_array_foreach(jn_keys, idx, jn_key) {
-                const char *key_ = json_string_value(jn_key);
-
-                json_t *ll = tranger2_open_iterator(
-                    tranger,
-                    topic_name,
-                    key_,
-                    json_incref(jn_filter),  // match_cond, owned
-                    load_record_callback, // called on LOADING and APPENDING
-                    "",     // iterator id, optional, if empty will be the key
-                    NULL,   // to store LOADING data, not owned
-                    json_incref(list)    // extra, owned
-                );
-
-                tranger2_close_iterator(tranger, ll);
-            }
-        }
-        json_decref(jn_keys);
     }
 
-    if(realtime) {
-        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-        BOOL rt_by_mem = json_boolean_value(json_object_get(jn_filter, "rt_by_mem"));
-        if(!master) {
-            rt_by_mem = FALSE;
-        }
-
-        char uuid[64];
-        create_uuid(uuid, sizeof(uuid));
-        json_t *rt;
-        if(rt_by_mem) {
-            rt = tranger2_open_rt_mem(
-                tranger,
-                topic_name,
-                key,                    // if empty receives all keys, else only this key
-                json_incref(jn_filter),
-                load_record_callback,   // called on append new record
-                uuid,
-                json_incref(list)    // extra, owned
-            );
-            if(rt) {
-                json_object_set_new(list, "rt_mem", json_string(uuid));
-            }
-        } else {
-            rt = tranger2_open_rt_disk(
-                tranger,
-                topic_name,
-                key,                    // if empty receives all keys, else only this key
-                json_incref(jn_filter),
-                load_record_callback,   // called on append new record
-                uuid,
-                json_incref(list)    // extra, owned
-            );
-            if(rt) {
-                json_object_set_new(list, "rt_disk", json_string(uuid));
-            }
-        }
-        if(!rt) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
-                "topic_name",   "%s", topic_name,
-                NULL
-            );
-            JSON_DECREF(jn_filter)
-            JSON_DECREF(extra)
-            JSON_DECREF(list)
-            return NULL;
-        }
-    }
-
-    json_object_update_missing_new(list, extra);
-
-    JSON_DECREF(jn_filter)
-    return list;
+    return rt;
 }
 
 /***************************************************************************
@@ -414,21 +320,7 @@ PUBLIC int trmsg_close_list(
     json_t *list
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = kw_get_str(gobj, list, "topic_name", "", KW_REQUIRED);
-    const char *rt_mem_id = kw_get_str(gobj, list, "rt_mem", 0, 0);
-    json_t *rt;
-    if(rt_mem_id) {
-        rt = tranger2_get_rt_mem_by_id(tranger, topic_name, rt_mem_id);
-        tranger2_close_rt_mem(tranger, rt);
-    }
-    const char *rt_disk_id = kw_get_str(gobj, list, "rt_disk", 0, 0);
-    if(rt_disk_id) {
-        rt = tranger2_get_rt_disk_by_id(tranger, topic_name, rt_disk_id);
-        tranger2_close_rt_disk(tranger, rt);
-    }
-    json_decref(list);
-    return 0;
+    return tranger2_close_list(tranger, list);
 }
 
 /***************************************************************************

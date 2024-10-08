@@ -655,18 +655,26 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     json_t *tranger,
     const char *topic_name,
     json_t *jn_filter,  // owned
-    json_t *extra       // owned
+    json_t *extra,      // owned
+    json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
 );
 
 /**rst**
-    Close list
+    Get list by id
 **rst**/
-PUBLIC int tranger2_close_list(
+PUBLIC json_t *tranger2_get_list_by_id(
     json_t *tranger,
     const char *topic_name,
     const char *id
 );
 
+/**rst**
+    Close list (rt_mem or rt_disk)
+**rst**/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+);
 
 /*
  *  print_md0_record: Print rowid, t, tm, key

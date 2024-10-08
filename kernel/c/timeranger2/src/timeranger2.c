@@ -6638,11 +6638,16 @@ PRIVATE json_t *read_record_content(
 PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *match_cond,  // owned
-    json_t *extra       // owned
+    json_t *match_cond, // owned
+    json_t *extra,      // owned
+    json_t **prt         // pointer to realtime list, optional
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    if(prt) {
+        *prt = NULL;
+    }
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
@@ -6734,6 +6739,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         json_decref(jn_keys);
     }
 
+    json_t *rt = NULL;
+
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
@@ -6742,7 +6749,6 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             rt_by_mem = FALSE;
         }
 
-        json_t *rt;
         if(rt_by_mem) {
             rt = tranger2_open_rt_mem(
                 tranger,
@@ -6779,6 +6785,10 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         }
     }
 
+    if(prt) {
+        *prt = rt;
+    }
+
     JSON_DECREF(match_cond)
     JSON_DECREF(extra)
     return 0;
@@ -6787,7 +6797,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int tranger2_close_list(
+PUBLIC json_t *tranger2_get_list_by_id(
     json_t *tranger,
     const char *topic_name,
     const char *id
@@ -6797,13 +6807,12 @@ PUBLIC int tranger2_close_list(
     json_t *rt;
     rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
     if(rt) {
-        tranger2_close_rt_mem(tranger, rt);
-        return 0;
+        return rt;
     }
     rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
     if(rt) {
         tranger2_close_rt_disk(tranger, rt);
-        return 0;
+        return rt;
     }
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -6813,6 +6822,25 @@ PUBLIC int tranger2_close_list(
         "id",           "%s", id,
         NULL
     );
+    return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int tranger2_close_list(
+    json_t *tranger,
+    json_t *list
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
+
+    if(strcmp(list_type, "rt_mem")==0) {
+        return tranger2_close_rt_mem(tranger, list);
+    } else if(strcmp(list_type, "rt_disk")==0) {
+        return tranger2_close_rt_disk(tranger, list);
+    }
     return -1;
 }
 
