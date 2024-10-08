@@ -527,10 +527,9 @@ PRIVATE int do_test(void)
 
 //print_json2("before tranger2_shutdown", tranger); // TODO TEST
 
-tranger2_shutdown(tranger);
-JSON_DECREF(topic_cols_desc)
-return result; // TODO remove
-
+//tranger2_shutdown(tranger);
+//JSON_DECREF(topic_cols_desc)
+//return result; // TODO remove
 
     /*
      *  Open treedb
