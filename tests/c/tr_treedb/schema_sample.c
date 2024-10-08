@@ -173,9 +173,6 @@ static char schema_sample[]= "\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
-    ],                                                              \n\
-    'indexes': [                                                    \n\
     ]                                                               \n\
 }                                                                   \n\
 ";
-
