@@ -977,12 +977,12 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        if(!tranger2_open_list(
+        if(tranger2_open_list(
             tranger,
             snaps_topic_name,
             match_cond,  // owned
             jn_extra    // owned
-        )) {
+        )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1014,18 +1014,18 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name", treedb_name,
             "deleted_records"
         );
-        if(!tranger2_open_list(
+        if(tranger2_open_list(
             tranger,
             graphs_topic_name,
             match_cond,  // owned
             jn_extra    // owned
-        )) {
+        )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function", "%s", __FUNCTION__,
-                "msgset", "%s", MSGSET_TREEDB_ERROR,
-                "msg", "%s", "tranger2_open_list() failed",
-                "treedb_name", "%s", treedb_name,
-                "topic_name", "%s", "__graphs__",
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msg",          "%s", "tranger2_open_list() failed",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",    "%s", "__graphs__",
                 NULL
             );
         }
@@ -1388,12 +1388,12 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "treedb_name", treedb_name,
         "deleted_records"
     );
-    if(!tranger2_open_list(
+    if(tranger2_open_list(
         tranger,
         topic_name,
         match_cond,  // owned
         jn_extra    // owned
-    )) {
+    )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1444,12 +1444,12 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "deleted_records"
         );
 
-        if(!tranger2_open_list(
+        if(tranger2_open_list(
             tranger,
             topic_name,
             match_cond2,  // owned
             jn_extra_    // owned
-        )) {
+        )<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,

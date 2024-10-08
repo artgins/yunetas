@@ -453,12 +453,14 @@ PRIVATE int do_test(void)
             exit(-1);
         }
 
-        treedb_open_db(
+        if(!treedb_open_db(
             tranger,  // owned
             treedb_name,
             jn_schema_sample,
             0
-        );
+        )) {
+            result += -1;
+        }
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
@@ -503,13 +505,13 @@ PRIVATE int do_test(void)
         // result += debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
-print_json2("before treedb_close_db", tranger); // TODO TEST
+//print_json2("before treedb_close_db", tranger); // TODO TEST
 
         result += treedb_close_db(
             tranger,
             treedb_name
         );
-print_json2("after treedb_close_db", tranger); // TODO TEST
+//print_json2("after treedb_close_db", tranger); // TODO TEST
 
         /*
          *  Check refcounts
