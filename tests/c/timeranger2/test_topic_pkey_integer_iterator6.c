@@ -346,7 +346,7 @@ PRIVATE int close_all(json_t *tranger)
         TRUE    // verbose
     );
 
-    result += debug_json(tranger, FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     tranger2_shutdown(tranger);
     result += test_json(NULL, result);  // NULL: we want to check only the logs

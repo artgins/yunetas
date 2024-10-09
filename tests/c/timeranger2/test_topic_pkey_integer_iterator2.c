@@ -487,7 +487,7 @@ PRIVATE int do_test(void)
         TRUE    // verbose
     );
 
-    result += debug_json(tranger, FALSE);
+    result += debug_json("tranger", tranger, FALSE);
     result += tranger2_close_iterator(tranger, iterator1);
     result += tranger2_close_iterator(tranger, iterator2);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
@@ -502,7 +502,7 @@ PRIVATE int do_test(void)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    result += debug_json(tranger, FALSE);
+    result += debug_json("tranger", tranger, FALSE);
     tranger2_shutdown(tranger);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 

@@ -4320,7 +4320,7 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
 /***************************************************************************
  *  Print json with refcounts
  ***************************************************************************/
-PUBLIC int debug_json(json_t *jn, BOOL verbose)
+PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)
 {
     if(!jn || jn->refcount <= 0) {
         fprintf(stdout, "%sERROR debug_json()%s: json NULL or refcount is 0\n",
@@ -4328,7 +4328,7 @@ PUBLIC int debug_json(json_t *jn, BOOL verbose)
         return -1;
     }
     if(verbose) {
-        fprintf(stdout, "\n");
+        fprintf(stdout, "%s\n", label);
     }
     int ret = _debug_json(0, jn, 0, 0, verbose);
     if(verbose) {

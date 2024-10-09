@@ -315,7 +315,7 @@ PRIVATE int do_test(void)
         TRUE    // verbose
     );
 
-    result += debug_json(tranger, FALSE);
+    json_check_refcounts(tranger, 1000, &result);
 
     tranger2_shutdown(tranger);
     result += test_json(NULL, result);  // NULL: we want to check only the logs
