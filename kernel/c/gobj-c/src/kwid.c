@@ -837,26 +837,100 @@ PUBLIC int kw_find_str_in_list(
 }
 
 /***************************************************************************
+    Utility for databases.
+    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
+    Return -1 if not found
+ ***************************************************************************/
+int kwid_find_record_in_list(
+    hgobj gobj,
+    json_t *kw_list,
+    const char *id,
+    kw_flag_t flag
+)
+{
+    if(!id || !json_is_array(kw_list)) {
+        if(flag & KW_VERBOSE) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "id NULL or kw_list is not a list",
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    int idx; json_t *record;
+    json_array_foreach(kw_list, idx, record) {
+        const char *id_ = kw_get_str(gobj, record, "id", 0, 0);
+        if(!id_) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "list item is not a id record",
+                NULL
+            );
+            return -1;
+        }
+        if(strcmp(id, id_)==0) {
+            return idx;
+        }
+    }
+
+    if(flag & KW_VERBOSE) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "record not found in this list",
+            "id",           "%s", id,
+            NULL
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
     Get a the idx of simple json item in a json list.
     Return -1 if not found
  ***************************************************************************/
 PUBLIC int kw_find_json_in_list(
+    hgobj gobj,
     json_t *kw_list,  // not owned
-    json_t *item  // not owned
+    json_t *item,  // not owned
+    kw_flag_t flag
+
 )
 {
     if(!item || !json_is_array(kw_list)) {
+        if(flag & KW_VERBOSE) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "item NULL or kw_list is not a list",
+                NULL
+            );
+        }
         return -1;
     }
 
-    size_t idx;
+    int idx;
     json_t *jn_item;
+
     json_array_foreach(kw_list, idx, jn_item) {
-        if(item == jn_item) {
-            return (int)idx;
+        if(kw_is_identical(gobj, item, jn_item)) {
+            return idx;
         }
     }
 
+    if(flag & KW_VERBOSE) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "item not found in this list",
+            "item",         "%j", item,
+            NULL
+        );
+    }
     return -1;
 }
 
@@ -1379,6 +1453,27 @@ PUBLIC void kw_update_except(
         json_object_set(kw, key, jn_value);
     }
 }
+
+/***************************************************************************
+    Compare two json and return TRUE if they are identical.
+ ***************************************************************************/
+PUBLIC BOOL kw_is_identical(
+    hgobj gobj,
+    json_t *kw1,    // not owned
+    json_t *kw2     // not owned
+)
+{
+    if(!kw1 || !kw2) {
+        return FALSE;
+    }
+    char *kw1_ = json2uglystr(kw1);
+    char *kw2_ = json2uglystr(kw2);
+    int ret = strcmp(kw1_, kw2_);
+    GBMEM_FREE(kw1_)
+    GBMEM_FREE(kw2_)
+    return ret==0?TRUE:FALSE;
+}
+
 
 /***************************************************************************
  *  if binary is inside of kw, incref binary
@@ -2002,58 +2097,6 @@ PUBLIC int kw_walk(
 
 
 
-/***************************************************************************
-    Utility for databases.
-    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
-    Return -1 if not found
- ***************************************************************************/
-int kwid_find_record_in_list(
-    hgobj gobj,
-    json_t *kw_list,
-    const char *id,
-    BOOL verbose
-)
-{
-    if(!id || !json_is_array(kw_list)) {
-        if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "id NULL or kw_list is not a list",
-                NULL
-            );
-        }
-        return -1;
-    }
-
-    int idx; json_t *record;
-    json_array_foreach(kw_list, idx, record) {
-        const char *id_ = kw_get_str(gobj, record, "id", 0, 0);
-        if(!id_) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "list item is not a id record",
-                NULL
-            );
-            return -1;
-        }
-        if(strcmp(id, id_)==0) {
-            return idx;
-        }
-    }
-
-    if(verbose) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "record not found in this list",
-            "id",           "%s", id,
-            NULL
-        );
-    }
-    return 0;
-}
 /***************************************************************************
     Return a new json with all arrays or dicts greater than `limit`
         with [{"__collapsed__": {"path": path, "size": size}}]

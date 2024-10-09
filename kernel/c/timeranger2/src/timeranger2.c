@@ -188,7 +188,7 @@ PRIVATE json_int_t next_segment_row(
     json_int_t cur_segment,
     json_int_t *rowid
 );
-PRIVATE BOOL match_record(
+PRIVATE BOOL tranger2_match_record(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,
@@ -4487,7 +4487,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 break;
             }
 
-            if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
+            if(tranger2_match_record(match_cond, total_rows, rowid, &md_record, &end)) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
                 if(!only_md) {
@@ -4802,7 +4802,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             break;
         }
 
-        if(match_record(match_cond, total_rows, rowid, &md_record, &end)) {
+        if(tranger2_match_record(match_cond, total_rows, rowid, &md_record, &end)) {
             const char *file_id = json_string_value(json_object_get(segment, "id"));
             json_t *record = read_record_content(
                 tranger,
@@ -5268,7 +5268,7 @@ PRIVATE json_t *get_segments(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL match_record(
+PRIVATE BOOL tranger2_match_record(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,

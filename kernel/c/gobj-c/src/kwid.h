@@ -183,12 +183,26 @@ PUBLIC int kw_find_str_in_list(
 );
 
 /**rst**
+    Utility for databases.
+    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
+    Return -1 if not found
+**rst**/
+int kwid_find_record_in_list(
+    hgobj gobj,
+    json_t *kw_list,
+    const char *id,
+    kw_flag_t flag
+);
+
+/**rst**
     Get a the idx of simple json item in a json list.
     Return -1 if not found
 **rst**/
 PUBLIC int kw_find_json_in_list(
+    hgobj gobj,
     json_t *kw_list,  // not owned
-    json_t *item  // not owned
+    json_t *item,  // not owned
+    kw_flag_t flag
 );
 
 /**rst**
@@ -309,6 +323,15 @@ PUBLIC void kw_update_except(
     json_t *kw,  // not owned
     json_t *other,  // owned
     const char **except_keys
+);
+
+/**rst**
+    Compare two json and return TRUE if they are identical.
+**rst**/
+PUBLIC BOOL kw_is_identical(
+    hgobj gobj,
+    json_t *kw1,    // NOT owned
+    json_t *kw2     // NOT owned
 );
 
 /************************************************************************
@@ -436,18 +459,6 @@ PUBLIC int kw_walk(
         - If it's a list of dict: the records have "id" field as primary key
         - If it's a dict, the key is the `id`
  ***************************************************************************/
-/**rst**
-    Utility for databases.
-    Being field `kw` a list of id record [{id...},...] return the record idx with `id`
-    Return -1 if not found
-**rst**/
-int kwid_find_record_in_list(
-    hgobj gobj,
-    json_t *kw_list,
-    const char *id,
-    BOOL verbose
-);
-
 /**rst**
     Return a new json with all arrays or dicts greater than `limit` collapsed with
         __collapsed__: {

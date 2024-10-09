@@ -6096,7 +6096,7 @@ PRIVATE int _delete_subscription(
     /*--------------------------------*
      *      Delete subscription
      *--------------------------------*/
-    int idx = kw_find_json_in_list(publisher->dl_subscriptions, subs);
+    int idx = kw_find_json_in_list(gobj, publisher->dl_subscriptions, subs, 0);
     if(idx >= 0) {
         if(json_array_remove(publisher->dl_subscriptions, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -6116,7 +6116,7 @@ PRIVATE int _delete_subscription(
         gobj_trace_json(gobj, subs, "subscription in publisher not found");
     }
 
-    idx = kw_find_json_in_list(subscriber->dl_subscribings, subs);
+    idx = kw_find_json_in_list(gobj, subscriber->dl_subscribings, subs, 0);
     if(idx >= 0) {
         if(json_array_remove(subscriber->dl_subscribings, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
