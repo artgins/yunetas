@@ -28,18 +28,6 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE json_t *_md2json(
-    const char *treedb_name,
-    const char *topic_name,
-    md2_record_t *md_record,
-    json_int_t rowid
-);
-
-PRIVATE int load_all_links(
-    hgobj gobj,
-    json_t *tranger,
-    const char *treedb_name
-);
 PRIVATE int load_id_callback(
     json_t *tranger,
     json_t *topic,
@@ -57,6 +45,19 @@ PRIVATE int load_pkey2_callback(
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_t *md_record,
     json_t *jn_record  // must be owned
+);
+
+PRIVATE json_t *_md2json(
+    const char *treedb_name,
+    const char *topic_name,
+    md2_record_t *md_record,
+    json_int_t rowid
+);
+
+PRIVATE int load_all_links(
+    hgobj gobj,
+    json_t *tranger,
+    const char *treedb_name
 );
 
 PRIVATE json_t *get_fkey_refs(

@@ -524,7 +524,7 @@ PRIVATE int do_test(void)
     if(1) {
 print_json2("BEFORE CLOSE", tranger); // TODO TEST
         treedb_close_db(tranger, treedb_name);
-print_json2("AFTER CLOSE", tranger); // TODO TEST
+
         const char *test = "Load treedb from tranger";
         set_expected_results( // Check that no logs happen
             test,   // test name
