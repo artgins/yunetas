@@ -3104,9 +3104,17 @@ PRIVATE int load_id_callback(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    const char *topic_name = json_string_value(json_object_get(topic, "topic_name"));
-    json_t *deleted_records = json_object_get(list, "deleted_records");
-    const char *treedb_name = json_string_value(json_object_get(list, "treedb_name"));
+
+    json_t *deleted_records = kw_get_dict(gobj,
+        list, "deleted_records", 0, KW_REQUIRED
+    );
+
+    const char *treedb_name = kw_get_str(gobj,
+        list, "treedb_name", 0, KW_REQUIRED
+    );
+    const char *topic_name = kw_get_str(gobj,
+        list, "topic_name", 0, KW_REQUIRED
+    );
 
     /*----------------------------------*
      *  Get indexx: to load from disk
