@@ -522,7 +522,7 @@ PRIVATE int do_test(void)
      *      Check foto_final1
      *---------------------------------------*/
     if(1) {
-print_json2("BEFORE CLOSE", tranger); // TODO TEST
+//print_json2("BEFORE CLOSE", tranger); // TODO TEST
         treedb_close_db(tranger, treedb_name);
 
         const char *test = "Load treedb from tranger";
