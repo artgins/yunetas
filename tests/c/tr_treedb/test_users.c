@@ -345,7 +345,6 @@ PUBLIC int test_users(
 
         const char *operation = "create"; // "update" TODO
 
-
         json_t *jn_users_file = string2json(helper_quote2doublequote(users_file), TRUE);
         json_t *jn_treedbs = kw_get_dict(gobj, jn_users_file, "treedbs", 0, KW_REQUIRED);
         JSON_INCREF(jn_treedbs)
@@ -357,10 +356,11 @@ PUBLIC int test_users(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(users, result);
+        result += test_json(json_incref(users), result);
 
         json_check_refcounts(jn_treedbs, 1000, &result);
         JSON_DECREF(jn_treedbs)
+        JSON_DECREF(jn_users_file)
     }
 
     return result;

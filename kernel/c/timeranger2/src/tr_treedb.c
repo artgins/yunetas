@@ -645,7 +645,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "msg",          "%s", "treedb_name NULL",
             NULL
         );
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema)
         return 0;
     }
 
@@ -681,14 +681,14 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     KW_WILD_NUMBER
                 );
                 if(!master || schema_new_version <= schema_old_version) {
-                    JSON_DECREF(jn_schema);
+                    JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     schema_version = schema_old_version;
                     break; // Nothing to do
                 } else {
                     recreating = TRUE;
                     schema_version = schema_new_version;
-                    JSON_DECREF(old_jn_schema);
+                    JSON_DECREF(old_jn_schema)
                 }
             }
             gobj_log_info(gobj, 0,
@@ -743,7 +743,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     if(!topic_cols_desc) {
         topic_cols_desc = _treedb_create_topic_cols_desc();
     } else {
-        JSON_INCREF(topic_cols_desc);
+        JSON_INCREF(topic_cols_desc)
     }
 
     /*
@@ -759,7 +759,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name",  "%s", treedb_name,
             NULL
         );
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema)
         return 0;
     }
 
@@ -775,8 +775,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "treedb_name",  "%s", treedb_name,
             NULL
         );
-        JSON_DECREF(jn_schema_topics);
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema_topics)
+        JSON_DECREF(jn_schema)
         return 0;
     }
 

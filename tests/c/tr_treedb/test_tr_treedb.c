@@ -485,79 +485,10 @@ PRIVATE int do_test(void)
     );
 
     /*
-     *  Close treedb
-     */
-    if(0) {
-        const char *test = "close treedb";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error_list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        /*
-         *  Check refcounts
-         */
-        // result += debug_json("tranger", tranger, verbose);
-        json_check_refcounts(tranger, 1000, &result);
-
-        result += treedb_close_db(
-            tranger,
-            treedb_name
-        );
-
-        /*
-         *  Check refcounts
-         */
-        // result += debug_json("tranger", tranger, verbose);
-        json_check_refcounts(tranger, 1000, &result);
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
-    }
-
-    /*
-     *  Open treedb
-     */
-    if(0) {
-        const char *test = "re-open treedb";
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error_list
-            NULL,   // expected, NULL: we want to check only the logs
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        helper_quote2doublequote(schema_sample);
-        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
-        if(!jn_schema_sample) {
-            printf("Can't decode schema_sample json\n");
-            exit(-1);
-        }
-
-        treedb_open_db(
-            tranger,  // owned
-            treedb_name,
-            jn_schema_sample,
-            0
-        );
-
-        MT_INCREMENT_COUNT(time_measure, 1)
-        MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
-    }
-
-    /*
      *  Check refcounts
      */
+    json_check_refcounts(tranger, 1000, &result);
+
     result += test_departments_final(
         tranger,
         treedb_name,
@@ -566,7 +497,7 @@ PRIVATE int do_test(void)
         show_oks,
         verbose
     );
-    debug_json("tranger", tranger, FALSE);
+    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
 
     /*------------------------------*
      *  Execute user test
@@ -584,6 +515,7 @@ PRIVATE int do_test(void)
      *  Check refcounts
      */
     json_check_refcounts(tranger, 1000, &result);
+    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
 
     /*---------------------------------------*
      *      Close and re-open the treedb
@@ -628,6 +560,11 @@ PRIVATE int do_test(void)
 
         result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
     }
+
+treedb_close_db(tranger, treedb_name);
+tranger2_shutdown(tranger);
+JSON_DECREF(topic_cols_desc)
+return result; // TODO remove
 
     /*---------------------------------------*
      *      Link compound node
@@ -863,7 +800,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {5580, 7253, 0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {3463, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
