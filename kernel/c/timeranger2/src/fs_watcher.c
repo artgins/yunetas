@@ -461,8 +461,8 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         return -1;
     }
 
-printf("====> add watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
-print_json2("add_watch", fs_event->jn_tracked_paths);
+//printf("====> add watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
+//print_json2("add_watch", fs_event->jn_tracked_paths);
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
@@ -487,8 +487,8 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
     json_object_del(fs_event->jn_tracked_paths, path);
 
-printf("====> remove watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
-print_json2("remove_watch", fs_event->jn_tracked_paths);
+//printf("====> remove watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
+//print_json2("remove_watch", fs_event->jn_tracked_paths);
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
         if(errno != EINVAL) { // Han borrado el directorio
