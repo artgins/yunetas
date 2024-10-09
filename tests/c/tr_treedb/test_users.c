@@ -333,7 +333,6 @@ PUBLIC int test_users(
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final_users), TRUE);
-print_json2("USERS expected", expected);
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
@@ -355,7 +354,6 @@ print_json2("USERS expected", expected);
         }
 
         json_t *users = treedb_get_id_index(tranger, treedb_name, "users"); // Return is NOT YOURS
-print_json2("USERS found", users);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
