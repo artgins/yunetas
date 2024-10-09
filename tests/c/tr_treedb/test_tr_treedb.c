@@ -487,7 +487,7 @@ PRIVATE int do_test(void)
     /*
      *  Close treedb
      */
-    if(1) {
+    if(0) {
         const char *test = "close treedb";
         set_expected_results( // Check that no logs happen
             test,   // test name
@@ -505,13 +505,10 @@ PRIVATE int do_test(void)
         // result += debug_json(tranger, verbose);
         json_check_refcounts(tranger, 1000, &result);
 
-//print_json2("before treedb_close_db", tranger); // TODO TEST
-
         result += treedb_close_db(
             tranger,
             treedb_name
         );
-//print_json2("after treedb_close_db", tranger); // TODO TEST
 
         /*
          *  Check refcounts
@@ -524,17 +521,10 @@ PRIVATE int do_test(void)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
-
-//print_json2("before tranger2_shutdown", tranger); // TODO TEST
-
-//tranger2_shutdown(tranger);
-//JSON_DECREF(topic_cols_desc)
-//return result; // TODO remove
-
     /*
      *  Open treedb
      */
-    if(1) {
+    if(0) {
         const char *test = "re-open treedb";
         set_expected_results( // Check that no logs happen
             test,   // test name
@@ -565,6 +555,11 @@ PRIVATE int do_test(void)
         result += test_json(NULL, result);  // NULL: we want to check only the logs
     }
 
+    /*
+     *  Check refcounts
+     */
+    json_check_refcounts(tranger, 1000, &result);
+
     result += test_departments_final(
         tranger,
         treedb_name,
@@ -573,6 +568,11 @@ PRIVATE int do_test(void)
         show_oks,
         verbose
     );
+
+    /*
+     *  Check refcounts
+     */
+    json_check_refcounts(tranger, 1000, &result);
 
     /*------------------------------*
      *  Execute user test

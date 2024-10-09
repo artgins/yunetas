@@ -47,8 +47,10 @@ PUBLIC int test_compound(
     int verbose
 );
 
-extern char foto_final[];
+extern char foto_final_departments[];
+extern char foto_final_users[];
 extern char foto_final2[];
+extern char users_file[];
 
 #ifdef __cplusplus
 }

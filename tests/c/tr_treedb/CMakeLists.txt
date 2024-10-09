@@ -25,8 +25,10 @@ set(SRCS
     test_departments.c
     test_users.c
     test_compound.c
-    test_final_foto.c
-    test_final_foto2.c
+    foto_final_departments.c
+    foto_final_users.c
+    users_file.c
+    foto_final2.c
 )
 
 ##############################################
