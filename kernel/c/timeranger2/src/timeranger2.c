@@ -6697,7 +6697,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id, optional, if empty will be the key
             NULL,   // to store LOADING data, not owned
-            NULL    // extra, owned
+            json_incref(extra) // extra, owned
         );
         tranger2_close_iterator(tranger, ll);
 
@@ -6732,7 +6732,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id, optional, if empty will be the key
                     NULL,   // to store LOADING data, not owned
-                    NULL    // extra, owned
+                    json_incref(extra) // extra, owned
                 );
 
                 tranger2_close_iterator(tranger, ll);

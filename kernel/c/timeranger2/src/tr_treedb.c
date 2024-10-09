@@ -1390,12 +1390,13 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "treedb_name", treedb_name,
         "deleted_records"
     );
+    json_t *rt;
     if(tranger2_open_list(
         tranger,
         topic_name,
         match_cond,  // owned
         jn_extra,    // owned
-        NULL
+        &rt // TODO NULL
     )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
