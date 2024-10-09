@@ -593,6 +593,7 @@ PRIVATE int do_test(void)
 
     /*---------------------------------------*
      *      Close and re-open the treedb
+     *      Check foto_final1
      *---------------------------------------*/
     if(1) {
         treedb_close_db(tranger, treedb_name);
@@ -600,7 +601,7 @@ PRIVATE int do_test(void)
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error_list
-            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
+            string2json(helper_quote2doublequote(foto_final1), TRUE),  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );

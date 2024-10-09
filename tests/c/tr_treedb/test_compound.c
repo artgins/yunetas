@@ -173,7 +173,7 @@ PUBLIC int test_compound(
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            string2json(helper_quote2doublequote(foto_final), TRUE),  // expected
+            string2json(helper_quote2doublequote(foto_final2), TRUE),  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );

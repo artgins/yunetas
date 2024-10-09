@@ -28,6 +28,7 @@ set(SRCS
     foto_final_departments.c
     foto_final_users.c
     users_file.c
+    foto_final1.c
     foto_final2.c
 )
 
