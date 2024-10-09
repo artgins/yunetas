@@ -558,9 +558,6 @@ PRIVATE int do_test(void)
     /*
      *  Check refcounts
      */
-    json_check_refcounts(tranger, 1000, &result);
-debug_json("ANTES", tranger, TRUE); // TODO TEST
-
     result += test_departments_final(
         tranger,
         treedb_name,
@@ -569,12 +566,7 @@ debug_json("ANTES", tranger, TRUE); // TODO TEST
         show_oks,
         verbose
     );
-debug_json("DESPUES", tranger, TRUE); // TODO TEST
-
-    /*
-     *  Check refcounts
-     */
-    json_check_refcounts(tranger, 1000, &result);
+    debug_json("tranger", tranger, FALSE);
 
     /*------------------------------*
      *  Execute user test

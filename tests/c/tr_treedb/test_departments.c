@@ -720,7 +720,7 @@ PUBLIC int test_departments_final(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *treedb = kw_get_dict(0, tranger, "treedbs", 0, 0);
-        result += test_json(treedb, result);
+        result += test_json(json_incref(treedb), result);
     }
     return result;
 }
