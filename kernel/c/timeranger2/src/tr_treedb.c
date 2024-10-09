@@ -4967,17 +4967,18 @@ PUBLIC int treedb_delete_node(
 
     /*-------------------------------------------------*
      *  Delete the record
-     *  HACK cannot use tranger_delete_record()
+     *  HACK this action is no-reversible
      *  List of deleted id's in memory
-     *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(tranger2_delete_record(tranger, topic_name, id)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
         if(treedb_trace) {
             gobj_trace_msg(gobj, "delete node, topic %s, id %s", topic_name, id);
         }
+
+        // TODO no debería borrarse por evento de tranger, para que tb borre en memoria de non-master?
 
         /*-------------------------------*
          *  Maintain node live
@@ -5276,7 +5277,7 @@ PUBLIC int treedb_delete_instance(
      *  List of deleted id's in memory
      *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
+    if(0) { // TODO tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/

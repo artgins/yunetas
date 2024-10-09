@@ -917,7 +917,7 @@ PUBLIC int kw_find_json_in_list(
     json_t *jn_item;
 
     json_array_foreach(kw_list, idx, jn_item) {
-        if(kw_is_identical(gobj, item, jn_item)) {
+        if(json_is_identical(item, jn_item)) {
             return idx;
         }
     }
@@ -1453,27 +1453,6 @@ PUBLIC void kw_update_except(
         json_object_set(kw, key, jn_value);
     }
 }
-
-/***************************************************************************
-    Compare two json and return TRUE if they are identical.
- ***************************************************************************/
-PUBLIC BOOL kw_is_identical(
-    hgobj gobj,
-    json_t *kw1,    // not owned
-    json_t *kw2     // not owned
-)
-{
-    if(!kw1 || !kw2) {
-        return FALSE;
-    }
-    char *kw1_ = json2uglystr(kw1);
-    char *kw2_ = json2uglystr(kw2);
-    int ret = strcmp(kw1_, kw2_);
-    GBMEM_FREE(kw1_)
-    GBMEM_FREE(kw2_)
-    return ret==0?TRUE:FALSE;
-}
-
 
 /***************************************************************************
  *  if binary is inside of kw, incref binary

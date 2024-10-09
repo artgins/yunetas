@@ -409,20 +409,10 @@ PUBLIC int tranger2_append_record(
 /**rst**
     Delete record.
 **rst**/
-PUBLIC int tranger2_delete_hard_record(
+PUBLIC int tranger2_delete_record(
     json_t *tranger,
     const char *topic_name,
-    uint64_t rowid
-);
-
-/**rst**
-    Write record mark1
-**rst**/
-PUBLIC int tranger2_delete_soft_record( // old tranger_write_mark1
-    json_t *tranger,
-    const char *topic_name,
-    uint64_t rowid,
-    BOOL set
+    const char *key
 );
 
 /**rst**

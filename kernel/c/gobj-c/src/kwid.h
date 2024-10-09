@@ -327,12 +327,9 @@ PUBLIC void kw_update_except(
 
 /**rst**
     Compare two json and return TRUE if they are identical.
+
+    #define kw_is_identical json_is_identical
 **rst**/
-PUBLIC BOOL kw_is_identical(
-    hgobj gobj,
-    json_t *kw1,    // NOT owned
-    json_t *kw2     // NOT owned
-);
 
 /************************************************************************
     WARNING

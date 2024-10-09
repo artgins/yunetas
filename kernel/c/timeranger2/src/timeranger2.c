@@ -1933,7 +1933,7 @@ PRIVATE int create_file(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "path",         "%s", full_path,
-            "msg",          "%s", "file not found",
+            "msg",          "%s", "Only master can write",
             NULL
         );
         return -1;
@@ -1948,7 +1948,7 @@ PRIVATE int create_file(
         topic_dir,
         key
     );
-    if(access(path_key, 0)!=0) {
+    if(!is_directory(path_key)) {
         if(master) {
             int xpermission = (int)kw_get_int(
                 gobj,
@@ -2880,159 +2880,73 @@ PRIVATE int rewrite_md_record_to_file(
 }
 
 /***************************************************************************
- *   Delete record
+    Delete record
  ***************************************************************************/
 PUBLIC int tranger2_delete_record(
     json_t *tranger,
     const char *topic_name,
-    uint64_t rowid
-)
-{
-//    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-//    json_t *topic = tranger2_topic(tranger, topic_name);
-//    if(!topic) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//            "msg",          "%s", "Cannot open topic",
-//            "topic",        "%s", topic_name,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-//    md2_record_t md_record;
-//    if(get_md_record_for_wr(
-//        gobj,
-//        tranger,
-//        topic,
-//        rowid,
-//        &md_record,
-//        TRUE
-//    )!=0) {
-//        // Error already logged
-//        return -1;
-//    }
-//
-//    /*--------------------------------------------*
-//     *  Recover file corresponds to __t__
-//     *--------------------------------------------*/
-//    int fd = get_topic_wr_fd(tranger, topic, "TODO", TRUE, md_record.__t__); // TODO
-//    if(fd<0) {
-//        // Error already logged
-//        return -1;
-//    }
-//
-//    off64_t __offset__ = md_record.__offset__;
-//    if(lseek64(fd, __offset__, SEEK_SET) != __offset__) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot read record data. lseek FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            "errno",        "%s", strerror(errno),
-//            "__t__",        "%lu", (unsigned long)md_record.__t__,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-//    uint64_t __t__ = md_record.__t__;
-//    uint64_t __size__ = md_record.__size__;
-//
-//    gbuffer_t *gbuf = gbuffer_create(__size__, __size__);
-//    if(!gbuf) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-//            "msg",          "%s", "Cannot delete record content. gbuf_create() FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            NULL
-//        );
-//        return -1;
-//    }
-//    char *p = gbuffer_cur_rd_pointer(gbuf);
-//
-//    size_t ln = write(fd, p, __size__);    // blank content
-//    gbuffer_decref(gbuf);
-//    if(ln != __size__) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot delete record content, write FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            "errno",        "%s", strerror(errno),
-//            "ln",           "%d", ln,
-//            "__t__",        "%lu", (unsigned long)__t__,
-//            "__size__",     "%lu", (unsigned long)__size__,
-//            "__offset__",   "%lu", (unsigned long)__offset__,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-////    TODO md_record.__system_flag__ |= sf_deleted_record;
-//    if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
-//        return -1;
-//    }
-
-    return 0;
-}
-
-/***************************************************************************
-    Write record mark1
- ***************************************************************************/
-PUBLIC int tranger2_delete_soft_record(
-    json_t *tranger,
-    const char *topic_name,
-    uint64_t rowid,
-    BOOL set
+    const char *key
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *topic = tranger2_topic(tranger, topic_name);
-    if(!topic) {
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
+
+    /*----------------------------------------*
+     *  Delete key only if master
+     *----------------------------------------*/
+    if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Cannot open topic",
-            "topic",        "%s", topic_name,
-            "errno",        "%s", strerror(errno),
+            "msg",          "%s", "Only master can delete",
+            "topic_name",   "%s", topic_name,
+            "key",          "%s", key,
             NULL
         );
         return -1;
     }
 
-    md2_record_t md_record;
-    if(get_md_record_for_wr(
-        gobj,
-        tranger,
-        topic,
-        rowid,
-        &md_record,
-        TRUE
-    )!=0) {
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_topic() failed",
+            "topic",        "%s", topic_name,
+            NULL
+        );
         return -1;
     }
 
-    if(set) {
-        /*
-         *  Set
-         */
-//TODO        md_record.__system_flag__ |= sf_mark1;
+    const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+
+    char path_key[PATH_MAX];
+    snprintf(path_key, sizeof(path_key), "%s/keys/%s",
+        topic_dir,
+        key
+    );
+    if(is_directory(path_key)) {
+        if(rmrdir(path_key)<0) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "path",         "%s", path_key,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot delete subdir key. rmrdir() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
     } else {
-        /*
-         *  Reset
-         */
-//      TODO  md_record.__system_flag__ &= ~sf_mark1;
-    }
-
-    if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "path",         "%s", path_key,
+            "msg",          "%s", "key directory not found",
+            NULL
+        );
         return -1;
     }
+
     return 0;
 }
 

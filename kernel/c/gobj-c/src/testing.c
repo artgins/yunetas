@@ -137,8 +137,8 @@ PRIVATE BOOL match_record(
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
             gobj_trace_msg(gobj, "match_record('%s'): record NULL", p);
         }
-        JSON_DECREF(record);
-        JSON_DECREF(expected);
+        JSON_DECREF(record)
+        JSON_DECREF(expected)
         return FALSE;
     }
     if(!expected) {
@@ -146,8 +146,8 @@ PRIVATE BOOL match_record(
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
             gobj_trace_msg(gobj, "match_record('%s'): expected NULL", p);
         }
-        JSON_DECREF(record);
-        JSON_DECREF(expected);
+        JSON_DECREF(record)
+        JSON_DECREF(expected)
         return FALSE;
     }
 
@@ -260,7 +260,11 @@ PRIVATE BOOL match_record(
                             json_object_del(expected, key);
 
                         } else {
-                            if(!kw_is_identical(gobj, value, value2)) {
+                            if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
+                                /*
+                                 *  HACK keys in the list are ignored
+                                 */
+                            } else if(!json_is_identical(value, value2)) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
                                     gobj_trace_msg(gobj, "match_record('%s'): no identical '%s'",
@@ -270,10 +274,9 @@ PRIVATE BOOL match_record(
                                 }
                                 ret = FALSE;
                                 break;
-                            } else {
-                                json_object_del(record, key);
-                                json_object_del(expected, key);
                             }
+                            json_object_del(record, key);
+                            json_object_del(expected, key);
                         }
                     }
 
@@ -363,7 +366,7 @@ PRIVATE BOOL match_list(
                      *  List with id records
                      *--------------------------------*/
                     if(id1) {
-                        size_t idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
+                        int idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
                         if(idx2 < 0) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
