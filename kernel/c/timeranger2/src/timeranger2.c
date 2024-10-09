@@ -4615,6 +4615,8 @@ PUBLIC int tranger2_close_iterator(
     json_t *iterator
 )
 {
+    // TODO cierra los file handlers usados !!!
+
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!iterator) {
         gobj_log_error(gobj, 0,
