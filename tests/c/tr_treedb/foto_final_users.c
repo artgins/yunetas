@@ -20,9 +20,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 17,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     'b6eb2c61-622c-41d3-afa0-548b3fa882cd': {\n\
@@ -45,9 +47,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 18,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     '9594f724-c029-4190-8311-a42438f74a99': {\n\
@@ -68,9 +72,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 11,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     'cda33bc2-d191-41e6-b779-471977869463': {\n\
@@ -91,9 +97,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 12,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     '95a4820d-89b0-4bd0-8144-2ef997638b80': {\n\
@@ -114,9 +122,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 13,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     'b24aff31-36da-4014-95ec-8b10a1279cf3': {\n\
@@ -137,9 +147,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 14,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     'a3586af9-2e57-489e-b6d3-ede04ea77bd0': {\n\
@@ -160,9 +172,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 15,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     },\n\
     'cf2495a7-1cb9-4ce5-85f5-7a90dc5859d8': {\n\
@@ -185,9 +199,11 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            '__rowid__': 19,\n\
-            '__t__': 1568451438,\n\
-            '__tag__': 0\n\
+            'rowid': 1, \n\
+            't': 99999, \n\
+            'tm': 0, \n\
+            'pure_node': true, \n\
+            'tag': 0 \n\
         }\n\
     }\n\
 }\n\

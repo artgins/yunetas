@@ -250,6 +250,8 @@ PUBLIC int load_treedbs(
                 "treedb_name",  "%s", treedb_name,
                 NULL
             );
+            gobj_trace_json(gobj, jn_treedb, "Treedb not found in tranger");
+            gobj_trace_json(gobj, tranger, "Treedb not found in tranger");
             result += -1;
             continue;
         }
@@ -271,7 +273,7 @@ PUBLIC int load_treedbs(
             }
 
             json_t *current_data = treedb_get_id_index(tranger, treedb_name, topic_name);
-            json_int_t current_data_size = json_object_size(current_data);
+            json_int_t current_data_size = (json_int_t)json_object_size(current_data);
 
             if(strcmp(operation, "update")==0) {
                 gobj_log_error(gobj, 0,
@@ -319,18 +321,24 @@ PUBLIC int test_users(
     int verbose
 )
 {
-    //hgobj gobj = 0;
+    hgobj gobj = 0;
     int result = 0;
 
 
     if(!without_ok_tests) {
         const char *test = "Load users from a treedb-json-file";
 
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
+        json_t *expected = string2json(helper_quote2doublequote(foto_final_users), TRUE);
+print_json2("USERS expected", expected);
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            string2json(helper_quote2doublequote(foto_final_users), TRUE),  // expected
-            NULL,   // ignore_keys
+            expected,  // expected
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -338,13 +346,16 @@ PUBLIC int test_users(
 
         const char *operation = "create"; // "update" TODO
 
-        json_t *jn_treedbs = string2json(helper_quote2doublequote(users_file), TRUE);
+
+        json_t *jn_users_file = string2json(helper_quote2doublequote(users_file), TRUE);
+        json_t *jn_treedbs = kw_get_dict(gobj, jn_users_file, "treedbs", 0, KW_REQUIRED);
         JSON_INCREF(jn_treedbs)
         if(load_treedbs(tranger, jn_treedbs, operation)<0) {
             result += -1;
         }
 
         json_t *users = treedb_get_id_index(tranger, treedb_name, "users"); // Return is NOT YOURS
+print_json2("USERS found", users);
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)

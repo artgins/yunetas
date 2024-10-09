@@ -398,6 +398,8 @@ PRIVATE BOOL match_list(
                         /*--------------------------------*
                          *  List with any json items
                          *--------------------------------*/
+                        // TODO no puedo comparar los items de dos list con los pointers !!!
+                        x
                         int idx2 = kw_find_json_in_list(expected__, r1);
                         if(idx2 < 0) {
                             if(verbose_) {
