@@ -517,36 +517,10 @@ PRIVATE int do_test(void)
     json_check_refcounts(tranger, 1000, &result);
     result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
 
-    /*---------------------------------------*
-     *      Close and re-open the treedb
-     *      Check foto_final1
-     *---------------------------------------*/
     if(1) {
-        treedb_close_db(tranger, treedb_name);
-
-        const char *test = "Load treedb from tranger";
-
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            json_pack("[{s:s}]",  // error_list
-                "msg", "Creating TreeDB schema file"
-            ),
-            string2json(helper_quote2doublequote(foto_final1), TRUE),  // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
-
-        treedb_open_db(
-            tranger,  // owned
-            treedb_name,
-            jn_schema_sample,
-            "persistent"
-        );
-
+        /*
+         *  Check sizes
+         */
         if(treedb_topic_size(tranger, treedb_name, "departments") != 4) {
             // Comprueba que no se ha añadido ningún nodo nuevo en la carga
             printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
@@ -582,6 +556,78 @@ PRIVATE int do_test(void)
             result += -1;
         }
         JSON_DECREF(jn_keys)
+    }
+
+    /*---------------------------------------*
+     *      Close and re-open the treedb
+     *      Check foto_final1
+     *---------------------------------------*/
+    if(1) {
+        treedb_close_db(tranger, treedb_name);
+
+        const char *test = "Load treedb from tranger";
+
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            json_pack("[{s:s}]",  // error_list
+                "msg", "Creating TreeDB schema file"
+            ),
+            string2json(helper_quote2doublequote(foto_final1), TRUE),  // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+
+        treedb_open_db(
+            tranger,  // owned
+            treedb_name,
+            jn_schema_sample,
+            "persistent"
+        );
+
+        if(1) {
+            /*
+             *  Check sizes
+             */
+            if(treedb_topic_size(tranger, treedb_name, "departments") != 4) {
+                // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+                printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+
+            // Comprueba por tranger2
+            json_t *jn_keys = tranger2_list_keys( // return is yours
+                tranger,
+                "departments",
+                ""
+            );
+            if(json_array_size(jn_keys) != 4) {
+                printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+            JSON_DECREF(jn_keys)
+
+            if(treedb_topic_size(tranger, treedb_name, "users") != 8) {
+                // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+                printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+
+            // Comprueba por tranger2
+            jn_keys = tranger2_list_keys( // return is yours
+                tranger,
+                "users",
+                ""
+            );
+            if(json_array_size(jn_keys) != 8) {
+                printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+            JSON_DECREF(jn_keys)
+        }
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
@@ -589,10 +635,10 @@ PRIVATE int do_test(void)
         result += test_json(json_incref(kw_get_dict(0, tranger, "treedbs", 0, 0)), result);
     }
 
-//treedb_close_db(tranger, treedb_name);
-//tranger2_shutdown(tranger);
-//JSON_DECREF(topic_cols_desc)
-//return result; // TODO remove
+treedb_close_db(tranger, treedb_name);
+tranger2_shutdown(tranger);
+JSON_DECREF(topic_cols_desc)
+return result; // TODO remove
 
     /*---------------------------------------*
      *      Link compound node
