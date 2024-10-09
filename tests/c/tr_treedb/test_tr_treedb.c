@@ -589,10 +589,10 @@ PRIVATE int do_test(void)
         result += test_json(json_incref(kw_get_dict(0, tranger, "treedbs", 0, 0)), result);
     }
 
-treedb_close_db(tranger, treedb_name);
-tranger2_shutdown(tranger);
-JSON_DECREF(topic_cols_desc)
-return result; // TODO remove
+//treedb_close_db(tranger, treedb_name);
+//tranger2_shutdown(tranger);
+//JSON_DECREF(topic_cols_desc)
+//return result; // TODO remove
 
     /*---------------------------------------*
      *      Link compound node
