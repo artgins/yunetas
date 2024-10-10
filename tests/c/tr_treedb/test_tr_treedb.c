@@ -567,13 +567,18 @@ PRIVATE int do_test(void)
 
         const char *test = "Load treedb from tranger";
 
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
+        json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
         set_expected_results( // Check that no logs happen
             test,   // test name
             json_pack("[{s:s}]",  // error_list
                 "msg", "Creating TreeDB schema file"
             ),
-            string2json(helper_quote2doublequote(foto_final1), TRUE),  // expected
-            NULL,   // ignore_keys
+            expected,  // expected
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -632,8 +637,14 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(json_incref(kw_get_dict(0, tranger, "treedbs", 0, 0)), result);
+        json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
+        result += test_json(json_incref(found), result);
     }
+
+//treedb_close_db(tranger, treedb_name);
+//tranger2_shutdown(tranger);
+//JSON_DECREF(topic_cols_desc)
+//return result; // TODO remove
 
     /*---------------------------------------*
      *      Link compound node

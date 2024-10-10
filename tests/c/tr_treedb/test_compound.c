@@ -42,7 +42,8 @@ PUBLIC int test_compound(
             "email",  "mainop@email.com",
             "disabled", 0
         );
-        json_t *expected = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[]}",
+        json_t *expected = json_pack(
+            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}",
             "id", "xxxxxxxxxxxxxxxxxxx",
             "username", "mainop@email.com",
             "firstName", "Bequer",
@@ -54,14 +55,26 @@ PUBLIC int test_compound(
             "departments",
             "manager",
             "attributes",
-            "roles"
+            "roles",
+            "__md_treedb__",
+                "treedb_name", "treedb_test",
+                "topic_name", "users",
+                "rowid", 1,
+                "t", 99999,
+                "tm", 0,
+                "tag", 0,
+                "pure_node", true
         );
 
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected,   // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
 
@@ -73,7 +86,8 @@ PUBLIC int test_compound(
             "users",              // topic_name
             data                        // data
         );
-
+print_json2("expected", expected);
+print_json2("found", mainop);
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(json_incref(mainop), result);
@@ -131,11 +145,15 @@ PUBLIC int test_compound(
     if(!without_ok_tests) {
         const char *test = "Link compound node";
         json_t *expected = string2json(helper_quote2doublequote(foto_final2), TRUE);
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected,  // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
         time_measure_t time_measure;
@@ -162,8 +180,8 @@ PUBLIC int test_compound(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-print_json2("expected", expected); // TODO TEST
-print_json2("found", found);
+//print_json2("expected foto2", expected); // TODO TEST
+//print_json2("found foto2", found);
         result += test_json(json_incref(found), result);
     }
 return result; // TODO TEST
