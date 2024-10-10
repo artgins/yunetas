@@ -657,35 +657,36 @@ PRIVATE int do_test(void)
 
         const char *test = "tranger match";
         json_t *expected = json_pack(
-            "{s:s, s:s, s:s, s:{}, s:[s], s:{}}",
+            "{s:s, s:s, s:s, s:{}, s:[], s:{}, s:{s:i, s:i, s:i, s:i, s:i, s:i, s:i}}",
             "id", "administration",
             "name", "Administración",
             "department_id", "departments^direction^departments",
             "departments",
-            "users", "departments^operation^managers",
-            "managers"
+            "users",
+            "managers",
+           "__md_tranger__",
+                "rowid", 2,
+                "t", 99999,
+                "tm", 0,
+                "offset", 110,
+                "size", 143,
+                "user_flag", 0,
+                "system_flag", 0
         );
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error_list
             expected, // expected
-            NULL,   // ignore_keys
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
 
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
-
-        json_t *department_record = treedb_get_node( // WARNING Return is NOT YOURS, pure node
-            tranger,
-            treedb_name,
-            "departments",
-            "administration"
-        );
-        if(!department_record) {
-            printf("%s  --> ERROR cannot get department%s\n", On_Red BWhite,Color_Off);
-            result += -1;
-        }
 
         json_t *data = json_array();
         json_t *match_cond = json_pack("{s:b, s:b, s:i}",  // owned
@@ -703,18 +704,21 @@ PRIVATE int do_test(void)
             data,   // JSON array, if not empty, fills it with the LOADING data, not owned
             NULL    // owned, user data, this json will be added to the return iterator
         );
-print_json2("DATA", data);
         result +=  tranger2_close_iterator(
             tranger,
             it
         );
-
-
+        json_t *department_record = json_array_get(data, 0);
+        if(!department_record) {
+            printf("%s  --> ERROR department_record not found %s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
         result += test_json(department_record, result);
+        json_decref(data);
     }
 
     if(1) {
@@ -757,13 +761,6 @@ print_json2("DATA", data);
         }
         JSON_DECREF(jn_keys)
     }
-
-
-treedb_close_db(tranger, treedb_name);
-tranger2_shutdown(tranger);
-JSON_DECREF(topic_cols_desc)
-return result; // TODO remove
-
 
     /*---------------------------------------*
      *      Delete node with links
