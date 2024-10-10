@@ -32,7 +32,7 @@ PRIVATE json_t *record2tranger(
     json_t *kw,  // not owned
     const char *options
 );
-PRIVATE json_t *_md2json(
+PRIVATE json_t *md2json(
     const char *msg2db_name,
     const char *topic_name,
     md_record_t *md_record
@@ -822,7 +822,7 @@ PRIVATE json_t *record2tranger(
 /***************************************************************************
  *  Return json object with record metadata
  ***************************************************************************/
-PRIVATE json_t *_md2json(
+PRIVATE json_t *md2json(
     const char *msg2db_name,
     const char *topic_name,
     md_record_t *md_record
@@ -898,7 +898,7 @@ PRIVATE int load_record_callback(
         /*---------------------------------------------*
          *  Build metadata, loading node from tranger
          *---------------------------------------------*/
-        json_t *jn_record_md = _md2json(
+        json_t *jn_record_md = md2json(
             msg2db_name,
             topic_name,
             md_record
@@ -1086,7 +1086,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*--------------------------------------------*
      *  Build metadata, creating node in memory
      *--------------------------------------------*/
-    json_t *jn_record_md = _md2json(
+    json_t *jn_record_md = md2json(
         msg2db_name,
         topic_name,
         &md_record

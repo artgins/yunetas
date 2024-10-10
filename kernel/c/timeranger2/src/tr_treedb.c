@@ -47,7 +47,7 @@ PRIVATE int load_pkey2_callback(
     json_t *jn_record  // must be owned
 );
 
-PRIVATE json_t *_md2json(
+PRIVATE json_t *md2json(
     const char *treedb_name,
     const char *topic_name,
     md2_record_t *md_record,
@@ -3062,7 +3062,7 @@ PRIVATE json_t *record2tranger(
 /***************************************************************************
  *  Return json object with record metadata
  ***************************************************************************/
-PRIVATE json_t *_md2json(
+PRIVATE json_t *md2json(
     const char *treedb_name,
     const char *topic_name,
     md2_record_t *md_record,
@@ -3081,8 +3081,8 @@ PRIVATE json_t *_md2json(
         json_string(topic_name)
     );
     json_object_set_new(jn_md, "rowid", json_integer(rowid));
-    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
-    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)get_time_t(md_record)));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
     json_object_set_new(jn_md, "tag", json_integer(get_user_flag(md_record)));
     json_object_set_new(jn_md, "pure_node", json_true());
 
@@ -3165,7 +3165,7 @@ PRIVATE int load_id_callback(
                     /*---------------------------------------------*
                      *  Build metadata, loading node from disk
                      *---------------------------------------------*/
-                    json_t *jn_record_md = _md2json(
+                    json_t *jn_record_md = md2json(
                         treedb_name,
                         topic_name,
                         md_record,
@@ -4464,7 +4464,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             "rowid"
         )
     );
-    json_t *jn_record_md = _md2json(
+    json_t *jn_record_md = md2json(
         treedb_name,
         topic_name,
         &md_record,
