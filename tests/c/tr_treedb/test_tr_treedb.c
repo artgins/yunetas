@@ -657,49 +657,6 @@ PRIVATE int do_test(void)
 
         const char *test = "tranger match";
         json_t *expected = json_pack(
-            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:[], s:[], s:[], s:[]}",
-            "id", "xxxxxxxxxxxxxxxxxxx",
-            "username", "mainop@email.com",
-            "firstName", "Bequer",
-            "lastName", "Martin",
-            "email", "mainop@email.com",
-            "emailVerified", 0,
-            "disabled", 0,
-            "departments",
-            "manager",
-            "attributes",
-            "roles"
-        );
-        set_expected_results( // Check that no logs happen
-            test,   // test name
-            NULL,   // error_list
-            expected, // expected
-            NULL,   // ignore_keys
-            TRUE    // verbose
-        );
-        time_measure_t time_measure;
-        MT_START_TIME(time_measure)
-
-        if(tranger2_topic_size(tranger, "departments") != 13) {
-            printf("%s  --> ERROR departments!=13%s\n", On_Red BWhite,Color_Off);
-            result += -1;
-        }
-
-        if(tranger2_topic_size(tranger, "users") != 24) {
-            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
-            printf("%s  --> ERROR users!=24 %s\n", On_Red BWhite,Color_Off);
-            result += -1;
-        }
-
-        json_t *user_record = treedb_get_node( // WARNING Return is NOT YOURS, pure node
-            tranger,
-            treedb_name,
-            "users",
-            "24"
-        );
-        result += test_json(user_record, result);
-
-        expected = json_pack(
             "{s:s, s:s, s:s, s:{}, s:[s], s:{}}",
             "id", "administration",
             "name", "Administración",
@@ -716,18 +673,91 @@ PRIVATE int do_test(void)
             TRUE    // verbose
         );
 
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         json_t *department_record = treedb_get_node( // WARNING Return is NOT YOURS, pure node
             tranger,
             treedb_name,
             "departments",
-            "13"
+            "administration"
+        );
+        if(!department_record) {
+            printf("%s  --> ERROR cannot get department%s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
+
+        json_t *data = json_array();
+        json_t *match_cond = json_pack("{s:b, s:b, s:i}",  // owned
+            "backward", TRUE,
+            "rt_by_mem", TRUE,
+            "from_rowid", -1
+        );
+        json_t *it = tranger2_open_iterator(
+            tranger,
+            "departments",
+            "administration",
+            match_cond,
+            NULL,   // load_record_callback, // called on LOADING and APPENDING
+            NULL,   // iterator id, optional, if empty will be the key
+            data,   // JSON array, if not empty, fills it with the LOADING data, not owned
+            NULL    // owned, user data, this json will be added to the return iterator
+        );
+print_json2("DATA", data);
+        result +=  tranger2_close_iterator(
+            tranger,
+            it
         );
 
-        MT_INCREMENT_COUNT(time_measure, 2)
+
+
+        MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
         result += test_json(department_record, result);
     }
+
+    if(1) {
+        /*
+         *  Check sizes
+         */
+        if(treedb_topic_size(tranger, treedb_name, "departments") != 4) {
+            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+            printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
+
+        // Comprueba por tranger2
+        json_t *jn_keys = tranger2_list_keys( // return is yours
+            tranger,
+            "departments",
+            ""
+        );
+        if(json_array_size(jn_keys) != 4) {
+            printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(jn_keys)
+
+        if(treedb_topic_size(tranger, treedb_name, "users") != 8) {
+            // Comprueba que no se ha añadido ningún nodo nuevo en la carga
+            printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
+
+        // Comprueba por tranger2
+        jn_keys = tranger2_list_keys( // return is yours
+            tranger,
+            "users",
+            ""
+        );
+        if(json_array_size(jn_keys) != 8) {
+            printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(jn_keys)
+    }
+
 
 treedb_close_db(tranger, treedb_name);
 tranger2_shutdown(tranger);

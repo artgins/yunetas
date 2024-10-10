@@ -4335,6 +4335,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         match_cond, // NOT owned but can be modified
         &realtime
     );
+    if(!load_record_callback) {
+        realtime = FALSE;
+    }
 
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));

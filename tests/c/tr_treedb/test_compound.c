@@ -178,8 +178,6 @@ PUBLIC int test_compound(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-//print_json2("expected foto2", expected); // TODO TEST
-//print_json2("found foto2", found);
         result += test_json(json_incref(found), result);
     }
 
