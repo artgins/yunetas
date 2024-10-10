@@ -86,8 +86,6 @@ PUBLIC int test_compound(
             "users",              // topic_name
             data                        // data
         );
-print_json2("expected", expected);
-print_json2("found", mainop);
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         result += test_json(json_incref(mainop), result);

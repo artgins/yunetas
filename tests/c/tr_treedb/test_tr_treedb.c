@@ -650,16 +650,14 @@ PRIVATE int do_test(void)
      *      Link compound node
      *---------------------------------------*/
     if(1) {
-        if(!test_compound(
-                tranger,
-                treedb_name,
-                without_ok_tests,
-                without_bad_tests,
-                show_oks,
-                verbose
-            )) {
-            result += -1;
-        }
+        result += test_compound(
+            tranger,
+            treedb_name,
+            without_ok_tests,
+            without_bad_tests,
+            show_oks,
+            verbose
+        );
 
 treedb_close_db(tranger, treedb_name);
 tranger2_shutdown(tranger);
