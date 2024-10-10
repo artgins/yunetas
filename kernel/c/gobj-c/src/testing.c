@@ -173,8 +173,6 @@ PRIVATE BOOL match_record(
 
             case JSON_OBJECT:
                 {
-                    json_object_del(record, "__md_treedb__");
-                    json_object_del(expected, "__md_treedb__");
                     void *n; const char *key; json_t *value;
                     json_object_foreach_safe(record, n, key, value) {
                         if(!kw_has_key(expected, key)) {

@@ -27,7 +27,6 @@ PUBLIC int test_compound(
 {
     int result = 0;
     json_t *data = 0;
-    json_t *expected = 0;
 
     /*-----------------------------------*
      *
@@ -43,7 +42,7 @@ PUBLIC int test_compound(
             "email",  "mainop@email.com",
             "disabled", 0
         );
-        expected = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[]}",
+        json_t *expected = json_pack("{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[]}",
             "id", "xxxxxxxxxxxxxxxxxxx",
             "username", "mainop@email.com",
             "firstName", "Bequer",
@@ -77,7 +76,7 @@ PUBLIC int test_compound(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(mainop, result);
+        result += test_json(json_incref(mainop), result);
     }
 
     /*-----------------------------------*
@@ -131,10 +130,11 @@ PUBLIC int test_compound(
      *-----------------------------------*/
     if(!without_ok_tests) {
         const char *test = "Link compound node";
+        json_t *expected = string2json(helper_quote2doublequote(foto_final2), TRUE);
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            string2json(helper_quote2doublequote(foto_final2), TRUE),  // expected
+            expected,  // expected
             NULL,   // ignore_keys
             TRUE    // verbose
         );
@@ -161,8 +161,12 @@ PUBLIC int test_compound(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
+        json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
+print_json2("expected", expected); // TODO TEST
+print_json2("found", found);
+        result += test_json(json_incref(found), result);
     }
+return result; // TODO TEST
 
     /*-----------------------------------*
      *

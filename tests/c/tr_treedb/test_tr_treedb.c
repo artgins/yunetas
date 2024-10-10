@@ -635,11 +635,6 @@ PRIVATE int do_test(void)
         result += test_json(json_incref(kw_get_dict(0, tranger, "treedbs", 0, 0)), result);
     }
 
-treedb_close_db(tranger, treedb_name);
-tranger2_shutdown(tranger);
-JSON_DECREF(topic_cols_desc)
-return result; // TODO remove
-
     /*---------------------------------------*
      *      Link compound node
      *---------------------------------------*/
@@ -654,8 +649,13 @@ return result; // TODO remove
             )) {
             result += -1;
         }
-        const char *test = "tranger match";
 
+treedb_close_db(tranger, treedb_name);
+tranger2_shutdown(tranger);
+JSON_DECREF(topic_cols_desc)
+return result; // TODO remove
+
+        const char *test = "tranger match";
         json_t *expected = json_pack(
             "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:[], s:[], s:[], s:[]}",
             "id", "xxxxxxxxxxxxxxxxxxx",
