@@ -641,14 +641,10 @@ PRIVATE int do_test(void)
         result += test_json(json_incref(found), result);
     }
 
-//treedb_close_db(tranger, treedb_name);
-//tranger2_shutdown(tranger);
-//JSON_DECREF(topic_cols_desc)
-//return result; // TODO remove
-
     /*---------------------------------------*
      *      Link compound node
      *---------------------------------------*/
+
     if(1) {
         result += test_compound(
             tranger,
@@ -658,11 +654,6 @@ PRIVATE int do_test(void)
             show_oks,
             verbose
         );
-
-treedb_close_db(tranger, treedb_name);
-tranger2_shutdown(tranger);
-JSON_DECREF(topic_cols_desc)
-return result; // TODO remove
 
         const char *test = "tranger match";
         json_t *expected = json_pack(
@@ -737,6 +728,12 @@ return result; // TODO remove
 
         result += test_json(department_record, result);
     }
+
+treedb_close_db(tranger, treedb_name);
+tranger2_shutdown(tranger);
+JSON_DECREF(topic_cols_desc)
+return result; // TODO remove
+
 
     /*---------------------------------------*
      *      Delete node with links

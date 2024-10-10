@@ -182,7 +182,6 @@ PUBLIC int test_compound(
 //print_json2("found foto2", found);
         result += test_json(json_incref(found), result);
     }
-return result; // TODO TEST
 
     /*-----------------------------------*
      *
@@ -190,11 +189,16 @@ return result; // TODO TEST
     if(!without_ok_tests) {
         const char *test = "Unlink simple/compound node";
 
+        json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
-            string2json(helper_quote2doublequote(foto_final1), TRUE),  // expected
-            NULL,   // ignore_keys
+            expected,  // expected
+            ignore_keys,   // ignore_keys
             TRUE    // verbose
         );
 
@@ -237,7 +241,6 @@ return result; // TODO TEST
             administration
         );
 
-        JSON_INCREF(mainop);
         treedb_delete_node(
             tranger,
             mainop,
@@ -246,13 +249,25 @@ return result; // TODO TEST
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(kw_get_dict(0, tranger, "treedbs", 0, 0), result);
+        json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
+        result += test_json(json_incref(found), result);
     }
 
     /*-----------------------------------*
      *
      *-----------------------------------*/
     if(!without_ok_tests) {
+        const char *test = "Link managers operation -> administration";
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            NULL,   // error's list
+            NULL,  // expected
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
         json_t *administration = treedb_get_node(
             tranger, treedb_name,
             "departments",
@@ -270,7 +285,14 @@ return result; // TODO TEST
             operation,
             administration
         );
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+        json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
+        result += test_json(json_incref(found), result);
     }
+
+    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
 
     return result;
 }
