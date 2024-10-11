@@ -298,19 +298,20 @@ PRIVATE int mt_start(hgobj gobj)
     if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
         priv->path[strlen(priv->path)-1] = 0;
     }
-    BOOL secure = FALSE;
-    json_t *jn_crypto = 0;
+    //BOOL secure = FALSE;
+    json_t *jn_crypto = json_null();
     if(strcasecmp(priv->schema, "https")==0 || strcasecmp(priv->schema, "wss")==0) {
-        secure = TRUE;
+        //secure = TRUE;
         jn_crypto = gobj_read_json_attr(gobj, "crypto");
     }
 
     priv->gobj_http = gobj_create(
         gobj_name(gobj),
         C_PROT_HTTP_CL,
-        json_pack("{s:I, s:s}",
+        json_pack("{s:I, s:s, s:O}",
             "subscriber", (json_int_t)0,
-            "url", auth_url
+            "url", auth_url,
+            "crypto", jn_crypto
         ),
         gobj
     );
@@ -352,7 +353,7 @@ PRIVATE int mt_start(hgobj gobj)
     );
 
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
-    gobj_subscribe_event(gobj_task, "EV_END_TASK", 0, gobj);
+    gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
     /*-----------------------*
