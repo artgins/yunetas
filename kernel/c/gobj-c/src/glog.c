@@ -799,11 +799,14 @@ PUBLIC void print_error(
 
     va_start(ap, fmt);
     int length = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
     if(length>0) {
         char *buf = malloc((size_t)length + 1);
         if(buf) {
+            va_start(ap, fmt);
             vsnprintf(buf, (size_t)length + 1, fmt, ap);
             fwrite(buf, strlen(buf), 1, stdout);
+            va_end(ap);
 
             if(quit != PEF_CONTINUE) {
 #ifdef __linux__
@@ -826,7 +829,6 @@ PUBLIC void print_error(
     }
     fwrite(Color_Off, strlen(Color_Off), 1, stdout);
     fprintf(stdout, "\n");
-    va_end(ap);
 }
 
 /*****************************************************************
