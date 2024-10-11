@@ -789,9 +789,6 @@ PUBLIC void print_error(
 {
     va_list ap;
 
-    fwrite(On_Red, strlen(On_Red), 1, stdout);
-    fwrite(BWhite, strlen(RWhite), 1, stdout);
-
     va_start(ap, fmt);
     int length = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
@@ -800,8 +797,12 @@ PUBLIC void print_error(
         if(buf) {
             va_start(ap, fmt);
             vsnprintf(buf, (size_t)length + 1, fmt, ap);
+            fwrite(On_Red, strlen(On_Red), 1, stdout);
+            fwrite(BWhite, strlen(BWhite), 1, stdout);
             fwrite(buf, strlen(buf), 1, stdout);
-            va_end(ap);
+            fwrite(Color_Off, strlen(Color_Off), 1, stdout);
+            fflush(stdout);
+            fprintf(stdout, "\n");
 
             if(quit != PEF_CONTINUE) {
 #ifdef __linux__
@@ -820,9 +821,9 @@ PUBLIC void print_error(
                 }
             }
             free(buf);
+            va_end(ap);
         }
     }
-    fwrite(Color_Off, strlen(Color_Off), 1, stdout);
     fprintf(stdout, "\n");
 }
 
