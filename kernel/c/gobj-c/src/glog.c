@@ -799,7 +799,6 @@ PUBLIC void print_error(
 
     va_start(ap, fmt);
     int length = vsnprintf(NULL, 0, fmt, ap);
-    va_end(ap);
     if(length>0) {
         char *buf = malloc((size_t)length + 1);
         if(buf) {
@@ -827,6 +826,7 @@ PUBLIC void print_error(
     }
     fwrite(Color_Off, strlen(Color_Off), 1, stdout);
     fprintf(stdout, "\n");
+    va_end(ap);
 }
 
 /*****************************************************************
