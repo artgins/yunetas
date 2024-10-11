@@ -20,6 +20,7 @@
     #include <esp_system.h>
 #endif
 
+#include "ansi_escape_codes.h"
 #include "stacktrace_with_bfd.h"
 #include "helpers.h"
 #include "gobj.h"
@@ -597,12 +598,6 @@ PUBLIC void gobj_log_set_last_message(const char *msg, ...)
  ***************************************************************************/
 PUBLIC int stdout_write(void* v, int priority, const char* bf, size_t len)
 {
-#define BWhite "\033[1;37m"       // White
-#define On_Red "\033[41m"         // Red
-#define Color_Off "\033[0m"       // Text Reset
-#define On_Black "\033[40m"       // Black
-#define BYellow "\033[1;33m"      // Yellow
-
     if(!bf) {
         // silence
         return -1;
@@ -795,7 +790,7 @@ PUBLIC void print_error(
     va_list ap;
 
     fwrite(On_Red, strlen(On_Red), 1, stdout);
-    fwrite(BWhite, strlen(BWhite), 1, stdout);
+    fwrite(BWhite, strlen(RWhite), 1, stdout);
 
     va_start(ap, fmt);
     int length = vsnprintf(NULL, 0, fmt, ap);
