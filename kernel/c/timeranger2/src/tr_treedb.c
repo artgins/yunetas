@@ -5742,6 +5742,7 @@ PRIVATE int _link_nodes(
         if(!is_child_hook) {
             break;
         }
+        __attribute__((fallthrough));
     default:
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
@@ -6128,6 +6129,7 @@ PRIVATE int _unlink_nodes(
         if(!is_child_hook) {
             break;
         }
+        __attribute__((fallthrough));
     default:
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
