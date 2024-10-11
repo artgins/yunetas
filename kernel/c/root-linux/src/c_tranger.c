@@ -142,7 +142,6 @@ PRIVATE sdata_desc_t pm_open_list[] = {
 SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "match_cond:"),
-SDATAPM (DTP_STRING,    "notkey",               0,          0,      "match_cond:"),
 SDATAPM (DTP_STRING,    "from_tm",              0,          0,      "match_cond:"),
 SDATAPM (DTP_STRING,    "to_tm",                0,          0,      "match_cond:"),
 SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond:"),
@@ -163,13 +162,15 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_close_list[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (DTP_STRING,    "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_get_list_data[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
-SDATAPM (DTP_STRING,    "list_id",              0,      0,      "Id of list"),
+SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
+SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATA_END()
 };
 
@@ -381,6 +382,7 @@ PRIVATE int mt_subscription_added(
     json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, 0);
 
     const char *event_name = kw_get_str(gobj, subs, "renamed_event", 0, 0);
+    const char *topic_name = kw_get_str(gobj, subs, "topic_name", "", KW_REQUIRED);
 
     const char *__list_id__ = kw_get_str(gobj, __config__, "__list_id__", "", 0);
     if(empty_string(__list_id__)) {
@@ -399,7 +401,7 @@ PRIVATE int mt_subscription_added(
     }
 
     // TODO review, old tranger_get_list
-    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
     if(!list) {
         return gobj_send_event(
             subscriber,
@@ -910,7 +912,6 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
     uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
     const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    const char *notkey = kw_get_str(gobj, kw, "notkey", 0, 0);
     const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
     const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
     const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
@@ -943,51 +944,20 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     if(key) {
         json_object_set_new(match_cond, "key", json_string(key));
     }
-    if(notkey) {
-        json_object_set_new(match_cond, "notkey", json_string(notkey));
-    }
     if(rkey) {
         json_object_set_new(match_cond, "rkey", json_string(rkey));
     }
     if(from_t) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(from_t)) {
-            timestamp = atoll(from_t);
-        } else {
-            parse_date_basic(from_t, &timestamp, &offset);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_t", json_string(from_t));
     }
     if(to_t) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(to_t)) {
-            timestamp = atoll(to_t);
-        } else {
-            parse_date_basic(to_t, &timestamp, &offset);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_t", json_string(to_t));
     }
     if(from_tm) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(from_tm)) {
-            timestamp = atoll(from_tm);
-        } else {
-            parse_date_basic(from_tm, &timestamp, &offset);
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
     }
     if(to_tm) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(to_tm)) {
-            timestamp = atoll(to_tm);
-        } else {
-            parse_date_basic(to_tm, &timestamp, &offset);
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
     }
     if(!empty_string(fields)) {
         json_object_set_new(
@@ -1064,7 +1034,20 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1213,7 +1196,20 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    json_t *list = 0; // TODO tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
     if(!list) {
         return msg_iev_build_response(
             gobj,
@@ -1266,8 +1262,8 @@ PRIVATE int load_record_callback(
 )
 {
     hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
-    BOOL has_fields = kw_has_key(match_cond, "fields");
+    //json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
+    // BOOL has_fields = kw_has_key(match_cond, "fields");
 
     gobj_publish_event(gobj, "EV_TRANGER_RECORD_ADDED", jn_record);
 
@@ -1289,63 +1285,63 @@ PRIVATE int load_record_callback(
  ***************************************************************************/
 PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Get parameters
-     */
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
-    uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
-
-    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
-    JSON_INCREF(__temp__); // Save to __answer__
-
-    int result = 0;
-    json_t *jn_comment = 0;
-
-    do {
-        /*
-         *  Check parameters
-         */
-        json_t *topic = tranger2_topic(priv->tranger, topic_name);
-        if(!topic) {
-           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
-           result = -1;
-           break;
-        }
-        if(!record) {
-           jn_comment = json_sprintf("What record?");
-           result = -1;
-           break;
-        }
-
-        /*
-         *  Append record to tranger topic
-         */
-        md2_record_t md_record;
-        result = tranger2_append_record(
-            priv->tranger,
-            topic_name,
-            __t__,                  // if 0 then the time will be set by TimeRanger with now time
-            user_flag,
-            &md_record,             // required
-            json_incref(record)     // owned
-        );
-
-        if(result<0) {
-            jn_comment = json_string(gobj_log_last_message());
-            break;
-        } else {
-           jn_comment = json_sprintf("Record added");
-        }
-    } while(0);
-
-    /*
-     *  Response
-     */
-// TODO   json_t *iev = iev_create(
+// TODO   PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    /*
+//     *  Get parameters
+//     */
+//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//    uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
+//    uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
+//    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
+//
+//    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
+//    JSON_INCREF(__temp__); // Save to __answer__
+//
+//    int result = 0;
+//    json_t *jn_comment = 0;
+//
+//    do {
+//        /*
+//         *  Check parameters
+//         */
+//        json_t *topic = tranger2_topic(priv->tranger, topic_name);
+//        if(!topic) {
+//           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
+//           result = -1;
+//           break;
+//        }
+//        if(!record) {
+//           jn_comment = json_sprintf("What record?");
+//           result = -1;
+//           break;
+//        }
+//
+//        /*
+//         *  Append record to tranger topic
+//         */
+//        md2_record_t md_record;
+//        result = tranger2_append_record(
+//            priv->tranger,
+//            topic_name,
+//            __t__,                  // if 0 then the time will be set by TimeRanger with now time
+//            user_flag,
+//            &md_record,             // required
+//            json_incref(record)     // owned
+//        );
+//
+//        if(result<0) {
+//            jn_comment = json_string(gobj_log_last_message());
+//            break;
+//        } else {
+//           jn_comment = json_sprintf("Record added");
+//        }
+//    } while(0);
+//
+//    /*
+//     *  Response
+//     */
+//    json_t *iev = iev_create(
 //        event,
 //        msg_iev_build_response(gobj,
 //            result,

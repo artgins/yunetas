@@ -4855,7 +4855,6 @@ PUBLIC int treedb_delete_node(
     /*-------------------------------*
      *      Get record info
      *-------------------------------*/
-    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
     json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
         // añade opción de borrar un snap que desmarque los nodos?
@@ -5159,7 +5158,7 @@ PUBLIC int treedb_delete_instance(
     /*-------------------------------*
      *      Get record info
      *-------------------------------*/
-    json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
+    //json_int_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
     json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
         // añade opción de borrar un snap que desmarque los nodos?
