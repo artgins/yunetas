@@ -1160,14 +1160,14 @@ PUBLIC hgobj gobj_service_factory(
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "service gclass NOT FOUND",
+            "msg",          "%s", "gclass NOT FOUND",
             "service",      "%s", name?name:"",
             "gclass",       "%s", gclass_name,
             NULL
         );
-        json_t *jn_services = gobj_services();
-        gobj_trace_json(0, jn_services, "service gclass NOT FOUND");
-        JSON_DECREF(jn_services)
+        json_t *jn_gclasses = gobj_gclass_register();
+        gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
+        JSON_DECREF(jn_gclasses)
         JSON_DECREF(jn_service_config)
         return 0;
     }
