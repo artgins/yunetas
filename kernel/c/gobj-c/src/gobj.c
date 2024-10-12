@@ -1160,7 +1160,7 @@ PUBLIC hgobj gobj_service_factory(
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gclass NOT FOUND",
+            "msg",          "%s", "service gclass NOT FOUND",
             "service",      "%s", name?name:"",
             "gclass",       "%s", gclass_name,
             NULL

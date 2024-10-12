@@ -449,7 +449,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_str_attr(gobj, "start_date", bfdate);
 
     json_t *attrs = gobj_hsdata(gobj);
-    gobj_trace_json(gobj, attrs, "yuno's attrs");
+    gobj_trace_json(gobj, attrs, "yuno's attrs"); // Show attributes of yuno
 
     const char *i18n_domain = gobj_read_str_attr(gobj, "i18n_domain");
     if(!empty_string(i18n_domain)) {
