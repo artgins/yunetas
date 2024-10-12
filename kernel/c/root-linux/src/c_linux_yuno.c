@@ -448,14 +448,6 @@ PRIVATE void mt_create(hgobj gobj)
     current_timestamp(bfdate, sizeof(bfdate));
     gobj_write_str_attr(gobj, "start_date", bfdate);
 
-    gobj_log_warning(0, 0,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "yuno start time",
-        "t",            "%lld", (long long int)now,
-        "start_date",   "%s", bfdate,
-        NULL
-    );
-
     json_t *attrs = gobj_hsdata(gobj);
     gobj_trace_json(gobj, attrs, "yuno's attrs");
 
