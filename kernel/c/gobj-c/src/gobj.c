@@ -2341,17 +2341,14 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
 {
     json_t *jn_value = 0;
     const char *svalue = it->default_value;
+    if(!svalue) {
+        svalue = "";
+    }
     switch(it->type) {
         case DTP_STRING:
             jn_value = json_string(svalue);
-            if(!jn_value) {
-                jn_value = json_null();
-            }
             break;
         case DTP_BOOLEAN:
-            if(!svalue) {
-                svalue = "";
-            }
             jn_value = json_boolean(svalue);
             if(strcasecmp(svalue, "true")==0) {
                 jn_value = json_true();
@@ -2362,21 +2359,12 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             }
             break;
         case DTP_INTEGER:
-            if(!svalue) {
-                svalue = "";
-            }
             jn_value = json_integer(strtoll(svalue, NULL, 0));
             break;
         case DTP_REAL:
-            if(!svalue) {
-                svalue = "";
-            }
             jn_value = json_real(atof(svalue));
             break;
         case DTP_LIST:
-            if(!svalue) {
-                svalue = "";
-            }
             jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_array(jn_value)) {
                 JSON_DECREF(jn_value)
@@ -2384,9 +2372,6 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             }
             break;
         case DTP_DICT:
-            if(!svalue) {
-                svalue = "";
-            }
             jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_object(jn_value)) {
                 JSON_DECREF(jn_value)
@@ -2394,13 +2379,14 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             }
             break;
         case DTP_JSON:
-            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
-            break;
-        case DTP_POINTER:
-            jn_value = json_integer((json_int_t)(size_t)svalue);
-            if(!jn_value) {
+            if(!empty_string(svalue)) {
+                jn_value = anystring2json(svalue, strlen(svalue), FALSE);
+            } else {
                 jn_value = json_null();
             }
+            break;
+        case DTP_POINTER:
+            jn_value = json_integer((json_int_t)(size_t)it->default_value);
             break;
     }
 
