@@ -358,7 +358,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_treedb = gobj_create_service(
         treedb_name,
-        C_AUTHZ,
+        C_NODE,
         kw_resource,
         gobj
     );
