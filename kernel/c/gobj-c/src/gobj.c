@@ -1096,6 +1096,23 @@ PRIVATE int add_event_type(
 
 
 /***************************************************************************
+ *  TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+ ***************************************************************************/
+PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
+{
+    if(strcmp(gclass_name, "IEvent_cli")==0) {
+        return "C_IEVENT_CLI";
+    } else if(strcmp(gclass_name, "IOGate")==0) {
+        return "C_IOGATE";
+    } else if(strcmp(gclass_name, "Channel")==0) {
+        return "C_CHANNEL";
+    } if(strcmp(gclass_name, "GWebSocket")==0) {
+        return "C_GWEBSOCKET";
+    }
+    return gclass_name;
+}
+
+/***************************************************************************
  *  ATTR:
     HACK el eslabón perdido.
     Return a new kw applying __json_config_variables__
@@ -1154,10 +1171,9 @@ PUBLIC hgobj gobj_service_factory(
         return 0;
     }
 
-    if(strcmp(gclass_name, "IEvent_cli")==0) {
-        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
-        gclass_name = "C_IEVENT_CLI";
-    }
+    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+    gclass_name = old_to_new_gclass_name(gclass_name);
+
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(0, 0,
@@ -1224,7 +1240,7 @@ PUBLIC hgobj gobj_service_factory(
         0
     );
 
-    JSON_DECREF(jn_service_config);
+    JSON_DECREF(jn_service_config)
     return gobj;
 }
 
@@ -1343,10 +1359,9 @@ PUBLIC hgobj gobj_create_gobj(
         return NULL;
     }
 
-    if(strcmp(gclass_name, "IEvent_cli")==0) {
-        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
-        gclass_name = "C_IEVENT_CLI";
-    }
+    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+    gclass_name = old_to_new_gclass_name(gclass_name);
+
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
@@ -1528,10 +1543,9 @@ PUBLIC hgobj gobj_create_tree0(
     BOOL autostart = kw_get_bool(parent_, jn_tree, "autostart", 0, 0);
     BOOL disabled = kw_get_bool(parent_, jn_tree, "disabled", 0, 0);
 
-    if(strcmp(gclass_name, "IEvent_cli")==0) {
-        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
-        gclass_name = "C_IEVENT_CLI";
-    }
+    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+    gclass_name = old_to_new_gclass_name(gclass_name);
+
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(parent_, 0,
@@ -1655,7 +1669,7 @@ PUBLIC hgobj gobj_create_tree0(
                 "jn_child",     "%j", jn_child,
                 NULL
             );
-            JSON_DECREF(jn_tree);
+            JSON_DECREF(jn_tree)
             return 0;
         }
     }
