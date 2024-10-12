@@ -1154,6 +1154,10 @@ PUBLIC hgobj gobj_service_factory(
         return 0;
     }
 
+    if(strcmp(gclass_name, "IEvent_cli")==0) {
+        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+        gclass_name = "C_IEVENT_CLI";
+    }
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(0, 0,
