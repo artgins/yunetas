@@ -1475,7 +1475,7 @@ PUBLIC int gobj_walk_gobj_childs_tree(
 /*---------------------------------*
  *      Info functions
  *---------------------------------*/
-PUBLIC json_t *gobj_services(void); // return list of strings
+PUBLIC json_t *gobj_services(void); // return list of strings, must be owned
 PUBLIC hgobj gobj_yuno(void); // Return yuno, the grandfather (Only one yuno per process, single thread)
 PUBLIC const char * gobj_name(hgobj gobj);
 PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj);

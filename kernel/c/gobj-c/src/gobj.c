@@ -360,7 +360,7 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass;
-PRIVATE json_t *jn_services = 0;        // Dict service:(json_int_t)(size_t)gobj
+PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
 
 /*
@@ -506,7 +506,7 @@ PUBLIC int gobj_start_up(
     }
 
     dl_init(&dl_gclass);
-    jn_services = json_object();
+    __jn_services__ = json_object();
 
     // dl_init(&dl_trans_filter);
     // gobj_add_publication_transformation_filter_fn("webix", webix_trans_filter);
@@ -586,7 +586,7 @@ PUBLIC void gobj_end(void)
         sys_free_fn(event_type);
     }
 
-    JSON_DECREF(jn_services)
+    JSON_DECREF(__jn_services__)
 
     if(__cur_system_memory__) {
         print_track_mem();
@@ -651,7 +651,7 @@ PUBLIC json_t *gobj_service_register(void)
     json_t *jn_register = json_array();
 
     const char *key; json_t *jn_service;
-    json_object_foreach(jn_services, key, jn_service) {
+    json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
         json_t *jn_srv = json_object();
 
@@ -1165,6 +1165,9 @@ PUBLIC hgobj gobj_service_factory(
             "gclass",       "%s", gclass_name,
             NULL
         );
+        json_t *jn_services = gobj_services();
+        gobj_trace_json(0, jn_services, "service gclass NOT FOUND");
+        JSON_DECREF(jn_services)
         JSON_DECREF(jn_service_config)
         return 0;
     }
@@ -1890,9 +1893,9 @@ PUBLIC void gobj_destroy_childs(hgobj gobj_)
  ***************************************************************************/
 PRIVATE int register_named_gobj(gobj_t *gobj)
 {
-    if(json_object_get(jn_services, gobj->gobj_name)) {
+    if(json_object_get(__jn_services__, gobj->gobj_name)) {
         gobj_t *prev_gobj = (hgobj)(size_t)json_integer_value(
-            json_object_get(jn_services, gobj->gobj_name)
+            json_object_get(__jn_services__, gobj->gobj_name)
         );
 
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1907,7 +1910,7 @@ PRIVATE int register_named_gobj(gobj_t *gobj)
     }
 
     int ret = json_object_set_new(
-        jn_services,
+        __jn_services__,
         gobj->gobj_name,
         json_integer((json_int_t)(size_t)gobj)
     );
@@ -1930,7 +1933,7 @@ PRIVATE int register_named_gobj(gobj_t *gobj)
  ***************************************************************************/
 PRIVATE int deregister_named_gobj(gobj_t *gobj)
 {
-    json_t *jn_obj = json_object_get(jn_services, gobj->gobj_name);
+    json_t *jn_obj = json_object_get(__jn_services__, gobj->gobj_name);
     if(!jn_obj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1942,7 +1945,7 @@ PRIVATE int deregister_named_gobj(gobj_t *gobj)
         );
         return -1;
     }
-    json_object_del(jn_services, gobj->gobj_name);
+    json_object_del(__jn_services__, gobj->gobj_name);
 
     return 0;
 }
@@ -2278,7 +2281,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
         }
     } else {
         const char *key; json_t *jn_service;
-        json_object_foreach(jn_services, key, jn_service) {
+        json_object_foreach(__jn_services__, key, jn_service) {
             gobj_t *gobj_ = (gobj_t *)(size_t)json_integer_value(jn_service);
 
             json_t *jn_item = __global_list_persistent_attrs_fn__(
@@ -3931,7 +3934,7 @@ PUBLIC int gobj_get_exit_code(void)
 PUBLIC int gobj_autostart_services(void)
 {
     const char *key; json_t *jn_service;
-    json_object_foreach(jn_services, key, jn_service) {
+    json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
@@ -3953,7 +3956,7 @@ PUBLIC int gobj_autostart_services(void)
 PUBLIC int gobj_autoplay_services(void)
 {
     const char *key; json_t *jn_service;
-    json_object_foreach(jn_services, key, jn_service) {
+    json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
@@ -3975,7 +3978,7 @@ PUBLIC int gobj_autoplay_services(void)
 PUBLIC int gobj_stop_services(void)
 {
     const char *key; json_t *jn_service;
-    json_object_foreach(jn_services, key, jn_service) {
+    json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
@@ -4265,7 +4268,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         return gobj_yuno();
     }
 
-    json_t *o = json_object_get(jn_services, service);
+    json_t *o = json_object_get(__jn_services__, service);
     if(!o) {
         if(verbose) {
             gobj_log_error(0, 0,
@@ -4865,7 +4868,7 @@ PUBLIC json_t *gobj_services(void)
     json_t *jn_register = json_array();
 
     const char *key; json_t *jn_service;
-    json_object_foreach(jn_services, key, jn_service) {
+    json_object_foreach(__jn_services__, key, jn_service) {
         json_array_append_new(
             jn_register,
             json_string(key)
