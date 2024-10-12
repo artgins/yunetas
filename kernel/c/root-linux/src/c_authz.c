@@ -204,11 +204,11 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",          "Max sessions per user"),
-SDATA (DTP_STRING,   "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
+SDATA (DTP_STRING,      "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
 SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
-SDATA (DTP_JSON,        "initial_load",     SDF_RD,             0,          "Initial data for treedb"),
+SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
 // HACK WARNING 2024-Jul-30, now if tranger_path is set then it's a client (not master)
-SDATA (DTP_STRING,   "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,      "the master is the only that can write, internal value"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
