@@ -1343,16 +1343,23 @@ PUBLIC hgobj gobj_create_gobj(
         return NULL;
     }
 
+    if(strcmp(gclass_name, "IEvent_cli")==0) {
+        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+        gclass_name = "C_IEVENT_CLI";
+    }
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gclass not found",
+            "msg",          "%s", "gclass NOT FOUND",
             "gclass",       "%s", gclass_name,
             "gobj_name",    "%s", gobj_name,
             NULL
         );
+        json_t *jn_gclasses = gobj_gclass_register();
+        gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
+        JSON_DECREF(jn_gclasses)
         JSON_DECREF(kw)
         return NULL;
     }
@@ -1520,17 +1527,25 @@ PUBLIC hgobj gobj_create_tree0(
     BOOL autoplay = kw_get_bool(parent_, jn_tree, "autoplay", 0, 0);
     BOOL autostart = kw_get_bool(parent_, jn_tree, "autostart", 0, 0);
     BOOL disabled = kw_get_bool(parent_, jn_tree, "disabled", 0, 0);
+
+    if(strcmp(gclass_name, "IEvent_cli")==0) {
+        // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+        gclass_name = "C_IEVENT_CLI";
+    }
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
         gobj_log_error(parent_, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gclass not found",
+            "msg",          "%s", "gclass NOT FOUND",
             "gclass_name",  "%s", gclass_name,
             "name",         "%s", name?name:"",
             NULL
         );
-        JSON_DECREF(jn_tree);
+        json_t *jn_gclasses = gobj_gclass_register();
+        gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
+        JSON_DECREF(jn_gclasses)
+        JSON_DECREF(jn_tree)
         return 0;
     }
     BOOL local_kw = FALSE;
