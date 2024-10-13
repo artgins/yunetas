@@ -37,25 +37,25 @@ typedef enum {
 
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "model",            SDF_RD,             "one-over-all", "Distribution model over tubes: one-over-all|one-over-one|all-over-all"),
+SDATA (DTP_STRING,      "model",            SDF_RD,             "one-over-all", "Distribution model over tubes: one-over-all|one-over-one|all-over-all"),
 
-SDATA (ASN_OCTET_STR,   "lHost",            SDF_RD,             0,              "Local host bind filter"),
-SDATA (ASN_OCTET_STR,   "lPort",            SDF_RD,             0,              "Local port bind filter"),
+SDATA (DTP_STRING,      "lHost",            SDF_RD,             0,              "Local host bind filter"),
+SDATA (DTP_STRING,      "lPort",            SDF_RD,             0,              "Local port bind filter"),
 // TODO remove this when all configuration jsons have allowd_urls,denied_urls deleted
-SDATA (ASN_JSON,        "allowd_urls",      SDF_RD,             0,              "DEPRECATED Peer allowed url's filter"),
-SDATA (ASN_JSON,        "denied_urls",      SDF_RD,             0,              "DEPRECATED Peer denied url's filter"),
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,             1*1000,         "Timeout"),
-SDATA (ASN_BOOLEAN,     "opened",           SDF_RD,             0,              "Channel opened (opened is higher level than connected"),
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_WR,             0,              "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_WR,             0,              "Messages received"),
-SDATA (ASN_COUNTER64,   "txMsgsec",         SDF_WR,             0,              "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",         SDF_WR,             0,              "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-SDATA (ASN_OCTET_STR,   "__username__",     SDF_RD,             "",             "Username"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_JSON,        "allowd_urls",      SDF_RD,             0,              "DEPRECATED Peer allowed url's filter"),
+SDATA (DTP_JSON,        "denied_urls",      SDF_RD,             0,              "DEPRECATED Peer denied url's filter"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
+SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,              "Channel opened (opened is higher level than connected"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_WR,             0,              "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_WR,             0,              "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_WR,             0,              "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_WR,             0,              "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 

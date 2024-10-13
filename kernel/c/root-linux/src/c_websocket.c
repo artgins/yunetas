@@ -139,16 +139,16 @@ PRIVATE int frame_completed(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,           0,              "Connection state. Important filter!"),
-SDATA (ASN_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    5*1000,              "Timeout to handshake"),
-SDATA (ASN_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    3*1000,              "Timeout to close"),
-SDATA (ASN_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   50*1000,      "Ping interval. If value <= 0 then No ping"),
-SDATA (ASN_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,              "more user data"),
-SDATA (ASN_BOOLEAN,     "iamServer",        SDF_RD,                     0,              "What side? server or client"),
-SDATA (ASN_OCTET_STR,   "resource",         SDF_RD,                     "/",            "Resource when iam client"),
-SDATA (ASN_JSON,        "kw_connex",        SDF_RD,                     0,              "Kw to create connex at client ws"),
-SDATA (ASN_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,           0,              "Connection state. Important filter!"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",              "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",              "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,              "What side? server or client"),
+SDATA (DTP_STRING,      "resource",         SDF_RD,                     "/",            "Resource when iam client"),
+SDATA (DTP_JSON,        "kw_connex",        SDF_RD,                     0,              "Kw to create connex at client ws"),
+SDATA (DTP_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 

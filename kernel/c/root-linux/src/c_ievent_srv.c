@@ -43,29 +43,29 @@ PRIVATE json_t *build_ievent_request(
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (ASN_OCTET_STR,   "client_yuno_role",     SDF_RD, 0, "yuno role of connected client"),
-SDATA (ASN_OCTET_STR,   "client_yuno_name",     SDF_RD, 0, "yuno name of connected client"),
-SDATA (ASN_OCTET_STR,   "client_yuno_service",  SDF_RD, 0, "yuno service of connected client"),
+SDATA (DTP_STRING,      "client_yuno_role",     SDF_RD, 0, "yuno role of connected client"),
+SDATA (DTP_STRING,      "client_yuno_name",     SDF_RD, 0, "yuno name of connected client"),
+SDATA (DTP_STRING,      "client_yuno_service",  SDF_RD, 0, "yuno service of connected client"),
 
-SDATA (ASN_OCTET_STR,   "this_service",         SDF_RD, 0, "dst_service at identity_card"),
-SDATA (ASN_POINTER,     "gobj_service",         0,      0, "gobj of identity_card dst_service"),
+SDATA (DTP_STRING,      "this_service",         SDF_RD, 0, "dst_service at identity_card"),
+SDATA (DTP_POINTER,     "gobj_service",         0,      0, "gobj of identity_card dst_service"),
 
-SDATA (ASN_BOOLEAN,     "authenticated",        SDF_RD, 0, "True if entry was authenticated"),
+SDATA (DTP_BOOLEAN,     "authenticated",        SDF_RD, 0, "True if entry was authenticated"),
 
 // HACK set by c_authz
-SDATA (ASN_JSON,        "jwt_payload",          SDF_RD, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
-SDATA (ASN_OCTET_STR,   "__username__",         SDF_RD, "", "Username, WARNING set by c_authz"),
-SDATA (ASN_JSON,        "identity_card",        SDF_RD, "", "Identity Card of clisrv"),
+SDATA (DTP_JSON,        "jwt_payload",          SDF_RD, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__username__",         SDF_RD, "", "Username, WARNING set by c_authz"),
+SDATA (DTP_JSON,        "identity_card",        SDF_RD, "", "Identity Card of clisrv"),
 
 // TODO available_services for this gate
 // TODO available_services in this gate
 // For now, only one service is available, the selected in identity_card exchange.
 
-SDATA (ASN_UNSIGNED,    "timeout_idgot",        SDF_RD, 5*1000, "timeout waiting Identity Card"),
+SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, 5*1000, "timeout waiting Identity Card"),
 
-SDATA (ASN_POINTER,     "user_data",            0, 0, "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0, 0, "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0, 0, "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_POINTER,     "user_data",            0, 0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0, 0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0, 0, "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 

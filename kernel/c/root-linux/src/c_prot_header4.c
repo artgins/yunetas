@@ -36,14 +36,14 @@ typedef union {
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag--------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "connected",            SDF_RD|SDF_STATS,0,         "Connection state. Important filter!"),
-SDATA (ASN_OCTET_STR,   "on_open_event_name",   SDF_RD,     "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_close_event_name",  SDF_RD,     "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_message_event_name",SDF_RD,     "EV_ON_MESSAGE","Must be empty if you don't want receive this event"),
-SDATA (ASN_UNSIGNED,    "max_pkt_size",         SDF_WR,     0,              "Tamaño máximo del paquete"),
-SDATA (ASN_POINTER,     "user_data",            0,          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,          0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,          0,              "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_BOOLEAN,     "connected",            SDF_RD|SDF_STATS,0,         "Connection state. Important filter!"),
+SDATA (DTP_STRING,      "on_open_event_name",   SDF_RD,     "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
+SDATA (DTP_STRING,      "on_close_event_name",  SDF_RD,     "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
+SDATA (DTP_STRING,      "on_message_event_name",SDF_RD,     "EV_ON_MESSAGE","Must be empty if you don't want receive this event"),
+SDATA (DTP_INTEGER,     "max_pkt_size",         SDF_WR,     0,              "Tamaño máximo del paquete"),
+SDATA (DTP_POINTER,     "user_data",            0,          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,          0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,          0,              "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 

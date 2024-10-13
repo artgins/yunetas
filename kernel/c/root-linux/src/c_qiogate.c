@@ -40,15 +40,15 @@ PRIVATE json_t *cmd_reset_maxtxrx(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_queue[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "key",          0,              0,          "Key"),
-SDATAPM (ASN_INTEGER64, "from-rowid",   0,              0,          "From rowid"),
-SDATAPM (ASN_INTEGER64, "to-rowid",     0,              0,          "To rowid"),
+SDATAPM (DTP_STRING,    "key",          0,              0,          "Key"),
+SDATAPM (DTP_INTEGER,   "from-rowid",   0,              0,          "From rowid"),
+SDATAPM (DTP_INTEGER,   "to-rowid",     0,              0,          "To rowid"),
 SDATA_END()
 };
 
@@ -56,11 +56,11 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 
-SDATACM (ASN_SCHEMA,    "reset_maxtxrx",        0,          0,              cmd_reset_maxtxrx, "Reset max tx rx stats"),
-SDATACM (ASN_SCHEMA,    "queue_mark_pending",   0,          pm_queue,       cmd_queue_mark_pending, "Mark selected messages as pending (Will be resend)."),
-SDATACM (ASN_SCHEMA,    "queue_mark_notpending", 0,         pm_queue,       cmd_queue_mark_notpending,"Mark selected messages as notpending (Will NOT be send or resend)."),
+SDATACM (DTP_SCHEMA,    "reset_maxtxrx",        0,          0,              cmd_reset_maxtxrx, "Reset max tx rx stats"),
+SDATACM (DTP_SCHEMA,    "queue_mark_pending",   0,          pm_queue,       cmd_queue_mark_pending, "Mark selected messages as pending (Will be resend)."),
+SDATACM (DTP_SCHEMA,    "queue_mark_notpending", 0,         pm_queue,       cmd_queue_mark_notpending,"Mark selected messages as notpending (Will NOT be send or resend)."),
 SDATA_END()
 };
 
@@ -70,41 +70,41 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
 
-SDATA (ASN_COUNTER64,   "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
 
-SDATA (ASN_INTEGER,     "timeout_poll",     SDF_RD,             1*1000,     "Timeout polling, in miliseconds"),
-SDATA (ASN_UNSIGNED,    "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
-SDATA (ASN_UNSIGNED,    "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
+SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             1*1000,     "Timeout polling, in miliseconds"),
+SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
+SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
 
-SDATA (ASN_OCTET_STR,   "tranger_path",     SDF_RD,             "",         "tranger path"),
-SDATA (ASN_OCTET_STR,   "tranger_database", SDF_RD,             "",         "tranger database"),
-SDATA (ASN_OCTET_STR,   "topic_name",       SDF_RD,             "",         "trq_open topic_name"),
-SDATA (ASN_OCTET_STR,   "pkey",             SDF_RD,             "",         "trq_open pkey"),
-SDATA (ASN_OCTET_STR,   "tkey",             SDF_RD,             "",         "trq_open tkey"),
-SDATA (ASN_OCTET_STR,   "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
-SDATA (ASN_UNSIGNED,    "on_critical_error",SDF_RD,             LOG_OPT_TRACE_STACK, "tranger parameter"),
-SDATA (ASN_OCTET_STR,   "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
-SDATA (ASN_UNSIGNED,    "max_pending_acks", SDF_WR|SDF_PERSIST, 1,          "Maximum messages pending of ack"),
-SDATA (ASN_UNSIGNED,    "maximum_retries",  SDF_WR|SDF_PERSIST, 0,          "Maximum tx retries per message"),
-SDATA (ASN_UNSIGNED64,  "backup_queue_size",SDF_WR|SDF_PERSIST, 1*1000000,  "Do backup at this size"),
-SDATA (ASN_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, 2*1000,     "Limit alert queue size"),
-SDATA (ASN_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, 60,         "Timeout ack in seconds"),
-SDATA (ASN_BOOLEAN,     "drop_on_timeout_ack",SDF_WR|SDF_PERSIST, 1,        "On ack timeout => True: drop connection, False: resend message"),
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "tranger path"),
+SDATA (DTP_STRING,      "tranger_database", SDF_RD,             "",         "tranger database"),
+SDATA (DTP_STRING,      "topic_name",       SDF_RD,             "",         "trq_open topic_name"),
+SDATA (DTP_STRING,      "pkey",             SDF_RD,             "",         "trq_open pkey"),
+SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq_open tkey"),
+SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
+SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             LOG_OPT_TRACE_STACK, "tranger parameter"),
+SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, 1,          "Maximum messages pending of ack"),
+SDATA (DTP_INTEGER,     "maximum_retries",  SDF_WR|SDF_PERSIST, 0,          "Maximum tx retries per message"),
+SDATA (DTP_UNSIGNED64,  "backup_queue_size",SDF_WR|SDF_PERSIST, 1*1000000,  "Do backup at this size"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, 2*1000,     "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, 60,         "Timeout ack in seconds"),
+SDATA (DTP_BOOLEAN,     "drop_on_timeout_ack",SDF_WR|SDF_PERSIST, 1,        "On ack timeout => True: drop connection, False: resend message"),
 
-SDATA (ASN_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
-SDATA (ASN_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
-SDATA (ASN_OCTET_STR,   "alert_from",       SDF_WR,             "",         "Alert from"),
-SDATA (ASN_OCTET_STR,   "alert_to",         SDF_WR|SDF_PERSIST, "",         "Alert destination"),
+SDATA (DTP_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
+SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
+SDATA (DTP_STRING,      "alert_from",       SDF_WR,             "",         "Alert from"),
+SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Alert destination"),
 
-SDATA (ASN_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,          "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 

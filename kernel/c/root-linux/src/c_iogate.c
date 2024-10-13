@@ -119,23 +119,23 @@ PRIVATE gate_config_t *get_tree_config_type(hgobj gobj, const char* type);
  *              Resources
  ***************************************************************************/
 PRIVATE sdata_desc_t tb_channels[] = {
-/*-FIELD-type-----------name----------------flag------------------------resource----header----------fillsp--description---------*/
-SDATADF (ASN_JSON,      "ids",              SDF_NOTACCESS,              0,          0,              0,      "List of id's to match."),
-SDATADF (ASN_COUNTER64, "id",               SDF_PERSIST|SDF_PKEY,       0,          "Id",           8,      "Id."),
-SDATADF (ASN_OCTET_STR, "type",             SDF_PERSIST|SDF_REQUIRED,   0,          "Channel Type", 20,     "Channel type."),
-SDATADF (ASN_OCTET_STR, "channel_name",     SDF_PERSIST|SDF_REQUIRED,   0,          "Channel Name", 30,     "Channel name."),
-SDATADF (ASN_OCTET_STR, "url",              SDF_PERSIST|SDF_WR,         0,          "Url",          30,     "Connection url."),
-SDATADF (ASN_BOOLEAN,   "opened",           SDF_PERSIST|SDF_RD,         0,          "Opened",       10,     "Channel opened."),
-SDATADF (ASN_BOOLEAN,   "disabled",         SDF_PERSIST|SDF_WR,         0,          "Disabled",     10,     "Channel disabled."),
-SDATADF (ASN_BOOLEAN,   "static",           SDF_PERSIST,                0,          "Static",       10,     "Static channel."),
-SDATADF (ASN_BOOLEAN,   "traced",           SDF_PERSIST|SDF_WR,         0,          "Traced",       8,      "Channel traced"),
-SDATADF (ASN_OCTET_STR, "date",             SDF_PERSIST,                0,          "Date",         21,     "Creation date."),
-SDATADF (ASN_OCTET_STR, "description",      SDF_PERSIST|SDF_WR,         0,          "Description",  20,     "Description."),
-SDATADF (ASN_OCTET_STR, "top_gclass",       SDF_PERSIST|SDF_WR,         0,          "Top Gclass",   20,     "Top gclass."),
-SDATADF (ASN_OCTET_STR, "protocol_gclass",  SDF_PERSIST|SDF_WR,         0,          "Protocol Gclass",20,   "Protocol gclass."),
-SDATADF (ASN_UNSIGNED,  "idx",              SDF_PERSIST|SDF_WR,         0,          "Idx",          8,      "Channel index (TODO) ~ priority?"),
-SDATADF (ASN_OCTET_STR, "zcontent",         SDF_PERSIST|SDF_WR,         0,          "Content",      10,     "The child tree json configuration."),
-SDATADF (ASN_POINTER,   "channel_gobj",     SDF_VOLATIL|SDF_RD,         0,          "Channel gobj", 8,      "Channel gobj"),
+/*-FIELD-type-----------name----------------flag------------------------header----------fillsp--description---------*/
+SDATADF (DTP_JSON,      "ids",              SDF_NOTACCESS,              0,              0,      "List of id's to match."),
+SDATADF (DTP_INTEGER,   "id",               SDF_PERSIST|SDF_PKEY,       "Id",           8,      "Id."),
+SDATADF (DTP_STRING,    "type",             SDF_PERSIST|SDF_REQUIRED,   "Channel Type", 20,     "Channel type."),
+SDATADF (DTP_STRING,    "channel_name",     SDF_PERSIST|SDF_REQUIRED,   "Channel Name", 30,     "Channel name."),
+SDATADF (DTP_STRING,    "url",              SDF_PERSIST|SDF_WR,         "Url",          30,     "Connection url."),
+SDATADF (DTP_BOOLEAN,   "opened",           SDF_PERSIST|SDF_RD,         "Opened",       10,     "Channel opened."),
+SDATADF (DTP_BOOLEAN,   "disabled",         SDF_PERSIST|SDF_WR,         "Disabled",     10,     "Channel disabled."),
+SDATADF (DTP_BOOLEAN,   "static",           SDF_PERSIST,                "Static",       10,     "Static channel."),
+SDATADF (DTP_BOOLEAN,   "traced",           SDF_PERSIST|SDF_WR,         "Traced",       8,      "Channel traced"),
+SDATADF (DTP_STRING,    "date",             SDF_PERSIST,                "Date",         21,     "Creation date."),
+SDATADF (DTP_STRING,    "description",      SDF_PERSIST|SDF_WR,         "Description",  20,     "Description."),
+SDATADF (DTP_STRING,    "top_gclass",       SDF_PERSIST|SDF_WR,         "Top Gclass",   20,     "Top gclass."),
+SDATADF (DTP_STRING,    "protocol_gclass",  SDF_PERSIST|SDF_WR,         "Protocol Gclass",20,   "Protocol gclass."),
+SDATADF (DTP_INTEGER,   "idx",              SDF_PERSIST|SDF_WR,         "Idx",          8,      "Channel index (TODO) ~ priority?"),
+SDATADF (DTP_STRING,    "zcontent",         SDF_PERSIST|SDF_WR,         "Content",      10,     "The child tree json configuration."),
+SDATADF (DTP_POINTER,   "channel_gobj",     SDF_VOLATIL|SDF_RD,         "Channel gobj", 8,      "Channel gobj"),
 SDATA_END()
 };
 
@@ -144,7 +144,7 @@ SDATA_END()
  */
 PRIVATE sdata_desc_t tb_resources[] = {
 /*-DB----type-----------name----------------flag--------------------schema--------------free_fn---------header-----------*/
-SDATADB (ASN_ITER,      "channels",         SDF_RESOURCE,           tb_channels,    sdata_destroy,  "DGObjs"),
+//SDATADB TODO (DTP_POINTER,      "channels",         SDF_RESOURCE,           tb_channels,    sdata_destroy,  "DGObjs"),
 SDATA_END()
 };
 
@@ -168,8 +168,8 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -177,62 +177,62 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t pm_add_channel[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_COUNTER64, "id",           0,              0,          "Id"),
-SDATAPM (ASN_OCTET_STR, "channel_name", 0,              0,          "Channel name"),
-SDATAPM (ASN_OCTET_STR, "url",          0,              0,          "Channel url"),
-SDATAPM (ASN_OCTET_STR, "type",         0,              0,          "Type name (input_gate, output_gate)"),
-SDATAPM (ASN_OCTET_STR, "top_gclass",   0,              0,          "Top gclass"),
-SDATAPM (ASN_OCTET_STR, "protocol_gclass",0,            0,          "Protocol gclass"),
-SDATAPM (ASN_UNSIGNED,  "idx",          0,              0,          "Channel index"),
-SDATAPM (ASN_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
-SDATAPM (ASN_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
-SDATAPM (ASN_OCTET_STR, "description",  0,              0,          "Description"),
-SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "content in base64"),
+SDATAPM (DTP_INTEGER,   "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "Channel name"),
+SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
+SDATAPM (DTP_STRING,    "type",         0,              0,          "Type name (input_gate, output_gate)"),
+SDATAPM (DTP_STRING,    "top_gclass",   0,              0,          "Top gclass"),
+SDATAPM (DTP_STRING,    "protocol_gclass",0,            0,          "Protocol gclass"),
+SDATAPM (DTP_INTEGER,   "idx",          0,              0,          "Channel index"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
+SDATAPM (DTP_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
+SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "content in base64"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_channel[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_COUNTER64, "channel_id",   0,              0,          "Id"),
-SDATAPM (ASN_OCTET_STR, "channel_name", 0,              0,          "configuration name"),
-SDATAPM (ASN_OCTET_STR, "url",          0,              0,          "Channel url"),
+SDATAPM (DTP_INTEGER,   "channel_id",   0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "configuration name"),
+SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_list_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_COUNTER64, "channel_id",   0,              0,          "Id"),
-SDATAPM (ASN_OCTET_STR, "channel_name", 0,              0,          "Channel name"),
-SDATAPM (ASN_OCTET_STR, "url",          0,              0,          "Channel url"),
-SDATAPM (ASN_OCTET_STR, "type",         0,              0,          "Type name (input_gate, output_gate)"),
-SDATAPM (ASN_OCTET_STR, "top_gclass",   0,              0,          "Top gclass"),
-SDATAPM (ASN_OCTET_STR, "protocol_gclass",0,            0,          "Protocol gclass"),
-SDATAPM (ASN_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
-SDATAPM (ASN_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
-SDATAPM (ASN_OCTET_STR, "description",  0,              0,          "Description"),
+SDATAPM (DTP_INTEGER,   "channel_id",   0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "Channel name"),
+SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
+SDATAPM (DTP_STRING,    "type",         0,              0,          "Type name (input_gate, output_gate)"),
+SDATAPM (DTP_STRING,    "top_gclass",   0,              0,          "Top gclass"),
+SDATAPM (DTP_STRING,    "protocol_gclass",0,            0,          "Protocol gclass"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
+SDATAPM (DTP_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
+SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_channel[] = {
 /*-PM----type-----------name------------flag----------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "channel_name", 0,                  0,          "Channel name."),
-SDATAPM (ASN_BOOLEAN,   "opened",    0,                     0,          "Channel opened"),
+SDATAPM (DTP_STRING,    "channel_name", 0,                  0,          "Channel name."),
+SDATAPM (DTP_BOOLEAN,   "opened",    0,                     0,          "Channel opened"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-----------json_fn-----------------description---------- */
-SDATACM (ASN_SCHEMA,    "help",                     a_help, pm_help,        cmd_help,               "Available commands or help about a command."),
-SDATACM (ASN_SCHEMA,    "",                         0,      0,              0,                      "\nDeploy\n-----------"),
-SDATACM (ASN_SCHEMA,    "add-channel",              0,      pm_add_channel, cmd_add_channel,        "Add channel."),
-SDATACM (ASN_SCHEMA,    "delete-channel",           0,      pm_delete_channel,cmd_delete_channel,   "Delete channel."),
-SDATACM (ASN_SCHEMA,    "list-db",                  0,      pm_list_db,     cmd_list_db,            "List channel db."),
-SDATACM (ASN_SCHEMA,    "",                         0,      0,              0,                      "\nOperation\n-----------"),
-SDATACM (ASN_SCHEMA,    "view-channels",            0,      pm_channel,     cmd_view_channels,      "View channels."),
-SDATACM (ASN_SCHEMA,    "enable-channel",           0,      pm_channel,     cmd_enable_channels,    "Enable channel."),
-SDATACM (ASN_SCHEMA,    "disable-channel",          0,      pm_channel,     cmd_disable_channels,   "Disable channel."),
-SDATACM (ASN_SCHEMA,    "drop-channel",             0,      pm_channel,     cmd_drop_channels,      "Drop channel."),
-SDATACM (ASN_SCHEMA,    "trace-on-channel",         0,      pm_channel,     cmd_trace_on_channels, "Trace on channel."),
-SDATACM (ASN_SCHEMA,    "trace-off-channel",        0,      pm_channel,     cmd_trace_off_channels,"Trace off channel."),
-SDATACM (ASN_SCHEMA,    "reset-stats-channel",      0,      pm_channel,     cmd_reset_stats_channels,"Reset stats of channel."),
+SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,        cmd_help,               "Available commands or help about a command."),
+SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nDeploy\n-----------"),
+SDATACM (DTP_SCHEMA,    "add-channel",              0,      pm_add_channel, cmd_add_channel,        "Add channel."),
+SDATACM (DTP_SCHEMA,    "delete-channel",           0,      pm_delete_channel,cmd_delete_channel,   "Delete channel."),
+SDATACM (DTP_SCHEMA,    "list-db",                  0,      pm_list_db,     cmd_list_db,            "List channel db."),
+SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nOperation\n-----------"),
+SDATACM (DTP_SCHEMA,    "view-channels",            0,      pm_channel,     cmd_view_channels,      "View channels."),
+SDATACM (DTP_SCHEMA,    "enable-channel",           0,      pm_channel,     cmd_enable_channels,    "Enable channel."),
+SDATACM (DTP_SCHEMA,    "disable-channel",          0,      pm_channel,     cmd_disable_channels,   "Disable channel."),
+SDATACM (DTP_SCHEMA,    "drop-channel",             0,      pm_channel,     cmd_drop_channels,      "Drop channel."),
+SDATACM (DTP_SCHEMA,    "trace-on-channel",         0,      pm_channel,     cmd_trace_on_channels, "Trace on channel."),
+SDATACM (DTP_SCHEMA,    "trace-off-channel",        0,      pm_channel,     cmd_trace_off_channels,"Trace off channel."),
+SDATACM (DTP_SCHEMA,    "reset-stats-channel",      0,      pm_channel,     cmd_reset_stats_channels,"Reset stats of channel."),
 SDATA_END()
 };
 
@@ -241,23 +241,23 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "persistent_channels",SDF_RD,           0,              "Set True to do channels persistent (in sqlite database)."),
-SDATA (ASN_BOOLEAN,     "local_store",      SDF_RD,             0,              "Set True to have the persistent_channels in local store (in /yuneta/realms instead of /yuneta/store)"),
+SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,              "Set True to do channels persistent (in sqlite database)."),
+SDATA (DTP_BOOLEAN,     "local_store",      SDF_RD,             0,              "Set True to have the persistent_channels in local store (in /yuneta/realms instead of /yuneta/store)"),
 
-SDATA (ASN_INTEGER,     "send_type",        SDF_RD,             0,              "Send type: 0 one dst, 1 all destinations"),
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,             1*1000,         "Timeout"),
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD,             0,              "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD,             0,              "Messages received"),
-SDATA (ASN_COUNTER64,   "txMsgsec",         SDF_RD,             0,              "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",         SDF_RD,             0,              "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
+SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,              "Send type: 0 one dst, 1 all destinations"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,              "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,             0,              "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD,             0,              "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD,             0,              "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
 
-SDATA (ASN_OCTET_STR,   "last_channel",     SDF_RD,             0,              "Last channel name used to send"),
+SDATA (DTP_STRING,      "last_channel",     SDF_RD,             0,              "Last channel name used to send"),
 
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 

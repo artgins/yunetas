@@ -416,6 +416,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .description=0,                                     \
     .json_fn=0,                                         \
     .schema=0,                                          \
+    .authpth=0                                          \
 }
 
 /*
@@ -434,6 +435,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .description=(description_),                        \
     .json_fn=0,                                         \
     .schema=0,                                          \
+    .authpth=0                                          \
 }
 
 
@@ -451,20 +453,23 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .description=(description_),                        \
     .json_fn=(json_fn_),                                \
     .schema=(items_),                                   \
+    .authpth=0                                          \
 }
 
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
 #define SDATACM2(type_, name_, flag_, alias_, items_, json_fn_, description_) \
 {                                                       \
-    .type=type_,                                        \
-    .name=name_,                                        \
-    .alias=alias_,                                      \
-    .json_fn=json_fn_,                                  \
+    .type=(type_),                                      \
+    .name=(name_),                                      \
+    .alias=(alias_),                                    \
     .flag=flag_,                                        \
     .default_value=0,                                   \
-    .description=description_,                          \
     .header=0,                                          \
-    .schema=items_,                                     \
+    .fillspace=0,                                       \
+    .description=(description_),                        \
+    .json_fn=(json_fn_),                                \
+    .schema=(items_),                                   \
+    .authpth=0                                          \
 }
 
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -480,6 +485,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .description=(description_),                        \
     .json_fn=0,                                         \
     .schema=0,                                          \
+    .authpth=0                                          \
 }
 
 /*-AUTHZ--type----------name------------flag----alias---items---------------description--*/
@@ -495,22 +501,44 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .description=(description_),                        \
     .json_fn=0,                                         \
     .schema=(items_),                                   \
+    .authpth=0                                          \
 }
 
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
 #define SDATAPM0(type_, name_, flag_, authpth_, description_)     \
 {                                                       \
-    .type=type_,                                        \
-    .name=name_,                                        \
+    .type=(type_),                                      \
+    .name=(name_),                                      \
     .alias=0,                                           \
-    .json_fn=0,                                         \
-    .flag=flag_,                                        \
-    .default_value=0,                                   \
-    .description=description_,                          \
+    .flag=(flag_),                                      \
+    .default_value=(default_value_),                    \
     .header=0,                                          \
+    .fillspace=0,                                       \
+    .description=(description_),                        \
+    .json_fn=0,                                         \
     .schema=0,                                          \
-    .authpth=authpth_,                                  \
+    .authpth=(authpth_)                                 \
 }
+
+/*
+ *  Database Field
+ */
+/*-FIELD-type-----------name----------------flag------------------------resource--------header----------fillsp--description---------*/
+#define SDATADF(type_, name_, flag_, header_, fillspace_, description_)  \
+{                                                       \
+    .type=(type_),                                      \
+    .name=(name_),                                      \
+    .alias=0,                                           \
+    .flag=(flag_),                                      \
+    .default_value=0,                                   \
+    .header=(header_),                                  \
+    .fillspace=(fillspace_),                            \
+    .description=(description_),                        \
+    .json_fn=0,                                         \
+    .schema=0,                                          \
+    .authpth=0                                          \
+}
+
 /*
  *  Generic json function
  */
@@ -528,7 +556,7 @@ typedef struct sdata_desc_s {
     const sdata_flag_t flag;
     const char *default_value;
     const char *header;
-    const uint8_t fillspace;
+    const int fillspace;
     const char *description;
     const json_function_t json_fn;
     const struct sdata_desc_s *schema;

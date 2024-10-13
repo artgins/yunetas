@@ -33,8 +33,8 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -42,16 +42,16 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t pm_channel[] = {
 /*-PM----type-----------name------------flag----------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "channel_name", 0,                  0,          "Channel name."),
-SDATAPM (ASN_BOOLEAN,   "opened",       0,                  0,          "Channel opened"),
+SDATAPM (DTP_STRING,    "channel_name", 0,                  0,          "Channel name."),
+SDATAPM (DTP_BOOLEAN,   "opened",       0,                  0,          "Channel opened"),
 SDATA_END()
 };
 
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "view-channels",    0,          pm_channel,     cmd_view_channels,"View channels."),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "view-channels",    0,          pm_channel,     cmd_view_channels,"View channels."),
 SDATA_END()
 };
 
@@ -61,13 +61,13 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "method",           SDF_RD,                     "lastdigits", "Method to select the child to send the message ('lastdigits', ). Default 'lastdigits', numeric value with the 'digits' last digits used to select the child. Digits can be decimal or hexadecimal ONLY, automatically detected."),
-SDATA (ASN_UNSIGNED,    "digits",           SDF_RD|SDF_STATS,           1,              "Digits to calculate output"),
+SDATA (DTP_STRING,      "method",           SDF_RD,                     "lastdigits", "Method to select the child to send the message ('lastdigits', ). Default 'lastdigits', numeric value with the 'digits' last digits used to select the child. Digits can be decimal or hexadecimal ONLY, automatically detected."),
+SDATA (DTP_INTEGER,     "digits",           SDF_RD|SDF_STATS,           "1",              "Digits to calculate output"),
 
-SDATA (ASN_OCTET_STR,   "key",              SDF_RD,                     "id",           "field of kw to obtain the index to child to send message. It must be a numeric value, and the last digit is used to index the child, so you can have until 10 childs with the default method."),
-SDATA (ASN_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_STRING,      "key",              SDF_RD,                     "id",           "field of kw to obtain the index to child to send message. It must be a numeric value, and the last digit is used to index the child, so you can have until 10 childs with the default method."),
+SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
