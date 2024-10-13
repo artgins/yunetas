@@ -33,6 +33,11 @@ set (SRCS
     src/c_node.c
     src/c_tranger.c
     src/c_treedb.c
+    src/c_channel.c
+    src/c_ievent_srv.c
+    src/c_iogate.c
+    src/c_qiogate.c
+    src/c_mqiogate.c
     src/yunetas_environment.c
     src/dbsimple.c
     src/entry_point.c
@@ -56,6 +61,11 @@ set (HDRS
     src/c_node.h
     src/c_tranger.h
     src/c_treedb.h
+    src/c_channel.c
+    src/c_ievent_srv.h
+    src/c_iogate.h
+    src/c_qiogate.h
+    src/c_mqiogate.h
     src/yunetas_environment.h
     src/dbsimple.h
     src/entry_point.h
