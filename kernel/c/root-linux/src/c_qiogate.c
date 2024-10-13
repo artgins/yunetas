@@ -142,10 +142,10 @@ typedef struct _PRIVATE_DATA {
     uint32_t *ppending_acks;
     uint32_t max_pending_acks;
 
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
-    uint64_t txMsgsec;
-    uint64_t rxMsgsec;
+    json_int_t *ptxMsgs;
+    json_int_t *prxMsgs;
+    json_int_t txMsgsec;
+    json_int_t rxMsgsec;
     BOOL drop_on_timeout_ack;
 } PRIVATE_DATA;
 
@@ -1196,8 +1196,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    json_int_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
+    json_int_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
         gobj_write_uint64_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }

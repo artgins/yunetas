@@ -77,10 +77,10 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
-    uint64_t last_txMsgs;
-    uint64_t last_rxMsgs;
+    json_int_t *ptxMsgs;
+    json_int_t *prxMsgs;
+    json_int_t last_txMsgs;
+    json_int_t last_rxMsgs;
     uint64_t last_ms;
 } PRIVATE_DATA;
 
@@ -428,8 +428,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     uint64_t t = (ms - priv->last_ms);
     if(t>0) {
-        uint64_t txMsgsec = *(priv->ptxMsgs) - priv->last_txMsgs;
-        uint64_t rxMsgsec = *(priv->prxMsgs) - priv->last_rxMsgs;
+        json_int_t txMsgsec = *(priv->ptxMsgs) - priv->last_txMsgs;
+        json_int_t rxMsgsec = *(priv->prxMsgs) - priv->last_rxMsgs;
 
         txMsgsec *= 1000;
         rxMsgsec *= 1000;

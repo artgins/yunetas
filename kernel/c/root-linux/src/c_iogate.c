@@ -285,8 +285,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj subscriber;
     send_type_t send_type;
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    json_int_t *ptxMsgs;
+    json_int_t *prxMsgs;
     uint64_t last_txMsgs;
     uint64_t last_rxMsgs;
     uint64_t last_ms;
