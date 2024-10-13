@@ -34,27 +34,34 @@
  *          Copyright (c) 2013-2014 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#pragma once
+#include <gobj.h>
 
-#include <ginsfsm.h>
-#include "yuneta_version.h"
-#include "msglog_yuneta.h"
-#include "ghttp_parser.h"
-#include "c_timer.h"
-#include "c_connex.h"
+#pragma once
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_WEBSOCKET);
 
-/*********************************************************************
- *      GClass
- *********************************************************************/
-PUBLIC GCLASS *gclass_gwebsocket(void);
+/*------------------------*
+ *      States
+ *------------------------*/
 
-#define GCLASS_GWEBSOCKET_NAME "GWebSocket"
-#define GCLASS_GWEBSOCKET gclass_gwebsocket()
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_websocket(void);
 
 #ifdef __cplusplus
 }
