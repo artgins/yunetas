@@ -26,14 +26,14 @@ set (SRCS
     src/c_linux_uart.c
     src/c_channel.c
     src/c_iogate.c
-    src/c_qiogate.c
-    src/c_mqiogate.c
-    src/c_websocket.c
+#    src/c_qiogate.c
+#    src/c_mqiogate.c
+#    src/c_ievent_srv.c
+    src/c_ievent_cli.c
     src/c_prot_http_cl.c
     src/c_prot_http_sr.c
-    src/c_prot_header4.c
-    src/c_ievent_srv.c
-    src/c_ievent_cli.c
+#    src/c_prot_header4.c
+    src/c_websocket.c
     src/c_authz.c
     src/c_task.c
     src/c_task_authz.c
@@ -58,12 +58,12 @@ set (HDRS
     src/c_iogate.h
     src/c_qiogate.h
     src/c_mqiogate.h
-    src/c_websocket.h
+    src/c_ievent_srv.h
+    src/c_ievent_cli.h
     src/c_prot_http_cl.h
     src/c_prot_http_sr.h
     src/c_prot_header4.h
-    src/c_ievent_srv.h
-    src/c_ievent_cli.h
+    src/c_websocket.h
     src/c_authz.h
     src/c_task.h
     src/c_task_authz.h

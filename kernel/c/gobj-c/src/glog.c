@@ -3,7 +3,8 @@
  *
  *          Glog for Objects G for Yuneta Simplified
  *
- *          Copyright (c) 2023 Niyamaka, 2024 ArtGins.
+ *          Copyright (c) 2023 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

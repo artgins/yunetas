@@ -3,7 +3,8 @@
  *
  *          Objects G for Yuneta Simplified
  *
- *          Copyright (c) 2023 Niyamaka, 2024 ArtGins.
+ *          Copyright (c) 2023 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
@@ -1107,7 +1108,7 @@ PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
     } else if(strcmp(gclass_name, "Channel")==0) {
         return "C_CHANNEL";
     } if(strcmp(gclass_name, "GWebSocket")==0) {
-        return "C_GWEBSOCKET";
+        return "C_WEBSOCKET";
     }
     return gclass_name;
 }

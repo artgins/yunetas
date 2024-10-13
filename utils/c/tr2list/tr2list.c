@@ -3,7 +3,7 @@
  *
  *          List messages of tranger database
  *
- *          Copyright (c) 2024 ArtGins.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>

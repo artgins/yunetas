@@ -4,7 +4,7 @@
  *  - Open as master, open iterator to search with callback and data
  *  - Do ABSOLUTE searches
  *
- *          Copyright (c) 2024 ArtGins.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>

@@ -26,7 +26,8 @@
  *              - buffer system
  *              - json system based in jansson library (https://github.com/akheron/jansson)
  *
- *          Copyright (c) 1996-2023 Niyamaka, 2024 ArtGins.
+ *          Copyright (c) 1996-2023 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  *
  *

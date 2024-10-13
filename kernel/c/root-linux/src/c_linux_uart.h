@@ -4,7 +4,8 @@
  *          GClass Uart
  *          Low level linux TODO no sé si hace falta todavia
  *
- *          Copyright (c) 2023 Niyamaka, 2024 ArtGins.
+ *          Copyright (c) 2023 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
