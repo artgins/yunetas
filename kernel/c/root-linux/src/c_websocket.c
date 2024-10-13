@@ -211,7 +211,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->pconnected = gobj_danger_attr_ptr(gobj, "connected");
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->parsing_request = ghttp_parser_create(gobj, HTTP_REQUEST, 0, 0);
     priv->parsing_response = ghttp_parser_create(gobj, HTTP_RESPONSE, 0, 0);
 

@@ -759,6 +759,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    // TODO This is too slow, change by gobj_danger_attr_ptr()
     INCR_ATTR_INTEGER(txMsgs)
     INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
