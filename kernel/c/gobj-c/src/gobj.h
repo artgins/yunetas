@@ -511,7 +511,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .name=(name_),                                      \
     .alias=0,                                           \
     .flag=(flag_),                                      \
-    .default_value=(default_value_),                    \
+    .default_value=0,                                   \
     .header=0,                                          \
     .fillspace=0,                                       \
     .description=(description_),                        \
