@@ -78,6 +78,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
+SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,              "legacy, TODO remove"),
 SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,              "Send type: 0 one dst, 1 all destinations"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,              "Messages transmitted"),
