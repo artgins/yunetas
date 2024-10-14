@@ -232,10 +232,10 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(pingT,             gobj_read_int32_attr)
+    SET_PRIV(pingT,             gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -245,7 +245,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(pingT,               gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(pingT,               gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -533,7 +533,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
             gobj_stop(tcp0);
         }
     }
-    set_timeout(priv->timer, gobj_read_int32_attr(gobj, "timeout_close"));
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
 }
 
 /***************************************************************************
@@ -1548,7 +1548,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
         }
     }
-    set_timeout(priv->timer, gobj_read_int32_attr(gobj, "timeout_handshake"));
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     KW_DECREF(kw);
     return 0;
 }

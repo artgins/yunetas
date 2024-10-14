@@ -231,7 +231,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     gobj_write_bool_attr(gobj, "opened", TRUE);
 
-    set_timeout_periodic(priv->timer,gobj_read_int32_attr(gobj, "timeout"));
+    set_timeout_periodic(priv->timer,gobj_read_integer_attr(gobj, "timeout"));
 
     gobj_publish_event(gobj, event, kw);  // reuse kw
     return 0;

@@ -318,7 +318,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_pointer_attr(gobj, "tranger", priv->tranger);
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
 }

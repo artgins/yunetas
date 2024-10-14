@@ -220,7 +220,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(exit_on_error,             gobj_read_integer_attr)

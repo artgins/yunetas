@@ -378,7 +378,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(max_sessions_per_user, gobj_read_integer_attr)

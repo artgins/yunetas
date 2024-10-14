@@ -4532,9 +4532,9 @@ PUBLIC size_t gobj_child_size(hgobj gobj_)
 /***************************************************************************
  *  Match child.
  ***************************************************************************/
-PRIVATE BOOL match_child(
-    gobj_t *child,
-    json_t *jn_filter_  // NOT owned
+PUBLIC BOOL gobj_match_child(
+    hgobj child,
+    json_t *jn_filter_ // owned
 )
 {
     const char *__inherited_gclass_name__ = kw_get_str(child, jn_filter_, "__inherited_gclass_name__", 0, 0);
@@ -4566,11 +4566,13 @@ PRIVATE BOOL match_child(
     if(kw_has_key(jn_filter_, "__disabled__")) {
         BOOL disabled = kw_get_bool(child, jn_filter_, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(child)) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
         if(!disabled && gobj_is_disabled(child)) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
         json_object_del(jn_filter, "__disabled__");
@@ -4578,32 +4580,37 @@ PRIVATE BOOL match_child(
 
    if(!empty_string(__inherited_gclass_name__)) {
         if(!gobj_typeof_inherited_gclass(child, __inherited_gclass_name__)) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
     if(!empty_string(__gclass_name__)) {
         if(!gobj_typeof_gclass(child, __gclass_name__)) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
     const char *child_name = gobj_name(child);
     if(!empty_string(__gobj_name__)) {
         if(strcmp(__gobj_name__, child_name)!=0) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
     if(!empty_string(__prefix_gobj_name__)) {
         if(strncmp(__prefix_gobj_name__, child_name, strlen(__prefix_gobj_name__))!=0) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
     if(!empty_string(__state__)) {
         if(strcasecmp(__state__, gobj_current_state(child))!=0) {
-            json_decref(jn_filter); // clone
+            JSON_DECREF(jn_filter) // clone
+            JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
@@ -4617,7 +4624,7 @@ PRIVATE BOOL match_child(
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
             int cmp = cmp_two_simple_json(jn_var1, jn_value);
-            JSON_DECREF(jn_var1);
+            JSON_DECREF(jn_var1)
             if(cmp!=0) {
                 matched = FALSE;
                 break;
@@ -4625,7 +4632,8 @@ PRIVATE BOOL match_child(
         }
     }
 
-    json_decref(jn_filter); // clone
+    JSON_DECREF(jn_filter) // clone
+    JSON_DECREF(jn_filter_)
     return matched;
 }
 
@@ -4634,7 +4642,7 @@ PRIVATE BOOL match_child(
  ***************************************************************************/
 PUBLIC hgobj gobj_find_child(
     hgobj gobj,
-    json_t *jn_filter  // not owned
+    json_t *jn_filter  // owned
 )
 {
     if(!gobj) {
@@ -4644,21 +4652,21 @@ PUBLIC hgobj gobj_find_child(
             "msg",          "%s", "gobj NULL",
             NULL
         );
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_filter)
         return 0;
     }
 
     gobj_t *child = gobj_first_child(gobj);
 
     while(child) {
-        if(match_child(child, jn_filter)) {
-            JSON_DECREF(jn_filter);
+        if(gobj_match_child(child, json_incref(jn_filter))) {
+            JSON_DECREF(jn_filter)
             return child;
         }
         child = gobj_next_child(child);
     }
 
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_filter)
     return 0;
 }
 

@@ -140,24 +140,11 @@ SDATADF (DTP_POINTER,   "channel_gobj",     SDF_VOLATIL|SDF_RD,         "Channel
 SDATA_END()
 };
 
-/*
- *  Flag SDF_RESOURCE because is a searchable resource.
- */
-PRIVATE sdata_desc_t tb_resources[] = {
-/*-DB----type-----------name----------------flag--------------------schema--------------free_fn---------header-----------*/
-//SDATADB TODO (DTP_POINTER,      "channels",         SDF_RESOURCE,           tb_channels,    sdata_destroy,  "DGObjs"),
-SDATA_END()
-};
-
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-
-PRIVATE json_t *cmd_add_channel(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_delete_channel(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_list_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -176,42 +163,6 @@ SDATA_END()
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
-PRIVATE sdata_desc_t pm_add_channel[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER,   "id",           0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "Channel name"),
-SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
-SDATAPM (DTP_STRING,    "type",         0,              0,          "Type name (input_gate, output_gate)"),
-SDATAPM (DTP_STRING,    "top_gclass",   0,              0,          "Top gclass"),
-SDATAPM (DTP_STRING,    "protocol_gclass",0,            0,          "Protocol gclass"),
-SDATAPM (DTP_INTEGER,   "idx",          0,              0,          "Channel index"),
-SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
-SDATAPM (DTP_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
-SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
-SDATAPM (DTP_STRING,    "content64",    0,              0,          "content in base64"),
-SDATA_END()
-};
-PRIVATE sdata_desc_t pm_delete_channel[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER,   "channel_id",   0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "configuration name"),
-SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
-SDATA_END()
-};
-PRIVATE sdata_desc_t pm_list_db[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER,   "channel_id",   0,              0,          "Id"),
-SDATAPM (DTP_STRING,    "channel_name", 0,              0,          "Channel name"),
-SDATAPM (DTP_STRING,    "url",          0,              0,          "Channel url"),
-SDATAPM (DTP_STRING,    "type",         0,              0,          "Type name (input_gate, output_gate)"),
-SDATAPM (DTP_STRING,    "top_gclass",   0,              0,          "Top gclass"),
-SDATAPM (DTP_STRING,    "protocol_gclass",0,            0,          "Protocol gclass"),
-SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Channel disabled"),
-SDATAPM (DTP_BOOLEAN,   "traced",       0,              0,          "Channel traced"),
-SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
-SDATA_END()
-};
-
 PRIVATE sdata_desc_t pm_channel[] = {
 /*-PM----type-----------name------------flag----------------default-----description---------- */
 SDATAPM (DTP_STRING,    "channel_name", 0,                  0,          "Channel name."),
@@ -223,9 +174,6 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-----------json_fn-----------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,        cmd_help,               "Available commands or help about a command."),
 SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nDeploy\n-----------"),
-SDATACM (DTP_SCHEMA,    "add-channel",              0,      pm_add_channel, cmd_add_channel,        "Add channel."),
-SDATACM (DTP_SCHEMA,    "delete-channel",           0,      pm_delete_channel,cmd_delete_channel,   "Delete channel."),
-SDATACM (DTP_SCHEMA,    "list-db",                  0,      pm_list_db,     cmd_list_db,            "List channel db."),
 SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nOperation\n-----------"),
 SDATACM (DTP_SCHEMA,    "view-channels",            0,      pm_channel,     cmd_view_channels,      "View channels."),
 SDATACM (DTP_SCHEMA,    "enable-channel",           0,      pm_channel,     cmd_enable_channels,    "Enable channel."),
@@ -242,9 +190,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,              "Set True to do channels persistent (in sqlite database)."),
-SDATA (DTP_BOOLEAN,     "local_store",      SDF_RD,             0,              "Set True to have the persistent_channels in local store (in /yuneta/realms instead of /yuneta/store)"),
-
 SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,              "Send type: 0 one dst, 1 all destinations"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,              "Messages transmitted"),
@@ -313,40 +258,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    BOOL persistent_channels = gobj_read_bool_attr(gobj, "persistent_channels");
-
-    /*
-     *  Create resources. Persistent if set.
-     */
-    json_t *kw_resource = json_pack("{s:I}",
-        "tb_resources", (json_int_t)(size_t)tb_resources
-    );
-
-    /*
-     *  A db file for each iogate gobj. Best for remove individual databases.
-     *  Cons: only one table by db file.
-     */
-    char database[256]={0};
-    if(persistent_channels) {
-        snprintf(database, sizeof(database), "iogate^%s.db", gobj_name(gobj));
-        json_t *kw_resource2 = json_pack("{s:s, s:s, s:b}",
-            "service", "iogates",
-            "database", database,
-            "local_store", 1    // db-file in realms/..yuno../store
-        );
-        json_object_update(kw_resource, kw_resource2);
-        JSON_DECREF(kw_resource2);
-    }
-
-    char rc_name[80];
-    snprintf(rc_name, sizeof(rc_name), "rc_%s", gobj_name(gobj));
-    priv->resource = gobj_create( // WARNING before was gobj_create_unique(). new in version 3.2.4
-        rc_name,
-        GCLASS_RESOURCE,
-        kw_resource,
-        gobj
-    );
-
     /*
      *  SERVICE subscription model
      */
@@ -356,11 +267,11 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,                   gobj_read_int32_attr)
-    SET_PRIV(send_type,                 gobj_read_int32_attr)
+    SET_PRIV(timeout,                   gobj_read_integer_attr)
+    SET_PRIV(send_type,                 gobj_read_integer_attr)
     SET_PRIV(subscriber,                gobj_read_pointer_attr)
 }
 
@@ -371,7 +282,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(subscriber,            gobj_read_pointer_attr)
     END_EQ_SET_PRIV()
 }
@@ -394,6 +305,11 @@ PRIVATE int mt_start(hgobj gobj)
      *  Load static channels
      *  defined in config-file or hardcoded-in-main
      *-----------------------------------------------*/
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", "Channel"
+    );
+    gobj_match_childs_tree(gobj, dl_list, jn_filter);
+
     dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
     if(rc_iter_size(dl_childs)) {
         hgobj child; rc_instance_t *i_hs;
@@ -447,77 +363,6 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
     rc_free_iter(dl_childs, TRUE, 0);
-
-    /*-------------------------*
-     *  Load dynamic channels
-     *-------------------------*/
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, 0, 0);
-
-    hsdata hs_channel; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(iter, (rc_resource_t **)&hs_channel);
-    while(i_hs) {
-        const char *channel_name = sdata_read_str(hs_channel, "channel_name");
-        const char *url = sdata_read_str(hs_channel, "url");
-        const char *top_gclass = sdata_read_str(hs_channel, "top_gclass");
-        const char *protocol_gclass = sdata_read_str(hs_channel, "protocol_gclass");
-        uint32_t idx = sdata_read_uint32(hs_channel, "idx");
-
-        const char *tree_config = sdata_read_str(hs_channel, "zcontent");
-        BOOL channel_static = sdata_read_bool(hs_channel, "static");
-        hgobj channel_gobj = sdata_read_pointer(hs_channel, "channel_gobj");
-        if(!channel_static && !channel_gobj) {
-            /*------------------------------------------------*
-             *      Create the dynamic tree gobj.
-             *------------------------------------------------*/
-            char schema[20], host[120], port[40];
-            if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "parse_http_url() FAILED",
-                    "url",          "%s", url,
-                    NULL
-                );
-            }
-
-            json_t * jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:I, s:s, s:s, s:s}}",
-                "__json_config_variables__",
-                "channel_name", channel_name,
-                "url", url,
-                "top_gclass", top_gclass,
-                "protocol_gclass", protocol_gclass,
-                "idx", (json_int_t)idx,
-                "schema", schema,
-                "host", host,
-                "port", port
-            );
-
-            char *sjson_config_variables = json2str(jn_config_variables);
-            JSON_DECREF(jn_config_variables);
-
-            channel_gobj = gobj_create_tree(
-                gobj,
-                tree_config,
-                sjson_config_variables,
-                0,  //"EV_ON_SETUP",
-                0   //"EV_ON_SETUP_COMPLETE"
-            );
-            gbmem_free(sjson_config_variables);
-
-            sdata_write_pointer(hs_channel, "channel_gobj", channel_gobj);
-            gobj_write_pointer_attr(channel_gobj, "user_data2", hs_channel);
-
-            /*
-             *  Start if not disabled
-             */
-            if(!sdata_read_bool(hs_channel, "disabled")) {
-                gobj_start_tree(channel_gobj);
-            }
-        }
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs_channel);
-    }
-    rc_free_iter(iter, TRUE, 0);
 
 
     return 0;

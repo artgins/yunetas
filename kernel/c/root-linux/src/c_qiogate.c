@@ -78,7 +78,7 @@ SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Mes
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
 
-SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             1*1000,     "Timeout polling, in miliseconds"),
+SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in miliseconds"),
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
 
@@ -88,14 +88,14 @@ SDATA (DTP_STRING,      "topic_name",       SDF_RD,             "",         "trq
 SDATA (DTP_STRING,      "pkey",             SDF_RD,             "",         "trq_open pkey"),
 SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq_open tkey"),
 SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
-SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             LOG_OPT_TRACE_STACK, "tranger parameter"),
+SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "0x0010",   "LOG_OPT_TRACE_STACK"),
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, 1,          "Maximum messages pending of ack"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "1",        "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "maximum_retries",  SDF_WR|SDF_PERSIST, 0,          "Maximum tx retries per message"),
-SDATA (DTP_UNSIGNED64,  "backup_queue_size",SDF_WR|SDF_PERSIST, 1*1000000,  "Do backup at this size"),
-SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, 2*1000,     "Limit alert queue size"),
-SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, 60,         "Timeout ack in seconds"),
-SDATA (DTP_BOOLEAN,     "drop_on_timeout_ack",SDF_WR|SDF_PERSIST, 1,        "On ack timeout => True: drop connection, False: resend message"),
+SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
+SDATA (DTP_BOOLEAN,     "drop_on_timeout_ack",SDF_WR|SDF_PERSIST, "1",      "On ack timeout => True: drop connection, False: resend message"),
 
 SDATA (DTP_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
 SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
@@ -184,13 +184,13 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout_poll,              gobj_read_int32_attr)
-    SET_PRIV(timeout_ack,               gobj_read_int32_attr)
+    SET_PRIV(timeout_poll,              gobj_read_integer_attr)
+    SET_PRIV(timeout_ack,               gobj_read_integer_attr)
     SET_PRIV(with_metadata,             gobj_read_bool_attr)
-    SET_PRIV(alert_queue_size,          gobj_read_int32_attr)
+    SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_uint32_attr)
     SET_PRIV(drop_on_timeout_ack,       gobj_read_bool_attr)
 }
@@ -202,9 +202,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_poll,            gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout_poll,            gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_uint32_attr)
     ELIF_EQ_SET_PRIV(drop_on_timeout_ack,   gobj_read_bool_attr)
     END_EQ_SET_PRIV()

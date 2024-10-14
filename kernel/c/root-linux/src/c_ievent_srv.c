@@ -131,7 +131,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
+     *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(client_yuno_name,          gobj_read_str_attr)

@@ -1472,6 +1472,11 @@ PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path);
     gobj_find_child() returns the first matched child.
 
  */
+
+PUBLIC BOOL gobj_match_child(
+    hgobj child,
+    json_t *jn_filter // owned
+);
 PUBLIC hgobj gobj_find_child(
     hgobj gobj,
     json_t *jn_filter // owned
