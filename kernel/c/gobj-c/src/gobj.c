@@ -2444,63 +2444,75 @@ PRIVATE int json2item(
     gobj_t *gobj,
     json_t *sdata,
     const sdata_desc_t *it,
-    json_t *jn_value // not owned
+    json_t *jn_value_ // not owned
 )
 {
     if(!it) {
         return -1;
     }
+    json_t *jn_value2 = 0;
+
     switch(it->type) {
         case DTP_STRING:
-            if(!json_is_string(jn_value)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be a string",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                return -1;
+            if(json_is_string(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = anystring2json(s, strlen(s), FALSE);
+                    GBMEM_FREE(s)
+                }
             }
             break;
         case DTP_BOOLEAN:
-            if(!json_is_boolean(jn_value)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be an boolean",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                return -1;
+            if(!json_is_boolean(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    if(strcasecmp(s, "true")==0) {
+                        jn_value2 = json_true();
+                    } else if(strcasecmp(s, "false")==0) {
+                        jn_value2 = json_false();
+                    } else {
+                        jn_value2 = atoi(s)? json_true(): json_false();
+                    }
+                    GBMEM_FREE(s)
+                }
             }
             break;
         case DTP_INTEGER:
-            if(!json_is_integer(jn_value)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be an integer",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                return -1;
+            if(json_is_integer(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = json_integer(strtoll(s, NULL, 0));
+                    GBMEM_FREE(s)
+                }
             }
             break;
         case DTP_REAL:
-            if(!json_is_real(jn_value)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be a real",
-                    "attr",         "%s", it->name,
-                    NULL
-                );
-                return -1;
+            if(json_is_real(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = json_real(atof(s));
+                    GBMEM_FREE(s)
+                }
             }
             break;
         case DTP_LIST:
-            if(!json_is_array(jn_value)) {
+            if(json_is_array(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = string2json(s, TRUE);
+                    GBMEM_FREE(s)
+                }
+            }
+
+            if(!json_is_array(jn_value2)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2508,11 +2520,23 @@ PRIVATE int json2item(
                     "attr",         "%s", it->name,
                     NULL
                 );
+                json_decref(jn_value2);
                 return -1;
             }
             break;
+
         case DTP_DICT:
-            if(!json_is_object(jn_value)) {
+            if(json_is_object(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = string2json(s, TRUE);
+                    GBMEM_FREE(s)
+                }
+            }
+
+            if(!json_is_object(jn_value2)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2520,13 +2544,16 @@ PRIVATE int json2item(
                     "attr",         "%s", it->name,
                     NULL
                 );
+                json_decref(jn_value2);
                 return -1;
             }
             break;
+
         case DTP_JSON:
+            jn_value2 = json_incref(jn_value_);
             break;
         case DTP_POINTER:
-            if(!json_is_integer(jn_value)) {
+            if(!json_is_integer(jn_value_)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2536,10 +2563,11 @@ PRIVATE int json2item(
                 );
                 return -1;
             }
+            jn_value2 = json_incref(jn_value_);
             break;
     }
 
-    if(json_object_set(sdata, it->name, jn_value)<0) {
+    if(json_object_set_new(sdata, it->name, jn_value2)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
@@ -2549,6 +2577,7 @@ PRIVATE int json2item(
         );
         return -1;
     }
+
     return 0;
 }
 
@@ -2844,7 +2873,7 @@ PUBLIC int gobj_write_attr(
     const sdata_desc_t *it = gobj_attr_desc(gobj, path, TRUE);
     int ret = json2item(gobj, hs, it, jn_value);
 
-    JSON_DECREF(jn_value);
+    JSON_DECREF(jn_value)
     return ret;
 }
 
@@ -3349,7 +3378,7 @@ PUBLIC int gobj_write_new_json_attr(hgobj gobj_, const char *name, json_t *jn_va
         "attr",         "%s", name,
         NULL
     );
-    JSON_DECREF(jn_value);
+    JSON_DECREF(jn_value)
     return -1;
 }
 
