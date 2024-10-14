@@ -4532,7 +4532,7 @@ PUBLIC size_t gobj_child_size(hgobj gobj_)
 /***************************************************************************
  *  Match child.
  ***************************************************************************/
-PUBLIC BOOL gobj_match_child(
+PUBLIC BOOL gobj_match_gobj(
     hgobj child,
     json_t *jn_filter_ // owned
 )
@@ -4659,7 +4659,7 @@ PUBLIC hgobj gobj_find_child(
     gobj_t *child = gobj_first_child(gobj);
 
     while(child) {
-        if(gobj_match_child(child, json_incref(jn_filter))) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
             JSON_DECREF(jn_filter)
             return child;
         }

@@ -1473,7 +1473,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path);
 
  */
 
-PUBLIC BOOL gobj_match_child(
+PUBLIC BOOL gobj_match_gobj(
     hgobj child,
     json_t *jn_filter // owned
 );
