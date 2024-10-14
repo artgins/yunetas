@@ -2206,7 +2206,7 @@ PUBLIC void print_backtrace(void);
 
 PUBLIC void trace_vjson(
     hgobj gobj,
-    json_t *jn_data,    // now owned
+    json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,
     va_list ap
@@ -2219,7 +2219,7 @@ PUBLIC void gobj_trace_msg(
 
 PUBLIC void gobj_trace_json(
     hgobj gobj,
-    json_t *jn, // now owned
+    json_t *jn, // not owned
     const char *fmt,
     ...
 ) JANSSON_ATTRS((format(printf, 3, 4)));

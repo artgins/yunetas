@@ -927,7 +927,7 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
  ***************************************************************************/
 PUBLIC void trace_vjson(
     hgobj gobj,
-    json_t *jn_data,    // now owned
+    json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,
     va_list ap

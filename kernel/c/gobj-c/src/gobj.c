@@ -224,7 +224,7 @@ PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
 PUBLIC void trace_vjson(
     hgobj gobj,
-    json_t *jn_data,    // now owned
+    json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,
     va_list ap
@@ -262,7 +262,7 @@ PRIVATE int json2item(
     gobj_t *gobj,
     json_t *sdata,
     const sdata_desc_t *it,
-    json_t *jn_value // now owned
+    json_t *jn_value // not owned
 );
 
 /***************************************************************
@@ -2444,7 +2444,7 @@ PRIVATE int json2item(
     gobj_t *gobj,
     json_t *sdata,
     const sdata_desc_t *it,
-    json_t *jn_value // now owned
+    json_t *jn_value // not owned
 )
 {
     if(!it) {
