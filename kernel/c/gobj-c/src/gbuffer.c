@@ -776,7 +776,7 @@ PUBLIC size_t gbuffer_getmark(gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *  Serialize GBUFFER
+ *  Serialize gbuffer_t
  ***************************************************************************/
 PUBLIC json_t *gbuffer_serialize(
     hgobj gobj,
@@ -816,7 +816,7 @@ PUBLIC json_t *gbuffer_serialize(
 }
 
 /***************************************************************************
- *  Deserialize GBUFFER
+ *  Deserialize gbuffer_t
  ***************************************************************************/
 PUBLIC gbuffer_t *gbuffer_deserialize(
     hgobj gobj,

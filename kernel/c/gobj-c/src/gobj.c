@@ -140,12 +140,14 @@ GOBJ_DEFINE_EVENT(EV_STATE_CHANGED);
 
 // Channel Messages: Input Events (Requests)
 GOBJ_DEFINE_EVENT(EV_SEND_MESSAGE);
+GOBJ_DEFINE_EVENT(EV_SEND_IEV);
 GOBJ_DEFINE_EVENT(EV_DROP);
 
 // Channel Messages: Output Events (Publications)
 GOBJ_DEFINE_EVENT(EV_ON_OPEN);
 GOBJ_DEFINE_EVENT(EV_ON_CLOSE);
 GOBJ_DEFINE_EVENT(EV_ON_MESSAGE);      // with GBuffer
+GOBJ_DEFINE_EVENT(EV_ON_COMMAND);
 GOBJ_DEFINE_EVENT(EV_ON_IEV_MESSAGE);  // with IEvent
 GOBJ_DEFINE_EVENT(EV_ON_ID);
 GOBJ_DEFINE_EVENT(EV_ON_ID_NAK);
@@ -2887,7 +2889,7 @@ PUBLIC int gobj_write_attrs(
         ret += json2item(gobj, hs, it, jn_value);
     }
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return ret;
 }
 
@@ -2993,6 +2995,22 @@ PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sda
         NULL
     );
     return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)
+{
+    gobj_t *gobj = gobj_;
+
+    if(gobj_has_attr(gobj, name)) {
+        return TRUE;
+    } else if(gobj && gobj->bottom_gobj) {
+        return gobj_has_bottom_attr(gobj->bottom_gobj, name);
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************
@@ -4527,6 +4545,28 @@ PUBLIC size_t gobj_child_size(hgobj gobj_)
     gobj_t * gobj = gobj_;
 
     return dl_size(&gobj->dl_childs);
+}
+
+/***************************************************************************
+ *  Return the size of matched childs of gobj
+ ***************************************************************************/
+PUBLIC size_t gobj_child_size2(
+    hgobj gobj_,
+    json_t *jn_filter // owned
+)
+{
+    gobj_t * gobj = gobj_;
+    size_t count = 0;
+    gobj_t *child = gobj_first_child(gobj);
+
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            count++;
+        }
+        child = gobj_next_child(child);
+    }
+    JSON_DECREF(jn_filter)
+    return count;
 }
 
 /***************************************************************************
@@ -7769,7 +7809,7 @@ PUBLIC json_t *gobj_get_node(
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -7781,7 +7821,7 @@ PUBLIC json_t *gobj_get_node(
             "msg",          "%s", "mt_get_node not defined",
             NULL
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -7895,7 +7935,7 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
     if(!gobj->gclass->gmt->mt_node_parents) {
@@ -7907,7 +7947,7 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
     return gobj->gclass->gmt->mt_node_parents(gobj, topic_name, kw, link, jn_options, src);
@@ -7937,7 +7977,7 @@ PUBLIC json_t *gobj_node_childs( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
     if(!gobj->gclass->gmt->mt_node_childs) {
@@ -7949,7 +7989,7 @@ PUBLIC json_t *gobj_node_childs( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
     return gobj->gclass->gmt->mt_node_childs(gobj, topic_name, kw, hook, jn_filter, jn_options, src);

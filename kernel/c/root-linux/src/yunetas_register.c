@@ -19,6 +19,12 @@
 #include "c_tranger.h"
 #include "c_treedb.h"
 
+#include "c_iogate.h"
+#include "c_channel.h"
+#include "c_websocket.h"
+#include "c_qiogate.h"
+#include "c_mqiogate.h"
+
 #include "yunetas_register.h"
 
 /***************************************************************************
@@ -49,6 +55,10 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_timer();
     register_c_tranger();
     register_c_treedb();
+
+    register_c_iogate();
+    register_c_channel();
+    register_c_websocket();
 
     initialized = TRUE;
 

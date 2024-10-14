@@ -7,102 +7,15 @@
 ***********************************************************************/
 #include <string.h>
 #include <inttypes.h>
+
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_iogate.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-/*
- *  HACK Variables added by decoding url: 'schema' 'host' 'port' to __json_config_variables__
- *  HACK If name is empty, name=url.
- */
-
-// protocol_gclass = GWebSocket
-PRIVATE char client_config[]= "\
-{                                               \n\
-    'name': '(^^channel_name^^)',               \n\
-    'gclass': 'Channel',                        \n\
-    'zchilds': [                                \n\
-        {                                       \n\
-            'name': '(^^channel_name^^)',       \n\
-            'gclass': '(^^protocol_gclass^^)',  \n\
-            'kw': {                             \n\
-                'kw_connex': {                  \n\
-                    'urls':[                    \n\
-                        '(^^url^^)'             \n\
-                    ]                           \n\
-                }                               \n\
-            }                                   \n\
-        }                                       \n\
-    ]                                           \n\
-}                                               \n\
-";
-
-// top_gclass = IEvent_srv
-PRIVATE char server_config[]= "\
-{                                                               \n\
-    'name': '(^^channel_name^^)',                               \n\
-    'gclass': 'TcpS0',                                          \n\
-    'kw': {                                                     \n\
-        'url': '(^^url^^)',                                     \n\
-        'child_tree_filter': {                                  \n\
-            'op': 'find',                                       \n\
-            'kw': {                                             \n\
-                '__prefix_gobj_name__': '(^^channel_name^^)-',  \n\
-                '__gclass_name__': '(^^top_gclass^^)',          \n\
-                '__disabled__': false,                          \n\
-                'lHost': '(^^host^^)',                          \n\
-                'lPort': '(^^port^^)'                           \n\
-            }                                                   \n\
-        }                                                       \n\
-    }                                                           \n\
-}                                                               \n\
-";
-
-// top_gclass = IEvent_srv
-// protocol_gclass = GWebSocket
-PRIVATE char clisrv_config[]= "\
-{                                                               \n\
-    'name': '(^^channel_name^^)-(^^index^^)',                   \n\
-    'gclass': '(^^top_gclass^^)',                               \n\
-    'kw': {                                                     \n\
-    },                                                          \n\
-    'zchilds': [                                                \n\
-        {                                                       \n\
-            'name': '(^^channel_name^^)-(^^index^^)',           \n\
-            'gclass': 'Channel',                                \n\
-            'kw': {                                             \n\
-                'lHost': '(^^host^^)',                          \n\
-                'lPort': '(^^port^^)'                           \n\
-            },                                                  \n\
-            'zchilds': [                                        \n\
-                {                                               \n\
-                    'name': '(^^channel_name^^)-(^^index^^)',   \n\
-                    'gclass': '(^^protocol_gclass^^)',          \n\
-                    'kw': {                                     \n\
-                        'iamServer': true                       \n\
-                    }                                           \n\
-                }                                               \n\
-            ]                                                   \n\
-        }                                                       \n\
-    ]                                                           \n\
-}                                                               \n\
-";
-
-#define MAX_GATE_CONFIGS 30
-
-typedef struct gate_config_s {
-    const char *type;
-    const char *config;
-} gate_config_t;
-
-PRIVATE gate_config_t gate_config_pool[MAX_GATE_CONFIGS+1] = {
-{"client_gate",     client_config},
-{"server_gate",     server_config},
-{"clisrv_gate",     clisrv_config},
-{0,0}
-};
 
 /***************************************************************************
  *              Structures
@@ -112,9 +25,6 @@ PRIVATE gate_config_t gate_config_pool[MAX_GATE_CONFIGS+1] = {
  *              Prototypes
  ***************************************************************************/
 PRIVATE int channels_opened(hgobj gobj);
-PRIVATE int trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE int trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE gate_config_t *get_tree_config_type(hgobj gobj, const char* type);
 
 /***************************************************************************
  *              Resources
@@ -149,7 +59,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_drop_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -178,7 +87,6 @@ SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,  
 SDATACM (DTP_SCHEMA,    "view-channels",            0,      pm_channel,     cmd_view_channels,      "View channels."),
 SDATACM (DTP_SCHEMA,    "enable-channel",           0,      pm_channel,     cmd_enable_channels,    "Enable channel."),
 SDATACM (DTP_SCHEMA,    "disable-channel",          0,      pm_channel,     cmd_disable_channels,   "Disable channel."),
-SDATACM (DTP_SCHEMA,    "drop-channel",             0,      pm_channel,     cmd_drop_channels,      "Drop channel."),
 SDATACM (DTP_SCHEMA,    "trace-on-channel",         0,      pm_channel,     cmd_trace_on_channels, "Trace on channel."),
 SDATACM (DTP_SCHEMA,    "trace-off-channel",        0,      pm_channel,     cmd_trace_off_channels,"Trace off channel."),
 SDATACM (DTP_SCHEMA,    "reset-stats-channel",      0,      pm_channel,     cmd_reset_stats_channels,"Reset stats of channel."),
@@ -198,9 +106,6 @@ SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD,             0,              
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD,             0,              "Messages by second"),
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-
-SDATA (DTP_STRING,      "last_channel",     SDF_RD,             0,              "Last channel name used to send"),
-
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -211,8 +116,8 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_CONNECTION = 0x0001,
-    TRACE_MESSAGES    = 0x0002,
+    TRACE_CONNECTION    = 0x0001,
+    TRACE_MESSAGES      = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"connection",      "Trace connections of iogates"},
@@ -224,7 +129,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj resource;
+    json_t *jn_channels;
+    hgobj cur_channel;
     hgobj timer;
     int32_t timeout;
 
@@ -236,6 +142,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t last_rxMsgs;
     uint64_t last_ms;
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -257,6 +165,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->jn_channels = json_array();
 
     /*
      *  SERVICE subscription model
@@ -293,11 +202,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-
-    if(priv->resource) {
-        gobj_start(priv->resource);
-    }
     gobj_start(priv->timer);
     set_timeout_periodic(priv->timer, priv->timeout);
 
@@ -308,62 +212,39 @@ PRIVATE int mt_start(hgobj gobj)
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", "Channel"
     );
-    gobj_match_childs_tree(gobj, dl_list, jn_filter);
-
-    dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-    if(rc_iter_size(dl_childs)) {
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-        while(i_hs) {
+    hgobj child = gobj_first_child(gobj);
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            // TODO is necessary?
             /*--------------------------------------------*
              *  Firstly check if it exists.
              *  Hard-coded channels cannot be repeated.
              *--------------------------------------------*/
             const char *channel_name = gobj_name(child);
-            json_t *kw_rc = json_pack("{s:s}",
-                "channel_name", channel_name
-            );
-            dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, kw_rc, 0);
-            if(rc_iter_size(iter) == 0) {
-                kw_rc = json_pack("{s:s, s:s, s:s, s:b, s:b, s:b, s:s, s:s, s:s, s:s, s:I, s:I}",
-                    "type", "client_gate",
-                    "channel_name", channel_name,
-                    "url", "",
-                    "disabled", 0,
-                    "static", 1,
-                    "traced", gobj_read_uint32_attr(child, "__trace_level__")?1:0,
-                    "date", "",
-                    "description", "Hard-coded channel",
-                    "top_gclass", "",
-                    "protocol_gclass", "",
-                    "idx", (json_int_t)0,
-                    "channel_gobj", (json_int_t)(size_t)child
-                );
-                hsdata hs = gobj_create_resource(priv->resource, resource, kw_rc, 0);
-                gobj_write_pointer_attr(child, "user_data2", hs);
-            } else if(rc_iter_size(iter) == 1) {
-                // TODO se ignoran los disabled y trace_level de los static channel.
-                hsdata hs;
-                rc_first_instance(iter, (rc_resource_t **)&hs);
-                sdata_write_pointer(hs, "channel_gobj", child);
-                gobj_write_pointer_attr(child, "user_data2", hs);
-            } else {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "hard-coded channel: TOO MANY instances",
-                    "channel_name", "%s", channel_name,
-                    NULL
-                );
+            if(kwid_find_record_in_list(gobj, priv->jn_channels, channel_name, 0)) {
+                continue;
             }
-            rc_free_iter(iter, TRUE, 0);
-
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+            json_t *kw_rc = json_pack("{s:s, s:s, s:s, s:b, s:b, s:b, s:s, s:s, s:s, s:s, s:I, s:I}",
+                "id", channel_name,
+                "type", "client_gate",
+                "url", "",
+                "disabled", 0,
+                "static", 1,
+                "traced", (int)gobj_read_integer_attr(child, "__trace_level__")?1:0,
+                "date", "",
+                "description", "Hard-coded channel",
+                "top_gclass", "",
+                "protocol_gclass", "",
+                "idx", (json_int_t)0,
+                "channel_gobj", (json_int_t)(size_t)child
+            );
+            json_array_append_new(priv->jn_channels, kw_rc);
+            gobj_write_pointer_attr(child, "user_data2", kw_rc);
         }
+        child = gobj_next_child(child);
     }
-    rc_free_iter(dl_childs, TRUE, 0);
 
+    JSON_DECREF(jn_filter)
 
     return 0;
 }
@@ -375,9 +256,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->resource) {
-        gobj_stop(priv->resource);
-    }
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
     gobj_stop_childs(gobj);
@@ -394,32 +272,35 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     if(stats && strcmp(stats, "__reset__")==0) {
         (*priv->ptxMsgs) = 0;
         (*priv->prxMsgs) = 0;
-        gobj_write_uint64_attr(gobj, "txMsgsec", 0);
-        gobj_write_uint64_attr(gobj, "rxMsgsec", 0);
-        gobj_write_uint64_attr(gobj, "maxtxMsgsec", 0);
-        gobj_write_uint64_attr(gobj, "maxrxMsgsec", 0);
+        gobj_write_integer_attr(gobj, "txMsgsec", 0);
+        gobj_write_integer_attr(gobj, "rxMsgsec", 0);
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", 0);
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", 0);
 
         /*
          *  Reset stats of channels too
          */
-        dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-        while(i_hs) {
-            KW_INCREF(kw);
-            json_t *jn_child_stats = gobj_stats(child, stats, kw, gobj);
-            JSON_DECREF(jn_child_stats);
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                KW_INCREF(kw)
+                json_t *jn_child_stats = gobj_stats(child, stats, kw, gobj);
+                JSON_DECREF(jn_child_stats)
+            }
+            child = gobj_next_child(child);
         }
-        rc_free_iter(dl_childs, TRUE, 0);
+        JSON_DECREF(jn_filter)
     }
 
     json_t *jn_stats = json_object();
 
-    uint64_t txMsgsec = gobj_read_uint64_attr(gobj, "txMsgsec");
-    uint64_t rxMsgsec = gobj_read_uint64_attr(gobj, "rxMsgsec");
-    uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    json_int_t txMsgsec = gobj_read_integer_attr(gobj, "txMsgsec");
+    json_int_t rxMsgsec = gobj_read_integer_attr(gobj, "rxMsgsec");
+    json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     int opened = channels_opened(gobj);
 
     json_object_set_new(
@@ -457,9 +338,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         "maxrxMsgsec",
         json_integer(maxrxMsgsec)
     );
-    append_yuno_metadata(gobj, jn_stats, stats);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -469,21 +349,6 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     );
 }
 
-/***************************************************************************
- *      Framework Method trace_on
- ***************************************************************************/
-PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
-{
-    return trace_on_channels(gobj, "trace_on", kw, gobj);
-}
-
-/***************************************************************************
- *      Framework Method trace_off
- ***************************************************************************/
-PRIVATE int mt_trace_off(hgobj gobj, const char *level, json_t *kw)
-{
-    return trace_off_channels(gobj, "trace_off", kw, gobj);
-}
 
 
 
@@ -499,9 +364,9 @@ PRIVATE int mt_trace_off(hgobj gobj, const char *level, json_t *kw)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -512,324 +377,36 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  command
- *  Add a dynamic gobj has sense only in **client** gobjs, not servers.
- ***************************************************************************/
-PRIVATE json_t *cmd_add_channel(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-
-    if(1) {
-        return msg_iev_build_webix(
-            gobj,
-            -1,
-            json_sprintf("add channel not available"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    if(!priv->resource) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf("Channel resource not in use."),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_int_t id = atoi(kw_get_str(kw, "channel_id", "", 0));
-    const char *channel_name = kw_get_str(kw, "channel_name", "", 0);
-    const char *url = kw_get_str(kw, "url", "", 0);
-
-    /*------------------------------------------------*
-     *      Check required parameters
-     *------------------------------------------------*/
-    if(empty_string(url)) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf(
-                "What url?"
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-    char schema[20], host[120], port[40];
-    int r = parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE);
-    if(r<0) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf(
-                "Bad url: '%s'", url
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-    json_object_set_new(
-        kw,
-        "schema",
-        json_string(schema)
-    );
-    json_object_set_new(
-        kw,
-        "host",
-        json_string(host)
-    );
-    json_object_set_new(
-        kw,
-        "port",
-        json_string(port)
-    );
-
-    if(empty_string(channel_name)) {
-        // Use the url as name
-        json_object_set_new(kw, "channel_name", json_string(url));
-    }
-    if(!kw_has_key(kw, "type")) {
-        json_object_set_new(kw, "type", json_string("client_gate"));
-    }
-    if(!kw_has_key(kw, "top_gclass")) {
-        json_object_set_new(kw, "top_gclass", json_string("IEvent_srv"));
-    }
-    if(!kw_has_key(kw, "protocol_gclass")) {
-        json_object_set_new(kw, "protocol_gclass", json_string("GWebSocket"));
-    }
-
-    /*------------------------------------------------*
-     *  Get content in base64 and decode
-     *------------------------------------------------*/
-    GBUFFER *gbuf_content = 0;
-    const char *content64 = kw_get_str(kw, "content64", "", 0);
-    if(!empty_string(content64)) {
-        gbuf_content = gbuf_decodebase64string(content64);
-        json_object_set_new(
-            kw,
-            "zcontent",
-            json_string(gbuf_cur_rd_pointer(gbuf_content))
-        );
-        GBUF_DECREF(gbuf_content);
-
-    } else {
-        /*
-         *  Use default dgobj tree
-         */
-        const char *type = kw_get_str(kw, "type", "", 0);
-        gate_config_t *gate_config = get_tree_config_type(gobj, type);
-        if(!gate_config) {
-            return msg_iev_build_webix(gobj,
-                -1,
-                json_sprintf(
-                    "Bad config type: '%s'", type
-                ),
-                0,
-                0,
-                kw  // owned
-            );
-        }
-
-        char *dgobj_tree = gbmem_strdup(client_config);
-        helper_quote2doublequote(dgobj_tree);
-        json_object_set_new(
-            kw,
-            "zcontent",
-            json_string(dgobj_tree)
-        );
-        gbmem_free(dgobj_tree);
-    }
-
-    /*------------------------------------------------*
-     *      Create record
-     *------------------------------------------------*/
-    char current_date[22];
-    current_timestamp(current_date, sizeof(current_date));  // "CCYY/MM/DD hh:mm:ss"
-    json_object_set_new(
-        kw,
-        "date",
-        json_string(current_date)
-    );
-    if(id) {
-        json_object_set_new(
-            kw,
-            "id",
-            json_integer(id)
-        );
-    }
-
-    KW_INCREF(kw);
-    hsdata hs = gobj_create_resource(priv->resource, resource, kw, 0);
-    if(!hs) {
-        return msg_iev_build_webix(
-            gobj,
-            -1,
-            json_sprintf("Cannot create resource."),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    /*------------------------------------------------*
-     *      Create the dynamic tree gobj.
-     *------------------------------------------------*/
-    json_t * jn_config_variables = json_pack("{s:O}",
-        "__json_config_variables__", kw
-    );
-    char *sjson_config_variables = json2str(jn_config_variables);
-    JSON_DECREF(jn_config_variables);
-
-    const char *tree_config = kw_get_str(kw, "zcontent", "", 0);
-    hgobj channel_gobj = gobj_create_tree(
-        gobj,
-        tree_config,
-        sjson_config_variables,
-        0,  //"EV_ON_SETUP",
-        0   //"EV_ON_SETUP_COMPLETE"
-    );
-    gbmem_free(sjson_config_variables);
-
-    if(!channel_gobj) {
-        sdata_destroy(hs);
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf(
-                "Cannot create the channel gobj."
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    sdata_write_pointer(hs, "channel_gobj", channel_gobj);
-    gobj_write_pointer_attr(channel_gobj, "user_data2", hs);
-    //gobj_save_resource(priv->resource, hs);
-
-    /*
-     *  Start if not disabled
-     */
-    if(!sdata_read_bool(hs, "disabled")) {
-        gobj_start_tree(channel_gobj);
-    }
-
-    /*
-     *  Convert result in json
-     */
-    json_t *jn_data = json_array();
-    json_array_append_new(jn_data, sdata2json(hs, SDF_PERSIST|SDF_VOLATIL, 0));
-
-    /*
-     *  Inform
-     */
-    json_t *webix = msg_iev_build_webix(
-        gobj,
-        0,
-        0,
-        0, //RESOURCE_WEBIX_SCHEMA(priv->resource, resource),
-        jn_data, // owned
-        kw  // owned
-    );
-
-    return webix;
-}
-
-/***************************************************************************
- *  command
- ***************************************************************************/
-PRIVATE json_t *cmd_delete_channel(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    return msg_iev_build_webix(
-        gobj,
-        -1,
-        json_sprintf("delete channel not available"),
-        0,
-        0,
-        kw  // owned
-    );
-}
-
-/***************************************************************************
- *  command
- ***************************************************************************/
-PRIVATE json_t *cmd_list_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *resource = "channels";
-
-    if(!priv->resource) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf("Channel resource not in use."),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, kw_incref(kw), 0);
-
-    /*
-     *  Convert hsdata to json
-     */
-    json_t *jn_data = sdata_iter2json(iter, SDF_PERSIST|SDF_RESOURCE|SDF_VOLATIL, 0);
-
-    /*
-     *  Inform
-     */
-    json_t *webix = msg_iev_build_webix(
-        gobj,
-        0,
-        json_sprintf("%s", cmd),
-        0, //RESOURCE_WEBIX_SCHEMA(priv->resource, resource),
-        jn_data, // owned
-        kw  // owned
-    );
-
-    rc_free_iter(iter, TRUE, 0);
-
-    return webix;
-}
-
-/***************************************************************************
  *  CLI usage
  ***************************************************************************/
 #define FORMATT_VIEW_CHANNELS "%-22s %-6s %-12s %-12s %-8s %-8s %-8s %-8s %-20s %-20s"
-#define FORMATD_VIEW_CHANNELS "%-22s %6d %12" PRIu64 " %12" PRIu64 " %8" PRIu64 " %8" PRIu64 " %8d %8d %20s %20s"
+#define FORMATD_VIEW_CHANNELS "%-22s %6d %12" JSON_INTEGER_FORMAT " %12" JSON_INTEGER_FORMAT " %8" JSON_INTEGER_FORMAT " %8" JSON_INTEGER_FORMAT " %8d %8d %20s %20s"
 PRIVATE int add_child_to_data(hgobj gobj, json_t *jn_data, hgobj child)
 {
     const char *channel_name = gobj_name(child);
     BOOL disabled = gobj_read_bool_attr(child, "__disabled__");
     BOOL opened = gobj_read_bool_attr(child, "opened");
-    BOOL traced = gobj_read_uint32_attr(child, "__trace_level__");
+    BOOL traced = gobj_read_integer_attr(child, "__trace_level__");
     const char *sockname = "";
     const char *peername = "";
-    //uint64_t txBytes = 0;
-    //uint64_t rxBytes = 0;
-    uint64_t txMsgs = 0;
-    uint64_t rxMsgs = 0;
-    uint64_t txMsgsec = 0;
-    uint64_t rxMsgsec = 0;
+    json_int_t txMsgs = 0;
+    json_int_t rxMsgs = 0;
+    json_int_t txMsgsec = 0;
+    json_int_t rxMsgsec = 0;
     if(gobj_has_bottom_attr(child, "sockname")) {
         // Only when connected has this attrs.
         sockname = gobj_read_str_attr(child, "sockname");
-        if(!sockname)
+        if(!sockname) {
             sockname = "";
+        }
         peername = gobj_read_str_attr(child, "peername");
-        if(!peername)
+        if(!peername) {
             peername = "";
-        txMsgs = gobj_read_uint64_attr(child, "txMsgs");
-        rxMsgs = gobj_read_uint64_attr(child, "rxMsgs");
-        txMsgsec = gobj_read_uint64_attr(child, "txMsgsec");
-        rxMsgsec = gobj_read_uint64_attr(child, "rxMsgsec");
+        }
+        txMsgs = gobj_read_integer_attr(child, "txMsgs");
+        rxMsgs = gobj_read_integer_attr(child, "rxMsgs");
+        txMsgsec = gobj_read_integer_attr(child, "txMsgsec");
+        rxMsgsec = gobj_read_integer_attr(child, "rxMsgsec");
     }
     return json_array_append_new(
         jn_data,
@@ -881,46 +458,67 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         )
     );
 
-    dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-    const char *channel = kw_get_str(kw, "channel_name", 0, 0);
-    BOOL opened = kw_get_bool(kw, "opened", 0, KW_WILD_NUMBER);
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
+    BOOL opened = kw_get_bool(gobj, kw, "opened", 0, KW_WILD_NUMBER);
     if(empty_string(channel)) {
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-        while(i_hs) {
-            if(opened) {
-                if(gobj_read_bool_attr(child, "opened")) {
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                if(opened) {
+                    if(gobj_read_bool_attr(child, "opened")) {
+                        add_child_to_data(gobj, jn_data, child);
+                    }
+                } else {
                     add_child_to_data(gobj, jn_data, child);
                 }
-            } else {
-                add_child_to_data(gobj, jn_data, child);
             }
-
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+            child = gobj_next_child(child);
         }
+        JSON_DECREF(jn_filter)
+
     } else {
-        dl_list_t *dl_childs2 = gobj_filter_childs_by_re_name(dl_childs, channel);
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs2, (rc_resource_t **)&child);
-        while(i_hs) {
-            if(opened) {
-                if(gobj_read_bool_attr(child, "opened")) {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                jn_data, // owned
+                kw  // owned
+            );
+        }
+
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                if(opened) {
+                    if(gobj_read_bool_attr(child, "opened")) {
+                        add_child_to_data(gobj, jn_data, child);
+                    }
+                } else {
                     add_child_to_data(gobj, jn_data, child);
                 }
-            } else {
-                add_child_to_data(gobj, jn_data, child);
             }
-
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+            child = gobj_next_child(child);
         }
-        rc_free_iter(dl_childs2, TRUE, 0);
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    // ??? jn_data = sort_json_list_by_string(jn_data);
 
-    jn_data = sort_json_list_by_string(jn_data);
-
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -933,84 +531,56 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /***************************************************************************
  *  command
  ***************************************************************************/
-PRIVATE json_t *cmd_drop_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    int count = 0;
-    const char *channel = kw_get_str(kw, "channel_name", 0, 0);
-    dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-
-    if(empty_string(channel)) {
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-        while(i_hs) {
-            if(gobj_is_running(child)) {
-                trace_msg("send EV_DROP to %s", gobj_short_name(child));
-                gobj_send_event(child, "EV_DROP", 0, gobj);
-                count++;
-            }
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
-        }
-    } else {
-        dl_list_t *dl_childs2 = gobj_filter_childs_by_re_name(dl_childs, channel);
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs2, (rc_resource_t **)&child);
-        while(i_hs) {
-            if(gobj_is_running(child)) {
-                trace_msg("send EV_DROP to %s", gobj_short_name(child));
-                gobj_send_event(child, "EV_DROP", 0, gobj);
-                count++;
-            }
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
-        }
-        rc_free_iter(dl_childs2, TRUE, 0);
-    }
-
-    rc_free_iter(dl_childs, TRUE, 0);
-
-    return cmd_view_channels(gobj, cmd, kw, src);
-}
-
-/***************************************************************************
- *  command
- ***************************************************************************/
 PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-    int count = 0;
-    if(!priv->resource) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf("Channel resource not in use."),
-            0,
-            0,
-            kw  // owned
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
+    if(empty_string(channel)) {
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
         );
-    }
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                if(gobj_is_disabled(child)) {
+                    gobj_enable(child);
+                }
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
 
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, kw_incref(kw), 0);
-
-    hgobj hs; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(iter, (rc_resource_t **)&hs);
-    while(i_hs) {
-        BOOL disabled = sdata_read_bool(hs, "disabled");
-        if(disabled) {
-            count++;
-            hgobj channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-            sdata_write_bool(hs, "disabled", 0);
-            gobj_enable(channel_gobj);
-            //gobj_save_resource(priv->resource, hs);
+    } else {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                0, // owned
+                kw  // owned
+            );
         }
 
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                if(gobj_is_disabled(child)) {
+                    gobj_enable(child);
+                }
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
     }
-
-    rc_free_iter(iter, TRUE, 0);
-
-    // HACK dont't return iter list, the id will corrupt webix tables (id in webix is gobj full name).
 
     return cmd_view_channels(gobj, cmd, kw, src);
 }
@@ -1020,41 +590,54 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-    int count = 0;
-
-    if(!priv->resource) {
-        return msg_iev_build_webix(gobj,
-            -1,
-            json_sprintf("Channel resource not in use."),
-            0,
-            0,
-            kw  // owned
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
+    if(empty_string(channel)) {
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
         );
-    }
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                if(!gobj_is_disabled(child)) {
+                    gobj_disable(child);
+                }
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
 
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, kw_incref(kw), 0);
-
-    hgobj hs; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(iter, (rc_resource_t **)&hs);
-    while(i_hs) {
-        BOOL disabled = sdata_read_bool(hs, "disabled");
-        if(!disabled) {
-            count++;
-            hgobj channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-            sdata_write_bool(hs, "disabled", 1);
-            gobj_disable(channel_gobj);
-            //gobj_save_resource(priv->resource, hs );
+    } else {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                0, // owned
+                kw  // owned
+            );
         }
 
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                if(!gobj_is_disabled(child)) {
+                    gobj_disable(child);
+                }
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
     }
-
-    rc_free_iter(iter, TRUE, 0);
 
     return cmd_view_channels(gobj, cmd, kw, src);
 }
@@ -1064,7 +647,51 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
  ***************************************************************************/
 PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    trace_on_channels(gobj, cmd, kw_incref(kw), src);
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
+    if(empty_string(channel)) {
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                gobj_set_gobj_trace(child, "", TRUE, 0);
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+
+    } else {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                0, // owned
+                kw  // owned
+            );
+        }
+
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                gobj_set_gobj_trace(child, "", TRUE, 0);
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
+    }
+
     return cmd_view_channels(gobj, cmd, kw, src);
 }
 
@@ -1073,7 +700,51 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
  ***************************************************************************/
 PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    trace_off_channels(gobj, cmd, kw_incref(kw), src);
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
+    if(empty_string(channel)) {
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                gobj_set_gobj_trace(child, "", FALSE, 0);
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+
+    } else {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                0, // owned
+                kw  // owned
+            );
+        }
+
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                gobj_set_gobj_trace(child, "", FALSE, 0);
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
+    }
+
     return cmd_view_channels(gobj, cmd, kw, src);
 }
 
@@ -1082,33 +753,52 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
  ***************************************************************************/
 PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    int count = 0;
-    const char *channel = kw_get_str(kw, "channel_name", 0, 0);
-    dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-
+    const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-        while(i_hs) {
-            json_t *jn_stats = gobj_stats(child, "__reset__", 0, gobj);
-            JSON_DECREF(jn_stats);
-            count++;
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                json_t *jn_stats = gobj_stats(child, "__reset__", 0, gobj);
+                JSON_DECREF(jn_stats)
+            }
+            child = gobj_next_child(child);
         }
-    } else {
-        dl_list_t *dl_childs2 = gobj_filter_childs_by_re_name(dl_childs, channel);
-        hgobj child; rc_instance_t *i_hs;
-        i_hs = rc_first_instance(dl_childs2, (rc_resource_t **)&child);
-        while(i_hs) {
-            json_t *jn_stats = gobj_stats(child, "__reset__", 0, gobj);
-            JSON_DECREF(jn_stats);
-            count++;
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
-        }
-        rc_free_iter(dl_childs2, TRUE, 0);
-    }
+        JSON_DECREF(jn_filter)
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    } else {
+        regex_t _re_name;
+        if(regcomp(&_re_name, channel, REG_EXTENDED | REG_NOSUB)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("regcomp() failed"),
+                0,
+                0, // owned
+                kw  // owned
+            );
+        }
+
+        json_t *jn_filter = json_pack("{s:s}",
+            "__gclass_name__", "Channel"
+        );
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+                const char *name = gobj_name(child);
+                if(regexec(&_re_name, name, 0, 0, 0)!=0) {
+                    continue;
+                }
+                json_t *jn_stats = gobj_stats(child, "__reset__", 0, gobj);
+                JSON_DECREF(jn_stats)
+            }
+            child = gobj_next_child(child);
+        }
+        JSON_DECREF(jn_filter)
+        regfree(&_re_name);
+    }
 
     return cmd_view_channels(gobj, cmd, kw, src);
 }
@@ -1116,111 +806,12 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 
 
 
-            /***************************
-             *      Local Methods
-             ***************************/
+                    /***************************
+                     *      Local Methods
+                     ***************************/
 
 
 
-
-/***************************************************************************
- *  command
- ***************************************************************************/
-PRIVATE int trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-    int count = 0;
-
-    if(!priv->resource) {
-        KW_DECREF(kw);
-        return -1;
-    }
-
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(
-        priv->resource,
-        resource,
-        kw_incref(kw), // owned
-        0
-    );
-
-    hgobj hs; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(iter, (rc_resource_t **)&hs);
-    while(i_hs) {
-        count++;
-        hgobj channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-        sdata_write_bool(hs, "traced", 1);
-        gobj_set_gobj_trace(channel_gobj, "", TRUE, 0); // TODO change by gobj_set_gclass_trace()?
-        //gobj_save_resource(priv->resource, hs);
-
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
-    }
-
-    rc_free_iter(iter, TRUE, 0);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *  command
- ***************************************************************************/
-PRIVATE int trace_off_channels(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-    int count = 0;
-
-    if(!priv->resource) {
-        KW_DECREF(kw);
-        return -1;
-    }
-
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(
-        priv->resource,
-        resource,
-        kw_incref(kw),
-        0
-    );
-
-    hgobj hs; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(iter, (rc_resource_t **)&hs);
-    while(i_hs) {
-        count++;
-        hgobj channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-        sdata_write_bool(hs, "traced", 0);
-        gobj_set_gobj_trace(channel_gobj, "", FALSE, 0);
-        //gobj_save_resource(priv->resource, hs);
-
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
-    }
-
-    rc_free_iter(iter, TRUE, 0);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE gate_config_t *get_tree_config_type(hgobj gobj, const char *type)
-
-{
-    for(int i=0; gate_config_pool[i].type!=0; i++) {
-        if(strcmp(gate_config_pool[i].type, type)==0) {
-            return &gate_config_pool[i];
-        }
-    }
-
-    return 0;
-}
 
 /***************************************************************************
  *  Filter channels
@@ -1228,58 +819,30 @@ PRIVATE gate_config_t *get_tree_config_type(hgobj gobj, const char *type)
 PRIVATE hgobj get_next_destination(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
 
-    if(!priv->resource) {
-        return 0;
-    }
-
-    hgobj channel_gobj = 0;
-
-    /*
-     *  Get a iter of matched resources
-     */
-    const char *last_channel = gobj_read_str_attr(gobj, "last_channel");
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, 0, 0);
+    size_t count = gobj_child_size(gobj);
 
     json_t *jn_filter = json_pack("{s:b, s:b}",
         "opened", 1,
-        "disabled", 0
+        "__disabled__", 0
     );
-    dl_list_t *iter_open = sdata_iter_match(iter, -1, 0, jn_filter, 0);
 
-    hsdata hs=0; rc_instance_t* i_hs=0;
-    int size = dl_size(iter_open);
-    if(!empty_string(last_channel)) {
-        json_t *jn_filter2 = json_pack("{s:s}",
-            "channel_name", last_channel
-        );
-        hs = sdata_iter_find_one(iter_open, jn_filter2, &i_hs);
+    hgobj child = priv->cur_channel;
+    if(!child) {
+        child = gobj_first_child(gobj);
     }
 
-    while(size > 0) {
-        if(!i_hs) {
-            i_hs = rc_first_instance(iter_open, (rc_resource_t **)&hs); // first time
-        } else {
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
-            if(!i_hs) {
-                i_hs = rc_first_instance(iter_open, (rc_resource_t **)&hs); // turns
-            }
+    size_t i = 0;
+    while(child && i<=count) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            priv->cur_channel = child;
+            return priv->cur_channel;
         }
-        if(i_hs) {
-            channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-            if(channel_gobj) {
-                const char *channel_name = sdata_read_str(hs, "channel_name");
-                gobj_write_str_attr(gobj, "last_channel", channel_name);
-                break;
-            }
-        }
-        size--;
+        child = gobj_next_child(child);
+        i++;
     }
-    rc_free_iter(iter_open, TRUE, 0);
-    rc_free_iter(iter, TRUE, 0);
 
-    return channel_gobj;
+    return 0;
 }
 
 /***************************************************************************
@@ -1289,11 +852,11 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *channel = kw_get_str(kw, "__temp__`channel", "", 0);
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, 0);
+    const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
     if(!channel_gobj) {
         if(!empty_string(channel)) {
-            channel_gobj = gobj_child_by_name(gobj, channel, 0);
+            channel_gobj = gobj_child_by_name(gobj, channel);
         } else {
             channel_gobj = get_next_destination(gobj);
         }
@@ -1301,8 +864,7 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
             static int repeated = 0;
 
             if(repeated%1000 == 0) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "No channel FOUND to send",
@@ -1312,24 +874,24 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
                     NULL
                 );
             }
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return -1;
         }
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
-            log_debug_gbuf(
-                LOG_DUMP_OUTPUT,
+            gobj_trace_dump_gbuf(
+                gobj,
                 gbuf, // not own
-                "GBUFFER %s ==> %s",
+                "gbuffer_t %s ==> %s",
                 gobj_short_name(gobj),
                 gobj_short_name(channel_gobj)
             );
         } else {
-            log_debug_json(
-                LOG_DUMP_OUTPUT,
+            gobj_trace_json(
+                gobj,
                 kw, // not own,
                 "KW %s ==> %s",
                 gobj_short_name(gobj),
@@ -1352,66 +914,50 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    char *resource = "channels";
-
-    if(!priv->resource) {
-        return 0;
-    }
-
-    hgobj channel_gobj = 0;
-
-    /*
-     *  Get a iter of matched resources
-     */
-    dl_list_t *iter = (dl_list_t *)gobj_list_resource(priv->resource, resource, 0, 0);
-
-    json_t *jn_filter = json_pack("{s:b, s:b}",
-        "opened", 1,
-        "disabled", 0
-    );
-    dl_list_t *iter_open = sdata_iter_match(iter, -1, 0, jn_filter, 0);
 
     int some = 0;
-    hsdata hs=0; rc_instance_t* i_hs=0;
-    i_hs = rc_first_instance(iter_open, (rc_resource_t **)&hs); // first time
-    while(i_hs) {
-        channel_gobj = sdata_read_pointer(hs, "channel_gobj");
-        if(channel_gobj) {
-            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-                GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
-                if(gbuf) {
-                    log_debug_gbuf(
-                        LOG_DUMP_OUTPUT,
-                        gbuf, // not own
-                        "GBUFFER %s ==> %s",
-                        gobj_short_name(gobj),
-                        gobj_short_name(channel_gobj)
-                    );
-                } else {
-                    log_debug_json(
-                        LOG_DUMP_OUTPUT,
-                        kw, // not own,
-                        "KW %s ==> %s",
-                        gobj_short_name(gobj),
-                        gobj_short_name(channel_gobj)
-                    );
+
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", "Channel"
+    );
+    hgobj child = gobj_first_child(gobj);
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            if(gobj_read_bool_attr(child, "opened")) {
+                if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+                    if(gbuf) {
+                        gobj_trace_dump_gbuf(
+                            gobj,
+                            gbuf, // not own
+                            "gbuffer_t %s ==> %s",
+                            gobj_short_name(gobj),
+                            gobj_short_name(child)
+                        );
+                    } else {
+                        gobj_trace_json(
+                            gobj,
+                            kw, // not own,
+                            "KW %s ==> %s",
+                            gobj_short_name(gobj),
+                            gobj_short_name(child)
+                        );
+                    }
+                }
+
+                int ret = gobj_send_event(child, event, json_incref(kw), gobj); // reuse kw
+                if(ret == 0) {
+                    some++;
+                    (*priv->ptxMsgs)++;
                 }
             }
-
-            int ret = gobj_send_event(channel_gobj, event, kw_incref(kw), gobj);
-            if(ret == 0) {
-                some++;
-                (*priv->ptxMsgs)++;
-            }
-            i_hs = rc_next_instance(i_hs, (rc_resource_t **)&hs);
         }
+        child = gobj_next_child(child);
     }
-    rc_free_iter(iter_open, TRUE, 0);
-    rc_free_iter(iter, TRUE, 0);
+    JSON_DECREF(jn_filter)
 
     if(!some) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "No channel FOUND to send",
@@ -1420,7 +966,7 @@ PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1431,25 +977,29 @@ PRIVATE int channels_opened(hgobj gobj)
 {
     int opened = 0;
 
-    dl_list_t *dl_childs = gobj_match_childs_tree_by_strict_gclass(gobj, "Channel");
-    hgobj child; rc_instance_t *i_hs;
-    i_hs = rc_first_instance(dl_childs, (rc_resource_t **)&child);
-    while(i_hs) {
-        if(gobj_read_bool_attr(child, "opened")) {
-            opened++;
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", "Channel"
+    );
+    hgobj child = gobj_first_child(gobj);
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            if(gobj_read_bool_attr(child, "opened")) {
+                opened++;
+            }
         }
-        i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
+        child = gobj_next_child(child);
     }
-
-    rc_free_iter(dl_childs, TRUE, 0);
+    JSON_DECREF(jn_filter)
 
     return opened;
 }
 
 
-            /***************************
-             *      Actions
-             ***************************/
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -1459,14 +1009,8 @@ PRIVATE int channels_opened(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    hsdata hs = gobj_read_pointer_attr(src, "user_data2");
-    if(hs) {
-        sdata_write_bool(hs, "opened", 1);
-    }
-
     if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
-        log_info(0,
-            "gobj",             "%s", gobj_full_name(gobj),
+        gobj_log_info(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_OPEN_CLOSE,
             "msg",              "%s", "ON_OPEN",
@@ -1480,12 +1024,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw = json_object();
     }
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channels_opened",
         json_integer(opened)
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel",
@@ -1493,12 +1039,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
     const char *__username__ = gobj_read_str_attr(src, "__username__");
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "__username__",
         json_string(__username__)
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel_gobj",
@@ -1514,14 +1062,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    hsdata hs = gobj_read_pointer_attr(src, "user_data2");
-    if(hs) {
-        sdata_write_bool(hs, "opened", 0);
-    }
-
     if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
-        log_info(0,
-            "gobj",             "%s", gobj_full_name(gobj),
+        gobj_log_info(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_OPEN_CLOSE,
             "msg",              "%s", "ON_CLOSE",
@@ -1535,18 +1077,21 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw = json_object();
     }
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channels_opened",
         json_integer(opened)
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel",
         json_string(gobj_name(src))
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel_gobj",
@@ -1565,18 +1110,18 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
-            log_debug_gbuf(
-                LOG_DUMP_INPUT,
+            gobj_trace_dump_gbuf(
+                gobj,
                 gbuf, // not own
-                "GBUFFER %s <== %s",
+                "gbuffer_t %s <== %s",
                 gobj_short_name(gobj),
                 gobj_short_name(src)
             );
         } else {
-            log_debug_json(
-                LOG_DUMP_INPUT,
+            gobj_trace_json(
+                gobj,
                 kw, // not own
                 "KW %s <== %s",
                 gobj_short_name(gobj),
@@ -1591,18 +1136,21 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw = json_object();
     }
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel",
         json_string(gobj_name(src))
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "__username__",
         json_string(gobj_read_str_attr(src, "__username__"))
     );
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__",
         "channel_gobj",
@@ -1620,22 +1168,22 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iev_event = kw_get_str(kw, "event", 0, KW_REQUIRED);
-    json_t *iev_kw = kw_get_dict(kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
+    const char *iev_event = kw_get_str(gobj, kw, "event", 0, KW_REQUIRED);
+    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
-            log_debug_gbuf(
-                LOG_DUMP_INPUT,
+            gobj_trace_dump_gbuf(
+                gobj,
                 gbuf, // not own
-                "GBUFFER %s <== %s",
+                "gbuffer_t %s <== %s",
                 gobj_short_name(gobj),
                 gobj_short_name(src)
             );
         } else {
-            log_debug_json(
-                LOG_DUMP_INPUT,
+            gobj_trace_json(
+                gobj,
                 kw, // not own
                 "KW %s <== %s",
                 gobj_short_name(gobj),
@@ -1647,12 +1195,14 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     (*priv->prxMsgs)++;
 
     kw_set_subdict_value(
+        gobj,
         iev_kw,
         "__temp__",
         "channel",
         json_string(gobj_name(src))
     );
     kw_set_subdict_value(
+        gobj,
         iev_kw,
         "__temp__",
         "channel_gobj",
@@ -1660,7 +1210,7 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
     gobj_publish_event(gobj, iev_event, iev_kw);  // reuse kw
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1671,7 +1221,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int send_type = kw_get_int(kw, "__send_type__", priv->send_type, 0);
+    int send_type = (int)kw_get_int(gobj, kw, "__send_type__", priv->send_type, 0);
 
     switch(send_type) {
     case TYPE_SEND_ALL:
@@ -1679,11 +1229,12 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         break;
 
     case TYPE_SEND_ONE_ROTATED:
+    default:
         send_one_rotate(gobj, event, kw_incref(kw), src);
         break;
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1694,11 +1245,11 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iev_event = kw_get_str(kw, "event", "", KW_REQUIRED);
-    json_t *iev_kw = kw_get_dict(kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
-    json_t *__temp__ = kw_get_dict(kw, "__temp__", 0, 0);
+    const char *iev_event = kw_get_str(gobj, kw, "event", "", KW_REQUIRED);
+    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
+    json_t *__temp__ = kw_get_dict(gobj, kw, "__temp__", 0, 0);
 
-    int send_type = kw_get_int(kw, "__send_type__", priv->send_type, 0);
+    int send_type = (int)kw_get_int(gobj, kw, "__send_type__", priv->send_type, 0);
 
     switch(send_type) {
     case TYPE_SEND_ALL:
@@ -1706,6 +1257,7 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
         break;
 
     case TYPE_SEND_ONE_ROTATED:
+    default:
         if(__temp__) {
             json_object_set(iev_kw, "__temp__", __temp__);
         }
@@ -1713,7 +1265,7 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
         break;
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1722,23 +1274,22 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    const char *channel = kw_get_str(kw, "__temp__`channel", "", 0);
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, 0);
+    const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
 
     if(!channel_gobj) {
         if(!empty_string(channel)) {
-            channel_gobj = gobj_child_by_name(gobj, channel, 0);
+            channel_gobj = gobj_child_by_name(gobj, channel);
             if(!channel_gobj) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "channel NOT FOUND",
-                    "channel",  "%s", channel,
+                    "channel",      "%s", channel,
                     "event",        "%s", event,
                     NULL
                 );
-                KW_DECREF(kw);
+                KW_DECREF(kw)
                 return -1;
             }
         }
@@ -1751,27 +1302,28 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(gobj_read_bool_attr(channel_gobj, "opened")) {
             gobj_send_event(channel_gobj, "EV_DROP", 0, gobj);
         }
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
     /*
      *  Drop all
      */
-    hgobj child; rc_instance_t *i_child;
-    i_child = gobj_first_child(gobj, &child);
-
-    while(i_child) {
-        if(gobj_typeof_gclass(child, GCLASS_CHANNEL_NAME)) {
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", "Channel"
+    );
+    hgobj child = gobj_first_child(gobj);
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
             if(gobj_read_bool_attr(child, "opened")) {
                 gobj_send_event(child, "EV_DROP", 0, gobj);
             }
         }
-
-        i_child = gobj_next_child(i_child, &child);
+        child = gobj_next_child(child);
     }
+    JSON_DECREF(jn_filter)
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -1781,9 +1333,9 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
 
-    if(gobj_typeof_subgclass(src, GCLASS_TCP0_NAME)) {
+    if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
 
@@ -1811,23 +1363,23 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         txMsgsec /= t;
         rxMsgsec /= t;
 
-        uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-        uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+        uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+        uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
         if(txMsgsec > maxtxMsgsec) {
-            gobj_write_uint64_attr(gobj, "maxtxMsgsec", txMsgsec);
+            gobj_write_integer_attr(gobj, "maxtxMsgsec", txMsgsec);
         }
         if(rxMsgsec > maxrxMsgsec) {
-            gobj_write_uint64_attr(gobj, "maxrxMsgsec", rxMsgsec);
+            gobj_write_integer_attr(gobj, "maxrxMsgsec", rxMsgsec);
         }
 
-        gobj_write_uint64_attr(gobj, "txMsgsec", txMsgsec);
-        gobj_write_uint64_attr(gobj, "rxMsgsec", rxMsgsec);
+        gobj_write_integer_attr(gobj, "txMsgsec", txMsgsec);
+        gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
     }
     priv->last_ms = ms;
     priv->last_txMsgs = *(priv->ptxMsgs);
     priv->last_rxMsgs = *(priv->prxMsgs);
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -1835,167 +1387,128 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // bottom input
-    {"EV_IEV_MESSAGE",              0, 0, 0},
-    {"EV_ON_MESSAGE",               0, 0, 0},
-    {"EV_ON_COMMAND",               0, 0, 0},
-    {"EV_ON_ID",                    0, 0, 0},
-    {"EV_ON_ID_NAK",                0, 0, 0},
-    {"EV_ON_SETUP",                 0, 0, 0},
-    {"EV_ON_SETUP_COMPLETE",        0, 0, 0},
-    {"EV_ON_OPEN",                  0, 0, 0},
-    {"EV_ON_CLOSE",                 0, 0, 0},
-
-    // top input
-    {"EV_SEND_MESSAGE",             0,  0,  "Send a message"},
-    {"EV_SEND_IEV",                 0,  0,  "Send a inter-event message"},
-    {"EV_DROP",                     0,  0,  "Drop connection"},
-
-    // internal
-    {"EV_STOPPED",                  0, 0, 0},
-    {"EV_TIMEOUT",                  0, 0, 0},
-    {NULL, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_MESSAGE",               0,   0,  "Message received"},
-    {"EV_ON_ID",                    0,   0,  "Id received"},
-    {"EV_ON_ID_NAK",                0,   0,  "Id refused"},
-    {"EV_ON_OPEN",                  0,   0,  "Channel opened"},
-    {"EV_ON_CLOSE",                 0,   0,  "Channel closed"},
-    {NULL, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_stats = mt_stats,
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,      0},
-    {"EV_SEND_MESSAGE",         ac_send_message,    0},
-    {"EV_IEV_MESSAGE",          ac_iev_message,     0},
-    {"EV_SEND_IEV",             ac_send_iev,        0},
-    {"EV_ON_COMMAND",           ac_on_message,      0},
-    {"EV_ON_ID",                ac_on_message,      0},
-    {"EV_ON_ID_NAK",            ac_on_message,      0},
-    {"EV_DROP",                 ac_drop,            0},
-    {"EV_ON_OPEN",              ac_on_open,         0},
-    {"EV_ON_CLOSE",             ac_on_close,        0},
-    {"EV_ON_SETUP",             0,                  0},
-    {"EV_ON_SETUP_COMPLETE",    0,                  0},
-    {"EV_TIMEOUT",              ac_timeout,         0},
-    {"EV_STOPPED",              ac_stopped,         0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_IOGATE);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_WAIT_IDENTITY_CARD_ACK);
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_IOGATE_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        0, //mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        mt_trace_on,
-        mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    command_table,
-    gcflag_no_check_output_events, // gcflag
-};
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
-PUBLIC GCLASS *gclass_iogate(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_ON_MESSAGE,         ac_on_message,      0},
+        {EV_SEND_MESSAGE,       ac_send_message,    0},
+        {EV_ON_IEV_MESSAGE,     ac_iev_message,     0},
+        {EV_SEND_IEV,           ac_send_iev,        0},
+        {EV_ON_COMMAND,         ac_on_message,      0},
+        {EV_ON_ID,              ac_on_message,      0},
+        {EV_ON_ID_NAK,          ac_on_message,      0},
+        {EV_DROP,               ac_drop,            0},
+        {EV_ON_OPEN,            ac_on_open,         0},
+        {EV_ON_CLOSE,           ac_on_close,        0},
+        {EV_TIMEOUT,            ac_timeout,         0},
+        {EV_STOPPED,            ac_stopped,         0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,               st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        // bottom input
+        {EV_ON_IEV_MESSAGE,         0},
+        {EV_ON_MESSAGE,             0},
+        {EV_ON_COMMAND,             0},
+        {EV_ON_ID,                  0},
+        {EV_ON_ID_NAK,              0},
+        {EV_ON_OPEN,                0},
+        {EV_ON_CLOSE,               0},
+
+        // top input
+        {EV_SEND_MESSAGE,           0},
+        {EV_SEND_IEV,               0},
+        {EV_DROP,                   0},
+
+        // internal
+        {EV_STOPPED,                0},
+        {EV_TIMEOUT,                0},
+
+        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
+        {EV_ON_ID,                  EVF_OUTPUT_EVENT},
+        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
+
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        command_table,  // command_table,
+        s_user_trace_level,
+        gcflag_no_check_output_events   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_iogate(void)
+{
+    return create_gclass(C_IOGATE);
 }

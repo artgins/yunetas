@@ -9,6 +9,9 @@
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_qiogate.h"
 #include "c_tranger.h"
 
@@ -149,6 +152,8 @@ typedef struct _PRIVATE_DATA {
     BOOL drop_on_timeout_ack;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -191,7 +196,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_ack,               gobj_read_integer_attr)
     SET_PRIV(with_metadata,             gobj_read_bool_attr)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
-    SET_PRIV(max_pending_acks,          gobj_read_uint32_attr)
+    SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
     SET_PRIV(drop_on_timeout_ack,       gobj_read_bool_attr)
 }
 
@@ -205,7 +210,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     IF_EQ_SET_PRIV(timeout_poll,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(drop_on_timeout_ack,   gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
@@ -297,7 +302,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -312,9 +317,9 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_reset_maxtxrx(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    gobj_write_uint64_attr(gobj, "maxtxMsgsec", 0);
-    gobj_write_uint64_attr(gobj, "maxrxMsgsec", 0);
-    return msg_iev_build_webix(
+    gobj_write_integer_attr(gobj, "maxtxMsgsec", 0);
+    gobj_write_integer_attr(gobj, "maxrxMsgsec", 0);
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Max tx rx reset done."),
@@ -332,7 +337,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_is_playing(gobj)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("you must PAUSE the yuno before executing this command."),
@@ -346,7 +351,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
     int64_t from_rowid = kw_get_int(kw, "from-rowid", 0, KW_WILD_NUMBER);
     int64_t to_rowid = kw_get_int(kw, "to-rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("Please, specify some from-rowid."),
@@ -378,7 +383,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
     close_queue(gobj);
 
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("%d messages marked as PENDING", count),
@@ -397,7 +402,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_is_playing(gobj)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("you must PAUSE the yuno before executing this command."),
@@ -411,7 +416,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
     int64_t from_rowid = kw_get_int(kw, "from-rowid", 0, KW_WILD_NUMBER);
     int64_t to_rowid = kw_get_int(kw, "to-rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             0,
             json_sprintf("Please, specify some from-rowid."),
@@ -443,7 +448,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
      */
     close_queue(gobj);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("%d messages marked as NOT-PENDING", count),
@@ -498,7 +503,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
     json_object_set_new(kw_email, "is_html", json_true());
     json_object_set_new(kw_email, "to", json_string(to));
 
-    GBUFFER *gbuf = gbuf_create(strlen(message), strlen(message), 0, 0);
+    gbuffer_t *gbuf = gbuf_create(strlen(message), strlen(message), 0, 0);
     gbuf_append_string(gbuf, message);
 
     json_object_set_new(kw_email,
@@ -571,7 +576,7 @@ PRIVATE int open_queue(hgobj gobj)
         "database", database,
         "master", 1,
         "subscriber", (json_int_t)(size_t)gobj,
-        "on_critical_error", (int)gobj_read_uint32_attr(gobj, "on_critical_error")
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     char name[NAME_MAX];
     snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
@@ -590,10 +595,10 @@ PRIVATE int open_queue(hgobj gobj)
         gobj_read_str_attr(gobj, "pkey"),
         gobj_read_str_attr(gobj, "tkey"),
         tranger_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
-        gobj_read_uint64_attr(gobj, "backup_queue_size")
+        gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
-    trq_set_maximum_retries(priv->trq_msgs, gobj_read_uint32_attr(gobj, "maximum_retries"));
+    trq_set_maximum_retries(priv->trq_msgs, gobj_read_integer_attr(gobj, "maximum_retries"));
 
     return 0;
 }
@@ -1049,7 +1054,7 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
 
     gbuf_incref(gbuf);
     json_t *jn_ack_message = gbuf2json(gbuf, 2);
@@ -1196,17 +1201,17 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_int_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    json_int_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }
     if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
     }
 
-    gobj_write_uint64_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_uint64_attr(gobj, "rxMsgsec", priv->rxMsgsec);
+    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
+    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
 
     priv->rxMsgsec = 0;
     priv->txMsgsec = 0;

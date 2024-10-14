@@ -67,7 +67,7 @@ typedef struct _PRIVATE_DATA {
     const char *on_close_event_name;
     const char *on_message_event_name;
 
-    GBUFFER *last_pkt;  /* packet currently receiving */
+    gbuffer_t *last_pkt;  /* packet currently receiving */
     char bf_header_erpl2[sizeof(HEADER_ERPL2)];
     int idx_header;
 
@@ -104,7 +104,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(max_pkt_size,          gobj_read_uint32_attr)
+    SET_PRIV(max_pkt_size,          gobj_read_integer_attr)
         if(priv->max_pkt_size == 0) {
             priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
         }
@@ -120,7 +120,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(max_pkt_size,          gobj_read_uint32_attr)
+    IF_EQ_SET_PRIV(max_pkt_size,          gobj_read_integer_attr)
         if(priv->max_pkt_size == 0) {
             priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
         }
@@ -228,7 +228,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_analyze_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
 
     size_t pend_size = 0;
     size_t len = gbuf_leftbytes(gbuf);
@@ -316,7 +316,7 @@ PRIVATE int ac_analyze_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj 
                 gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
                 break;
             }
-            GBUFFER *new_pkt = gbuf_create(
+            gbuffer_t *new_pkt = gbuf_create(
                 header_erpl2.len,
                 header_erpl2.len,
                 0,
@@ -377,9 +377,9 @@ PRIVATE int ac_analyze_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj 
  ********************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
     size_t len = gbuf_leftbytes(gbuf);
-    GBUFFER *new_gbuf;
+    gbuffer_t *new_gbuf;
     HEADER_ERPL2 header_erpl2;
 
     memset(&header_erpl2, 0, sizeof(HEADER_ERPL2));

@@ -6,6 +6,9 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_channel.h"
 
 
@@ -83,6 +86,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t last_rxMsgs;
     uint64_t last_ms;
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -436,17 +441,17 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         txMsgsec /= t;
         rxMsgsec /= t;
 
-        uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-        uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+        uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+        uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
         if(txMsgsec > maxtxMsgsec) {
-            gobj_write_uint64_attr(gobj, "maxtxMsgsec", txMsgsec);
+            gobj_write_integer_attr(gobj, "maxtxMsgsec", txMsgsec);
         }
         if(rxMsgsec > maxrxMsgsec) {
-            gobj_write_uint64_attr(gobj, "maxrxMsgsec", rxMsgsec);
+            gobj_write_integer_attr(gobj, "maxrxMsgsec", rxMsgsec);
         }
 
-        gobj_write_uint64_attr(gobj, "txMsgsec", txMsgsec);
-        gobj_write_uint64_attr(gobj, "rxMsgsec", rxMsgsec);
+        gobj_write_integer_attr(gobj, "txMsgsec", txMsgsec);
+        gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
     }
     priv->last_ms = ms;
     priv->last_txMsgs = *(priv->ptxMsgs);

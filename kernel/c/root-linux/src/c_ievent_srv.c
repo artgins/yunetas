@@ -453,7 +453,7 @@ PRIVATE int send_static_iev(
         }
     }
 
-    GBUFFER *gbuf = iev2gbuffer(
+    gbuffer_t *gbuf = iev2gbuffer(
         jn_iev, // owned
         FALSE
     );
@@ -488,7 +488,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Route (channel) open.
      *  Wait Identity card
      */
-    set_timeout(priv->timer, gobj_read_uint32_attr(gobj, "timeout_idgot"));
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_idgot"));
 
     KW_DECREF(kw);
     return 0;
@@ -742,7 +742,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             src
         );
 
-        set_timeout(priv->timer, gobj_read_uint32_attr(gobj, "timeout_idgot"));
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_idgot"));
 
         KW_DECREF(kw);
         return 0; // Don't return -1, don't drop connection, let send negative ack. Drop by timeout.
@@ -872,7 +872,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
         return send_static_iev(gobj,
             "EV_MT_STATS_ANSWER",
-            msg_iev_build_webix(
+            msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Only authenticated users can request stats"),
@@ -903,7 +903,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
             return send_static_iev(gobj,
                 "EV_MT_STATS_ANSWER",
-                msg_iev_build_webix(
+                msg_iev_build_response(
                     gobj,
                     -1,
                     json_sprintf("Service not found: '%s'", service),
@@ -969,7 +969,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
         return send_static_iev(gobj,
             "EV_MT_COMMAND_ANSWER",
-            msg_iev_build_webix2(
+            msg_iev_build_response2(
                 gobj,
                 -1,
                 json_sprintf("Only authenticated users can request commands"),
@@ -998,7 +998,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
             return send_static_iev(gobj,
                 "EV_MT_COMMAND_ANSWER",
-                msg_iev_build_webix2(
+                msg_iev_build_response2(
                     gobj,
                     -1,
                     json_sprintf("Service not found: '%s'", service),
@@ -1051,7 +1051,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
         log_error(0,
             "gobj",         "%s", gobj_full_name(gobj),

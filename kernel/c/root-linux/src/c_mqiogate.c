@@ -10,6 +10,9 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_mqiogate.h"
 
 /***************************************************************************
@@ -93,6 +96,8 @@ typedef struct _PRIVATE_DATA {
     int n_childs;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -125,7 +130,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(key,           gobj_read_str_attr)
     SET_PRIV(method,        gobj_read_str_attr)
-    SET_PRIV(digits,        gobj_read_uint32_attr)
+    SET_PRIV(digits,        gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -235,7 +240,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw)
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -272,7 +277,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     rc_free_iter(&dl_qiogate_childs, FALSE, 0);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,

@@ -1050,12 +1050,14 @@ GOBJ_DECLARE_EVENT(EV_STATE_CHANGED);
 
 // Channel Messages: Input Events (Requests)
 GOBJ_DECLARE_EVENT(EV_SEND_MESSAGE);
+GOBJ_DECLARE_EVENT(EV_SEND_IEV);
 GOBJ_DECLARE_EVENT(EV_DROP);
 
 // Channel Messages: Output Events (Publications)
 GOBJ_DECLARE_EVENT(EV_ON_OPEN);
 GOBJ_DECLARE_EVENT(EV_ON_CLOSE);
 GOBJ_DECLARE_EVENT(EV_ON_MESSAGE);      // with GBuffer
+GOBJ_DECLARE_EVENT(EV_ON_COMMAND);
 GOBJ_DECLARE_EVENT(EV_ON_IEV_MESSAGE);  // with IEvent
 GOBJ_DECLARE_EVENT(EV_ON_ID);
 GOBJ_DECLARE_EVENT(EV_ON_ID_NAK);
@@ -1358,6 +1360,7 @@ PUBLIC int gobj_write_user_data(
 PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose);
 PUBLIC json_int_t *gobj_danger_attr_ptr(hgobj gobj, const char *name);
 PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit);
+PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name);
 
 PUBLIC const char *gobj_read_str_attr(hgobj gobj, const char *name);
 PUBLIC BOOL gobj_read_bool_attr(hgobj gobj, const char *name);
@@ -1456,6 +1459,10 @@ PUBLIC hgobj gobj_next_child(hgobj child);
 PUBLIC hgobj gobj_prev_child(hgobj child);
 PUBLIC hgobj gobj_child_by_name(hgobj gobj, const char *name);
 PUBLIC size_t gobj_child_size(hgobj gobj);
+PUBLIC size_t gobj_child_size2(
+    hgobj gobj_,
+    json_t *jn_filter // owned
+);
 PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path);
 
 /*

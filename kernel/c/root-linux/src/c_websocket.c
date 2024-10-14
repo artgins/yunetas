@@ -11,6 +11,9 @@
 #include <endian.h>
 #include <time.h>
 #include <arpa/inet.h>
+
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_websocket.h"
 
 /***************************************************************************
@@ -177,7 +180,7 @@ typedef struct _PRIVATE_DATA {
     istream istream_payload;
 
     FRAME_HEAD message_head;
-    GBUFFER *gbuf_message;
+    gbuffer_t *gbuf_message;
 
     char close_frame_sent;              // close frame sent
     char on_close_broadcasted;          // event on_close already broadcasted
@@ -190,6 +193,8 @@ typedef struct _PRIVATE_DATA {
                                 // when user is not browser, at the moment,
                                 // we only recognize ginsfsm websocket.
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -381,7 +386,7 @@ PRIVATE void mask(char *mask_key, char *data, int len)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int _add_frame_header(hgobj gobj, GBUFFER *gbuf, char h_fin, char h_opcode, size_t ln)
+PRIVATE int _add_frame_header(hgobj gobj, gbuffer_t *gbuf, char h_fin, char h_opcode, size_t ln)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     unsigned char byte1, byte2;
@@ -454,7 +459,7 @@ PRIVATE uint32_t dev_urandom(void)
 PRIVATE int _write_control_frame(hgobj gobj, char h_fin, char h_opcode, char *data, size_t ln)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf;
+    gbuffer_t *gbuf;
 
     gbuf = gbuf_create(
         14+ln,
@@ -744,9 +749,9 @@ PRIVATE int framehead_consume(FRAME_HEAD *frame, istream istream, char *bf, int 
 /***************************************************************************
  *  Unmask data. Return a new gbuf with the data unmasked
  ***************************************************************************/
-PRIVATE GBUFFER * unmask_data(hgobj gobj, GBUFFER *gbuf, uint8_t *h_mask)
+PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 {
-    GBUFFER *unmasked;
+    gbuffer_t *unmasked;
 
     unmasked = gbuf_create(4*1024, gbmem_get_maximum_block(), 0, gbuf->encoding);
 
@@ -774,7 +779,7 @@ PRIVATE GBUFFER * unmask_data(hgobj gobj, GBUFFER *gbuf, uint8_t *h_mask)
 /***************************************************************************
  *  Check utf8
  ***************************************************************************/
-PRIVATE BOOL check_utf8(GBUFFER *gbuf)
+PRIVATE BOOL check_utf8(gbuffer_t *gbuf)
 {
     // Available in jannson library
     extern int utf8_check_string(const char *string, size_t length);
@@ -792,7 +797,7 @@ PRIVATE int frame_completed(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     FRAME_HEAD *frame_head = &priv->frame_head;
 
-    GBUFFER *unmasked = 0;
+    gbuffer_t *unmasked = 0;
 
     if (frame_head->frame_length) {
         unmasked = istream_pop_gbuffer(priv->istream_payload);
@@ -1163,7 +1168,7 @@ PRIVATE int b64_encode_string(
  ***************************************************************************/
 PRIVATE int send_http_message(hgobj gobj, const char *http_message)
 {
-    GBUFFER *gbuf = gbuf_create(256, 4*1024, 0,0);
+    gbuffer_t *gbuf = gbuf_create(256, 4*1024, 0,0);
     if(!gbuf) {
         log_error(0,
             "gobj",         "%s", gobj_full_name(gobj),
@@ -1189,7 +1194,7 @@ PRIVATE int send_http_message2(hgobj gobj, const char *format, ...)
 {
     va_list ap;
 
-    GBUFFER *gbuf = gbuf_create(256, 4*1024, 0,0);
+    gbuffer_t *gbuf = gbuf_create(256, 4*1024, 0,0);
     if(!gbuf) {
         log_error(0,
             "gobj",         "%s", gobj_full_name(gobj),
@@ -1234,7 +1239,7 @@ PRIVATE BOOL do_request(
     const char *resource,
     json_t *options)
 {
-    GBUFFER *gbuf;
+    gbuffer_t *gbuf;
     unsigned char uuid[16];
     char key_b64[40];
 
@@ -1469,7 +1474,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
  *  Return 0 if no new request.
  *  Return 1 if new request available in `request`.
  ***************************************************************************/
-PRIVATE int process_http(hgobj gobj, GBUFFER *gbuf, GHTTP_PARSER *parser)
+PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 {
     while (gbuf_leftbytes(gbuf)) {
         size_t ln = gbuf_leftbytes(gbuf);
@@ -1604,7 +1609,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
 
     if(priv->timer) {
         clear_timeout(priv->timer);
@@ -1720,7 +1725,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream istream = priv->istream_frame;
 
@@ -1837,7 +1842,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
 
     size_t bf_len = gbuf_leftbytes(gbuf);
     char *bf = gbuf_cur_rd_pointer(gbuf);
@@ -1880,7 +1885,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf_data = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf_data = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
     if(!gbuf_data) {
         log_error(LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
@@ -1906,7 +1911,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
      *  send the header and resend the gbuf.
      *-------------------------------------------------*/
     if (priv->iamServer) {
-        GBUFFER *gbuf_header = gbuf_create(
+        gbuffer_t *gbuf_header = gbuf_create(
             14,
             14,
             0,
@@ -1925,7 +1930,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*-------------------------------------------------*
      *  Client: recreate the gbuf for mask the data
      *-------------------------------------------------*/
-    GBUFFER *gbuf = gbuf_create(
+    gbuffer_t *gbuf = gbuf_create(
         14+ln,
         14+ln,
         0,
