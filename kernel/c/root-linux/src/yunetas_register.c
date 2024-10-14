@@ -14,6 +14,7 @@
 #include "c_node.h"
 #include "c_prot_http_cl.h"
 #include "c_prot_http_sr.h"
+#include "c_prot_tcp4h.h"
 #include "c_task.h"
 #include "c_task_authz.h"
 #include "c_tranger.h"
@@ -50,6 +51,7 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_node();
     register_c_prot_http_cl();
     //register_c_prot_http_sr();
+    register_c_prot_tcp4h();
     register_c_task();
     register_c_task_authenticate();
     register_c_timer();

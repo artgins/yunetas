@@ -1,15 +1,16 @@
 /****************************************************************************
- *          C_PROT_HEADER4.H
- *          Prot_header4 GClass.
+ *          C_PROT_TCP4.H
+ *          Prot_tcp4 GClass.
  *
- *          Protocol with a 4 bytes header.
+ *          Protocol tcp4h, messages with a header of 4 bytes
  *
- *          Copyright (c) 2017 Niyamaka, 2024- ArtGins..
+ *          Copyright (c) 2017-2023 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <gobj.h>
-
 #pragma once
+
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -21,7 +22,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_PROT_HEADER4);
+GOBJ_DECLARE_GCLASS(C_PROT_TCP4H);
 
 /*------------------------*
  *      States
@@ -34,7 +35,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_HEADER4);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_prot_header4(void);
+PUBLIC int register_c_prot_tcp4h(void);
 
 #ifdef __cplusplus
 }
