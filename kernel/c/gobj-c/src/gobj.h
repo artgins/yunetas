@@ -1221,9 +1221,7 @@ PUBLIC hgobj gobj_create_gobj(
 
 PUBLIC hgobj gobj_create_tree0(
     hgobj parent,
-    json_t *jn_tree,
-    const char *ev_on_setup,
-    const char *ev_on_setup_complete
+    json_t *jn_tree
 );
 
 /*
@@ -1248,17 +1246,11 @@ PUBLIC hgobj gobj_create_tree0(
         }
     ]
 }
-
-When a child is created a EV_ON_SETUP event is sended to parent, if admitted.
-When all children are created a EV_ON_SETUP_COMPLETE is sended to parent, if admitted.
-(if admitted = if event is in the input_event_list)
 */
 PUBLIC hgobj gobj_create_tree( // TOO implicit: if no subscriber key is given, the parent is the subscriber.
     hgobj parent,
     const char *tree_config,    // It can be json_config.
-    const char *json_config_variables,
-    const char *ev_on_setup,
-    const char *ev_on_setup_complete
+    const char *json_config_variables
 );
 
 

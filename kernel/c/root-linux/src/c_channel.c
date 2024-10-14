@@ -9,6 +9,7 @@
 
 #include <command_parser.h>
 #include "msg_ievent.h"
+#include "c_timer.h"
 #include "c_channel.h"
 
 
@@ -184,17 +185,17 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
 {
     BOOL all_closed = TRUE;
 
-    hgobj child; rc_instance_t *i_child;
-    i_child = gobj_first_child(gobj, &child);
-
-    while(i_child) {
-        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
-        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
-            return FALSE;
-        }
-
-        i_child = gobj_next_child(i_child, &child);
-    }
+// TRUE   hgobj child; rc_instance_t *i_child;
+//    i_child = gobj_first_child(gobj, &child);
+//
+//    while(i_child) {
+//        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
+//        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
+//            return FALSE;
+//        }
+//
+//        i_child = gobj_next_child(i_child, &child);
+//    }
 
     return all_closed;
 }
@@ -202,9 +203,9 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -225,8 +226,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  The first tube being connected will cause this.
      */
     if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
-        log_info(0,
-            "gobj",             "%s", gobj_full_name(gobj),
+        gobj_log_info(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_OPEN_CLOSE,
             "msg",              "%s", "ON_OPEN",
@@ -257,8 +257,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(all_childs_closed(gobj)) {
         if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
-            log_info(0,
-                "gobj",             "%s", gobj_full_name(gobj),
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_OPEN_CLOSE,
                 "msg",              "%s", "ON_CLOSE",
@@ -271,7 +270,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_publish_event(gobj, event, 0);
     }
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -283,8 +282,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(
-            LOG_DUMP_INPUT,
+        gobj_trace_json(
+            gobj,
             kw, // not own
             "%s", gobj_short_name(src)
         );
@@ -303,8 +302,8 @@ PRIVATE int ac_on_id(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(
-            LOG_DUMP_INPUT,
+        gobj_trace_json(
+            gobj,
             kw, // not own
             "%s", gobj_short_name(src)
         );
@@ -323,8 +322,8 @@ PRIVATE int ac_on_id_nak(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(
-            LOG_DUMP_INPUT,
+        gobj_trace_json(
+            gobj,
             kw, // not own
             "%s", gobj_short_name(src)
         );
@@ -343,43 +342,46 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    // TODO este manejo de tubes no está bien!, los child podrían ser timers, o su putam.
-    hgobj child; rc_instance_t *i_child;
-    i_child = gobj_first_child(gobj, &child);
-    while(i_child) {
-        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
-        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
-            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-                log_debug_json(
-                    LOG_DUMP_OUTPUT,
-                    kw, // not own
-                    "%s", gobj_short_name(child)
-                );
-            }
-            KW_INCREF(kw);
-            if(gobj_event_in_input_event_list(child, "EV_SEND_MESSAGE", 0)) {
-                ret += gobj_send_event(child, "EV_SEND_MESSAGE", kw, gobj);
-            } else if(gobj_event_in_input_event_list(child, "EV_TX_DATA", 0)) {
-                ret += gobj_send_event(child, "EV_TX_DATA", kw, gobj);
-            } else {
-                kw_decref(kw);
-                log_error(LOG_OPT_TRACE_STACK,
-                    "gobj",         "%s", gobj_full_name(gobj),
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Child without EV_SEND_MESSAGE or EV_TX_DATA input event",
-                    "child",        "%s", gobj_short_name(child),
-                    NULL
-                );
-                break;
-            }
-            (*priv->ptxMsgs)++;
-            break;  // TODO de momento one-over-all
-        }
-        i_child = gobj_next_child(i_child, &child);
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(!gobj_bottom) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No bottom gobj",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
     }
-    KW_DECREF(kw);
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "%s => %s",
+            gobj_short_name(gobj),
+            gobj_short_name(gobj_bottom)
+        );
+    }
+    KW_INCREF(kw)
+    if(gobj_event_in_input_event_list(gobj_bottom, "EV_SEND_MESSAGE", 0)) {
+        ret = gobj_send_event(gobj_bottom, "EV_SEND_MESSAGE", kw, gobj);
+    } else if(gobj_event_in_input_event_list(gobj_bottom, "EV_TX_DATA", 0)) {
+        ret = gobj_send_event(gobj_bottom, "EV_TX_DATA", kw, gobj);
+    } else {
+        kw_decref(kw);
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Bottom without EV_SEND_MESSAGE or EV_TX_DATA input event",
+            "child",        "%s", gobj_short_name(gobj_bottom),
+            NULL
+        );
+        ret = -1;
+    }
+    (*priv->ptxMsgs)++;
+
+    KW_DECREF(kw)
     return ret;
 }
 
@@ -401,7 +403,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
         i_child = gobj_next_child(i_child, &child);
     }
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -411,7 +413,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
 
     if(gobj_typeof_subgclass(src, GCLASS_TCP0_NAME)) {
         gobj_destroy(src);
@@ -457,7 +459,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     priv->last_txMsgs = *(priv->ptxMsgs);
     priv->last_rxMsgs = *(priv->prxMsgs);
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -475,8 +477,6 @@ PRIVATE const EVENT input_events[] = {
     {"EV_ON_ID_NAK",                0,  0,  0},
     {"EV_ON_OPEN",                  0,  0,  0},
     {"EV_ON_CLOSE",                 0,  0,  0},
-    {"EV_ON_SETUP",                 0,  0,  0},
-    {"EV_ON_SETUP_COMPLETE",        0,  0,  0},
     // internal
     {"EV_TIMEOUT",                  0,  0,  0},
     {"EV_STOPPED",                  0,  0,  0},
@@ -499,8 +499,6 @@ PRIVATE const char *state_names[] = {
 PRIVATE EV_ACTION ST_CLOSED[] = {
     {"EV_ON_OPEN",              ac_on_open,         "ST_OPENED"},
     {"EV_TIMEOUT",              ac_timeout,         0},
-    {"EV_ON_SETUP",             0,                  0},
-    {"EV_ON_SETUP_COMPLETE",    0,                  0},
     {"EV_STOPPED",              ac_stopped,         0},
     {0,0,0}
 };

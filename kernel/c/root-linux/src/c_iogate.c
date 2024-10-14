@@ -29,26 +29,6 @@ PRIVATE int channels_opened(hgobj gobj);
 /***************************************************************************
  *              Resources
  ***************************************************************************/
-PRIVATE sdata_desc_t tb_channels[] = {
-/*-FIELD-type-----------name----------------flag------------------------header----------fillsp--description---------*/
-SDATADF (DTP_JSON,      "ids",              SDF_NOTACCESS,              0,              0,      "List of id's to match."),
-SDATADF (DTP_INTEGER,   "id",               SDF_PERSIST|SDF_PKEY,       "Id",           8,      "Id."),
-SDATADF (DTP_STRING,    "type",             SDF_PERSIST|SDF_REQUIRED,   "Channel Type", 20,     "Channel type."),
-SDATADF (DTP_STRING,    "channel_name",     SDF_PERSIST|SDF_REQUIRED,   "Channel Name", 30,     "Channel name."),
-SDATADF (DTP_STRING,    "url",              SDF_PERSIST|SDF_WR,         "Url",          30,     "Connection url."),
-SDATADF (DTP_BOOLEAN,   "opened",           SDF_PERSIST|SDF_RD,         "Opened",       10,     "Channel opened."),
-SDATADF (DTP_BOOLEAN,   "disabled",         SDF_PERSIST|SDF_WR,         "Disabled",     10,     "Channel disabled."),
-SDATADF (DTP_BOOLEAN,   "static",           SDF_PERSIST,                "Static",       10,     "Static channel."),
-SDATADF (DTP_BOOLEAN,   "traced",           SDF_PERSIST|SDF_WR,         "Traced",       8,      "Channel traced"),
-SDATADF (DTP_STRING,    "date",             SDF_PERSIST,                "Date",         21,     "Creation date."),
-SDATADF (DTP_STRING,    "description",      SDF_PERSIST|SDF_WR,         "Description",  20,     "Description."),
-SDATADF (DTP_STRING,    "top_gclass",       SDF_PERSIST|SDF_WR,         "Top Gclass",   20,     "Top gclass."),
-SDATADF (DTP_STRING,    "protocol_gclass",  SDF_PERSIST|SDF_WR,         "Protocol Gclass",20,   "Protocol gclass."),
-SDATADF (DTP_INTEGER,   "idx",              SDF_PERSIST|SDF_WR,         "Idx",          8,      "Channel index (TODO) ~ priority?"),
-SDATADF (DTP_STRING,    "zcontent",         SDF_PERSIST|SDF_WR,         "Content",      10,     "The child tree json configuration."),
-SDATADF (DTP_POINTER,   "channel_gobj",     SDF_VOLATIL|SDF_RD,         "Channel gobj", 8,      "Channel gobj"),
-SDATA_END()
-};
 
 /***************************************************************************
  *          Data: config, public data, private data

@@ -1237,9 +1237,7 @@ PUBLIC hgobj gobj_service_factory(
 
     hgobj gobj = gobj_create_tree0(
         __yuno__,
-        kw_service_config,  // owned
-        0,
-        0
+        kw_service_config  // owned
     );
 
     JSON_DECREF(jn_service_config)
@@ -1529,9 +1527,7 @@ PUBLIC hgobj gobj_create_gobj(
  ***************************************************************************/
 PUBLIC hgobj gobj_create_tree0(
     hgobj parent_,
-    json_t *jn_tree,
-    const char *ev_on_setup,
-    const char *ev_on_setup_complete
+    json_t *jn_tree
 )
 {
     gobj_t *parent = parent_;
@@ -1642,12 +1638,6 @@ PUBLIC hgobj gobj_create_tree0(
         gobj_disable(first_child);
     }
 
-    if(!empty_string(ev_on_setup)) {
-        if(gobj_has_input_event(parent, ev_on_setup)) { // TODO review event
-            gobj_send_event(parent, ev_on_setup, 0, first_child);
-        }
-    }
-
     hgobj last_child = 0;
     json_t *jn_childs = kw_get_list(parent_, jn_tree, "zchilds", 0, 0);
     size_t index;
@@ -1659,9 +1649,7 @@ PUBLIC hgobj gobj_create_tree0(
         json_incref(jn_child);
         last_child = gobj_create_tree0(
             first_child,
-            jn_child,
-            ev_on_setup,
-            ev_on_setup_complete
+            jn_child
         );
         if(!last_child) {
             gobj_log_error(parent_, 0,
@@ -1679,11 +1667,6 @@ PUBLIC hgobj gobj_create_tree0(
         gobj_set_bottom_gobj(first_child, last_child);
     }
 
-    if(!empty_string(ev_on_setup_complete)) {
-        if(gobj_has_input_event(parent, ev_on_setup_complete)) {  // TODO review event
-            gobj_send_event(parent, ev_on_setup_complete, 0, first_child);
-        }
-    }
     JSON_DECREF(jn_tree)
     return first_child;
 }
@@ -1694,9 +1677,8 @@ PUBLIC hgobj gobj_create_tree0(
 PUBLIC hgobj gobj_create_tree(
     hgobj parent_,
     const char *tree_config_,
-    const char *json_config_variables,
-    const char *ev_on_setup,
-    const char *ev_on_setup_complete)
+    const char *json_config_variables
+)
 {
     gobj_t *parent = parent_;
 
@@ -1742,7 +1724,7 @@ PUBLIC hgobj gobj_create_tree(
         // error already logged
         return 0;
     }
-    return gobj_create_tree0(parent, jn_tree, ev_on_setup, ev_on_setup_complete);
+    return gobj_create_tree0(parent, jn_tree);
 }
 
 /***************************************************************************
