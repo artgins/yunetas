@@ -151,20 +151,20 @@ int main(int argc, char **argv) {
 
 /** Check if the string matches the cases argument (case sensitive) */
 #define CASES(x)    } if ( __cont || !strcmp ( __sw, x ) ) \
-                        { __done = true; __cont = true;
+    { __done = true; __cont = true;
 
 /** Check if the string matches the icases argument (case insensitive) */
 #define ICASES(x)    } if ( __cont || !strcasecmp ( __sw, x ) ) { \
-                        __done = true; __cont = true;
+    __done = true; __cont = true;
 
 /** Check if the string matches the specified regular expression using regcomp(3) */
 #define CASES_RE(x,flags) } regfree ( &__regex ); if ( __cont || ( \
-                              0 == regcomp ( &__regex, x, flags ) && \
-                              0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
-                                __done = true; __cont = true;
+  0 == regcomp ( &__regex, x, flags ) && \
+  0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
+    __done = true; __cont = true;
 
 /** Default behaviour */
-#define DEFAULTS    } if ( !__done || __cont ) {
+#define DEFAULTS } if ( !__done || __cont ) {
 
 /** Close the switchs */
 #define SWITCHS_END } while ( 0 ); regfree(&__regex); }
