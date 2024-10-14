@@ -1302,17 +1302,6 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj, const char *attr, BOOL ver
 PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name);
 PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 
-/*
- *  Attributes low level functions
- *  Be care with this function. If you don't cast well: DANGER overflow!
- *  Acceso directo a la variable (con herencia de bottoms): puntero y descripción del atributo.
- *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
- *  DANGER if you don't cast well: OVERFLOW variables!
- */
-PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose);
-PUBLIC void *gobj_danger_attr_ptr(hgobj gobj, const char *name);
-PUBLIC void *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit);
-
 PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass);
 
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
@@ -1360,6 +1349,15 @@ PUBLIC int gobj_write_user_data(
 /*
  *  Attribute functions WITH bottom inheritance
  */
+
+/*
+ *  Attributes low level functions
+ *  Acceso directo a la variable (con herencia de bottoms): puntero y descripción del atributo.
+ *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
+ */
+PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose);
+PUBLIC json_int_t *gobj_danger_attr_ptr(hgobj gobj, const char *name);
+PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit);
 
 PUBLIC const char *gobj_read_str_attr(hgobj gobj, const char *name);
 PUBLIC BOOL gobj_read_bool_attr(hgobj gobj, const char *name);

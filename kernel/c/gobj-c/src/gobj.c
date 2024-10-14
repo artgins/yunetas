@@ -2576,85 +2576,6 @@ PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 }
 
 /***************************************************************************
- *  ATTR: Get hsdata of inherited attribute.
- ***************************************************************************/
-PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
-{
-    gobj_t *gobj = gobj_;
-
-    if(!gobj) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
-        return 0;
-    }
-
-    if(gobj_has_attr(gobj, name)) {
-        return gobj_hsdata(gobj);
-    } else if(gobj && gobj->bottom_gobj) {
-        return gobj_hsdata2(gobj->bottom_gobj, name, verbose);
-    }
-    if(verbose) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "GClass Attribute NOT FOUND",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "attr",         "%s", name,
-            NULL
-        );
-    }
-    return 0;
-}
-
-/***************************************************************************
- *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
- *  DANGER if you don't cast well: OVERFLOW variables!
- ***************************************************************************/
-PUBLIC void *gobj_danger_attr_ptr(hgobj gobj, const char *name)
-{
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
-    if(hs) {
-        json_t *it = json_object_get(hs, name);
-        return json_integer_value_pointer(it);
-    }
-    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "GClass Attribute NOT FOUND",
-        "gclass",       "%s", gobj_gclass_name(gobj),
-        "attr",         "%s", name?name:"",
-        NULL
-    );
-    return 0;
-}
-
-/***************************************************************************
- *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
- *  DANGER if you don't cast well: OVERFLOW variables!
- ***************************************************************************/
-PUBLIC void *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit)
-{
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
-    if(hs) {
-        json_t *it = json_object_get(hs, name);
-        return json_integer_value_pointer(it);
-    }
-    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "GClass Attribute NOT FOUND",
-        "gclass",       "%s", gobj_gclass_name(gobj),
-        "attr",         "%s", name?name:"",
-        NULL
-    );
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass_)
@@ -2662,6 +2583,10 @@ PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass_)
     gclass_t *gclass = gclass_;
     return gclass->authz_table;
 }
+
+/*
+ *  Attribute functions WITHOUT bottom inheritance
+ */
 
 /***************************************************************************
  *  Return the data description of the attribute `attr`
@@ -2985,6 +2910,89 @@ PUBLIC int gobj_write_user_data(
         return -1;
     }
     return json_object_set_new(((gobj_t *)gobj)->jn_user_data, name, value);
+}
+
+/*
+ *  Attribute functions WITH bottom inheritance
+ */
+
+/***************************************************************************
+ *  ATTR: Get hsdata of inherited attribute.
+ ***************************************************************************/
+PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
+{
+    gobj_t *gobj = gobj_;
+
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    if(gobj_has_attr(gobj, name)) {
+        return gobj_hsdata(gobj);
+    } else if(gobj && gobj->bottom_gobj) {
+        return gobj_hsdata2(gobj->bottom_gobj, name, verbose);
+    }
+    if(verbose) {
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "GClass Attribute NOT FOUND",
+            "gclass",       "%s", gobj_gclass_name(gobj),
+            "attr",         "%s", name,
+            NULL
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
+ *  DANGER if you don't cast well: OVERFLOW variables!
+ ***************************************************************************/
+PUBLIC json_int_t *gobj_danger_attr_ptr(hgobj gobj, const char *name)
+{
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    if(hs) {
+        json_t *it = json_object_get(hs, name);
+        return json_integer_value_pointer(it);
+    }
+    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "GClass Attribute NOT FOUND",
+        "gclass",       "%s", gobj_gclass_name(gobj),
+        "attr",         "%s", name?name:"",
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
+ *  DANGER if you don't cast well: OVERFLOW variables!
+ ***************************************************************************/
+PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit)
+{
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    if(hs) {
+        json_t *it = json_object_get(hs, name);
+        return json_integer_value_pointer(it);
+    }
+    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "GClass Attribute NOT FOUND",
+        "gclass",       "%s", gobj_gclass_name(gobj),
+        "attr",         "%s", name?name:"",
+        NULL
+    );
+    return 0;
 }
 
 /***************************************************************************
