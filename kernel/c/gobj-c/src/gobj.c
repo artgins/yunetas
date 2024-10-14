@@ -174,6 +174,8 @@ GOBJ_DEFINE_STATE(ST_STOPPED);
 GOBJ_DEFINE_STATE(ST_SESSION);
 GOBJ_DEFINE_STATE(ST_IDLE);
 GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
+GOBJ_DEFINE_STATE(ST_OPENED);
+GOBJ_DEFINE_STATE(ST_CLOSED);
 
 /***************************************************************
  *              Prototypes

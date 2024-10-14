@@ -364,10 +364,10 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
     KW_INCREF(kw)
-    if(gobj_event_in_input_event_list(gobj_bottom, "EV_SEND_MESSAGE", 0)) {
-        ret = gobj_send_event(gobj_bottom, "EV_SEND_MESSAGE", kw, gobj);
-    } else if(gobj_event_in_input_event_list(gobj_bottom, "EV_TX_DATA", 0)) {
-        ret = gobj_send_event(gobj_bottom, "EV_TX_DATA", kw, gobj);
+    if(gobj_has_input_event(gobj_bottom, EV_SEND_MESSAGE)) {
+        ret = gobj_send_event(gobj_bottom, EV_SEND_MESSAGE, kw, gobj);
+    } else if(gobj_has_input_event(gobj_bottom, EV_TX_DATA)) {
+        ret = gobj_send_event(gobj_bottom, EV_TX_DATA, kw, gobj);
     } else {
         kw_decref(kw);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -390,18 +390,19 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    //TODO si envian el tube to drop, úsalo, no cortes todos los tube
-
-    hgobj child; rc_instance_t *i_child;
-    i_child = gobj_first_child(gobj, &child);
-
-    while(i_child) {
-        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
-        if(my_user_data2 & st_open) { // TODO V547 Expression 'my_user_data2 & st_open' is always true.
-            gobj_send_event(child, "EV_DROP", 0, gobj);
-        }
-        i_child = gobj_next_child(i_child, &child);
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(!gobj_bottom) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No bottom gobj",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
     }
+
+    gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -415,7 +416,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
 
-    if(gobj_typeof_subgclass(src, GCLASS_TCP0_NAME)) {
+    if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
 
@@ -433,7 +434,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }
-    uint64_t t = (ms - priv->last_ms);
+    json_int_t t = (json_int_t)(ms - priv->last_ms);
     if(t>0) {
         json_int_t txMsgsec = *(priv->ptxMsgs) - priv->last_txMsgs;
         json_int_t rxMsgsec = *(priv->prxMsgs) - priv->last_rxMsgs;
@@ -467,163 +468,129 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_SEND_MESSAGE",             0,  0,  "Send a message"},
-    {"EV_DROP",                     0,  0,  "Drop connection"},
-    // bottom input
-    {"EV_ON_MESSAGE",               0,  0,  0},
-    {"EV_ON_ID",                    0,  0,  0},
-    {"EV_ON_ID_NAK",                0,  0,  0},
-    {"EV_ON_OPEN",                  0,  0,  0},
-    {"EV_ON_CLOSE",                 0,  0,  0},
-    // internal
-    {"EV_TIMEOUT",                  0,  0,  0},
-    {"EV_STOPPED",                  0,  0,  0},
-    {NULL, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_MESSAGE",               0,   0,  "Message received"},
-    {"EV_ON_ID",                    0,   0,  "Id received"},
-    {"EV_ON_ID_NAK",                0,   0,  "Id refused"},
-    {"EV_ON_OPEN",                  0,   0,  "Channel opened"},
-    {"EV_ON_CLOSE",                 0,   0,  "Channel closed"},
-    {NULL, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_CLOSED",
-    "ST_OPENED",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_enable = mt_enable,
+    .mt_disable = mt_disable,
 };
 
-PRIVATE EV_ACTION ST_CLOSED[] = {
-    {"EV_ON_OPEN",              ac_on_open,         "ST_OPENED"},
-    {"EV_TIMEOUT",              ac_timeout,         0},
-    {"EV_STOPPED",              ac_stopped,         0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_OPENED[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,      0},
-    {"EV_SEND_MESSAGE",         ac_send_message,    0},
-    {"EV_ON_ID",                ac_on_id,           0},
-    {"EV_ON_ID_NAK",            ac_on_id_nak,       0},
-    {"EV_TIMEOUT",              ac_timeout,         0},
-    {"EV_DROP",                 ac_drop,            0},
-    {"EV_ON_OPEN",              0,                  0},
-    {"EV_ON_CLOSE",             ac_on_close,        0},
-    {"EV_STOPPED",              ac_stopped,         0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_CHANNEL);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_CLOSED,
-    ST_OPENED,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_CHANNEL_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        0, //mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        0, //mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        mt_disable,
-        mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0, // acl
-    s_user_trace_level,
-    0, // cmds
-    0, // gcflag
-};
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
-PUBLIC GCLASS *gclass_channel(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_closed[] = {
+        {EV_ON_OPEN,            ac_on_open,         ST_OPENED},
+        {EV_TIMEOUT,            ac_timeout,         0},
+        {EV_STOPPED,            ac_stopped,         0},
+        {0,0,0}
+    };
+
+    ev_action_t st_opened[] = {
+        {EV_ON_MESSAGE,         ac_on_message,      0},
+        {EV_SEND_MESSAGE,       ac_send_message,    0},
+        {EV_ON_ID,              ac_on_id,           0},
+        {EV_ON_ID_NAK,          ac_on_id_nak,       0},
+        {EV_TIMEOUT,            ac_timeout,         0},
+        {EV_DROP,               ac_drop,            0},
+        {EV_ON_OPEN,            0,                  0},
+        {EV_ON_CLOSE,           ac_on_close,        0},
+        {EV_STOPPED,            ac_stopped,         0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_CLOSED,             st_closed},
+        {ST_OPENED,             st_opened},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        // bottom input
+        {EV_ON_MESSAGE,             0},
+        {EV_ON_ID,                  0},
+        {EV_ON_ID_NAK,              0},
+        {EV_ON_OPEN,                0},
+        {EV_ON_CLOSE,               0},
+
+        // top input
+        {EV_SEND_MESSAGE,           0},
+        {EV_DROP,                   0},
+
+        // internal
+        {EV_STOPPED,                0},
+        {EV_TIMEOUT,                0},
+
+        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
+        {EV_ON_ID,                  EVF_OUTPUT_EVENT},
+        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
+
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        s_user_trace_level,
+        0   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_channel(void)
+{
+    return create_gclass(C_CHANNEL);
 }

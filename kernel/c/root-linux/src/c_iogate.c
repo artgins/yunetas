@@ -1386,7 +1386,6 @@ GOBJ_DEFINE_GCLASS(C_IOGATE);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_WAIT_IDENTITY_CARD_ACK);
 
 /*------------------------*
  *      Events
