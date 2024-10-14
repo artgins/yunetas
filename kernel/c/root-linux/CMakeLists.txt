@@ -20,6 +20,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set (SRCS
+    src/sha1.c
     src/c_linux_yuno.c
     src/c_timer.c
     src/c_linux_transport.c
