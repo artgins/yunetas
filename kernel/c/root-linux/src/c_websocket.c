@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 
 #include <yuneta_version.h>
-#include <command_parser.h>
+#include <comm_prot.h>
 #include <ghttp_parser.h>
 #include <istream.h>
 #include "msg_ievent.h"
@@ -2096,6 +2096,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         // Error already logged
         return -1;
     }
+
+    /*----------------------------------------*
+     *          Register comm protocol
+     *----------------------------------------*/
+    comm_prot_register(gclass_name, "ws");
+    comm_prot_register(gclass_name, "wss");
 
     return 0;
 }
