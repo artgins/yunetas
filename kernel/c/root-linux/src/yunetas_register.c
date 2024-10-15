@@ -12,6 +12,7 @@
 #include "c_timer.h"
 #include "c_authz.h"
 #include "c_ievent_cli.h"
+#include "c_ievent_srv.h"
 #include "c_node.h"
 #include "c_prot_http_cl.h"
 #include "c_prot_http_sr.h"
@@ -46,6 +47,7 @@ PUBLIC int yunetas_register_c_core(void)
     // TODO include with menuconfig
     register_c_authz();
     register_c_ievent_cli();
+    register_c_ievent_srv();
     register_c_tcp();
     register_c_tcp_s();
     register_c_uart();
