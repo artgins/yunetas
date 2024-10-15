@@ -6057,6 +6057,8 @@ PUBLIC gobj_state_t gobj_current_state(hgobj hgobj)
 /***************************************************************************
  *
  ***************************************************************************/
+// TODO ievent_srv needs check input event public and output event public !!!???
+static int x;
 PUBLIC BOOL gobj_has_input_event(hgobj gobj_, gobj_event_t event)
 {
     if(gobj_ == NULL) {

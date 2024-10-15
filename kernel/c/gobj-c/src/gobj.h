@@ -1609,6 +1609,7 @@ PUBLIC BOOL gobj_change_state(
 );
 PUBLIC gobj_state_t gobj_current_state(hgobj gobj);
 PUBLIC BOOL gobj_has_input_event(hgobj gobj, gobj_event_t event);
+// TODO ievent_srv needs check input event public and output event public !!!???
 PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag_t event_flag);
 
 /*--------------------------------------------*

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
+
 #include <kwid.h>
 #include <gobj_environment.h>
 #include <parse_url.h>
@@ -225,7 +226,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
             "stats",        "%s", stats?stats:"",
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -274,7 +275,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
             "command",      "%s", command,
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -322,7 +323,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             "event",        "%s", event,
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
     if(!kw) {
@@ -713,7 +714,7 @@ PRIVATE int ac_timeout_wait_idAck(hgobj gobj, gobj_event_t event, json_t *kw, hg
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -787,7 +788,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     }
 
     JSON_DECREF(jn_ievent_id);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -813,14 +814,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
     if(empty_string(iev_event)) {
         // Error already logged
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -857,11 +858,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_event_type(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
                 // iev_kw consumed
-                KW_DECREF(kw);
+                KW_DECREF(kw)
                 return 0;
             }
             // iev_kw consumed
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return -1;
         }
         gobj_log_error(gobj, 0,
@@ -872,8 +873,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -902,8 +903,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
             return -1;
         }
     }
@@ -927,8 +928,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
             return -1;
         }
     }
@@ -958,8 +959,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return -1;
 
     } else if(strcasecmp(msg_type, "__unsubscribing__")==0) {
@@ -975,8 +976,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return -1;
 
     } else {
@@ -1000,7 +1001,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 iev_kw,
                 gobj
             );
-            KW_DECREF(kw);
+            KW_DECREF(kw)
             return 0;
         }
 
@@ -1022,7 +1023,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1132,7 +1133,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1199,7 +1200,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 

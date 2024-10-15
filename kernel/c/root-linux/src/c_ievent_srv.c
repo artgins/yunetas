@@ -9,6 +9,15 @@
 ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+
+#include <kwid.h>
+#include <gobj_environment.h>
+#include <parse_url.h>
+#include <comm_prot.h>
+#include <yuneta_version.h>
+
+#include "c_timer.h"
+#include "msg_ievent.h"
 #include "c_ievent_srv.h"
 
 /***************************************************************************
@@ -61,7 +70,7 @@ SDATA (DTP_JSON,        "identity_card",        SDF_RD, "", "Identity Card of cl
 // TODO available_services in this gate
 // For now, only one service is available, the selected in identity_card exchange.
 
-SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, 5*1000, "timeout waiting Identity Card"),
+SDATA (DTP_INTEGER,     "timeout_idgot",        SDF_RD, "5000", "timeout waiting Identity Card"),
 
 SDATA (DTP_POINTER,     "user_data",            0, 0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0, 0, "more user data"),
@@ -102,12 +111,14 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -192,16 +203,15 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(gobj_current_state(gobj)!=ST_SESSION) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not in session",
             "stats",        "%s", stats?stats:"",
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -217,6 +227,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         gobj_name(src)
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -224,6 +235,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_object_set_new(kw, "__stats__", json_string(stats));
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         "__stats__",
         json_string(stats)   // owned
@@ -231,7 +243,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
-    return 0;   // return 0 on asychronous response.
+    return 0;   // return 0 on asynchronous response.
 }
 
 /***************************************************************************
@@ -239,16 +251,15 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(gobj_current_state(gobj) != ST_SESSION) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not in session",
             "command",      "%s", command,
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -264,6 +275,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         gobj_name(src)
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -271,6 +283,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     json_object_set_new(kw, "__command__", json_string(command));
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         "__command__",
         json_string(command)   // owned
@@ -278,7 +291,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
-    return 0;   // return 0 on asychronous response.
+    return 0;   // return 0 on asynchronous response.
 }
 
 /***************************************************************************
@@ -286,16 +299,15 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    if(!gobj_in_this_state(gobj, "ST_SESSION")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(gobj_current_state(gobj) != ST_SESSION) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not in session",
             "event",        "%s", event,
             NULL
         );
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
     if(!kw) {
@@ -305,7 +317,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *      __MESSAGE__
      */
-    json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, FALSE);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, FALSE);
     if(!jn_request) {
         /*
          *  Pon el ievent si no viene con él,
@@ -316,6 +328,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
             gobj_name(src)
         );
         msg_iev_push_stack(
+            gobj,
             kw,         // not owned
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id   // owned
@@ -350,7 +363,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
             - pon como service el src gobj.
         - if *dst_yuno_role* || *dst_yuno_name* || dst_yuno_service are empty
             - pon el yuno_role|yuno_name|yuno_service interno
-                (remote_? in ievent_cli y client_? en ivent_srv)
+                (remote_? in ievent_srv y client_? en ivent_srv)
             ** No debo dejar modificar dst_yuno_role|dst_yuno_name, a no ser que sea un gate de routing,
               que de momento no hay.
  ***************************************************************************/
@@ -379,8 +392,7 @@ PRIVATE hgobj get_bottom_gobj(hgobj gobj)
     if(bottom_gobj) {
         return bottom_gobj;
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "NOT below gobj",
@@ -420,48 +432,43 @@ PRIVATE int send_static_iev(
         // Error already logged
         return -1;
     }
-    json_t * jn_iev = iev_create(
-        event,
-        kw     // own
-    );
-    if(!jn_iev) {
-        // error already logged
-        return -1;
-    }
 
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level) {
         char prefix[256];
         snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s ==>%s",
+            "INTRA-EVENT(%s^%s) %s ==> %s",
             gobj_yuno_role(),
             gobj_yuno_name(),
-            gobj_short_name(gobj),
+            gobj_short_name(src),
             gobj_short_name(below_gobj)
         );
-        const char *event_ = kw_get_str(jn_iev, "event", "?", 0);
-        json_t *kw_ = kw_get_dict_value(jn_iev, "kw", 0, 0);
         if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(prefix, event_, kw_);
+            trace_inter_event2(gobj, prefix, event, kw);
         } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(prefix, event_, kw_);
+            trace_inter_event(gobj, prefix, event, kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(event, "EV_IDENTITY_CARD")==0 ||
-                    strcmp(event, "EV_IDENTITY_CARD_ACK")==0) {
-                trace_inter_event2(prefix, event_, kw_);
+            if(event == EV_IDENTITY_CARD ||
+               event == EV_IDENTITY_CARD_ACK) {
+                trace_inter_event2(gobj, prefix, event, kw);
             }
         }
     }
 
-    gbuffer_t *gbuf = iev2gbuffer(
-        jn_iev, // owned
-        FALSE
+    gbuffer_t *gbuf = iev_create_to_gbuffer(
+        gobj,
+        event,
+        kw     // own
     );
+    if(!gbuf) {
+        // error already logged
+        return -1;
+    }
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     return gobj_send_event(below_gobj,
-        "EV_SEND_MESSAGE",
+        EV_SEND_MESSAGE,
         kw_send,
         gobj
     );
@@ -470,9 +477,9 @@ PRIVATE int send_static_iev(
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -490,7 +497,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_idgot"));
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -511,13 +518,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     json_t *kw2match = json_object();
     kw_set_dict_value(
+        gobj,
         kw2match,
         "__local__`__subscription_reference__",
         json_integer((json_int_t)(size_t)gobj)
     );
 
-    dl_list_t * dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
-    gobj_unsubscribe_list(dl_s, TRUE, FALSE);
+    json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
+    gobj_unsubscribe_list(dl_s, FALSE);
 
     /*
      *  Route (channel) close.
@@ -546,7 +554,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_write_str_attr(gobj, "__username__", "");
     gobj_write_json_attr(gobj, "identity_card", 0);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -557,7 +565,7 @@ PRIVATE int ac_timeout_wait_idGot(hgobj gobj, const char *event, json_t *kw, hgo
 {
     drop(gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -575,25 +583,24 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*
      *  Final point of the request
      */
-    json_t *jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, TRUE);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, TRUE);
     if(!jn_request) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "no ievent_gate_stack",
             NULL
         );
-        log_debug_json(0, kw, "no ievent_gate_stack");
-        KW_DECREF(kw);
+        gobj_trace_json(gobj, kw, "no ievent_gate_stack");
+        KW_DECREF(kw)
         return -1;
     }
-    const char *iev_dst_yuno = kw_get_str(jn_request, "dst_yuno", "", 0);
-    const char *iev_dst_role = kw_get_str(jn_request, "dst_role", "", 0);
-    const char *iev_dst_service = kw_get_str(jn_request, "dst_service", "", 0);
-    const char *iev_src_yuno = kw_get_str(jn_request, "src_yuno", "", 0);
-    const char *iev_src_role = kw_get_str(jn_request, "src_role", "", 0);
-    const char *iev_src_service = kw_get_str(jn_request, "src_service", "", 0);
+    const char *iev_dst_yuno = kw_get_str(gobj, jn_request, "dst_yuno", "", 0);
+    const char *iev_dst_role = kw_get_str(gobj, jn_request, "dst_role", "", 0);
+    const char *iev_dst_service = kw_get_str(gobj, jn_request, "dst_service", "", 0);
+    const char *iev_src_yuno = kw_get_str(gobj, jn_request, "src_yuno", "", 0);
+    const char *iev_src_role = kw_get_str(gobj, jn_request, "src_role", "", 0);
+    const char *iev_src_service = kw_get_str(gobj, jn_request, "src_service", "", 0);
 
     /*---------------------------------------*
      *  Clear timeout
@@ -608,8 +615,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  Match wanted yuno role. Required.
      *------------------------------------*/
     if(strcasecmp(iev_dst_role, gobj_yuno_role())!=0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "dst_role NOT MATCH",
@@ -617,8 +623,8 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             "dst_role",     "%s", iev_dst_role,
             NULL
         );
-        log_debug_json(0, kw, "dst_role NOT MATCH");
-        KW_DECREF(kw);
+        gobj_trace_json(gobj, kw, "dst_role NOT MATCH");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -627,8 +633,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *--------------------------------*/
     if(!empty_string(iev_dst_yuno)) {
         if(strcasecmp(iev_dst_yuno, gobj_yuno_name())!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
                 "msg",          "%s", "dst_yuno NOT MATCH",
@@ -636,8 +641,8 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
                 "dst_yuno",     "%s", iev_dst_yuno,
                 NULL
             );
-            log_debug_json(0, kw, "dst_yuno NOT MATCH");
-            KW_DECREF(kw);
+            gobj_trace_json(gobj, kw, "dst_yuno NOT MATCH");
+            KW_DECREF(kw)
             return -1;
         }
     }
@@ -646,15 +651,14 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  Save client yuno role. Required.
      *------------------------------------*/
     if(empty_string(iev_src_role)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "GOT identity card without yuno role",
             NULL
         );
-        log_debug_json(0, kw, "GOT identity card without yuno role");
-        KW_DECREF(kw);
+        gobj_trace_json(gobj, kw, "GOT identity card without yuno role");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -662,15 +666,14 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  Save client yuno service. Required.
      *---------------------------------------*/
     if(empty_string(iev_src_service)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "GOT identity card without yuno service",
             NULL
         );
-        log_debug_json(0, kw, "GOT identity card without yuno service");
-        KW_DECREF(kw);
+        gobj_trace_json(gobj, kw, "GOT identity card without yuno service");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -679,16 +682,15 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *-----------------------------------*/
     hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
     if (!gobj_service) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "dst_srv NOT FOUND in this yuno",
             "dst_service",  "%s", iev_dst_service,
             NULL
         );
-        log_debug_json(0, kw, "dst_srv NOT FOUND in this yuno");
-        KW_DECREF(kw);
+        gobj_trace_json(gobj, kw, "dst_srv NOT FOUND in this yuno");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -699,25 +701,24 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  WARNING if not a localhost connection the authentication must be required!
      *  See mt_authenticate of c_authz.c
      */
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
-    if(kw_get_int(jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
-        const char *comment = kw_get_str(jn_resp, "comment", "", 0);
+    if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
         // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
         // TODO y en el cliente mete la ip de origen
-        log_warning(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "Authentication rejected",
             "cause",        "%s", comment,
             "detail",       "%j", jn_resp,
             //"remote-addr",  "%s", remote_addr?remote_addr:"",
-            "yuno_role",    "%s", kw_get_str(kw, "yuno_role", "", 0),
-            "yuno_id",      "%s", kw_get_str(kw, "yuno_id", "", 0),
-            "yuno_name",    "%s", kw_get_str(kw, "yuno_name", "", 0),
-            "yuno_tag",     "%s", kw_get_str(kw, "yuno_tag", "", 0),
-            "yuno_version", "%s", kw_get_str(kw, "yuno_version", "", 0),
+            "yuno_role",    "%s", kw_get_str(gobj, kw, "yuno_role", "", 0),
+            "yuno_id",      "%s", kw_get_str(gobj, kw, "yuno_id", "", 0),
+            "yuno_name",    "%s", kw_get_str(gobj, kw, "yuno_name", "", 0),
+            "yuno_tag",     "%s", kw_get_str(gobj, kw, "yuno_tag", "", 0),
+            "yuno_version", "%s", kw_get_str(gobj, kw, "yuno_version", "", 0),
             "src_yuno",     "%s", iev_src_yuno,
             "src_role",     "%s", iev_src_role,
             "src_service",  "%s", iev_src_service,
@@ -727,24 +728,24 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         /*
          *      __ANSWER__ __MESSAGE__
          */
-        JSON_INCREF(kw);
-        json_t *kw_answer = msg_iev_answer(
+        JSON_INCREF(kw)
+        json_t *kw_answer = msg_iev_set_back_metadata(
             gobj,
             kw,
             jn_resp,
-            0
+            TRUE
         );
 
         send_static_iev(
             gobj,
-            "EV_IDENTITY_CARD_ACK",
+            EV_IDENTITY_CARD_ACK,
             kw_answer,      // own
             src
         );
 
         set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_idgot"));
 
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0; // Don't return -1, don't drop connection, let send negative ack. Drop by timeout.
     }
 
@@ -784,22 +785,22 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  Change to state SESSION,
      *  send answer and inform.
      *----------------------------------------------*/
-    gobj_change_state(gobj, "ST_SESSION");
+    gobj_change_state(gobj, ST_SESSION);
 
     /*
      *      __ANSWER__ __MESSAGE__
      */
-    JSON_INCREF(kw);
-    json_t *kw_answer = msg_iev_answer(
+    JSON_INCREF(kw)
+    json_t *kw_answer = msg_iev_set_back_metadata(
         gobj,
         kw,
         jn_resp,
-        0
+        TRUE
     );
 
     send_static_iev(
         gobj,
-        "EV_IDENTITY_CARD_ACK",
+        EV_IDENTITY_CARD_ACK,
         kw_answer,      // own
         src
     );
@@ -816,6 +817,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             "identity_card", kw // REQUIRED for controlcenter, agent!!
         );
         kw_set_subdict_value(
+            gobj,
             kw_on_open,
             "__temp__", "__username__",
             json_string(gobj_read_str_attr(gobj, "__username__"))
@@ -824,7 +826,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         gobj_publish_event(gobj, "EV_ON_OPEN", kw_on_open);
     }
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -834,7 +836,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_goodbye(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    const char *cause = kw_get_str(kw, "cause", "", 0);
+    const char *cause = kw_get_str(gobj, kw, "cause", "", 0);
 
     uint32_t trace_level = gobj_trace_level(gobj);
     if((trace_level & TRACE_IDENTITY_CARD)) {
@@ -847,11 +849,11 @@ PRIVATE int ac_goodbye(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_short_name(src),
             cause
         );
-        trace_inter_event2(prefix, event, kw);
+        trace_inter_event2(gobj, prefix, event, kw);
     }
     drop(gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -863,8 +865,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!gobj_read_bool_attr(gobj, "authenticated")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Only authenticated users can request stats",
@@ -884,8 +885,8 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    const char *stats = kw_get_str(kw, "__stats__", 0, 0);
-    const char *service = kw_get_str(kw, "service", "", 0);
+    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     hgobj service_gobj;
     if(empty_string(service)) {
@@ -893,8 +894,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Service not found",
@@ -917,12 +917,13 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__", "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
 
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *webix = gobj_stats(
         service_gobj,
         stats,
@@ -932,20 +933,20 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!webix) {
         // Asynchronous response
     } else {
-        json_t *kw2 = msg_iev_answer(
+        json_t *kw2 = msg_iev_set_back_metadata(
             gobj,
             kw,
             webix,
-            0
+            TRUE
         );
         return send_static_iev(gobj,
-            "EV_MT_STATS_ANSWER",
+            EV_MT_STATS_ANSWER,
             kw2,
             src
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -956,27 +957,25 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *command = kw_get_str(kw, "__command__", 0, 0);
-    const char *service = kw_get_str(kw, "service", "", 0);
+    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     if(!gobj_read_bool_attr(gobj, "authenticated")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Only authenticated users can request commands",
             NULL
         );
         return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
-            msg_iev_build_response2(
+            EV_MT_COMMAND_ANSWER,
+            msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Only authenticated users can request commands"),
                 0,
                 0,
-                kw,
-                ""
+                kw
             ),
             src
         );
@@ -988,8 +987,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Service not found",
@@ -997,15 +995,14 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
             return send_static_iev(gobj,
-                "EV_MT_COMMAND_ANSWER",
-                msg_iev_build_response2(
+                EV_MT_COMMAND_ANSWER,
+                msg_iev_build_response(
                     gobj,
                     -1,
                     json_sprintf("Service not found: '%s'", service),
                     0,
                     0,
-                    kw,
-                    ""
+                    kw
                 ),
                 src
             );
@@ -1013,12 +1010,13 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     kw_set_subdict_value(
+        gobj,
         kw,
         "__temp__", "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
 
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *webix = gobj_command(
         service_gobj,
         command,
@@ -1028,20 +1026,20 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!webix) {
         // Asynchronous response
     } else {
-        json_t *kw2 = msg_iev_answer(
+        json_t *kw2 = msg_iev_set_back_metadata(
             gobj,
             kw,
             webix,
-            ""
+            TRUE
         );
         return send_static_iev(gobj,
-            "EV_MT_COMMAND_ANSWER",
+            EV_MT_COMMAND_ANSWER,
             kw2,
             src
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1051,62 +1049,59 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
             NULL
         );
         drop(gobj);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
 
     /*---------------------------------------*
      *  Create inter_event from gbuf
      *---------------------------------------*/
-    gbuf_incref(gbuf);
-    iev_msg_t iev_msg;
-    if(iev_create_from_gbuffer(&iev_msg, gbuf, 0)<0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    gbuffer_incref(gbuf);
+
+    gobj_event_t iev_event;
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
+    if(!iev_kw) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "iev_create_from_gbuffer() FAILED",
             NULL
         );
         drop(gobj);
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return -1;
     }
 
     /*---------------------------------------*
      *          trace inter_event
      *---------------------------------------*/
-    const char *iev_event = iev_msg.event;
-    json_t *iev_kw = iev_msg.kw;
-
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level) {
         char prefix[256];
         snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s <==%s",
+            "INTRA-EVENT(%s^%s) %s <== %s",
             gobj_yuno_role(),
             gobj_yuno_name(),
             gobj_short_name(gobj),
             gobj_short_name(src)
         );
         if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(prefix, iev_event, iev_kw);
+            trace_inter_event2(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(prefix, iev_event, iev_kw);
+            trace_inter_event(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(strcmp(iev_event, "EV_IDENTITY_CARD")==0 ||
-                    strcmp(iev_event, "EV_IDENTITY_CARD_ACK")==0) {
-                trace_inter_event2(prefix, iev_event, iev_kw);
+            if(iev_event == EV_IDENTITY_CARD ||
+                    iev_event == EV_IDENTITY_CARD_ACK) {
+                trace_inter_event2(gobj, prefix, iev_event, iev_kw);
             }
         }
     }
@@ -1115,8 +1110,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  If state is not SESSION send self.
      *  Mainly process EV_IDENTITY_CARD_ACK
      *-----------------------------------------*/
-    if(!gobj_in_this_state(gobj, "ST_SESSION")){
-        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+    if(gobj_current_state(gobj) != ST_SESSION) {
+        if(gobj_has_input_event(gobj, iev_event)) { // TODO aqui usa, EVF_PUBLIC_EVENT important!!
             kw_incref(iev_kw);
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
                 kw_decref(iev_kw);
@@ -1133,7 +1128,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Analyze inter_event
      *------------------------------------*/
-    const char *msg_type = kw_get_str(iev_kw, "__md_iev__`__msg_type__", "", 0);
+    const char *msg_type = kw_get_str(gobj, iev_kw, "__md_iev__`__msg_type__", "", 0);
 
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
@@ -1143,17 +1138,16 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  de un cambio de play->pause, y entonces viene sin stack,
      *  porque no es una petición que salga del agente.
      *-----------------------------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID, FALSE);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_AREA_ID, FALSE);
     // TODO en request_id tenemos el routing del inter-event
 
     /*----------------------------------------*
      *  Check dst role^name
      *----------------------------------------*/
-    const char *iev_dst_role = kw_get_str(jn_ievent_id, "dst_role", "", 0);
+    const char *iev_dst_role = kw_get_str(gobj, jn_ievent_id, "dst_role", "", 0);
     if(!empty_string(iev_dst_role)) {
         if(strcmp(iev_dst_role, gobj_yuno_role())!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "It's not my role",
@@ -1162,16 +1156,15 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
             drop(gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
             return -1;
         }
     }
-    const char *iev_dst_yuno = kw_get_str(jn_ievent_id, "dst_yuno", "", 0);
+    const char *iev_dst_yuno = kw_get_str(gobj, jn_ievent_id, "dst_yuno", "", 0);
     if(!empty_string(iev_dst_yuno)) {
         if(strcmp(iev_dst_yuno, gobj_yuno_name())!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "It's not my name",
@@ -1180,8 +1173,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
             drop(gobj);
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
             return -1;
         }
     }
@@ -1189,7 +1182,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Check dst service
      *----------------------------------------*/
-    const char *iev_dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     // TODO de momento pasa todo, multi-servicio.
     // Obligado al servicio acordado en el identity_card.
     // (priv->gobj_service)
@@ -1202,8 +1195,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_service = priv->gobj_service;
     }
     if(!gobj_service) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "event ignored, service not found",
@@ -1211,8 +1203,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "event",        "%s", iev_event,
             NULL
         );
-        KW_DECREF(iev_kw);
-        KW_DECREF(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -1247,7 +1239,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //                     kw_authz,
 //                     subscriber_
 //                 )) {
-//                     log_error(0,
+//                     gobj_log_error(gobj, 0,
 //                         "gobj",         "%s", gobj_full_name(publisher_),
 //                         "function",     "%s", __FUNCTION__,
 //                         "msgset",       "%s", MSGSET_OAUTH_ERROR,
@@ -1257,7 +1249,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //                         "event",        "%s", event?event:"",
 //                         NULL
 //                     );
-//                     KW_DECREF(kw);
+//                     KW_DECREF(kw)
 //                     return 0;
 //                 }
 //             }
@@ -1267,47 +1259,56 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *   Protect: only public events
          */
-        if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            char temp[256];
-            snprintf(temp, sizeof(temp),
-                "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
-                iev_dst_service
-            );
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", temp,
-                "service",      "%s", iev_dst_service,
-                "gobj_service", "%s", gobj_short_name(gobj_service),
-                "event",        "%s", iev_event,
-                NULL
-            );
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
-            return -1;
-        }
+        // TODO IMPORTANT if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+//            char temp[256];
+//            snprintf(temp, sizeof(temp),
+//                "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
+//                iev_dst_service
+//            );
+//            gobj_log_error(gobj, 0,
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                "msg",          "%s", temp,
+//                "service",      "%s", iev_dst_service,
+//                "gobj_service", "%s", gobj_short_name(gobj_service),
+//                "event",        "%s", iev_event,
+//                NULL
+//            );
+//            KW_DECREF(iev_kw)
+//            KW_DECREF(kw)
+//            return -1;
+//        }
 
         // Set locals to remove on publishing
         kw_set_subdict_value(
+            gobj,
             iev_kw,
             "__local__", "__subscription_reference__",
             json_integer((json_int_t)(size_t)gobj)
         );
-        kw_set_subdict_value(iev_kw, "__local__", "__temp__", json_null());
+        kw_set_subdict_value(gobj, iev_kw, "__local__", "__temp__", json_null());
 
         // Prepare the return of response
-        json_t *__md_iev__ = kw_get_dict(iev_kw, "__md_iev__", 0, 0);
+        json_t *__md_iev__ = kw_get_dict(gobj, iev_kw, "__md_iev__", 0, 0);
         if(__md_iev__) {
-            KW_INCREF(iev_kw);
-            json_t *kw3 = msg_iev_answer(
+            KW_INCREF(iev_kw)
+
+//            json_t *kw3 = msg_iev_answer(
+//                gobj,
+//                iev_kw,
+//                0,
+//                "__publishing__" TODO needed?
+//            );
+
+            json_t *kw3 = msg_iev_set_back_metadata(
                 gobj,
                 iev_kw,
                 0,
-                "__publishing__"
+                TRUE
             );
+
             json_object_del(iev_kw, "__md_iev__");
-            json_t *__global__ = kw_get_dict(iev_kw, "__global__", 0, 0);
+            json_t *__global__ = kw_get_dict(gobj, iev_kw, "__global__", 0, 0);
             if(__global__) {
                 json_object_update_new(__global__, kw3);
             } else {
@@ -1330,23 +1331,22 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *   Protect: only public events
          */
-        if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "UNSUBSCRIBING event ignored, not in output_event_list or not PUBLIC event",
-                "service",      "%s", iev_dst_service,
-                "gobj_service", "%s", gobj_short_name(gobj_service),
-                "event",        "%s", iev_event,
-                NULL
-            );
-            KW_DECREF(iev_kw);
-            KW_DECREF(kw);
-            return -1;
-        }
-        kw_delete(iev_kw, "__md_iev__");
-        gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
+// TODO       if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+//            gobj_log_error(gobj, 0,
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                "msg",          "%s", "UNSUBSCRIBING event ignored, not in output_event_list or not PUBLIC event",
+//                "service",      "%s", iev_dst_service,
+//                "gobj_service", "%s", gobj_short_name(gobj_service),
+//                "event",        "%s", iev_event,
+//                NULL
+//            );
+//            KW_DECREF(iev_kw)
+//            KW_DECREF(kw)
+//            return -1;
+//        }
+//        kw_delete(iev_kw, "__md_iev__");
+//        gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
 
     } else {
         /*----------------------*
@@ -1374,7 +1374,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //             if(!gobj_user_has_authz(
 //                     dst, "__inject_event__", kw_authz, src)
 //             ) {
-//                 log_error(0,
+//                 gobj_log_error(gobj, 0,
 //                     "gobj",         "%s", gobj_full_name(dst),
 //                     "function",     "%s", __FUNCTION__,
 //                     "msgset",       "%s", MSGSET_OAUTH_ERROR,
@@ -1384,29 +1384,30 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //                     "event",        "%s", event?event:"",
 //                     NULL
 //                 );
-//                 KW_DECREF(kw);
+//                 KW_DECREF(kw)
 //                 return -403;
 //             }
 //         }
 
-        if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            /*
-            *  It's mine (I manage inter-command and inter-stats)
-            */
-            gobj_send_event(
-                gobj,
-                iev_event,
-                iev_kw,
-                gobj
-            );
-            KW_DECREF(kw);
-            return 0;
-        }
+// TODO       if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+//            /*
+//            *  It's mine (I manage inter-command and inter-stats)
+//            */
+//            gobj_send_event(
+//                gobj,
+//                iev_event,
+//                iev_kw,
+//                gobj
+//            );
+//            KW_DECREF(kw)
+//            return 0;
+//        }
 
         /*
          *   Send inter-event to subscriber
          */
         kw_set_subdict_value(
+            gobj,
             iev_kw,
             "__temp__", "__username__",
             json_string(gobj_read_str_attr(gobj, "__username__"))
@@ -1418,10 +1419,10 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         /*
          *  HACK Obligatoriamente el destinatario tiene que ser un IOGate!!! ???
-         *  Todos los mensajes (comandos,stats,subscribe/unsubscribe) van
+         *  Todos los mensajes (comandos, stats, subscribe/unsubscribe) van
          *  al dst_service del mensaje en curso,
          *  y si éste no existe van dst_service del identity_card,
-         *  pero el mensaje directo va al subscriber directamente? porqué?
+         *  pero el mensaje directo va al subscriber directamente? Porqué?
          *  porque el IOGate es quien lo publica, como gobj unico que engloba a todos sus canales.
          *
          *  En el agente se responde al src directamente porque los mensajes vienen de commando!
@@ -1433,13 +1434,13 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         gobj_send_event(
             priv->subscriber,
-            "EV_IEV_MESSAGE",
+            EV_SEND_IEV, //EV_IEV_MESSAGE, TODO check
             jn_iev,
             gobj
         );
     }
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1450,7 +1451,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     drop(gobj);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -1462,178 +1463,141 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  someone or ... has stopped
      */
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    // bottom input
-    {"EV_ON_MESSAGE",       0,  0,  0},
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
-    {"EV_DROP",             0,  0,  0},
-    // public
-    {"EV_IDENTITY_CARD",    EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_GOODBYE",          EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_MT_STATS",         EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_MT_COMMAND",       EVF_PUBLIC_EVENT,   0,  0},
-    // internal
-    {"EV_TIMEOUT",          0,  0,  0},
-    {"EV_STOPPED",          0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_WAIT_IDENTITY_CARD",
-    "ST_SESSION",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_stats = mt_stats,
+    .mt_command_parser = mt_command,
+    .mt_inject_event = mt_inject_event,
 };
 
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_ON_OPEN",              ac_on_open,             "ST_WAIT_IDENTITY_CARD"},
-    {"EV_STOPPED",              ac_stopped,             0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAIT_IDENTITY_CARD[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,          0},
-    {"EV_IDENTITY_CARD",        ac_identity_card,       0},
-    {"EV_GOODBYE",              ac_goodbye,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            "ST_DISCONNECTED"},
-    {"EV_DROP",                 ac_drop,                0},
-    {"EV_TIMEOUT",              ac_timeout_wait_idGot,  0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_SESSION[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,          0},
-    {"EV_MT_STATS",             ac_mt_stats,            0},
-    {"EV_MT_COMMAND",           ac_mt_command,          0},
-    {"EV_IDENTITY_CARD",        ac_identity_card,       0},
-    {"EV_GOODBYE",              ac_goodbye,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            "ST_DISCONNECTED"},
-    {"EV_DROP",                 ac_drop,                0},
-    {"EV_STOPPED",              ac_stopped,             0}, // puede llegar por aquí en un gobj_stop_tree()
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_IEVENT_SRV);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_WAIT_IDENTITY_CARD,
-    ST_SESSION,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_WAIT_IDENTITY_CARD);
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_GOODBYE);
+
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_IEVENT_SRV_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        mt_stats,
-        mt_command,
-        mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // command_table
-    gcflag_no_check_output_events, // gcflag,
-};
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
-PUBLIC GCLASS *gclass_ievent_srv(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_ON_OPEN,            ac_on_open,             ST_WAIT_IDENTITY_CARD},
+        {EV_STOPPED,            ac_stopped,             0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_identity_card[] = {
+        {EV_ON_MESSAGE,         ac_on_message,          0},
+        {EV_IDENTITY_CARD,      ac_identity_card,       0},
+        {EV_GOODBYE,            ac_goodbye,             0},
+        {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
+        {EV_DROP,               ac_drop,                0},
+        {EV_TIMEOUT,            ac_timeout_wait_idGot,  0},
+        {0,0,0}
+    };
+    ev_action_t st_session[] = {
+        {EV_ON_MESSAGE,         ac_on_message,          0},
+        {EV_MT_STATS,           ac_mt_stats,            0},
+        {EV_MT_COMMAND,         ac_mt_command,          0},
+        {EV_IDENTITY_CARD,      ac_identity_card,       0},
+        {EV_GOODBYE,            ac_goodbye,             0},
+        {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
+        {EV_DROP,               ac_drop,                0},
+        {EV_STOPPED,            ac_stopped,             0}, // puede llegar por aquí en un gobj_stop_tree()
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_DISCONNECTED,           st_disconnected},
+        {ST_WAIT_IDENTITY_CARD,     st_wait_identity_card},
+        {ST_SESSION,                st_session},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_ON_MESSAGE,         0},
+        {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
+        {EV_DROP,               0},
+        // public
+        {EV_IDENTITY_CARD,      EVF_PUBLIC_EVENT},
+        {EV_GOODBYE,            EVF_PUBLIC_EVENT},
+        {EV_MT_STATS,           EVF_PUBLIC_EVENT},
+        {EV_MT_COMMAND,         EVF_PUBLIC_EVENT},
+        // internal
+        {EV_TIMEOUT,            0},
+        {EV_STOPPED,            0},
+
+
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        0,  // command_table,
+        s_user_trace_level,
+        gcflag_no_check_output_events   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_ievent_srv(void)
+{
+    return create_gclass(C_IEVENT_SRV);
 }
