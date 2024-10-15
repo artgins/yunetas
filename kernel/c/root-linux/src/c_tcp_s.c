@@ -425,8 +425,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     /*-------------------------------------------------*
      *  WARNING: Here only with YEV_ACCEPT_TYPE event
      *-------------------------------------------------*/
-    int srv_cli_fd = yev_event->result;
-    if(srv_cli_fd<0) {
+    int fd_clisrv = yev_event->result;
+    if(fd_clisrv<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -437,13 +437,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         return -1;
     }
 
-    char sockname[80], peername[80];
-    get_peername(peername, sizeof(peername), srv_cli_fd);
-    get_sockname(sockname, sizeof(sockname), srv_cli_fd);
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "ACCEPTED  sockname %s <- peername %s", sockname, peername);
-    }
-
+    char peername[80];
+    get_peername(peername, sizeof(peername), fd_clisrv);
     if(gobj_read_bool_attr(gobj, "only_allowed_ips")) {
         const char *localhost = "127.0.0.";
         if(strncmp(peername, localhost, strlen(localhost))!=0) {
@@ -456,7 +451,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     "peername",     "%s", peername,
                     NULL
                 );
-                close(srv_cli_fd);
+                close(fd_clisrv);
                 return -1;
             }
         }
@@ -497,7 +492,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
                     NULL
                 );
-                close(srv_cli_fd);
+                close(fd_clisrv);
                 return -1;
 
             }
@@ -527,7 +522,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
             NULL
         );
-        close(srv_cli_fd);
+        close(fd_clisrv);
         return -1;
     }
 
@@ -538,7 +533,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             "msg",          "%s", "No subscriber",
             NULL
         );
-        close(srv_cli_fd);
+        close(fd_clisrv);
         return -1;
     }
 
@@ -550,7 +545,12 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         kw_clisrv = json_object();
     }
     json_object_set_new(kw_clisrv, "ytls", json_integer((json_int_t)(size_t)priv->ytls));
-    json_object_set_new(kw_clisrv, "trace", json_boolean(priv->trace));
+    json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
+    json_object_set_new(kw_clisrv, "host", json_string(gobj_read_str_attr(gobj, "lHost")));
+    json_object_set_new(kw_clisrv, "port", json_string(gobj_read_str_attr(gobj, "lPort")));
+    json_object_set_new(kw_clisrv, "__clisrv__", json_true());
+    json_object_set_new(kw_clisrv, "fd_clisrv", json_integer((json_int_t)(size_t)fd_clisrv));
+
 
     hgobj clisrv = gobj_create_volatil(
         xname, // the same name as the filter, if filter.
@@ -558,22 +558,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         kw_clisrv,
         gobj_bottom?gobj_bottom:priv->subscriber
     );
-    gobj_write_str_attr(
-        clisrv,
-        "lHost",
-        gobj_read_str_attr(gobj, "lHost")
-    );
-    gobj_write_str_attr(
-        clisrv,
-        "lPort",
-        gobj_read_str_attr(gobj, "lPort")
-    );
-    gobj_write_bool_attr(
-        clisrv,
-        "__clisrv__",
-        TRUE
-    );
-
     gobj_set_bottom_gobj(gobj_bottom, clisrv);
 
     /*
@@ -581,11 +565,9 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
      *  for deleting gobjs or do statistics
      */
     json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
-    gobj_subscribe_event(clisrv, "EV_STOPPED", kw_subs, gobj);
+    gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
 
-    gobj_start(clisrv);
-
-    // TODO set priv->uv_socket and call set_connected(clisrv);
+    gobj_start(clisrv); // this call set_connected(clisrv);
 
     return 0;
 }

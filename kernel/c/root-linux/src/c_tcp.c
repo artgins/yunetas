@@ -35,6 +35,10 @@ PRIVATE int yev_transport_callback(yev_event_t *event);
  *---------------------------------------------*/
 PRIVATE const sdata_desc_t tattr_desc[] = { // WARNING repeated in c_tcp/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
+SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
+SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
+SDATA (DTP_POINTER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
+
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
@@ -59,7 +63,6 @@ SDATA (DTP_INTEGER, "txMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages tr
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
-SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 
 SDATA_END()
@@ -86,12 +89,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_event_t *yev_client_connect;    // Used in not __clisrv__
+    yev_event_t *yev_client_connect;    // Used in not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
+    int fd_clisrv;
     int timeout_inactivity;
     char inform_disconnection;
     BOOL use_ssl;
-    const char *url;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -116,51 +119,49 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    char schema[16];
-    char host[120];
-    char port[10];
-
-    if(parse_url(
-        gobj,
-        gobj_read_str_attr(gobj, "url"),
-        schema, sizeof(schema),
-        host, sizeof(host),
-        port, sizeof(port),
-        0, 0,
-        0, 0,
-        FALSE
-    )<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Parsing url failed",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            NULL
-        );
-    }
-    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-    }
-    gobj_write_str_attr(gobj, "schema", schema);
-    gobj_write_str_attr(gobj, "host", host);
-    gobj_write_str_attr(gobj, "port", port);
-
-    if(gobj_read_bool_attr(gobj, "use_ssl")) {
-//        priv->transport = esp_transport_ssl_init();
-
-// TODO       const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
-//        if(!empty_string(cert_pem)) {
-//            esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
-//        }
-//        if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
-//            esp_transport_ssl_skip_common_name_check(priv->transport);
-//        }
-    } else {
-//        priv->transport = esp_transport_tcp_init();
-    }
-
     if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+        char schema[40];
+        char host[120];
+        char port[40];
+
+        if(parse_url(
+            gobj,
+            gobj_read_str_attr(gobj, "url"),
+            schema, sizeof(schema),
+            host, sizeof(host),
+            port, sizeof(port),
+            0, 0,
+            0, 0,
+            FALSE
+        )<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Parsing url failed",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+        }
+        if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
+            priv->use_ssl = TRUE;
+            gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+        }
+        gobj_write_str_attr(gobj, "schema", schema);
+        gobj_write_str_attr(gobj, "host", host);
+        gobj_write_str_attr(gobj, "port", port);
+
+        if(gobj_read_bool_attr(gobj, "use_ssl")) {
+            // TODO
+            //priv->transport = esp_transport_ssl_init();
+            //const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
+            //if(!empty_string(cert_pem)) {
+            //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
+            //}
+            //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
+            //    esp_transport_ssl_skip_common_name_check(priv->transport);
+            //}
+        }
+
         priv->yev_client_connect = yev_create_connect_event(
             yuno_event_loop(),
             yev_transport_callback,
@@ -189,33 +190,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(url,     gobj_read_str_attr)
-        if (!empty_string(priv->url)) {
-            char host[120];
-            char port[10];
-
-            if(parse_url(
-                gobj,
-                priv->url,
-                0, 0,
-                host, sizeof(host),
-                port, sizeof(port),
-                0, 0,
-                0, 0,
-                FALSE
-            )<0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "Parsing url failed",
-                    "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                    NULL
-                );
-            } else {
-                gobj_write_str_attr(gobj, "host", host);
-                gobj_write_str_attr(gobj, "port", port);
-            }
-        }
     END_EQ_SET_PRIV()
 }
 
@@ -244,7 +218,9 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_reset_volatil_attrs(gobj);
 
-    if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
+        set_connected(gobj, priv->fd_clisrv);
+    } else {
         /*
          * pure tcp client: try to connect
          */
@@ -297,8 +273,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect);
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
 }
 
 
