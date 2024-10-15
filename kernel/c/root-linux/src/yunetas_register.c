@@ -5,9 +5,9 @@
  *              Copyright (c) 2014-2015 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
-#include "c_linux_yuno.h"         // the grandmother
-#include "c_linux_transport.h"
-#include "c_linux_uart.h"
+#include "c_yuno.h"         // the grandmother
+#include "c_tcp.h"
+#include "c_uart.h"
 #include "c_timer.h"
 #include "c_authz.h"
 #include "c_ievent_cli.h"
@@ -45,9 +45,9 @@ PUBLIC int yunetas_register_c_core(void)
     // TODO include with menuconfig
     register_c_authz();
     register_c_ievent_cli();
-    register_c_linux_transport();
-    register_c_linux_uart();
-    register_c_linux_yuno();
+    register_c_tcp();
+    register_c_uart();
+    register_c_yuno();
     register_c_node();
     register_c_prot_http_cl();
     //register_c_prot_http_sr();

@@ -21,10 +21,10 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     src/sha1.c
-    src/c_linux_yuno.c
+    src/c_yuno.c
     src/c_timer.c
-    src/c_linux_transport.c
-    src/c_linux_uart.c
+    src/c_tcp.c
+    src/c_uart.c
     src/c_channel.c
     src/c_iogate.c
 #    src/c_qiogate.c
@@ -51,10 +51,10 @@ set (SRCS
 )
 
 set (HDRS
-    src/c_linux_yuno.h
+    src/c_yuno.h
     src/c_timer.h
-    src/c_linux_transport.h
-    src/c_linux_uart.h
+    src/c_tcp.h
+    src/c_uart.h
     src/c_channel.h
     src/c_iogate.h
     src/c_qiogate.h

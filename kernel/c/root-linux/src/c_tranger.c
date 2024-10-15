@@ -38,7 +38,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 #include <timeranger2.h>
 
 #include "msg_ievent.h"
-#include "c_linux_yuno.h"
+#include "c_yuno.h"
 #include "c_tranger.h"
 
 /***************************************************************************

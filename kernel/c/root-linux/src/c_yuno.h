@@ -1,5 +1,5 @@
 /****************************************************************************
- *          c_linux_yuno.h
+ *          c_yuno.h
  *
  *          GClass __yuno__
  *          Low level
@@ -35,7 +35,7 @@ GOBJ_DECLARE_GCLASS(C_YUNO);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_linux_yuno(void);
+PUBLIC int register_c_yuno(void);
 
 // PUBLIC int gobj_post_event(
 //     hgobj dst,

@@ -10,7 +10,7 @@
  ****************************************************************************/
 #include <time.h>
 #include <gobj.h>
-#include "c_linux_yuno.h"
+#include "c_yuno.h"
 #include "yunetas_ev_loop.h"
 #include "c_timer.h"
 

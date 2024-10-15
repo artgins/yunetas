@@ -18,7 +18,7 @@
     #include "c_esp_transport.h"
 #endif
 #ifdef __linux__
-    #include "c_linux_transport.h"
+    #include "c_tcp.h"
 #endif
 #include "c_prot_http_cl.h"
 
@@ -158,7 +158,7 @@ PRIVATE int mt_start(hgobj gobj)
             hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
         #endif
         #ifdef __linux__
-            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_LINUX_TRANSPORT, kw, gobj);
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
     }

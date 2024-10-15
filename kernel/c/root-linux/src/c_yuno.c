@@ -1,5 +1,5 @@
 /****************************************************************************
- *          c_linux_yuno.c
+ *          c_yuno.c
  *
  *          GClass __yuno__
  *          Low level esp-idf
@@ -26,7 +26,7 @@
 #include "yunetas_ev_loop.h"
 #include "yunetas_environment.h"
 #include "c_timer.h"
-#include "c_linux_yuno.h"
+#include "c_yuno.h"
 
 /***************************************************************
  *              Constants
@@ -3432,7 +3432,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_linux_yuno(void)
+PUBLIC int register_c_yuno(void)
 {
     return create_gclass(C_YUNO);
 }

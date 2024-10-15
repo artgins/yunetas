@@ -1,11 +1,10 @@
 /****************************************************************************
- *          c_linux_uart.h
+ *          c_tcp.h
  *
- *          GClass Uart
- *          Low level linux TODO no sé si hace falta todavia
+ *          GClass Wifi
+ *          Low level linux
  *
- *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2023 Niyamaka, 2024- ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -22,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_LINUX_UART);
+GOBJ_DECLARE_GCLASS(C_TCP);
 
 /*------------------------*
  *      States
@@ -35,7 +34,7 @@ GOBJ_DECLARE_GCLASS(C_LINUX_UART);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_linux_uart(void);
+PUBLIC int register_c_tcp(void);
 
 #ifdef __cplusplus
 }

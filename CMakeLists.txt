@@ -75,6 +75,7 @@ file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${FILE_H_CONTENT})
 
 #-----------------------------------------------------#
 #   Generate yuneta_version.h from YUNETA_VERSION
+#   TODO debe ser generado en menuconfig
 #-----------------------------------------------------#
 set(FILE_H_CONTENT
 [=[

@@ -34,9 +34,9 @@ extern "C"{
 #include <stats_parser.h>
 #include <testing.h>
 
-#include <c_linux_yuno.h>         // the grandmother
-#include <c_linux_transport.h>
-#include <c_linux_uart.h>
+#include <c_yuno.h>         // the grandmother
+#include <c_tcp.h>
+#include <c_uart.h>
 #include <c_timer.h>
 #include <c_authz.h>
 #include <c_ievent_cli.h>

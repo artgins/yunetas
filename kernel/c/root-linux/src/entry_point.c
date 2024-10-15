@@ -31,7 +31,7 @@
 #include "ydaemon.h"
 #include "rotatory.h"
 #include "yunetas_register.h"
-#include "c_linux_yuno.h"         // the grandmother
+#include "c_yuno.h"         // the grandmother
 #include "entry_point.h"
 
 /***************************************************************************

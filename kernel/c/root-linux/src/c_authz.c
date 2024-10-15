@@ -23,7 +23,7 @@
 #include <tr_treedb.h>
 #include "msg_ievent.h"
 #include "yunetas_environment.h"
-#include "c_linux_yuno.h"
+#include "c_yuno.h"
 #include "c_tranger.h"
 #include "c_node.h"
 #include "c_authz.h"
