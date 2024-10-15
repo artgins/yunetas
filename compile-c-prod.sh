@@ -23,6 +23,14 @@ cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 make install
 
 ##########################################
+#       ytls
+##########################################
+cd "${YUNETAS_BASE_DIR}/kernel/c/ytls"
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+make install
+
+##########################################
 #       timeranger2
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/timeranger2"

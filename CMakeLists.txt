@@ -101,6 +101,7 @@ file(WRITE ${INC_DEST_DIR}/yuneta_version.h ${FILE_H_CONTENT})
 #   Source
 ##############################################
 add_subdirectory(kernel/c/gobj-c)
+add_subdirectory(kernel/c/ytls)
 add_subdirectory(kernel/c/root-linux)
 add_subdirectory(kernel/c/root-esp32)
 add_subdirectory(kernel/c/timeranger2)

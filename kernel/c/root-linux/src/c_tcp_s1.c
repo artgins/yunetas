@@ -1,23 +1,14 @@
-/****************************************************************************
- *          c_tcp_s.c
+/***********************************************************************
+ *          C_TCP_S1.C
+ *          Tcp_S1 GClass.
  *
- *          TCP Server
- *          Low level linux with io_uring
+ *          TCP server level 1 (with SSL) uv-mixin
  *
- *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2018 Niyamaka.
  *          All Rights Reserved.
- ****************************************************************************/
+ ***********************************************************************/
 #include <string.h>
-#include <netdb.h>
-
-#include <parse_url.h>
-#include <kwid.h>
-#include <ytls.h>
-#include <yunetas_ev_loop.h>
-#include "c_timer.h"
-#include "c_yuno.h"
-#include "c_tcp_s.h"
+#include "c_tcp_s1.h"
 
 /***************************************************************************
  *              Constants
@@ -30,8 +21,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-//PRIVATE void on_close_cb(uv_handle_t* handle);
-//PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
+PRIVATE void on_close_cb(uv_handle_t* handle);
+PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
 
 
 /***************************************************************************
@@ -43,27 +34,26 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag----------------default---------description---------- */
-SDATA (DTP_JSON,        "crypto",               SDF_RD,             0,              "Crypto config"),
-SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "false",        "True if schema is secure. Set internally"),
-SDATA (DTP_INTEGER,     "connxs",               SDF_RD,             0,              "Current connections"),
-SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
-SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got from url"),
-SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got from url"),
-SDATA (DTP_STRING,      "stopped_event_name",   SDF_RD,             "EV_STOPPED",   "Stopped event name"),
-SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,              "Only allowed ips"),
-SDATA (DTP_BOOLEAN,     "trace",                SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
-SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
-SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
-SDATA (DTP_JSON,        "child_tree_filter",    SDF_RD,             0,              "tree of chids to create on new accept"),
+SDATA (ASN_JSON,        "crypto",               SDF_RD,             0,              "Crypto config"),
+SDATA (ASN_UNSIGNED,    "connxs",               SDF_RD,             0,              "Current connections"),
+SDATA (ASN_OCTET_STR,   "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
+SDATA (ASN_OCTET_STR,   "lHost",                SDF_RD,             0,              "Listening ip, got from url"),
+SDATA (ASN_OCTET_STR,   "lPort",                SDF_RD,             0,              "Listening port, got from url"),
+SDATA (ASN_OCTET_STR,   "stopped_event_name",   SDF_RD,            "EV_STOPPED",   "Stopped event name"),
+SDATA (ASN_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,              "Only allowed ips"),
+SDATA (ASN_BOOLEAN,     "trace",                SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
+SDATA (ASN_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
+SDATA (ASN_BOOLEAN,     "exitOnError",          SDF_RD,             1,              "Exit if Listen failed"),
+SDATA (ASN_JSON,        "child_tree_filter",    SDF_RD,             0,              "tree of chids to create on new accept"),
 
-SDATA (DTP_STRING,      "top_name",             SDF_RD,             0,              "name of filter gobj"),
-SDATA (DTP_STRING,      "top_gclass_name",      SDF_RD,             0,              "The name of a registered gclass to use in creation of the filter gobj"),
-SDATA (DTP_POINTER,     "top_parent",           SDF_RD,             0,              "parent of the top filter gobj"),
-SDATA (DTP_JSON,        "top_kw",               SDF_RD,             0,              "kw of filter gobj"),
-SDATA (DTP_JSON,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
-SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
-SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
-SDATA (DTP_POINTER,     "subscriber",           0,                  0,              "subscriber of output-events. Default if null is parent."),
+SDATA (ASN_OCTET_STR,   "top_name",             SDF_RD,             0,              "name of filter gobj"),
+SDATA (ASN_OCTET_STR,   "top_gclass_name",      SDF_RD,             0,              "The name of a registered gclass to use in creation of the filter gobj"),
+SDATA (ASN_POINTER,     "top_parent",           SDF_RD,             0,              "parent of the top filter gobj"),
+SDATA (ASN_JSON,        "top_kw",               SDF_RD,             0,              "kw of filter gobj"),
+SDATA (ASN_JSON,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
+SDATA (ASN_POINTER,     "user_data",            0,                  0,              "user data"),
+SDATA (ASN_POINTER,     "user_data2",           0,                  0,              "more user data"),
+SDATA (ASN_POINTER,     "subscriber",           0,                  0,              "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -86,7 +76,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    yev_event_t *yev_server_accept;
+    uv_tcp_t uv_socket;
     BOOL uv_socket_open;
     const char *url;
     BOOL exitOnError;
@@ -101,19 +91,16 @@ typedef struct _PRIVATE_DATA {
     uint32_t *pconnxs;
 
     hytls ytls;
-    BOOL use_ssl;
 
     hgobj subscriber;
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 
 
 
-
-                    /******************************
-                     *      Framework Methods
-                     ******************************/
+            /******************************
+             *      Framework Methods
+             ******************************/
 
 
 
@@ -179,8 +166,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(ytls_cleanup, priv->ytls);
 
-    if(gobj_current_state(gobj) != ST_STOPPED)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    if(!gobj_in_this_state(gobj, "ST_STOPPED")) {
+        log_error(LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
@@ -199,7 +187,8 @@ PRIVATE int mt_start(hgobj gobj)
     int r;
 
     if(!priv->url) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "URL NULL",
@@ -211,25 +200,16 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    char schema[20];
-    char host[120];
-    char port[40];
-
-    if(parse_url(
-        gobj,
-        gobj_read_str_attr(gobj, "url"),
-        schema, sizeof(schema),
-        host, sizeof(host),
-        port, sizeof(port),
-        0, 0,
-        0, 0,
-        FALSE
-    )<0) {
-        gobj_log_error(gobj, 0,
+    // uv_inet_pton(AF_INET, priv->url, &bind_addr);
+    char schema[20], host[120], port[40];
+    r = parse_http_url(priv->url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE);
+    if(r<0) {
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Parsing url failed",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "msg",          "%s", "parse_http_url() FAILED",
+            "url",          "%s", priv->url,
             NULL
         );
         if(priv->exitOnError) {
@@ -238,16 +218,9 @@ PRIVATE int mt_start(hgobj gobj)
             return -1;
         }
     }
-    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-    }
-    gobj_write_str_attr(gobj, "schema", schema);
-    gobj_write_str_attr(gobj, "host", host);
-    gobj_write_str_attr(gobj, "port", port);
-
     if(atoi(port) == 0) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Cannot Listen on port 0",
@@ -275,7 +248,8 @@ PRIVATE int mt_start(hgobj gobj)
         &res
     );
     if(r!=0) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "getaddrinfo() FAILED",
@@ -293,19 +267,20 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, ">>> uv_init tcpS p=%p", &priv->yev_server_accept);
+        log_debug_printf(0, ">>> uv_init tcpS p=%p", &priv->uv_socket);
     }
-    uv_tcp_init(yuno_uv_event_loop(), &priv->yev_server_accept);
-    priv->yev_server_accept.data = gobj;
+    uv_tcp_init(yuno_uv_event_loop(), &priv->uv_socket);
+    priv->uv_socket.data = gobj;
     priv->uv_socket_open = TRUE;
 
     if(gobj_read_bool_attr(gobj, "shared")) {
 // TODO FALTA CHEQUEAR si el S.O. lo soporta. Como no lo uso todavía, lo quito.
 //         int sfd;
-//         uv_fileno((const uv_handle_t *) &priv->yev_server_accept, &sfd);
+//         uv_fileno((const uv_handle_t *) &priv->uv_socket, &sfd);
 //         int optval = 1;
 //         if(setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))<0) {
-//             gobj_log_error(gobj, 0,
+//             log_error(0,
+//                 "gobj",         "%s", gobj_full_name(gobj),
 //                 "function",     "%s", __FUNCTION__,
 //                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
 //                 "msg",          "%s", "setsockopt() FAILED",
@@ -317,7 +292,7 @@ PRIVATE int mt_start(hgobj gobj)
 //             if(priv->exitOnError) {
 //                 exit(0); //WARNING exit with 0 to stop daemon watcher!
 //             } else {
-//                 uv_close((uv_handle_t *)&priv->yev_server_accept, 0);
+//                 uv_close((uv_handle_t *)&priv->uv_socket, 0);
 //                 priv->uv_socket_open = 0;
 //                  freeaddrinfo(res);
 //                 return -1;
@@ -325,10 +300,11 @@ PRIVATE int mt_start(hgobj gobj)
 //         }
     }
 
-    r = uv_tcp_bind(&priv->yev_server_accept, res->ai_addr, 0);
+    r = uv_tcp_bind(&priv->uv_socket, res->ai_addr, 0);
     freeaddrinfo(res);
     if(r) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "uv_tcp_bind FAILED",
@@ -340,18 +316,19 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             exit(0); //WARNING exit with 0 to stop daemon watcher!
         } else {
-            uv_close((uv_handle_t *)&priv->yev_server_accept, 0);
+            uv_close((uv_handle_t *)&priv->uv_socket, 0);
             priv->uv_socket_open = 0;
             return -1;
         }
     }
-    uv_tcp_simultaneous_accepts(&priv->yev_server_accept, 1);
+    uv_tcp_simultaneous_accepts(&priv->uv_socket, 1);
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, ">>> uv_listen tcp p=%p", &priv->yev_server_accept);
+        log_debug_printf(0, ">>> uv_listen tcp p=%p", &priv->uv_socket);
     }
-    r = uv_listen((uv_stream_t*)&priv->yev_server_accept, 128, on_connection_cb);
+    r = uv_listen((uv_stream_t*)&priv->uv_socket, 128, on_connection_cb);
     if(r) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Listen FAILED",
@@ -363,7 +340,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             exit(0); //WARNING exit with 0 to stop watcher!
         } else {
-            uv_close((uv_handle_t *)&priv->yev_server_accept, 0);
+            uv_close((uv_handle_t *)&priv->uv_socket, 0);
             priv->uv_socket_open = 0;
             return -1;
         }
@@ -375,7 +352,8 @@ PRIVATE int mt_start(hgobj gobj)
      *  Info of "listening..."
      */
     if(gobj_trace_level(gobj) & TRACE_LISTEN) {
-        gobj_log_info(gobj, 0,
+        log_info(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Listening...",
             "url",          "%s", priv->url,
@@ -399,10 +377,10 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->uv_socket_open) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_close tcpS p=%p", &priv->yev_server_accept);
+            log_debug_printf(0, ">>> uv_close tcpS p=%p", &priv->uv_socket);
         }
         gobj_change_state(gobj, "ST_WAIT_STOPPED");
-        uv_close((uv_handle_t *)&priv->yev_server_accept, on_close_cb);
+        uv_close((uv_handle_t *)&priv->uv_socket, on_close_cb);
         priv->uv_socket_open = 0;
     }
 
@@ -428,14 +406,15 @@ PRIVATE void on_close_cb(uv_handle_t* handle)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_close_cb tcp_s0 p=%p",
-            &priv->yev_server_accept
+        log_debug_printf(0, "<<< on_close_cb tcp_s0 p=%p",
+            &priv->uv_socket
         );
     }
     gobj_change_state(gobj, "ST_STOPPED");
 
     if(gobj_trace_level(gobj) & TRACE_LISTEN) {
-        gobj_log_info(gobj, 0,
+        log_info(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Unlistening...",
             "url",          "%s", priv->url,
@@ -485,11 +464,12 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_connection_cb p=%p", &priv->yev_server_accept);
+        log_debug_printf(0, "<<< on_connection_cb p=%p", &priv->uv_socket);
     }
 
     if (status) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "on_connection_cb FAILED",
@@ -534,7 +514,8 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
             gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
             if(!gobj_top) {
                 if(gobj_trace_level(gobj) & TRACE_NOT_ACCEPTED) {
-                    gobj_log_error(gobj, 0,
+                    log_error(0,
+                        "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                         "msg",          "%s", "Connection not accepted: no free child tree found",
@@ -554,7 +535,8 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
             if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
                 char tree_name[512];
                 gobj_full_bottom_name(gobj_top, tree_name, sizeof(tree_name));
-                gobj_log_info(gobj, 0,
+                log_info(0,
+                    "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                     "msg",          "%s", "Clisrv accepted",
@@ -575,7 +557,8 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
          *  We must create a top level, a gobj filter
          */
         if(!gc) {
-            gobj_log_info(gobj, 0,
+            log_info(0,
+                "gobj",         "%s", gobj_full_name(gobj),
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "GClass not registered",
                 "gclass",       "%s", priv->top_gclass_name,
@@ -600,7 +583,8 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
     }
 
     if(!gobj_bottom && !priv->subscriber) {
-        gobj_log_error(gobj, 0,
+        log_error(0,
+            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Bad tree filter or no subscriber",
@@ -668,7 +652,8 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
         const char *localhost = "127.0.0.";
         if(strncmp(peername, localhost, strlen(localhost))!=0) {
             if(!is_ip_allowed(peername)) {
-                gobj_log_info(gobj, 0,
+                log_info(0,
+                    "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                     "msg",          "%s", "Ip not allowed",
