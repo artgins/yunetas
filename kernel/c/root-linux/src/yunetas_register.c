@@ -7,6 +7,7 @@
  ****************************************************************************/
 #include "c_yuno.h"         // the grandmother
 #include "c_tcp.h"
+#include "c_tcp_s.h"
 #include "c_uart.h"
 #include "c_timer.h"
 #include "c_authz.h"
@@ -46,6 +47,7 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_authz();
     register_c_ievent_cli();
     register_c_tcp();
+    register_c_tcp_s();
     register_c_uart();
     register_c_yuno();
     register_c_node();

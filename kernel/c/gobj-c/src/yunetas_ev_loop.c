@@ -491,8 +491,18 @@ PUBLIC int yev_set_user_data(
 PUBLIC int yev_start_event(
     yev_event_t *yev_event_
 ) {
+    if(!yev_event_) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return -1;
+    }
+
     yev_event_t *yev_event = yev_event_;
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -748,8 +758,18 @@ PUBLIC int yev_start_timer_event(
     time_t timeout_ms,
     BOOL periodic
 ) {
+    if(!yev_event_) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return -1;
+    }
+
     yev_event_t *yev_event = yev_event_;
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     struct io_uring_sqe *sqe;
 
     if(timeout_ms <= 0) {
@@ -826,8 +846,18 @@ PUBLIC int yev_start_timer_event(
  ***************************************************************************/
 PUBLIC int yev_stop_event(yev_event_t *yev_event)
 {
+    if(!yev_event) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return -1;
+    }
+
     yev_loop_t *yev_loop = yev_event->yev_loop;
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     struct io_uring_sqe *sqe;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -939,7 +969,17 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
  ***************************************************************************/
 PUBLIC void yev_destroy_event(yev_event_t *yev_event)
 {
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    if(!yev_event) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return;
+    }
+
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
@@ -1113,7 +1153,17 @@ PUBLIC int yev_setup_connect_event(
     const char *dst_url,
     const char *src_url
 ) {
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    if(!yev_event) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     if(yev_event->fd >= 0) {
         gobj_log_error(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
@@ -1424,7 +1474,17 @@ PUBLIC int yev_setup_accept_event(
     int backlog,
     BOOL shared
 ) {
-    hgobj gobj = yev_event->yev_loop->yuno?yev_event->gobj:0;
+    if(!yev_event) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     if(yev_event->fd >= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1439,9 +1499,9 @@ PUBLIC int yev_setup_accept_event(
         return -1;
     };
 
-    char schema[16];
+    char schema[40];
     char host[120];
-    char port[10];
+    char port[40];
     char saddr[80];
 
     int ret = parse_url(
