@@ -17,6 +17,7 @@
 #include <yunetas_ev_loop.h>
 #include "c_timer.h"
 #include "c_yuno.h"
+#include "c_tcp.h"
 #include "c_tcp_s.h"
 
 /***************************************************************************
@@ -55,12 +56,8 @@ SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,          
 SDATA (DTP_BOOLEAN,     "trace",                SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
-SDATA (DTP_JSON,        "child_tree_filter",    SDF_RD,             0,              "tree of chids to create on new accept"),
+SDATA (DTP_JSON,        "child_tree_filter",    SDF_RD,             0,              "tree of childs to create on new accept"),
 
-SDATA (DTP_STRING,      "top_name",             SDF_RD,             0,              "name of filter gobj"),
-SDATA (DTP_STRING,      "top_gclass_name",      SDF_RD,             0,              "The name of a registered gclass to use in creation of the filter gobj"),
-SDATA (DTP_POINTER,     "top_parent",           SDF_RD,             0,              "parent of the top filter gobj"),
-SDATA (DTP_JSON,        "top_kw",               SDF_RD,             0,              "kw of filter gobj"),
 SDATA (DTP_JSON,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,              "more user data"),
@@ -90,10 +87,6 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     BOOL exitOnError;
 
-    const char *top_name;
-    const char *top_gclass_name;
-    hgobj top_parent;
-    json_t * top_kw;
     json_t * clisrv_kw;
     BOOL trace;
 
@@ -135,10 +128,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(exitOnError, gobj_read_bool_attr)
     SET_PRIV(trace, gobj_read_bool_attr)
 
-    SET_PRIV(top_name, gobj_read_str_attr)
-    SET_PRIV(top_gclass_name, gobj_read_str_attr)
-    SET_PRIV(top_parent, gobj_read_pointer_attr)
-    SET_PRIV(top_kw, gobj_read_json_attr)
     SET_PRIV(clisrv_kw, gobj_read_json_attr)
 
     priv->pconnxs = gobj_danger_attr_ptr(gobj, "connxs");
@@ -157,10 +146,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(url, gobj_read_str_attr)
 
-    ELIF_EQ_SET_PRIV(top_name, gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(top_gclass_name, gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(top_parent, gobj_read_pointer_attr)
-    ELIF_EQ_SET_PRIV(top_kw, gobj_read_json_attr)
     ELIF_EQ_SET_PRIV(clisrv_kw, gobj_read_json_attr)
     ELIF_EQ_SET_PRIV(exitOnError, gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(trace, gobj_read_bool_attr)
@@ -289,13 +274,16 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             exit(0); //WARNING exit with 0 to stop daemon watcher!
         } else {
-            yev_destroy_event(priv->yev_server_accept);
-            priv->yev_server_accept = 0;
+            if(priv->yev_server_accept) {
+                yev_destroy_event(priv->yev_server_accept);
+                priv->yev_server_accept = 0;
+            }
             return -1;
         }
     }
 
     yev_start_event(priv->yev_server_accept);
+    priv->uv_socket_open = TRUE;
 
     gobj_write_str_attr(gobj, "lHost", host);
     gobj_write_str_attr(gobj, "lPort", port);
@@ -327,11 +315,9 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->uv_socket_open) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_close tcpS p=%p", &priv->yev_server_accept);
-        }
         gobj_change_state(gobj, ST_WAIT_STOPPED);
-        uv_close((uv_handle_t *)&priv->yev_server_accept, on_close_cb);
+        //uv_close((uv_handle_t *)&priv->yev_server_accept, on_close_cb); // TODO ???
+        yev_stop_event(priv->yev_server_accept);
         priv->uv_socket_open = 0;
     }
 
@@ -395,38 +381,92 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *  Accept cb
  ***************************************************************************/
-PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
+PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
-    hgobj gobj = uv_server_socket->data;
+    hgobj gobj = yev_event->gobj;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_connection_cb p=%p", &priv->yev_server_accept);
-    }
-
-    if (status) {
-        gobj_log_error(gobj, 0,
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "on_connection_cb FAILED",
-            "status",       "%d", status,
-            "url",          "%s", priv->url,
-            "uv_error",     "%s", uv_err_name(status),
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "💥 yev server callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
             NULL
         );
-        // return; HACK si retorna se mete en bucle llamando a este callback
+        json_decref(jn_flags);
     }
 
-    /*--------------------------------------*
-     *  statistics
-     *--------------------------------------*/
-    (*priv->pconnxs)++;
+    if(!yev_event->yev_loop->running) {
+        return -1;
+    }
+
+    switch(yev_event->type) {
+        case YEV_ACCEPT_TYPE:
+            break;
+
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                NULL
+            );
+            return -1;
+    }
+
+    /*-------------------------------------------------*
+     *  WARNING: Here only with YEV_ACCEPT_TYPE event
+     *-------------------------------------------------*/
+    int srv_cli_fd = yev_event->result;
+    if(srv_cli_fd<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "yev_server_callback FAILED ",
+            "event_type",   "%s", yev_event_type_name(yev_event),
+            NULL
+        );
+        return -1;
+    }
+
+    char sockname[80], peername[80];
+    get_peername(peername, sizeof(peername), srv_cli_fd);
+    get_sockname(sockname, sizeof(sockname), srv_cli_fd);
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        gobj_trace_msg(gobj, "ACCEPTED  sockname %s <- peername %s", sockname, peername);
+    }
+
+    if(gobj_read_bool_attr(gobj, "only_allowed_ips")) {
+        const char *localhost = "127.0.0.";
+        if(strncmp(peername, localhost, strlen(localhost))!=0) {
+            if(!is_ip_allowed(peername)) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                    "msg",          "%s", "Ip not allowed",
+                    "url",          "%s", priv->url,
+                    "peername",     "%s", peername,
+                    NULL
+                );
+                close(srv_cli_fd);
+                return -1;
+            }
+        }
+    }
 
     /*-------------------*
      *  Name of clisrv
      *-------------------*/
     char xname[80];
-    snprintf(xname, sizeof(xname), "clisrv-%u",
+    snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
         *priv->pconnxs
     );
 
@@ -442,34 +482,33 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
         /*--------------------------------*
          *      New method
          *--------------------------------*/
-        const char *op = kw_get_str(jn_child_tree_filter, "op", "find", 0);
-        json_t *jn_filter = json_deep_copy(kw_get_dict(jn_child_tree_filter, "kw", json_object(), 0));
+        const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
+        json_t *jn_filter = json_deep_copy(kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0));
         // HACK si llegan dos on_connection_cb seguidos coge el mismo tree, protege internamente
         json_object_set_new(jn_filter, "__clisrv__", json_false());
         if(1 || strcmp(op, "find")==0) { // here, only find operation is valid.
             gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
             if(!gobj_top) {
-                if(gobj_trace_level(gobj) & TRACE_NOT_ACCEPTED) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                        "msg",          "%s", "Connection not accepted: no free child tree found",
-                        "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
-                        "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
-                        NULL
-                    );
-                }
-                uv_not_accept((uv_stream_t *)uv_server_socket);
-                return;
-            } else {
-                gobj_bottom = gobj_last_bottom_gobj(gobj_top);
-                if(!gobj_bottom) {
-                    gobj_bottom = gobj_top;
-                }
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                    "msg",          "%s", "Connection not accepted: no free child tree found",
+                    "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
+                    "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
+                    NULL
+                );
+                close(srv_cli_fd);
+                return -1;
+
             }
+
+            gobj_bottom = gobj_last_bottom_gobj(gobj_top);
+            if(!gobj_bottom) {
+                gobj_bottom = gobj_top;
+            }
+
             if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
-                char tree_name[512];
-                gobj_full_bottom_name(gobj_top, tree_name, sizeof(tree_name));
+                const char *tree_name = gobj_full_name(gobj_bottom);
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -479,51 +518,28 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
                 );
             }
         }
-    } else if(!empty_string(priv->top_gclass_name)) {
-        /*---------------------------------------------------------*
-         *      Old method
-         *  Crea la clase top de un arbol implicito (gobj_top)
-         *  y luego le pregunta si tiene gobj_botom,
-         *  por si ha creado un pipe de objetos.
-         *---------------------------------------------------------*/
-        GCLASS *gc = gobj_find_gclass(priv->top_gclass_name, TRUE);
-        /*
-         *  We must create a top level, a gobj filter
-         */
-        if(!gc) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "GClass not registered",
-                "gclass",       "%s", priv->top_gclass_name,
-                NULL
-            );
-            return;
-        }
-        if(priv->top_kw) {
-            json_incref(priv->top_kw);
-        }
-        gobj_top = gobj_create_volatil(
-            xname,
-            gc,
-            priv->top_kw,
-            priv->top_parent?priv->top_parent:priv->subscriber
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "child_tree_filter NULL",
+            "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
+            "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
+            NULL
         );
-        gobj_bottom = gobj_last_bottom_gobj(gobj_top);
-        if(!gobj_bottom) {
-            gobj_bottom = gobj_top;
-        }
-        gobj_start(gobj_top);
+        close(srv_cli_fd);
+        return -1;
     }
 
-    if(!gobj_bottom && !priv->subscriber) {
+    if(!priv->subscriber) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Bad tree filter or no subscriber",
+            "msg",          "%s", "No subscriber",
             NULL
         );
-        uv_not_accept((uv_stream_t *)uv_server_socket);
-        return;
+        close(srv_cli_fd);
+        return -1;
     }
 
     /*----------------------------*
@@ -538,7 +554,7 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
 
     hgobj clisrv = gobj_create_volatil(
         xname, // the same name as the filter, if filter.
-        GCLASS_TCP1,
+        C_TCP,
         kw_clisrv,
         gobj_bottom?gobj_bottom:priv->subscriber
     );
@@ -558,9 +574,7 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
         TRUE
     );
 
-    if(gobj_bottom) {
-        gobj_set_bottom_gobj(gobj_bottom, clisrv);
-    }
+    gobj_set_bottom_gobj(gobj_bottom, clisrv);
 
     /*
      *  srvsock needs to know of disconnected event
@@ -571,209 +585,7 @@ PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status)
 
     gobj_start(clisrv);
 
-    /*--------------------------------------*
-     *  All ready: accept the connection
-     *  to the new child.
-     *--------------------------------------*/
-    if (accept_connection1(clisrv, uv_server_socket)!=0) {
-        gobj_destroy(clisrv);
-        return;
-    }
-    if(gobj_read_bool_attr(gobj, "only_allowed_ips")) {
-        const char *peername = gobj_read_str_attr(clisrv, "peername");
-        const char *localhost = "127.0.0.";
-        if(strncmp(peername, localhost, strlen(localhost))!=0) {
-            if(!is_ip_allowed(peername)) {
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "Ip not allowed",
-                    "url",          "%s", priv->url,
-                    "peername",     "%s", peername,
-                    NULL
-                );
-                gobj_stop(clisrv);
-                return;
-            }
-        }
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int yev_server_callback(yev_event_t *yev_event)
-{
-    hgobj gobj = yev_event->gobj;
-
-    if(dump) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev callback",
-            "msg2",         "%s", "💥 yev server callback",
-            "event type",   "%s", yev_event_type_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "flag",         "%j", jn_flags,
-            "p",            "%p", yev_event,
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
-    if(!yev_loop->running) {
-        return 0;
-    }
-
-    switch(yev_event->type) {
-        case YEV_READ_TYPE:
-            {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Disconnected
-                     */
-                    yev_loop_stop(yev_loop);
-                    break;
-                }
-
-                msg_per_second++;
-                bytes_per_second += gbuffer_leftbytes(yev_event->gbuf);
-                if(test_msectimer(t)) {
-                    seconds_count++;
-                    if(seconds_count && (seconds_count % drop_in_seconds)==0) {
-                        if(who_drop) {
-                            printf(Cursor_Down, 3);
-                            printf(Move_Horizontal, 1);
-                            switch(who_drop) {
-                                case 1:
-                                    close(fd_connect);
-                                    break;
-                                case 2:
-                                    close(srv_cli_fd);
-                                    break;
-                                case 3:
-                                    close(fd_listen);
-                                    break;
-                            }
-                        }
-                    }
-
-                    char nice[64];
-                    nice_size(nice, sizeof(nice), msg_per_second);
-                    printf("\n" Erase_Whole_Line Move_Horizontal, 1);
-                    printf("Msg/sec    : %s\n", nice);
-                    printf(Erase_Whole_Line Move_Horizontal, 1);
-                    nice_size(nice, sizeof(nice), bytes_per_second);
-                    printf("Bytes/sec  : %s\n", nice);
-                    printf(Cursor_Up, 3);
-                    printf(Move_Horizontal, 1);
-
-                    fflush(stdout);
-                    msg_per_second = 0;
-                    bytes_per_second = 0;
-                    t = start_msectimer(1000);
-                }
-
-                /*
-                 *  Save received data to transmit: do echo
-                 */
-                if(dump) {
-                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
-                }
-                gbuffer_clear(gbuf_server_tx);
-                gbuffer_append_gbuf(gbuf_server_tx, yev_event->gbuf);
-
-                /*
-                 *  Transmit
-                 */
-                if(dump) {
-                    gobj_trace_dump_gbuf(gobj, gbuf_server_tx, "Server transmitting");
-                }
-                yev_set_gbuffer(yev_server_tx, gbuf_server_tx);
-                yev_start_event(yev_server_tx);
-
-                /*
-                 *  Clear buffer
-                 *  Re-arm read
-                 */
-                gbuffer_clear(yev_event->gbuf);
-                yev_set_gbuffer(yev_server_rx, yev_event->gbuf);
-                yev_start_event(yev_server_rx);
-            }
-            break;
-
-        case YEV_WRITE_TYPE:
-            {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Disconnected
-                     */
-                    yev_loop_stop(yev_loop);
-                    break;
-                }
-            }
-            break;
-
-        case YEV_ACCEPT_TYPE:
-            {
-                // TODO Create a srv_cli structure
-                srv_cli_fd = yev_event->result;
-
-                char sockname[80], peername[80];
-                get_peername(peername, sizeof(peername), srv_cli_fd);
-                get_sockname(sockname, sizeof(sockname), srv_cli_fd);
-                printf("ACCEPTED  sockname %s <- peername %s \n", sockname, peername);
-
-                /*
-                 *  Ready to receive
-                 */
-                if(!gbuf_server_rx) {
-                    gbuf_server_rx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                    gbuffer_setlabel(gbuf_server_rx, "server-rx");
-                }
-                if(!yev_server_rx) {
-                    yev_server_rx = yev_create_read_event(
-                        yev_event->yev_loop,
-                        yev_server_callback,
-                        NULL,
-                        srv_cli_fd,
-                        0
-                    );
-                }
-
-                /*
-                 *  Read to Transmit
-                 */
-                if(!gbuf_server_tx) {
-                    gbuf_server_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
-                    gbuffer_setlabel(gbuf_server_tx, "server-tx");
-                }
-                if(!yev_server_tx) {
-                    yev_server_tx = yev_create_write_event(
-                        yev_event->yev_loop,
-                        yev_server_callback,
-                        NULL,
-                        srv_cli_fd,
-                        0
-                    );
-                }
-                yev_set_gbuffer(yev_server_rx, gbuf_server_rx);
-                yev_start_event(yev_server_rx);
-            }
-            break;
-
-        default:
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "event type NOT IMPLEMENTED",
-                "event_type",   "%s", yev_event_type_name(yev_event),
-                NULL
-            );
-            break;
-    }
+    // TODO set priv->uv_socket and call set_connected(clisrv);
 
     return 0;
 }
@@ -781,9 +593,9 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
