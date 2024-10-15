@@ -10,14 +10,13 @@
 extern "C"{
 #endif
 
-#include <ginsfsm.h>
+#include <gobj.h>
 
 /*********************************************************************
  *  Prototypes
  *********************************************************************/
-PUBLIC int yuneta_register_c_iot(void);
+PUBLIC int register_prot(void);
 
 #ifdef __cplusplus
 }
 #endif
-

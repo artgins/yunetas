@@ -5,8 +5,9 @@
  *              Copyright (c) 2022 Niyamaka.
  *              All Rights Reserved.
  ****************************************************************************/
-#include "yuneta_iot.h"
-#include "yuneta_iot_register.h"
+#include "c_prot_modbus_m.h"
+#include "c_ota.h"
+#include "register_prot.h"
 
 /***************************************************************************
  *  Data
@@ -46,4 +47,3 @@ PUBLIC int yuneta_register_c_iot(void)
 
     return 0;
 }
-
