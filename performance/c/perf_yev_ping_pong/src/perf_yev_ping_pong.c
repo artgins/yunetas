@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <gobj.h>
+#include <testing.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
@@ -70,10 +71,12 @@ int seconds_count;
  ***************************************************************************/
 int do_test(void)
 {
+    int result = 0;
+
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/
-    yev_loop_create(
+    result += yev_loop_create(
         NULL,
         2024,
         &yev_loop
@@ -95,10 +98,10 @@ int do_test(void)
     );
     if(fd_listen < 0) {
         gobj_trace_msg(0, "Error setup listen on %s", server_url);
-        exit(0);
+        return -1;
     }
 
-    yev_start_event(yev_server_accept);
+    result += yev_start_event(yev_server_accept);
 
     /*--------------------------------*
      *      Setup client
@@ -115,10 +118,10 @@ int do_test(void)
     );
     if(fd_connect < 0) {
         gobj_trace_msg(0, "Error setup connect to %s", server_url);
-        exit(0);
+        return -1;
     }
 
-    yev_start_event(yev_client_connect);
+    result += yev_start_event(yev_client_connect);
 
     printf("\n----------------> Quit in %d seconds <-----------------\n\n", time2exit);
 
@@ -126,7 +129,7 @@ int do_test(void)
      *      Begin run loop
      *--------------------------------*/
     t = start_msectimer(1000);
-    yev_loop_run(yev_loop);
+    result += yev_loop_run(yev_loop);
 
     /*--------------------------------*
      *      Stop
@@ -138,7 +141,7 @@ int do_test(void)
     yev_stop_event(yev_server_accept);
     yev_stop_event(yev_client_connect);
 
-    yev_loop_run_once(yev_loop);
+    result += yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_server_tx);
     yev_destroy_event(yev_server_rx);
@@ -147,10 +150,10 @@ int do_test(void)
     yev_destroy_event(yev_server_accept);
     yev_destroy_event(yev_client_connect);
 
-    yev_loop_stop(yev_loop);
+    result += yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************
@@ -500,6 +503,8 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    int result = 0;
+
     /*----------------------------------*
      *      Startup gobj system
      *----------------------------------*/
@@ -529,7 +534,7 @@ int main(int argc, char *argv[])
     set_show_backtrace_fn(show_backtrace_with_bfd);
 #endif
 
-    gobj_start_up(
+    result += gobj_start_up(
         argc,
         argv,
         NULL, // jn_global_settings
@@ -554,16 +559,51 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+    gobj_log_add_handler(
+        "test_stdout",
+        "stdout",
+        LOG_OPT_UP_WARNING,
+        0
+    );
+
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    do_test();
+    const char *test = "yev_ping_pong";
+    set_expected_results( // Check that no logs happen
+        test,   // test name
+        json_pack("[{s:s}]",  // error_list
+            "msg", "addrinfo on listen"
+        ),
+        NULL,  // expected
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
 
+    result += do_test();
     printf(Cursor_Down "\n", 4);
+
+    result += test_json(NULL, result);
 
     gobj_end();
 
-    return gobj_get_exit_code();
+    if(get_cur_system_memory()!=0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        result += -1;
+    }
+
+    result += gobj_get_exit_code();
+    return result;
 }
 
 /***************************************************************************

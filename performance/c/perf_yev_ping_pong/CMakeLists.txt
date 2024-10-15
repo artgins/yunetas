@@ -16,9 +16,6 @@ else()
 endif()
 include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
-include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/projects/frigo/esp/esp_frigo/main)
-
-
 ##############################################
 #   Source
 ##############################################
@@ -78,6 +75,8 @@ install(
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${BIN_DEST_DIR}
 )
+
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
