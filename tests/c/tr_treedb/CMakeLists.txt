@@ -40,6 +40,7 @@ target_link_libraries(test_tr_treedb
     libyunetas-c_prot.a
     libyunetas-core-linux.a
     libtimeranger2.a
+    libytls.a
     libyunetas-gobj.a
 
     libjansson.a

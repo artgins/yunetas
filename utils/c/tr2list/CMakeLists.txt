@@ -33,8 +33,9 @@ SET (YUNO_HDRS
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    libtimeranger2.a
     libyunetas-core-linux.a
+    libtimeranger2.a
+    libytls.a
     libyunetas-gobj.a
 
     libjansson.a
