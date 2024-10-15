@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test.c
  *
- *          Copyright (c) 2018 Niyamaka, 2024- ArtGins
+ *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>

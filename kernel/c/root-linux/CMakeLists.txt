@@ -24,6 +24,7 @@ set (SRCS
     src/c_yuno.c
     src/c_timer.c
     src/c_tcp.c
+    src/c_tcp_s.c
     src/c_uart.c
     src/c_channel.c
     src/c_iogate.c
@@ -54,6 +55,7 @@ set (HDRS
     src/c_yuno.h
     src/c_timer.h
     src/c_tcp.h
+    src/c_tcp_s.h
     src/c_uart.h
     src/c_channel.h
     src/c_iogate.h

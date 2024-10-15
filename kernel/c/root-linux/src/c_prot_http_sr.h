@@ -4,7 +4,8 @@
  *
  *          Protocol http as server
  *
- *          Copyright (c) 2018-2021 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2018-2021 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

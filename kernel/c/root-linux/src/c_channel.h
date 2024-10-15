@@ -1,7 +1,8 @@
 /****************************************************************************
  *          C_CHANNEL.H
  *          Channel GClass.
- *          Copyright (c) 2016 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <gobj.h>

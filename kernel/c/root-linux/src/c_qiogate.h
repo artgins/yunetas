@@ -4,7 +4,8 @@
  *
  *          IOGate with persistent queue
  *
- *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <gobj.h>

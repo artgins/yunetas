@@ -27,7 +27,8 @@ command-yuno id=1911 service=tranger command=add-record topic_name=pp record='{"
 command-yuno id=1911 service=tranger command=close-list list_id=pepe
 
 
- *          Copyright (c) 2020 Niyamaka, 2024- ArtGins.
+ *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

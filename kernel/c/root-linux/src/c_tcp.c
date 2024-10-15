@@ -1,8 +1,8 @@
 /****************************************************************************
  *          c_tcp.c
  *
- *          GClass Transport: tcp,ssl,...
- *          Low level linux
+ *          TCP Transport: tcp,ssl,...
+ *          Low level linux with io_uring
  *
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.

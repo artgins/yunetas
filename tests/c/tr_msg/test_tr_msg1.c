@@ -22,7 +22,8 @@ rowid   tm
 18      2390460459    'Nieto'
 19      2421996459    'Nieta'
 
- *          Copyright (c) 2018 Niyamaka, 2024- ArtGins
+ *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
