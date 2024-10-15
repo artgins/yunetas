@@ -21,14 +21,14 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     # Protocols
-    src/c_prot_modbus_master.c
+    src/c_prot_modbus_m.c
     src/c_ota.c
 )
 
 
 set (HDRS
     # Protocols
-    src/c_prot_modbus_master.h
+    src/c_prot_modbus_m.h
     src/c_ota.h
 )
 

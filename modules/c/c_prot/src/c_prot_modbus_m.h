@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_PROT_MODBUS_MASTER.H
+ *          C_PROT_MODBUS_M.H
  *          Prot_modbus_master GClass.
  *
  *          Modbus protocol (master side)
@@ -35,7 +35,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_MODBUS_M);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_prot_modbus_master(void);
+PUBLIC int register_c_prot_modbus_m(void);
 
 #ifdef __cplusplus
 }

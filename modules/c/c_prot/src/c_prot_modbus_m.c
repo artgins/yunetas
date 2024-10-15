@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_PROT_MODBUS_MASTER.C
+ *          C_PROT_MODBUS_M.C
  *          Prot_modbus_master GClass.
  *
  *          Modbus protocol (master side)
@@ -61,7 +61,7 @@ Example of modbus configuration:
 #include <istream.h>
 #include <kwid.h>
 #include <helpers.h>
-#include "c_prot_modbus_master.h"
+#include "c_prot_modbus_m.h"
 
 /***************************************************************************
  *              Constants
@@ -3554,7 +3554,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC int register_c_prot_modbus_master(void)
+PUBLIC int register_c_prot_modbus_m(void)
 {
     return create_gclass(C_PROT_MODBUS_M);
 }
