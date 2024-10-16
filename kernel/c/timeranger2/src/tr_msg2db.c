@@ -871,14 +871,14 @@ PRIVATE int load_record_callback(
         /*---------------------------------------------*
          *  Build metadata, loading node from tranger
          *---------------------------------------------*/
-        json_t *jn_record_md = md2json(
-            msg2db_name,
-            topic_name,
-            md_record
-        );
-        json_object_set_new(jn_record, "__md_msg2db__", jn_record_md);
         const char *pkey2_col = kw_get_str(gobj, topic, "pkey2", 0, 0);
-        json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
+// TODO need it?       json_t *jn_record_md = md2json(
+//            msg2db_name,
+//            topic_name,
+//            md_record
+//        );
+//        json_object_set_new(jn_record, "__md_msg2db__", jn_record_md);
+//        json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
 
         const char *pkey2_value = kw_get_str(gobj, jn_record, pkey2_col, 0, 0);
         if(empty_string(pkey2_value)) {
