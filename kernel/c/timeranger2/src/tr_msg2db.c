@@ -13,7 +13,10 @@
 ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
-#include "31_tr_msg2db.h"
+
+#include <kwid.h>
+#include "tr_treedb.h"
+#include "tr_msg2db.h"
 
 /***************************************************************
  *              Constants
@@ -36,13 +39,15 @@ PRIVATE json_t *record2tranger(
 PRIVATE json_t *md2json(
     const char *msg2db_name,
     const char *topic_name,
-    md_record_t *md_record
+    md2_record_t *md_record
 );
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
-    md_record_t *md_record,
+    const char *key,
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    md2_record_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 );
 
@@ -92,14 +97,15 @@ PUBLIC json_t *msg2db_open_db(
     const char *options // "persistent"
 )
 {
-    char msg2db_name[NAME_MAX];
-    snprintf(msg2db_name, sizeof(msg2db_name), "%s", kw_get_str(jn_schema, "id", msg2db_name_, KW_REQUIRED));
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    BOOL master = kw_get_bool(tranger, "master", 0, KW_REQUIRED);
+    char msg2db_name[NAME_MAX];
+    snprintf(msg2db_name, sizeof(msg2db_name), "%s", kw_get_str(gobj, jn_schema, "id", msg2db_name_, KW_REQUIRED));
+
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     if(empty_string(msg2db_name)) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "msg2db_name NULL",
@@ -122,11 +128,11 @@ PUBLIC json_t *msg2db_open_db(
 
     char schema_full_path[NAME_MAX*2];
     snprintf(schema_full_path, sizeof(schema_full_path), "%s/%s",
-        kw_get_str(tranger, "directory", "", KW_REQUIRED),
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         schema_filename
     );
 
-    json_int_t schema_new_version = kw_get_int(jn_schema, "schema_version", 0, KW_WILD_NUMBER);
+    json_int_t schema_new_version = kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
     int schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {
@@ -134,16 +140,17 @@ PUBLIC json_t *msg2db_open_db(
             BOOL recreating = FALSE;
             if(file_exists(schema_full_path, 0)) {
                 json_t *old_jn_schema = load_json_from_file(
+                    gobj,
                     schema_full_path,
                     "",
-                    kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED)
+                    kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED)
                 );
                 if(!master) {
                     JSON_DECREF(jn_schema);
                     jn_schema = old_jn_schema;
                     break; // Nothing to do
                 }
-                json_int_t schema_old_version = kw_get_int(
+                json_int_t schema_old_version = kw_get_int(gobj,
                     old_jn_schema,
                     "schema_version",
                     -1,
@@ -160,8 +167,7 @@ PUBLIC json_t *msg2db_open_db(
                     JSON_DECREF(old_jn_schema);
                 }
             }
-            log_info(0,
-                "gobj",             "%s", __FILE__,
+            gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
                 "msg",              "%s", recreating?"Re-Creating Msg2DB schema file":"Creating Msg2DB schema file",
@@ -172,11 +178,12 @@ PUBLIC json_t *msg2db_open_db(
             );
             JSON_INCREF(jn_schema);
             save_json_to_file(
-                kw_get_str(tranger, "directory", 0, KW_REQUIRED),
+                gobj,
+                kw_get_str(gobj, tranger, "directory", 0, KW_REQUIRED),
                 schema_filename,
-                kw_get_int(tranger, "xpermission", 0, KW_REQUIRED),
-                kw_get_int(tranger, "rpermission", 0, KW_REQUIRED),
-                kw_get_int(tranger, "on_critical_error", 0, KW_REQUIRED),
+                kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+                kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+                kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 TRUE, // Create file if not exists or overwrite.
                 FALSE, // only_read
                 jn_schema     // owned
@@ -185,8 +192,7 @@ PUBLIC json_t *msg2db_open_db(
         } while(0);
 
         if(!jn_schema) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Cannot load TreeDB schema from file.",
@@ -197,8 +203,7 @@ PUBLIC json_t *msg2db_open_db(
             return 0;
         }
     } else if(!jn_schema) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "TreeDB without schema.",
@@ -220,10 +225,9 @@ PUBLIC json_t *msg2db_open_db(
     /*
      *  At least 'topics' must be.
      */
-    json_t *jn_schema_topics = kw_get_list(jn_schema, "topics", 0, KW_REQUIRED);
+    json_t *jn_schema_topics = kw_get_list(gobj, jn_schema, "topics", 0, KW_REQUIRED);
     if(!jn_schema_topics) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "No topics found",
@@ -237,10 +241,9 @@ PUBLIC json_t *msg2db_open_db(
     /*
      *  The tree is built in tranger, check if already exits
      */
-    json_t *msg2db = kwid_get("", tranger, "msg2dbs`%s", msg2db_name);
+    json_t *msg2db = kwid_get(gobj, tranger, 0, "msg2dbs`%s", msg2db_name);
     if(msg2db) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "TreeDB ALREADY opened.",
@@ -257,10 +260,9 @@ PUBLIC json_t *msg2db_open_db(
     int idx;
     json_t *schema_topic;
     json_array_foreach(jn_schema_topics, idx, schema_topic) {
-        const char *topic_name = kw_get_str(schema_topic, "id", kw_get_str(schema_topic, "topic_name", "", 0), 0);
+        const char *topic_name = kw_get_str(gobj, schema_topic, "id", kw_get_str(gobj, schema_topic, "topic_name", "", 0), 0);
         if(empty_string(topic_name)) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Schema topic without topic_name",
@@ -270,10 +272,9 @@ PUBLIC json_t *msg2db_open_db(
             );
             continue;
         }
-        const char *pkey = kw_get_str(schema_topic, "pkey", "", 0);
+        const char *pkey = kw_get_str(gobj, schema_topic, "pkey", "", 0);
         if(strcmp(pkey, "id")!=0) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Schema topic without pkey=id",
@@ -283,10 +284,9 @@ PUBLIC json_t *msg2db_open_db(
             );
             continue;
         }
-        const char *pkey2_col = kw_get_str(schema_topic, "pkey2", "", 0);
+        const char *pkey2_col = kw_get_str(gobj, schema_topic, "pkey2", "", 0);
         if(empty_string(pkey2_col)) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Schema topic without pkey2",
@@ -296,32 +296,33 @@ PUBLIC json_t *msg2db_open_db(
             );
             continue;
         }
-        const char *topic_version = kw_get_str(schema_topic, "topic_version", "", 0);
+        const char *topic_version = kw_get_str(gobj, schema_topic, "topic_version", "", 0);
         json_t *jn_topic_var = json_object();
         json_object_set_new(jn_topic_var, "pkey2", json_string(pkey2_col));
         json_object_set_new(jn_topic_var, "topic_version", json_string(topic_version));
-        json_t *topic = tranger_create_topic(
+        json_t *topic = tranger2_create_topic(
             tranger,    // If topic exists then only needs (tranger,name) parameters
             topic_name,
             pkey,
-            kw_get_str(schema_topic, "tkey", "", 0),
-            tranger_str2system_flag(kw_get_str(schema_topic, "system_flag", "", 0)),
-            kwid_new_dict("verbose", schema_topic, "cols"),
+            kw_get_str(gobj, schema_topic, "tkey", "", 0),
+            NULL,
+            tranger2_str2system_flag(kw_get_str(gobj, schema_topic, "system_flag", "", 0)),
+            kwid_new_dict(gobj, schema_topic, 0, "cols"),
             jn_topic_var
         );
 
         parse_schema_cols(
             topic_cols_desc,
-            kwid_new_list("verbose", topic, "cols")
+            kwid_new_list(gobj, topic, 0, "cols")
         );
     }
 
     /*------------------------------*
      *  Create the root of msg2db
      *------------------------------*/
-    json_t *msg2dbs = kw_get_dict(tranger, "msg2dbs", json_object(), KW_CREATE);
-    msg2db = kw_get_dict(msg2dbs, msg2db_name, json_object(), KW_CREATE);
-    kw_get_int(msg2db, "__schema_version__", schema_version, KW_CREATE|KW_WILD_NUMBER);
+    json_t *msg2dbs = kw_get_dict(gobj, tranger, "msg2dbs", json_object(), KW_CREATE);
+    msg2db = kw_get_dict(gobj, msg2dbs, msg2db_name, json_object(), KW_CREATE);
+    kw_get_int(gobj, msg2db, "__schema_version__", schema_version, KW_CREATE|KW_WILD_NUMBER);
 
     /*------------------------------*
      *  Open "system" lists
@@ -332,13 +333,13 @@ PUBLIC json_t *msg2db_open_db(
      *  Open "user" lists
      *------------------------------*/
     json_array_foreach(jn_schema_topics, idx, schema_topic) {
-        const char *topic_name = kw_get_str(schema_topic, "id", kw_get_str(schema_topic, "topic_name", "", 0), 0);
+        const char *topic_name = kw_get_str(gobj, schema_topic, "id", kw_get_str(gobj, schema_topic, "topic_name", "", 0), 0);
         if(empty_string(topic_name)) {
             continue;
         }
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
 
-        kw_get_subdict_value(msg2db, topic_name, "id", json_object(), KW_CREATE);
+        kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
         json_t *jn_filter = json_object();
 
@@ -349,10 +350,10 @@ PUBLIC json_t *msg2db_open_db(
             "load_record_callback", (json_int_t)(size_t)load_record_callback,
             "msg2db_name", msg2db_name
         );
-        tranger_open_list(
-            tranger,
-            jn_list // owned
-        );
+// TODO       tranger2_open_list(
+//            tranger,
+//            jn_list // owned
+//        );
     }
 
     JSON_DECREF(jn_schema);
@@ -367,20 +368,20 @@ PUBLIC int msg2db_close_db(
     const char *msg2db_name
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     /*------------------------------*
      *  Close msg2db lists
      *------------------------------*/
-    json_t *msg2db = kw_get_subdict_value(tranger, "msg2dbs", msg2db_name, 0, KW_EXTRACT);
+    json_t *msg2db = kw_get_subdict_value(gobj, tranger, "msg2dbs", msg2db_name, 0, KW_EXTRACT);
     if(!msg2db) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Msg2db not found",
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
-        log_debug_json(0, tranger, "Msg2db not found");
+        gobj_trace_json(gobj, tranger, "Msg2db not found");
         return -1;
     }
 
@@ -391,10 +392,9 @@ PUBLIC int msg2db_close_db(
             continue;
         }
         build_msg2db_index_path(list_id, sizeof(list_id), msg2db_name, topic_name, "id");
-        json_t *list = tranger_get_list(tranger, list_id);
+        json_t *list = 0; // TODO tranger2_get_list(tranger, list_id);
         if(!list) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "List not found.",
@@ -404,7 +404,7 @@ PUBLIC int msg2db_close_db(
             );
             continue;
         }
-        tranger_close_list(tranger, list);
+        tranger2_close_list(tranger, list);
     }
 
     JSON_DECREF(msg2db);
@@ -427,16 +427,16 @@ PUBLIC int msg2db_close_db(
  *
  ***************************************************************************/
 PRIVATE int set_tranger_field_value(
+    hgobj gobj,
     const char *topic_name,
     json_t *col,    // not owned
     json_t *record, // not owned
     json_t *value   // not owned
 )
 {
-    const char *field = kw_get_str(col, "id", 0, KW_REQUIRED);
+    const char *field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
     if(!field) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Col desc without 'id'",
@@ -446,10 +446,9 @@ PRIVATE int set_tranger_field_value(
         );
         return -1;
     }
-    const char *type = kw_get_str(col, "type", 0, KW_REQUIRED);
+    const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
     if(!type) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Col desc without 'type'",
@@ -460,15 +459,14 @@ PRIVATE int set_tranger_field_value(
         );
         return -1;
     }
-    json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
 
     /*
      *  Required
      */
-    if(kw_has_word(desc_flag, "required", 0)) {
+    if(kw_has_word(gobj, desc_flag, "required", 0)) {
         if(!value || json_is_null(value)) {
-            log_error(LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Field required",
@@ -485,9 +483,8 @@ PRIVATE int set_tranger_field_value(
      *  Null
      */
     if(json_is_null(value)) {
-        if(kw_has_word(desc_flag, "notnull", 0)) {
-            log_error(LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+        if(kw_has_word(gobj, desc_flag, "notnull", 0)) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Field cannot be null",
@@ -503,8 +500,8 @@ PRIVATE int set_tranger_field_value(
         }
     }
 
-    BOOL is_persistent = kw_has_word(desc_flag, "persistent", 0)?TRUE:FALSE;
-    BOOL wild_conversion = kw_has_word(desc_flag, "wild", 0)?TRUE:FALSE;
+    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
     if(!(is_persistent)) {
         // Not save to tranger
         return 0;
@@ -537,10 +534,9 @@ PRIVATE int set_tranger_field_value(
             } else if(wild_conversion) {
                 char *v = jn2string(value);
                 json_object_set_new(record, field, json_string(v));
-                gbmem_free(v);
+                GBMEM_FREE(v);
             } else {
-                log_error(LOG_OPT_TRACE_STACK,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                     "msg",          "%s", "Value must be string",
@@ -565,8 +561,7 @@ PRIVATE int set_tranger_field_value(
             } else {
                 json_int_t v = jn2integer(value);
                 json_object_set_new(record, field, json_integer(v));
-                log_info(LOG_OPT_TRACE_STACK,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_info(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                     "msg",          "%s", "Value must be integer",
@@ -590,8 +585,7 @@ PRIVATE int set_tranger_field_value(
             } else {
                 double v = jn2real(value);
                 json_object_set_new(record, field, json_real(v));
-                log_info(LOG_OPT_TRACE_STACK,
-                    "gobj",         "%s", __FILE__,
+                gobj_log_info(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                     "msg",          "%s", "Value must be real",
@@ -611,8 +605,7 @@ PRIVATE int set_tranger_field_value(
             break;
 
         DEFAULTS
-            log_error(LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Col type unknown",
@@ -632,6 +625,7 @@ PRIVATE int set_tranger_field_value(
  *
  ***************************************************************************/
 PRIVATE int set_volatil_field_value(
+    hgobj gobj,
     const char *type,
     const char *field,
     json_t *record, // not owned
@@ -665,7 +659,7 @@ PRIVATE int set_volatil_field_value(
             } else {
                 char *v = jn2string(value);
                 json_object_set_new(record, field, json_string(v));
-                gbmem_free(v);
+                GBMEM_FREE(v);
             }
             break;
 
@@ -696,8 +690,7 @@ PRIVATE int set_volatil_field_value(
             break;
 
         DEFAULTS
-            log_error(LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Col type unknown",
@@ -721,10 +714,11 @@ PRIVATE int _set_volatil_values(
     json_t *kw // not owned
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Topic without cols",
@@ -736,30 +730,31 @@ PRIVATE int _set_volatil_values(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(
+        json_t *value = kw_get_dict_value(gobj,
             kw,
             field,
-            kw_get_dict_value(col, "default", 0, 0),
+            kw_get_dict_value(gobj, col, "default", 0, 0),
             0
         );
 
-        const char *field = kw_get_str(col, "id", 0, KW_REQUIRED);
+        const char *field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
         if(!field) {
             continue;
         }
-        const char *type = kw_get_str(col, "type", 0, KW_REQUIRED);
+        const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
         if(!type) {
             continue;
         }
-        json_t *desc_flag = kw_get_dict_value(col, "flag", 0, 0);
-        BOOL is_persistent = kw_has_word(desc_flag, "persistent", 0)?TRUE:FALSE;
-        BOOL is_hook = kw_has_word(desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(desc_flag, "fkey", 0)?TRUE:FALSE;
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_persistent || is_hook || is_fkey)) {
             continue;
         }
 
         set_volatil_field_value(
+            gobj,
             type,
             field,
             record, // not owned
@@ -781,10 +776,11 @@ PRIVATE json_t *record2tranger(
     const char *options // "permissive"
 )
 {
-    json_t *cols = tranger_dict_topic_desc(tranger, topic_name);
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Topic without cols",
@@ -797,8 +793,9 @@ PRIVATE json_t *record2tranger(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(kw, field, 0, 0);
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
         if(set_tranger_field_value(
+                gobj,
                 topic_name,
                 col,
                 new_record,
@@ -821,67 +818,42 @@ PRIVATE json_t *record2tranger(
 }
 
 /***************************************************************************
- *  Return json object with record metadata
- ***************************************************************************/
-PRIVATE json_t *md2json(
-    const char *msg2db_name,
-    const char *topic_name,
-    md_record_t *md_record
-)
-{
-    json_t *jn_md = json_object();
-    json_object_set_new(
-        jn_md,
-        "msg2db_name",
-        json_string(msg2db_name)
-    );
-    json_object_set_new(
-        jn_md,
-        "topic_name",
-        json_string(topic_name)
-    );
-    json_object_set_new(jn_md, "__rowid__", json_integer(md_record->__rowid__));
-    json_object_set_new(jn_md, "__t__", json_integer(md_record->__t__));
-    json_object_set_new(jn_md, "__tm__", json_integer(md_record->__tm__));
-    json_object_set_new(jn_md, "__tag__", json_integer(md_record->__user_flag__));
-    json_object_set_new(jn_md, "__pure_node__", json_true());
-
-    return jn_md;
-}
-
-/***************************************************************************
  *  When record is loaded from disk then create the node
  *  when is loaded from memory then notify to subscribers
  ***************************************************************************/
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
-    md_record_t *md_record,
+    const char *key,
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    md2_record_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
-    if(md_record->__system_flag__ & (sf_loading_from_disk)) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    system_flag2_t system_flag = get_system_flag(md_record);
+    if(system_flag & sf_loading_from_disk) {
         /*---------------------------------*
          *  Loading from disk
          *---------------------------------*/
         /*-------------------------------*
          *      Get indexx
          *-------------------------------*/
-        const char *msg2db_name = kw_get_str(list, "msg2db_name", 0, KW_REQUIRED);
-        const char *topic_name = kw_get_str(list, "topic_name", 0, KW_REQUIRED);
+        const char *msg2db_name = kw_get_str(gobj, list, "msg2db_name", 0, KW_REQUIRED);
+        const char *topic_name = kw_get_str(gobj, list, "topic_name", 0, KW_REQUIRED);
 
         char path[NAME_MAX];
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
-        json_t *indexx = kw_get_dict(
+        json_t *indexx = kw_get_dict(gobj,
             tranger,
             path,
             0,
             KW_REQUIRED
         );
         if(!indexx) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
@@ -905,13 +877,12 @@ PRIVATE int load_record_callback(
             md_record
         );
         json_object_set_new(jn_record, "__md_msg2db__", jn_record_md);
-        const char *pkey2_col = kw_get_str(topic, "pkey2", 0, 0);
+        const char *pkey2_col = kw_get_str(gobj, topic, "pkey2", 0, 0);
         json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
 
-        const char *pkey2_value = kw_get_str(jn_record, pkey2_col, 0, 0);
+        const char *pkey2_value = kw_get_str(gobj, jn_record, pkey2_col, 0, 0);
         if(empty_string(pkey2_value)) {
-            log_error(0,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Field 'pkey2' required",
@@ -940,8 +911,9 @@ PRIVATE int load_record_callback(
          *-------------------------------*/
         JSON_INCREF(jn_record);
         kw_set_subdict_value(
+            gobj,
             indexx,
-            md_record->key.s,
+            key,
             pkey2_value,
             jn_record
         );
@@ -966,20 +938,20 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     const char *options // "permissive"
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     /*-------------------------------*
      *      Get indexx
      *-------------------------------*/
     char path[NAME_MAX];
     build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
-    json_t *indexx = kw_get_dict(
+    json_t *indexx = kw_get_dict(gobj,
         tranger,
         path,
         0,
         KW_REQUIRED
     );
     if(!indexx) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
@@ -987,7 +959,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -995,20 +967,20 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
      *  Get the id, it's mandatory
      *-------------------------------*/
     char uuid[RECORD_KEY_VALUE_MAX+1];
-    const char *id = kw_get_str(kw, "id", 0, 0);
+    const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(empty_string(id)) {
-        json_t *id_col_flag = kwid_get("verbose",
+        json_t *id_col_flag = kwid_get(gobj,
             tranger,
+            KW_VERBOSE,
             "topics`%s`cols`id`flag",
                 topic_name
         );
-        if(kw_has_word(id_col_flag, "uuid", 0)) {
+        if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             create_uuid(uuid, sizeof(uuid));
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
         } else {
-            log_error(LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", __FILE__,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "Field 'id' required",
@@ -1017,7 +989,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
                 "kw",           "%j", kw,
                 NULL
             );
-            JSON_DECREF(kw);
+            JSON_DECREF(kw)
             return 0;
         }
     }
@@ -1025,11 +997,10 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*-----------------------------------*
      *  Get the pkey2, it's mandatory
      *-----------------------------------*/
-    json_t *topic = tranger_topic(tranger, topic_name);
-    const char *pkey2_col = kw_get_str(topic, "pkey2", 0, 0);
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    const char *pkey2_col = kw_get_str(gobj, topic, "pkey2", 0, 0);
     if(!kw_has_key(kw, pkey2_col)) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Field 'pkey2' required",
@@ -1039,10 +1010,10 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
             "kw",           "%j", kw,
             NULL
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
-    const char *pkey2_value = kw_get_str(kw, pkey2_col, 0, 0);
+    const char *pkey2_value = kw_get_str(gobj, kw, pkey2_col, 0, 0);
 
     /*----------------------------------------*
      *  Create the tranger record to create
@@ -1050,16 +1021,16 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     json_t *record = record2tranger(tranger, topic_name, kw, options);
     if(!record) {
         // Error already logged
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return 0;
     }
 
     /*-------------------------------*
      *  Write to tranger
      *-------------------------------*/
-    md_record_t md_record;
-    JSON_INCREF(record);
-    int ret = tranger_append_record(
+    md2_record_t md_record;
+    JSON_INCREF(record)
+    int ret = tranger2_append_record(
         tranger,
         topic_name,
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
@@ -1069,8 +1040,8 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     );
     if(ret < 0) {
         // Error already logged
-        JSON_DECREF(kw);
-        JSON_DECREF(record);
+        JSON_DECREF(kw)
+        JSON_DECREF(record)
         return 0;
     }
 
@@ -1099,13 +1070,14 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
      *  Write node
      *-------------------------------*/
     kw_set_subdict_value(
+        gobj,
         indexx,
         id,
         pkey2_value,
         record
     );
 
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return record;
 }
 
@@ -1124,12 +1096,13 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
     )
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     /*-------------------------------*
      *      Get indexx
      *-------------------------------*/
     char path[NAME_MAX];
     build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
-    json_t *indexx = kw_get_dict(
+    json_t *indexx = kw_get_dict(gobj,
         tranger,
         path,
         0,
@@ -1137,8 +1110,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
     );
 
     if(!indexx) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
@@ -1163,7 +1135,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
     if(json_is_object(indexx)) {
         const char *id; json_t *pkey2_dict;
         json_object_foreach(indexx, id, pkey2_dict) {
-            if(!kwid_match_id(jn_ids, id)) {
+            if(!kwid_match_id(gobj, jn_ids, id)) {
                 continue;
             }
             const char *pkey2; json_t *node;
@@ -1175,8 +1147,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
             }
         }
     } else  {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "kw MUST BE a json object",
@@ -1202,12 +1173,14 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     const char *id2
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     /*-------------------------------*
      *      Get indexx
      *-------------------------------*/
     char path[NAME_MAX];
     build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
-    json_t *indexx = kw_get_dict(
+    json_t *indexx = kw_get_dict(gobj,
         tranger,
         path,
         0,
@@ -1215,8 +1188,7 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     );
 
     if(!indexx) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MSG2DB_ERROR,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
@@ -1233,14 +1205,13 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     if(json_is_object(indexx)) {
         json_t *record;
         if(!empty_string(id2)) {
-            record = kw_get_subdict_value(indexx, id, id2, 0, 0);
+            record = kw_get_subdict_value(gobj, indexx, id, id2, 0, 0);
         } else {
-            record = kw_get_dict_value(indexx, id, 0, 0);
+            record = kw_get_dict_value(gobj, indexx, id, 0, 0);
         }
         return record;
     } else  {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "kw MUST BE a json object",

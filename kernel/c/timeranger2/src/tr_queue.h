@@ -203,7 +203,7 @@ PUBLIC q_msg trq_prev_msg(q_msg msg);
 /**rst**
     Get info of message
 **rst**/
-PUBLIC md_record_t trq_msg_md_record(q_msg msg);
+PUBLIC md2_record_t trq_msg_md_record(q_msg msg);
 PUBLIC uint64_t trq_msg_rowid(q_msg msg);
 PUBLIC json_t *trq_msg_json(q_msg msg); // Return json is NOT YOURS!!
 PUBLIC uint64_t trq_msg_time(q_msg msg);
