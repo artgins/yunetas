@@ -191,16 +191,16 @@ PRIVATE int write_json_parameters(
     json_t *kw,     // not own
     json_t *jn_global  // not own
 );
-// PRIVATE json_t *extract_all_mine(
-//     const char *gclass_name,
-//     const char *gobj_name,
-//     json_t *kw     // not own
-// );
-// PRIVATE json_t *extract_json_config_variables_mine(
-//     const char *gclass_name,
-//     const char *gobj_name,
-//     json_t *kw     // not own
-// );
+ PRIVATE json_t *extract_all_mine(
+     const char *gclass_name,
+     const char *gobj_name,
+     json_t *kw     // not own
+ );
+ PRIVATE json_t *extract_json_config_variables_mine(
+     const char *gclass_name,
+     const char *gobj_name,
+     json_t *kw     // not own
+ );
 PRIVATE int rc_walk_by_tree(
     dl_list_t *iter,
     walk_type_t walk_type,
@@ -248,16 +248,6 @@ PRIVATE uint32_t level2bit(
     const char *level
 );
 PRIVATE void print_track_mem(void);
-PRIVATE json_t *extract_all_mine(
-    const char *gclass_name,
-    const char *gobj_name,
-    json_t *kw     // not own
-);
-PRIVATE json_t *extract_json_config_variables_mine(
-    const char *gclass_name,
-    const char *gobj_name,
-    json_t *kw     // not own
-);
 PRIVATE int json2item(
     gobj_t *gobj,
     json_t *sdata,
@@ -2072,7 +2062,7 @@ PRIVATE json_t *extract_json_config_variables_mine(
 PRIVATE int print_attr_not_found(hgobj gobj, const char *attr)
 {
     if(strcasecmp(attr, "__json_config_variables__")!=0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "GClass Attribute NOT FOUND",
@@ -2217,7 +2207,9 @@ PRIVATE int write_json_parameters(
         (gobj->gclass->gclass_flag & gcflag_ignore_unknown_attrs)?0:print_attr_not_found,
         gobj
     );
-
+    if(ret < 0) {
+        gobj_trace_json(gobj, new_kw, "json2data() FAILED, new_kw:");
+    }
     if(__user_data__) {
         json_object_update(((gobj_t *)gobj)->jn_user_data, __user_data__);
         json_decref(__user_data__);

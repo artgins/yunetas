@@ -133,8 +133,8 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"), // TODO borra, no se usa
-SDATA (DTP_STRING,   "path",             SDF_RD|SDF_REQUIRED,"",             "Path of treedbs"),
-SDATA (DTP_STRING,   "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m",        "System organization of tables (file name format, see strftime())"),
+SDATA (DTP_STRING,      "path",             SDF_RD|SDF_REQUIRED,"",             "Path of treedbs"),
+SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m",        "System organization of tables (file name format, see strftime())"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
 SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",          "Use in creation, default 02770"),
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",           "Use in creation, default 0660"),
@@ -295,7 +295,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_node_system = gobj_create_service(
         treedb_name,
-        C_TREEDB,
+        C_NODE,
         kw_resource,
         gobj
     );
