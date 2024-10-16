@@ -26,6 +26,7 @@ extern "C"{
 #include <helpers.h>
 #include <istream.h>
 #include <json_config.h>
+#include <msg_ievent.h>
 #include <kwid.h>
 #include <log_udp_handler.h>
 #include <parse_url.h>

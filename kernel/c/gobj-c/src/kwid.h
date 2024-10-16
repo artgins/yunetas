@@ -1,7 +1,7 @@
 /****************************************************************************
  *              kwid.h
  *
- *              Several helpers
+ *              kw helpers
  *
  *              Copyright (c) 2014,2023 Niyamaka.
  *              Copyright (c) 2024, ArtGins.
@@ -172,7 +172,6 @@ PUBLIC int kw_delete(
 **rst**/
 PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char *key);
 
-
 /**rst**
     Get a the idx of string in a json list.
     Return -1 if not found
@@ -204,6 +203,30 @@ PUBLIC int kw_find_json_in_list(
     json_t *kw_list,  // not owned
     json_t *item,  // not owned
     kw_flag_t flag
+);
+
+/**rst**
+    Compare deeply two json **records**. Can be disordered.
+**rst**/
+PUBLIC BOOL kwid_compare_records(
+    hgobj gobj,
+    json_t *record, // NOT owned
+    json_t *expected, // NOT owned
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
+);
+
+/**rst**
+    Compare deeply two json lists of **records**. Can be disordered.
+**rst**/
+PUBLIC BOOL kwid_compare_lists(
+    hgobj gobj,
+    json_t *list, // NOT owned
+    json_t *expected, // NOT owned
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
 );
 
 /**rst**
@@ -328,9 +351,8 @@ PUBLIC void kw_update_except(
 
 /**rst**
     Compare two json and return TRUE if they are identical.
-
-    #define kw_is_identical json_is_identical
 **rst**/
+#define kw_is_identical json_is_identical
 
 /************************************************************************
     WARNING

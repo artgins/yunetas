@@ -119,7 +119,7 @@ PRIVATE BOOL check_log_result(int current_result)
 }
 
 /***************************************************************************
- *  Save in ghelpers as kw_compare_dict()
+ *  Save in ghelpers as kwid_compare_records()
  ***************************************************************************/
 PRIVATE BOOL match_record(
     json_t *record_, // NOT owned

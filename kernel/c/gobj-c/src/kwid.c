@@ -936,6 +936,443 @@ PUBLIC int kw_find_json_in_list(
 }
 
 /***************************************************************************
+    Compare deeply two json **records**. Can be disordered.
+ ***************************************************************************/
+PUBLIC BOOL kwid_compare_records(
+    hgobj gobj,
+    json_t *record_, // NOT owned
+    json_t *expected_, // NOT owned
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
+)
+{
+    BOOL ret = TRUE;
+    json_t *record = json_deep_copy(record_);
+    json_t *expected = json_deep_copy(expected_);
+    if(!record) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "record NULL",
+                NULL
+            );
+        }
+        JSON_DECREF(record);
+        JSON_DECREF(expected);
+        return FALSE;
+    }
+    if(!expected) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "expected NULL",
+                NULL
+            );
+        }
+        JSON_DECREF(record);
+        JSON_DECREF(expected);
+        return FALSE;
+    }
+
+    if(json_typeof(record) != json_typeof(expected)) { // json_typeof CONTROLADO
+        ret = FALSE;
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "different json type",
+                "record",       "%j", record,
+                "expected",     "%j", expected,
+                NULL
+            );
+        }
+    } else {
+        switch(json_typeof(record)) {
+            case JSON_ARRAY:
+                {
+                    if(!kwid_compare_lists(
+                            gobj,
+                            record,
+                            expected,
+                            without_metadata,
+                            without_private,
+                            verbose)) {
+                        ret = FALSE;
+                        if(verbose) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                "msg",          "%s", "list not match",
+                                "record",       "%j", record,
+                                "expected",     "%j", expected,
+                                NULL
+                            );
+                        }
+                    }
+                }
+                break;
+
+            case JSON_OBJECT:
+                {
+                    if(without_metadata) {
+                        kw_delete_metadata_keys(record);
+                        kw_delete_metadata_keys(expected);
+                    }
+                    if(without_private) {
+                        kw_delete_private_keys(record);
+                        kw_delete_private_keys(expected);
+                    }
+
+                    void *n; const char *key; json_t *value;
+                    json_object_foreach_safe(record, n, key, value) {
+                        if(!kw_has_key(expected, key)) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "key not found",
+                                    "key",          "%s", key,
+                                    "expected",     "%j", expected,
+                                    NULL
+                                );
+                            }
+                            break;
+                        }
+                        json_t *value2 = json_object_get(expected, key);
+                        if(json_typeof(value)==JSON_OBJECT) {
+                            if(!kwid_compare_records(
+                                    gobj,
+                                    value,
+                                    value2,
+                                    without_metadata,
+                                    without_private,
+                                    verbose
+                                )) {
+                                ret = FALSE;
+                                if(verbose) {
+                                    gobj_log_error(gobj, 0,
+                                        "function",     "%s", __FUNCTION__,
+                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                        "msg",          "%s", "record not match",
+                                        "record",       "%j", record,
+                                        "expected",     "%j", expected,
+                                        NULL
+                                    );
+                                }
+                            }
+                            if(ret == FALSE) {
+                                break;
+                            }
+
+                            json_object_del(record, key);
+                            json_object_del(expected, key);
+
+                        } else if(json_typeof(value)==JSON_ARRAY) {
+                            if(!kwid_compare_lists(
+                                    gobj,
+                                    value,
+                                    value2,
+                                    without_metadata,
+                                    without_private,
+                                    verbose
+                                )) {
+                                ret = FALSE;
+                                if(verbose) {
+                                    gobj_log_error(gobj, 0,
+                                        "function",     "%s", __FUNCTION__,
+                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                        "msg",          "%s", "list not match",
+                                        "record",       "%j", record,
+                                        "expected",     "%j", expected,
+                                        NULL
+                                    );
+                                }
+                            }
+                            if(ret == FALSE) {
+                                break;
+                            }
+
+                            json_object_del(record, key);
+                            json_object_del(expected, key);
+
+                        } else {
+                            if(cmp_two_simple_json(value, value2)!=0) {
+                                ret = FALSE;
+                                if(verbose) {
+                                    gobj_log_error(gobj, 0,
+                                        "function",     "%s", __FUNCTION__,
+                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                        "msg",          "%s", "items not match",
+                                        "value",        "%j", value,
+                                        "value2",       "%j", value2,
+                                        NULL
+                                    );
+                                }
+                                break;
+                            } else {
+                                json_object_del(record, key);
+                                json_object_del(expected, key);
+                            }
+                        }
+                    }
+
+                    if(ret == TRUE) {
+                        if(json_object_size(record)>0) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "remain record items",
+                                    "record",       "%j", record,
+                                    NULL
+                                );
+                            }
+                        }
+                        if(json_object_size(expected)>0) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "remain expected items",
+                                    "expected",     "%j", expected,
+                                    NULL
+                                );
+                            }
+                        }
+                    }
+                }
+                break;
+            default:
+                ret = FALSE;
+                if(verbose) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "No list or not object",
+                        "record",       "%j", record,
+                        NULL
+                    );
+                }
+                break;
+        }
+    }
+
+    JSON_DECREF(record);
+    JSON_DECREF(expected);
+    return ret;
+}
+
+/***************************************************************************
+    Compare deeply two json lists of **records**. Can be disordered.
+ ***************************************************************************/
+PUBLIC BOOL kwid_compare_lists(
+    hgobj gobj,
+    json_t *list_, // NOT owned
+    json_t *expected_, // NOT owned
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
+)
+{
+    BOOL ret = TRUE;
+    json_t *list = json_deep_copy(list_);
+    json_t *expected = json_deep_copy(expected_);
+    if(!list) {
+        JSON_DECREF(list);
+        JSON_DECREF(expected);
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "record NULL",
+                NULL
+            );
+        }
+        return FALSE;
+    }
+    if(!expected) {
+        JSON_DECREF(list);
+        JSON_DECREF(expected);
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "expected NULL",
+                NULL
+            );
+        }
+        return FALSE;
+    }
+
+    if(json_typeof(list) != json_typeof(expected)) { // json_typeof CONTROLADO
+        ret = FALSE;
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "different json type",
+                "list",         "%j", list,
+                "expected",     "%j", expected,
+                NULL
+            );
+        }
+    } else {
+        switch(json_typeof(list)) {
+        case JSON_ARRAY:
+            {
+                int idx1; json_t *r1;
+                json_array_foreach(list, idx1, r1) {
+                    const char *id1 = kw_get_str(gobj, r1, "id", 0, 0);
+                    /*--------------------------------*
+                     *  List with id records
+                     *--------------------------------*/
+                    if(id1) {
+                        size_t idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
+                        if(idx2 < 0) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "record not found in expected list",
+                                    "record",       "%j", r1,
+                                    "expected",     "%j", expected,
+                                    NULL
+                                );
+                            }
+                            continue;
+                        }
+                        json_t *r2 = json_array_get(expected, idx2);
+
+                        if(!kwid_compare_records(
+                            gobj,
+                            r1,
+                            r2,
+                            without_metadata,
+                            without_private,
+                            verbose)
+                        ) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "record not match",
+                                    "r1",           "%j", r1,
+                                    "r2",           "%j", r2,
+                                    NULL
+                                );
+                            }
+                        }
+                        if(ret == FALSE) {
+                            break;
+                        }
+
+                        if(json_array_remove(list, idx1)==0) {
+                            idx1--;
+                        }
+                        json_array_remove(expected, idx2);
+                    } else {
+                        /*--------------------------------*
+                         *  List with any json items
+                         *--------------------------------*/
+                        int idx2 = kw_find_json_in_list(gobj, expected, r1, 0);
+                        if(idx2 < 0) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_log_error(gobj, 0,
+                                    "function",     "%s", __FUNCTION__,
+                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                    "msg",          "%s", "record not found in expected list",
+                                    "record",       "%j", r1,
+                                    "expected",     "%j", expected,
+                                    NULL
+                                );
+                            }
+                            break;
+                        }
+                        if(json_array_remove(list, idx1)==0) {
+                            idx1--;
+                        }
+                        json_array_remove(expected, idx2);
+                    }
+                }
+
+                if(ret == TRUE) {
+                    if(json_array_size(list)>0) {
+                        if(verbose) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                "msg",          "%s", "remain list items",
+                                "list",         "%j", list,
+                                NULL
+                            );
+                        }
+                        ret = FALSE;
+                    }
+                    if(json_array_size(expected)>0) {
+                        if(verbose) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                                "msg",          "%s", "remain expected items",
+                                "expected",     "%j", expected,
+                                NULL
+                            );
+                        }
+                        ret = FALSE;
+                    }
+                }
+            }
+            break;
+
+        case JSON_OBJECT:
+            {
+                if(!kwid_compare_records(
+                    gobj,
+                    list,
+                    expected,
+                    without_metadata,
+                    without_private,
+                    verbose)
+                ) {
+                    ret = FALSE;
+                    if(verbose) {
+                        gobj_trace_msg(gobj, "ERROR: object not match");
+                    }
+                }
+            }
+            break;
+        default:
+            {
+                ret = FALSE;
+                if(verbose) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "No list or not object",
+                        "list",         "%j", list,
+                        NULL
+                    );
+                }
+            }
+            break;
+        }
+    }
+
+    JSON_DECREF(list);
+    JSON_DECREF(expected);
+    return ret;
+}
+
+/***************************************************************************
  *  Get an dict value from an json object searched by path
  ***************************************************************************/
 PUBLIC json_t *kw_get_dict(
