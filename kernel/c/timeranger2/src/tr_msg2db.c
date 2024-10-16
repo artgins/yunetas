@@ -1058,13 +1058,13 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*--------------------------------------------*
      *  Build metadata, creating node in memory
      *--------------------------------------------*/
-    json_t *jn_record_md = md2json(
-        msg2db_name,
-        topic_name,
-        &md_record
-    );
-    json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
-    json_object_set_new(record, "__md_msg2db__", jn_record_md);
+// TODO need?   json_t *jn_record_md = md2json(
+//        msg2db_name,
+//        topic_name,
+//        &md_record
+//    );
+//    json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
+//    json_object_set_new(record, "__md_msg2db__", jn_record_md);
 
     /*-------------------------------*
      *  Write node
