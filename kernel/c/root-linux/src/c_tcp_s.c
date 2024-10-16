@@ -384,6 +384,15 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return -1;
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
