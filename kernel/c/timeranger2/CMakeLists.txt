@@ -23,8 +23,8 @@ set (SRCS
     src/fs_watcher.c
     src/timeranger2.c
     src/tr_msg.c
-#    src/tr_msg2db.c
-#    src/tr_queue.c
+    src/tr_msg2db.c
+    src/tr_queue.c
     src/tr_treedb.c
 )
 

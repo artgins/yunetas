@@ -4,6 +4,7 @@
  *          Persistent queue based in TimeRanger
  *
  *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 

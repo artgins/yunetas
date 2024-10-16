@@ -51,17 +51,18 @@ extern "C"{
 #include <dbsimple.h>
 #include <yunetas_ev_loop.h>
 #include <entry_point.h>
-#include <fs_watcher.h>
 #include <rotatory.h>
 #include <ydaemon.h>
 #include <yunetas_environment.h>
 #include <yunetas_ev_loop.h>
 #include <yunetas_register.h>
 
+#include <fs_watcher.h>
 #include <timeranger2.h>
-#include <tr_treedb.h>
 #include <tr_msg.h>
 #include <tr_msg2db.h>
+#include <tr_queue.h>
+#include <tr_treedb.h>
 
 #include <c_ota.h>
 #include <c_prot_modbus_master.h>

@@ -4,6 +4,7 @@
  *          Messages (ordered by pkey: active and their instances) with TimeRanger
  *
  *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  *
     Load in memory a iter of topic's **active** messages, with n 'instances' of each key.

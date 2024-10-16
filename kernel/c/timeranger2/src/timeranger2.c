@@ -4,6 +4,7 @@
  *          Time Ranger 2, a series time-key-value database over flat files
  *
  *          Copyright (c) 2017-2018 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <stdio.h>

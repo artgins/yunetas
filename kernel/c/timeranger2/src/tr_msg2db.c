@@ -7,6 +7,7 @@
  *          Load in memory a iter of topic's messages ordered by a sub-key
  *
  *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  *
 ***********************************************************************/
