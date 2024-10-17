@@ -2055,12 +2055,13 @@ PRIVATE const char *is_for_me(
     if(p) {
         char temp[256]; // if your names are longer than 256 bytes, you are ...
         int ln = p - key;
-        if (ln >= sizeof(temp))
-            return 0; // ... very inteligent!
+        if (ln >= sizeof(temp)) {
+            return 0; // ... very intelligent!
+        }
         strncpy(temp, key, ln);
         temp[ln]=0;
 
-        if(gobj_name && strcmp(gobj_name, temp)==0) {
+        if(gobj_name && strcasecmp(gobj_name, temp)==0) {
             // match the name
             return p+1;
         }
