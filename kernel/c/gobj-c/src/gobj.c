@@ -5142,35 +5142,35 @@ PUBLIC hgobj gobj_yuno(void)
 PUBLIC const char *gobj_yuno_name(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_name(yuno);
 }
 PUBLIC const char *gobj_yuno_role(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "yuno_role");
 }
 PUBLIC const char *gobj_yuno_id(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "yuno_id");
 }
 PUBLIC const char *gobj_yuno_tag(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "yuno_tag");
 }
 PUBLIC const char *gobj_yuno_role_plus_name(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "yuno_role_plus_name");
 }
@@ -5178,42 +5178,42 @@ PUBLIC const char *gobj_yuno_role_plus_name(void) {
 PUBLIC const char *gobj_yuno_realm_id(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "realm_id");
 }
 PUBLIC const char *gobj_yuno_realm_owner(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "realm_owner");
 }
 PUBLIC const char *gobj_yuno_realm_role(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "realm_role");
 }
 PUBLIC const char *gobj_yuno_realm_name(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "realm_name");
 }
 PUBLIC const char *gobj_yuno_realm_env(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "realm_env");
 }
 PUBLIC const char *gobj_yuno_node_owner(void) {
     hgobj yuno = gobj_yuno();
     if(!yuno) {
-        return NULL;
+        return "";
     }
     return gobj_read_str_attr(yuno, "node_owner");
 }
