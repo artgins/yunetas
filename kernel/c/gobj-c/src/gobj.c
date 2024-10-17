@@ -4363,6 +4363,24 @@ PUBLIC hgobj gobj_bottom_gobj(hgobj gobj_)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC json_t *gobj_services(void)
+{
+    json_t *jn_register = json_array();
+
+    const char *key; json_t *jn_service;
+    json_object_foreach(__jn_services__, key, jn_service) {
+        json_array_append_new(
+            jn_register,
+            json_string(key)
+        );
+    }
+
+    return jn_register;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC hgobj gobj_default_service(void)
 {
     return __default_service__;
@@ -4402,13 +4420,43 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
                 "service",      "%s", service,
                 NULL
             );
-            json_t *jn_services = gobj_services();
+            json_t *jn_services = gobj_service_register();
             gobj_trace_json(0, jn_services, "service NOT FOUND");
+            json_decref(jn_services);
         }
         return NULL;
     }
 
     return (hgobj)(size_t)json_integer_value(o);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) // OLD gobj_find_gclass_service
+{
+    const char *key; json_t *jn_service;
+    json_object_foreach(__jn_services__, key, jn_service) {
+        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        const char *gclass_name_ = gobj_gclass_name(gobj);
+        if(strcmp(gclass_name, gclass_name_)==0) {
+            return gobj;
+        }
+    }
+
+    if(verbose) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "service NOT FOUND",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        json_t *jn_services = gobj_service_register();
+        gobj_trace_json(0, jn_services, "service NOT FOUND");
+        json_decref(jn_services);
+    }
+    return NULL;
 }
 
 /***************************************************************************
@@ -5015,24 +5063,6 @@ PUBLIC int rc_walk_by_tree(
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *gobj_services(void)
-{
-    json_t *jn_register = json_array();
-
-    const char *key; json_t *jn_service;
-    json_object_foreach(__jn_services__, key, jn_service) {
-        json_array_append_new(
-            jn_register,
-            json_string(key)
-        );
-    }
-
-    return jn_register;
-}
 
 /***************************************************************************
  *  Return yuno, the grandfather

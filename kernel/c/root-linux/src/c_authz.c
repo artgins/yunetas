@@ -2794,7 +2794,7 @@ PUBLIC int register_c_authz(void)
  ***************************************************************************/
 PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_service(C_AUTHZ, TRUE);
+    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.
