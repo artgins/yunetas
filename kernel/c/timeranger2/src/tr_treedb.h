@@ -83,9 +83,9 @@ typedef int (*treedb_callback_t)(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    const char *operation,  // "EV_TREEDB_NODE_UPDATED",
-                            // "EV_TREEDB_NODE_UPDATED",
-                            // "EV_TREEDB_NODE_DELETED"
+    const char *operation,  // EV_TREEDB_NODE_UPDATED,
+                            // EV_TREEDB_NODE_UPDATED,
+                            // EV_TREEDB_NODE_DELETED
     json_t *node            // owned
 );
 
