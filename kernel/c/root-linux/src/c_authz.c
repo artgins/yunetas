@@ -436,7 +436,7 @@ PRIVATE int mt_start(hgobj gobj)
                 );
                 gobj_send_event(
                     priv->gobj_treedb,
-                    "EV_TREEDB_UPDATE_NODE",
+                    EV_TREEDB_UPDATE_NODE,
                     kw_update_node,
                     gobj
                 );

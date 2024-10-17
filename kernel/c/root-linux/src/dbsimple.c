@@ -49,6 +49,8 @@ PRIVATE json_t *load_json(
     hgobj gobj
 )
 {
+int x; // TODO set the directory of realm
+
     char filename[NAME_MAX];
     get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs");
 
