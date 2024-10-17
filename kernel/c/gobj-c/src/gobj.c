@@ -22,6 +22,7 @@
 #include "json_config.h"
 #include "ansi_escape_codes.h"
 #include "gobj_environment.h"
+#include "command_parser.h"
 #include "kwid.h"
 #include "helpers.h"
 #include "gobj.h"
@@ -404,6 +405,77 @@ PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
 PRIVATE size_t __max_block__ = 1*1024L*1024L;     /* largest memory block, default for no-using apps*/
 PRIVATE size_t __max_system_memory__ = 10*1024L*1024L;   /* maximum core memory, default for no-using apps */
 PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
+
+/*---------------------------------------------*
+ *      Global authz levels TODO review all authz
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t pm_read_attr[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "path",         0,              0,          "Attribute path"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_write_attr[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "path",         0,              0,          "Attribute path"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_exec_cmd[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "command",      0,              0,          "Command name"),
+SDATAPM (DTP_JSON,      "kw",           0,              0,          "command's kw"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_inject_event[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "event",        0,              0,          "Event name"),
+SDATAPM (DTP_JSON,      "kw",           0,              0,          "event's kw"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_subs_event[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "event",        0,              0,          "Event name"),
+SDATAPM (DTP_JSON,      "kw",           0,              0,          "event's kw"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_read_stats[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "stats",        0,              0,          "Stats name"),
+SDATAPM (DTP_JSON,      "kw",           0,              0,          "stats's kw"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_reset_stats[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "stats",        0,              0,          "Stats name"),
+SDATAPM (DTP_JSON,      "kw",           0,              0,          "stats's kw"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t global_authz_table[] = {
+/*-AUTHZ-- type---------name--------------------flag----alias---items---description--*/
+SDATAAUTHZ (DTP_SCHEMA, "__read_attribute__",   0,      0,      pm_read_attr, "Authorization to read gobj's attributes"),
+SDATAAUTHZ (DTP_SCHEMA, "__write_attribute__",  0,      0,      pm_write_attr, "Authorization to write gobj's attributes"),
+SDATAAUTHZ (DTP_SCHEMA, "__execute_command__",  0,      0,      pm_exec_cmd, "Authorization to execute gobj's commands"),
+SDATAAUTHZ (DTP_SCHEMA, "__inject_event__",     0,      0,      pm_inject_event, "Authorization to inject events to gobj"),
+SDATAAUTHZ (DTP_SCHEMA, "__subscribe_event__",  0,      0,      pm_subs_event, "Authorization to subscribe events of gobj"),
+SDATAAUTHZ (DTP_SCHEMA, "__read_stats__",       0,      0,      pm_read_stats, "Authorization to read gobj's stats"),
+SDATAAUTHZ (DTP_SCHEMA, "__reset_stats__",      0,      0,      pm_reset_stats, "Authorization to reset gobj's stats"),
+SDATA_END()
+};
+
+/*
+ *  Strings of enum event_authz_t auth
+ */
+PRIVATE const trace_level_t event_authz_names[] = {
+{"AUTHZ_INJECT",        "Event needs '__inject_event__' authorization to be injected to machine"},
+{"AUTHZ_SUBSCRIBE",     "Event needs '__subscribe_event__' authorization to be subscribed"},
+{"AUTHZ_CREATE",        "Event needs 'create' authorization"},
+{"AUTHZ_READ",          "Event needs 'read' authorization"},
+{"AUTHZ_UPDATE",        "Event needs 'update' authorization"},
+{"AUTHZ_DELETE",        "Event needs 'delete' authorization"},
+{"AUTHZ_LINK",          "Event needs 'link' authorization"},
+{"AUTHZ_UNLINK",        "Event needs 'unlink' authorization"},
+{0, 0}
+};
 
 
 
@@ -2217,17 +2289,6 @@ PRIVATE int write_json_parameters(
     json_decref(new_kw);
     return ret;
 }
-
-//PRIVATE int write_json_parameters(
-//    gobj_t * gobj,
-//    json_t *kw,     // not own
-//    json_t *jn_global) // not own
-//{
-//    json_t *hs = gobj_hsdata(gobj);
-//
-//    json_object_update_existing(hs, kw);    // TODO review below code
-//    return 0;
-//}
 
 /***************************************************************************
  *  save now persistent and writable attrs
@@ -5174,37 +5235,35 @@ PUBLIC const char * gobj_short_name(hgobj gobj_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * gobj_global_variables(void)
+PUBLIC json_t *gobj_global_variables(void)
 {
-    return json_object(); // TODO no deberían cogerse del __root__???
-//    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-//        "__node_owner__", __node_owner__,
-//        "__realm_id__", __realm_id__,
-//        "__realm_owner__", __realm_owner__,
-//        "__realm_role__", __realm_role__,
-//        "__realm_name__", __realm_name__,
-//        "__realm_env__", __realm_env__,
-//        "__yuno_id__", __yuno_id__,
-//        "__yuno_role__", __yuno_role__,
-//        "__yuno_name__", __yuno_name__,
-//        "__yuno_tag__", __yuno_tag__,
-//        "__yuno_role_plus_name__", __yuno_role_plus_name__,
-//        "__yuno_role_plus_id__", __yuno_role_plus_id__,
-//        "__hostname__", get_host_name(),
-//#ifdef __linux__
-//        "__sys_system_name__", sys.sysname,
-//        "__sys_node_name__", sys.nodename,
-//        "__sys_version__", sys.version,
-//        "__sys_release__", sys.release,
-//        "__sys_machine__", sys.machine
-//#else
-//        "__sys_system_name__", "",
-//        "__sys_node_name__", "",
-//        "__sys_version__", "",
-//        "__sys_release__", "",
-//        "__sys_machine__", ""
-//#endif
-//    );
+    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "__node_owner__", gobj_yuno_node_owner(),
+        "__realm_id__", gobj_yuno_realm_id(),
+        "__realm_owner__", gobj_yuno_realm_owner(),
+        "__realm_role__", gobj_yuno_realm_role(),
+        "__realm_name__", gobj_yuno_realm_name(),
+        "__realm_env__", gobj_yuno_realm_env(),
+        "__yuno_id__", gobj_yuno_id(),
+        "__yuno_role__", gobj_yuno_role(),
+        "__yuno_name__", gobj_yuno_name(),
+        "__yuno_tag__", gobj_yuno_tag(),
+        "__yuno_role_plus_name__", gobj_yuno_role_plus_name(),
+        "__hostname__", get_hostname(),
+#ifdef __linux__
+        "__sys_system_name__", sys.sysname,
+        "__sys_node_name__", sys.nodename,
+        "__sys_version__", sys.version,
+        "__sys_release__", sys.release,
+        "__sys_machine__", sys.machine
+#else
+        "__sys_system_name__", "",
+        "__sys_node_name__", "",
+        "__sys_version__", "",
+        "__sys_release__", "",
+        "__sys_machine__", ""
+#endif
+    );
 }
 
 /***************************************************************************
@@ -7224,8 +7283,7 @@ PUBLIC json_t *gobj_authzs(
     hgobj gobj  // If null return global authzs
 )
 {
-    return 0;
-// TODO    return authzs_list(gobj, "");
+    return authzs_list(gobj, "");
 }
 
 /****************************************************************************
@@ -7246,8 +7304,7 @@ PUBLIC json_t *gobj_authz(
         );
         return 0;
     }
-    // TODO return authzs_list(gobj, authz);
-    return 0;
+    return authzs_list(gobj, authz);
 }
 
 /****************************************************************************
@@ -7280,11 +7337,11 @@ PUBLIC BOOL gobj_user_has_authz(
     if(gobj->gclass->gmt->mt_authz_checker) {
         BOOL has_permission = gobj->gclass->gmt->mt_authz_checker(gobj, authz, kw, src);
         if(__trace_gobj_authzs__(gobj)) {
-//TODO            gobj_trace_json(0, kw,
-//                "local authzs 🔑🔑 %s => %s",
-//                gobj_short_name(gobj),
-//                has_permission?"👍":"🚫"
-//            );
+            gobj_trace_json(gobj, kw,
+                "local authzs 🔑🔑 %s => %s",
+                gobj_short_name(gobj),
+                has_permission?"👍":"🚫"
+            );
         }
         return has_permission;
     }
@@ -7295,11 +7352,11 @@ PUBLIC BOOL gobj_user_has_authz(
     if(__global_authz_checker_fn__) {
         BOOL has_permission = __global_authz_checker_fn__(gobj, authz, kw, src);
         if(__trace_gobj_authzs__(gobj)) {
-//  TODO          gobj_trace_json(0, kw,
-//                "global authzs 🔑🔑 %s => %s",
-//                gobj_short_name(gobj),
-//                has_permission?"👍":"🚫"
-//            );
+            gobj_trace_json(gobj, kw,
+                "global authzs 🔑🔑 %s => %s",
+                gobj_short_name(gobj),
+                has_permission?"👍":"🚫"
+            );
         }
         return has_permission;
     }
@@ -7313,8 +7370,7 @@ PUBLIC BOOL gobj_user_has_authz(
  ****************************************************************************/
 PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)
 {
-    // TODO return global_authz_table;
-    return 0;
+    return global_authz_table;
 }
 
 

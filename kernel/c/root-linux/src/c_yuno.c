@@ -325,6 +325,7 @@ SDATA (DTP_STRING,  "yuno_id",          SDF_RD,         "",             "Yuno Id
 SDATA (DTP_STRING,  "yuno_name",        SDF_RD,         "",             "Yuno name. Set by agent"),
 SDATA (DTP_STRING,  "yuno_tag",         SDF_RD,         "",             "Tags of yuno. Set by agent"),
 SDATA (DTP_STRING,  "yuno_release",     SDF_RD,         "",             "Yuno Release. Set by agent"),
+SDATA (DTP_STRING,  "yuno_role_plus_name",SDF_RD,       "",             "Yuno Role plus name"),
 
 SDATA (DTP_STRING,  "yuno_version",     SDF_RD,         "",             "Yuno version (APP_VERSION)"),
 SDATA (DTP_STRING,  "yuneta_version",   SDF_RD,         YUNETA_VERSION, "Yuneta version"),
@@ -427,6 +428,21 @@ PRIVATE hgclass __gclass__ = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char role_plus_name[NAME_MAX];
+    if(empty_string(gobj_yuno_name())) {
+        snprintf(role_plus_name, sizeof(role_plus_name),
+            "%s",
+            gobj_yuno_role()
+        );
+    } else {
+        snprintf(role_plus_name, sizeof(role_plus_name),
+            "%s^%s",
+            gobj_yuno_role(),
+            gobj_yuno_name()
+        );
+        gobj_write_str_attr(gobj, "yuno_role_plus_name", role_plus_name);
+    }
 
     /*
      *  Create the event loop
