@@ -7199,6 +7199,7 @@ PUBLIC int gobj_publish_event(
     /*--------------------------------------------------------------*
      *      Default publication method
      *--------------------------------------------------------------*/
+    event_type_t *ev = gobj_event_type(publisher, event);
     json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
     int sent_count = 0;
     json_t *subs; size_t idx;
@@ -7283,7 +7284,7 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check if System event: don't send it if subscriber has not it
              */
-            if(event == EV_STATE_CHANGED) {
+            if(ev && ev->event_flag & EVF_SYSTEM_EVENT) {
                 if(!gobj_has_event(subscriber, event, 0)) {
                     KW_DECREF(kw2publish)
                     continue;
@@ -7347,7 +7348,6 @@ PUBLIC int gobj_publish_event(
     }
 
     if(!sent_count) {
-        event_type_t *ev = gobj_event_type(publisher, event);
         if(!ev || !(ev->event_flag & EVF_NO_WARN_SUBS)) {
             gobj_log_warning(publisher, 0,
                 "msgset",       "%s", MSGSET_INFO,
