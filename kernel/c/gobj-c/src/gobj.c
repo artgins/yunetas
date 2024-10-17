@@ -559,13 +559,13 @@ PUBLIC int gobj_start_up(
     /*----------------------------------------*
      *          Build Global Events
      *----------------------------------------*/
-    event_type_t event_types_[] = {
+    event_type_t global_events[] = {
         {EV_STATE_CHANGED,     EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {0, 0}
     };
     dl_init(&dl_global_event_types);
 
-    event_type_t *event_types = event_types_;
+    event_type_t *event_types = global_events;
     while(event_types && event_types->event) {
         add_event_type(&dl_global_event_types, event_types);
         event_types++;
@@ -6224,32 +6224,60 @@ PUBLIC gobj_state_t gobj_current_state(hgobj hgobj)
 /***************************************************************************
  *
  ***************************************************************************/
-// TODO ievent_srv needs check input event public and output event public !!!???
-static int x;
-PUBLIC BOOL gobj_has_input_event(hgobj gobj_, gobj_event_t event)
+PUBLIC BOOL gobj_in_this_state(hgobj hgobj, gobj_state_t state)
 {
-    if(gobj_ == NULL) {
-        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hgobj NULL",
-            "event",        "%s", event,
-            NULL
-        );
-        return FALSE;
-    }
-    gobj_t *gobj = (gobj_t *)gobj_;
-    if(find_event_action(gobj->current_state, event)) {
+    gobj_t *gobj = (gobj_t *)hgobj;
+    if(gobj->current_state->state_name == state) {
         return TRUE;
     }
-
     return FALSE;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag_t event_flag)
+PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
+{
+    event_type_t *event_type = gobj_event_type(gobj, event);
+    if(!event_type) {
+        return FALSE;
+    }
+
+    if(!event_flag) {
+        return TRUE;
+    }
+
+    if(!(event_type->event_flag & event_flag)) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
+{
+    event_type_t *event_type = gobj_event_type(gobj, event);
+    if(!event_type) {
+        return FALSE;
+    }
+
+    if(!(event_type->event_flag & event_flag)) {
+        return FALSE;
+    }
+
+    if(!(event_type->event_flag & EVF_OUTPUT_EVENT)) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event)
 {
     if(gobj_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
@@ -6263,12 +6291,20 @@ PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag
     }
     gobj_t *gobj = (gobj_t *)gobj_;
 
+    if(!event) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "event NULL",
+            NULL
+        );
+        return NULL;
+    }
+
     event_t *event_ = dl_first(&gobj->gclass->dl_events);
     while(event_) {
         if(event_->event_type.event && event_->event_type.event == event) {
-            if(event_flag && (event_->event_type.event_flag & event_flag)) {
-                return &event_->event_type;
-            }
+            return &event_->event_type;
         }
         event_ = dl_next(event_);
     }
@@ -6279,9 +6315,56 @@ PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, event_flag
     event_ = dl_first(&dl_global_event_types);
     while(event_) {
         if(event_->event_type.event && event_->event_type.event == event) {
-            if(event_flag && (event_->event_type.event_flag & event_flag)) {
-                return &event_->event_type;
-            }
+            return &event_->event_type;
+        }
+        event_ = dl_next(event_);
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name)
+{
+    if(gobj_ == NULL) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL",
+            "event",        "%s", event_name,
+            NULL
+        );
+        return NULL;
+    }
+    gobj_t *gobj = (gobj_t *)gobj_;
+
+    if(empty_string(event_name)) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "event_name NULL",
+            NULL
+        );
+        return NULL;
+    }
+
+    event_t *event_ = dl_first(&gobj->gclass->dl_events);
+    while(event_) {
+        if(event_->event_type.event && strcasecmp(event_->event_type.event, event_name)==0) {
+            return &event_->event_type;
+        }
+        event_ = dl_next(event_);
+    }
+
+    /*
+     *  Check global (gobj) output events
+     */
+    event_ = dl_first(&dl_global_event_types);
+    while(event_) {
+        if(event_->event_type.event && strcasecmp(event_->event_type.event, event_name)==0) {
+            return &event_->event_type;
         }
         event_ = dl_next(event_);
     }
@@ -6613,8 +6696,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
     if(!empty_string(event)) {
-        event_type_t *ev = gobj_event_type(publisher, event, EVF_OUTPUT_EVENT|EVF_SYSTEM_EVENT);
-        if(!ev) {
+        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
             if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
                 gobj_log_error(publisher, 0,
                     "function",     "%s", __FUNCTION__,
@@ -7063,8 +7145,7 @@ PUBLIC int gobj_publish_event(
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
-    event_type_t *ev = gobj_event_type(publisher, event, EVF_OUTPUT_EVENT|EVF_SYSTEM_EVENT);
-    if(!ev) {
+    if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
         if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
             gobj_log_error(publisher, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7188,23 +7269,23 @@ PUBLIC int gobj_publish_event(
             }
 
             if(topublish<0) {
-                KW_DECREF(kw2publish);
+                KW_DECREF(kw2publish)
                 break;
             } else if(topublish==0) {
                 /*
                  *  Must not be published
                  *  Next subs
                  */
-                KW_DECREF(kw2publish);
+                KW_DECREF(kw2publish)
                 continue;
             }
 
             /*
-             *  Check if System event: don't send if subscriber has not it
+             *  Check if System event: don't send it if subscriber has not it
              */
             if(event == EV_STATE_CHANGED) {
-                if(!gobj_has_input_event(subscriber, event)) {
-                    KW_DECREF(kw2publish);
+                if(!gobj_has_event(subscriber, event, 0)) {
+                    KW_DECREF(kw2publish)
                     continue;
                 }
             }
@@ -7266,6 +7347,7 @@ PUBLIC int gobj_publish_event(
     }
 
     if(!sent_count) {
+        event_type_t *ev = gobj_event_type(publisher, event);
         if(!ev || !(ev->event_flag & EVF_NO_WARN_SUBS)) {
             gobj_log_warning(publisher, 0,
                 "msgset",       "%s", MSGSET_INFO,
