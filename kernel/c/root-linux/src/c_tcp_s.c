@@ -15,7 +15,6 @@
 #include <kwid.h>
 #include <ytls.h>
 #include <yunetas_ev_loop.h>
-#include "c_timer.h"
 #include "c_yuno.h"
 #include "c_tcp.h"
 #include "c_tcp_s.h"
@@ -223,9 +222,6 @@ PRIVATE int mt_start(hgobj gobj)
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     }
-    gobj_write_str_attr(gobj, "schema", schema);
-    gobj_write_str_attr(gobj, "host", host);
-    gobj_write_str_attr(gobj, "port", port);
 
     if(atoi(port) == 0) {
         gobj_log_error(gobj, 0,
