@@ -105,6 +105,9 @@ PUBLIC json_t *iev_create_from_gbuffer(
     /*---------------------------------------*
      *  Convert gbuf msg in json
      *---------------------------------------*/
+    if(event) {
+        *event = NULL;
+    }
     json_t *jn_msg = gbuf2json(gbuf, verbose); // gbuf stolen: decref and data consumed
     if(!jn_msg) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -113,7 +116,6 @@ PUBLIC json_t *iev_create_from_gbuffer(
             "msg",          "%s", "gbuf2json() FAILED",
             NULL
         );
-        *event = NULL;
         return NULL;
     }
 
@@ -130,8 +132,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
             "msg",          "%s", "event EMPTY",
             NULL
         );
-        JSON_DECREF(jn_msg);
-        *event = NULL;
+        JSON_DECREF(jn_msg)
         return NULL;
     }
     if(!kw) { // WARNING cannot be null!
@@ -141,8 +142,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
             "msg",          "%s", "kw EMPTY",
             NULL
         );
-        JSON_DECREF(jn_msg);
-        *event = NULL;
+        JSON_DECREF(jn_msg)
         return NULL;
     }
 
@@ -155,8 +155,10 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_incref(kw);
     json_t *new_kw = kw_deserialize(gobj, kw);
 
-    *event = gclass_find_public_event(event_, verbose);
-    JSON_DECREF(jn_msg);
+    if(event) {
+        *event = gclass_find_public_event(event_, verbose);
+    }
+    JSON_DECREF(jn_msg)
 
     return new_kw;
 }

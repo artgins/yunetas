@@ -10,7 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <linux/limits.h>
-#include "kwid.h"
+
+#include <kwid.h>
+#include "yunetas_environment.h"
 #include "dbsimple.h"
 
 /***************************************************************
@@ -32,14 +34,21 @@
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char *get_persist_filename(hgobj gobj, char *bf, size_t bfsize, const char *label)
+PRIVATE char *get_persist_filename(
+    hgobj gobj,
+    char *bf,
+    int bflen,
+    const char *label,
+    BOOL create_directories)
 {
-    snprintf(bf, bfsize, "%s-%s-%s.json",
+    char filename[NAME_MAX];
+    snprintf(filename, sizeof(filename), "%s-%s-%s.json",
         gobj_gclass_name(gobj),
         gobj_name(gobj),
         label
     );
-    return bf;
+
+    return yuneta_realm_file(bf, bflen, "data", filename, create_directories);
 }
 
 /***************************************************************************
@@ -49,12 +58,10 @@ PRIVATE json_t *load_json(
     hgobj gobj
 )
 {
-int x; // TODO set the directory of realm
+    char filename[PATH_MAX];
+    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
 
-    char filename[NAME_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs");
-
-    if(empty_string(filename) || access(filename, 0)!=0) {
+    if(!is_regular_file(filename)) {
         // No persistent attrs saved
         return 0;
     }
@@ -74,7 +81,7 @@ PRIVATE int save_json(
 )
 {
     char filename[NAME_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs");
+    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
     int ret = json_dump_file(
         jn,

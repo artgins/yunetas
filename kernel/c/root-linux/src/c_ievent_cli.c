@@ -855,7 +855,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Mainly process EV_IDENTITY_CARD_ACK
      *---------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
-        if(gobj_event_type(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
                 // iev_kw consumed
                 KW_DECREF(kw)
@@ -991,7 +991,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*-------------------------------------------------------*
          *  Filter public events of this gobj
          *-------------------------------------------------------*/
-        if(gobj_event_type(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             /*
              *  It's mine (I manage inter-command and inter-stats)
              */
@@ -1012,8 +1012,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         // improving security: only gobj services must be accessed externally,
         // may happen collateral damages
         hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
-        if(gobj_service && gobj_event_type(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-                gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+        if(gobj_service && gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+            gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
         } else {
             if(gobj_is_pure_child(gobj)) {
                 gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);

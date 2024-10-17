@@ -289,7 +289,7 @@ PUBLIC json_t *kw_decref(json_t* kw)
         }
         pf++;
     }
-    JSON_DECREF(kw);
+    JSON_DECREF(kw)
     return kw;
 }
 
@@ -2149,12 +2149,12 @@ PUBLIC json_t *kw_clone_by_keys(
         }
     } else {
         json_decref(kw_clone);
-        JSON_DECREF(keys);
+        JSON_DECREF(keys)
         return kw;
     }
 
-    JSON_DECREF(keys);
-    JSON_DECREF(kw);
+    JSON_DECREF(keys)
+    JSON_DECREF(kw)
     return kw_clone;
 }
 
@@ -2235,13 +2235,13 @@ PUBLIC json_t *kw_clone_by_not_keys(
         }
     } else {
         json_decref(kw_clone);
-        JSON_DECREF(keys);
-        JSON_DECREF(kw);
+        JSON_DECREF(keys)
+        JSON_DECREF(kw)
         return json_object();
     }
 
-    JSON_DECREF(keys);
-    JSON_DECREF(kw);
+    JSON_DECREF(keys)
+    JSON_DECREF(kw)
     return kw_clone;
 }
 
