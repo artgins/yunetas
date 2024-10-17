@@ -416,8 +416,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
-        gobj_topic_size(priv->gobj_treedb, "users", "")==0 &&
-        gobj_topic_size(priv->gobj_treedb, "authorizations", "")==0
+        gobj_topic_size(priv->gobj_treedb, "users", "")==0
     ) {
         /*------------------------------------*
          *  Empty treedb? initialize treedb
