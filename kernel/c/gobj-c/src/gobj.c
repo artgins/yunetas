@@ -465,17 +465,17 @@ SDATA_END()
 /*
  *  Strings of enum event_authz_t auth
  */
-PRIVATE const trace_level_t event_authz_names[] = {
-{"AUTHZ_INJECT",        "Event needs '__inject_event__' authorization to be injected to machine"},
-{"AUTHZ_SUBSCRIBE",     "Event needs '__subscribe_event__' authorization to be subscribed"},
-{"AUTHZ_CREATE",        "Event needs 'create' authorization"},
-{"AUTHZ_READ",          "Event needs 'read' authorization"},
-{"AUTHZ_UPDATE",        "Event needs 'update' authorization"},
-{"AUTHZ_DELETE",        "Event needs 'delete' authorization"},
-{"AUTHZ_LINK",          "Event needs 'link' authorization"},
-{"AUTHZ_UNLINK",        "Event needs 'unlink' authorization"},
-{0, 0}
-};
+//PRIVATE const trace_level_t event_authz_names[] = {
+//{"AUTHZ_INJECT",        "Event needs '__inject_event__' authorization to be injected to machine"},
+//{"AUTHZ_SUBSCRIBE",     "Event needs '__subscribe_event__' authorization to be subscribed"},
+//{"AUTHZ_CREATE",        "Event needs 'create' authorization"},
+//{"AUTHZ_READ",          "Event needs 'read' authorization"},
+//{"AUTHZ_UPDATE",        "Event needs 'update' authorization"},
+//{"AUTHZ_DELETE",        "Event needs 'delete' authorization"},
+//{"AUTHZ_LINK",          "Event needs 'link' authorization"},
+//{"AUTHZ_UNLINK",        "Event needs 'unlink' authorization"},
+//{0, 0}
+//};
 
 
 
@@ -5134,6 +5134,88 @@ PUBLIC hgobj gobj_yuno(void)
         return 0;
     }
     return __yuno__;
+}
+
+/***************************************************************************
+ *  Variables set by agent
+ ***************************************************************************/
+PUBLIC const char *gobj_yuno_name(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_name(yuno);
+}
+PUBLIC const char *gobj_yuno_role(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "yuno_role");
+}
+PUBLIC const char *gobj_yuno_id(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "yuno_id");
+}
+PUBLIC const char *gobj_yuno_tag(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "yuno_tag");
+}
+PUBLIC const char *gobj_yuno_role_plus_name(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "yuno_role_plus_name");
+}
+
+PUBLIC const char *gobj_yuno_realm_id(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "realm_id");
+}
+PUBLIC const char *gobj_yuno_realm_owner(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "realm_owner");
+}
+PUBLIC const char *gobj_yuno_realm_role(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "realm_role");
+}
+PUBLIC const char *gobj_yuno_realm_name(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "realm_name");
+}
+PUBLIC const char *gobj_yuno_realm_env(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "realm_env");
+}
+PUBLIC const char *gobj_yuno_node_owner(void) {
+    hgobj yuno = gobj_yuno();
+    if(!yuno) {
+        return NULL;
+    }
+    return gobj_read_str_attr(yuno, "node_owner");
 }
 
 /***************************************************************************

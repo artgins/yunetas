@@ -1522,6 +1522,20 @@ PUBLIC int gobj_walk_gobj_childs_tree(
  *      Info functions
  *---------------------------------*/
 PUBLIC hgobj gobj_yuno(void); // Return yuno, the grandfather (Only one yuno per process, single thread)
+
+PUBLIC const char *gobj_yuno_name(void);
+PUBLIC const char *gobj_yuno_role(void);
+PUBLIC const char *gobj_yuno_id(void);
+PUBLIC const char *gobj_yuno_tag(void);
+PUBLIC const char *gobj_yuno_role_plus_name(void);
+
+PUBLIC const char *gobj_yuno_realm_id(void);
+PUBLIC const char *gobj_yuno_realm_owner(void);
+PUBLIC const char *gobj_yuno_realm_role(void);
+PUBLIC const char *gobj_yuno_realm_name(void);
+PUBLIC const char *gobj_yuno_realm_env(void);
+PUBLIC const char *gobj_yuno_node_owner(void);
+
 PUBLIC const char * gobj_name(hgobj gobj);
 PUBLIC gclass_name_t gobj_gclass_name(hgobj gobj);
 PUBLIC hgclass gobj_gclass(hgobj gobj);
@@ -1543,20 +1557,6 @@ PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            
 PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  /* check inherited (bottom) gclass */
 PUBLIC size_t get_max_system_memory(void);
 PUBLIC size_t get_cur_system_memory(void);
-
-static inline const char *gobj_yuno_name(void) {return gobj_name(gobj_yuno());}
-static inline const char *gobj_yuno_role(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role");}
-static inline const char *gobj_yuno_id(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_id");}
-static inline const char *gobj_yuno_tag(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_tag");}
-static inline const char *gobj_yuno_role_plus_name(void) {return gobj_read_str_attr(gobj_yuno(), "yuno_role_plus_name");}
-
-
-static inline const char *gobj_yuno_realm_id(void) {return gobj_read_str_attr(gobj_yuno(), "realm_id");}
-static inline const char *gobj_yuno_realm_owner(void) {return gobj_read_str_attr(gobj_yuno(), "realm_owner");}
-static inline const char *gobj_yuno_realm_role(void) {return gobj_read_str_attr(gobj_yuno(), "realm_role");}
-static inline const char *gobj_yuno_realm_name(void) {return gobj_read_str_attr(gobj_yuno(), "realm_name");}
-static inline const char *gobj_yuno_realm_env(void) {return gobj_read_str_attr(gobj_yuno(), "realm_env");}
-static inline const char *gobj_yuno_node_owner(void) {return gobj_read_str_attr(gobj_yuno(), "node_owner");}
 
 //  Return the data description of the command `command`
 //  If `command` is null returns full command's table
