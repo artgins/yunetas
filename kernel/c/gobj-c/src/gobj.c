@@ -6238,7 +6238,7 @@ PUBLIC BOOL gobj_in_this_state(hgobj hgobj, gobj_state_t state)
  ***************************************************************************/
 PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
 {
-    event_type_t *event_type = gobj_event_type(gobj, event);
+    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
     if(!event_type) {
         return FALSE;
     }
@@ -6258,7 +6258,7 @@ PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_fl
  ***************************************************************************/
 PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
 {
-    event_type_t *event_type = gobj_event_type(gobj, event);
+    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
     if(!event_type) {
         return FALSE;
     }
@@ -6277,7 +6277,7 @@ PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t e
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event)
+PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, BOOL include_system_events)
 {
     if(gobj_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
@@ -6309,15 +6309,17 @@ PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event)
         event_ = dl_next(event_);
     }
 
-    /*
-     *  Check global (gobj) output events
-     */
-    event_ = dl_first(&dl_global_event_types);
-    while(event_) {
-        if(event_->event_type.event && event_->event_type.event == event) {
-            return &event_->event_type;
+    if(include_system_events) {
+        /*
+         *  Check global (gobj) output events
+         */
+        event_ = dl_first(&dl_global_event_types);
+        while(event_) {
+            if(event_->event_type.event && event_->event_type.event == event) {
+                return &event_->event_type;
+            }
+            event_ = dl_next(event_);
         }
-        event_ = dl_next(event_);
     }
 
     return NULL;
@@ -7199,7 +7201,7 @@ PUBLIC int gobj_publish_event(
     /*--------------------------------------------------------------*
      *      Default publication method
      *--------------------------------------------------------------*/
-    event_type_t *ev = gobj_event_type(publisher, event);
+    event_type_t *ev = gobj_event_type(publisher, event, TRUE);
     json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
     int sent_count = 0;
     json_t *subs; size_t idx;

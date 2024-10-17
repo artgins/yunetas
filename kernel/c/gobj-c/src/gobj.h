@@ -1617,7 +1617,7 @@ PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state);
 PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag); // old gobj_event_in_input_event_list
 PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag); // old gobj_event_in_output_event_list
 
-PUBLIC event_type_t *gobj_event_type(hgobj gobj, gobj_event_t event);
+PUBLIC event_type_t *gobj_event_type(hgobj gobj, gobj_event_t event, BOOL include_system_events);
 PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name);
 
 /*--------------------------------------------*
