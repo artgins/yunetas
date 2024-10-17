@@ -499,8 +499,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *      Create Client Timeranger
      *-----------------------------------*/
     BOOL master = gobj_read_bool_attr(gobj, "master");
-    int xpermission = gobj_read_integer_attr(gobj, "xpermission");
-    int rpermission = gobj_read_integer_attr(gobj, "rpermission");
+    int xpermission = (int)gobj_read_integer_attr(gobj, "xpermission");
+    int rpermission = (int)gobj_read_integer_attr(gobj, "rpermission");
 
     char path[PATH_MAX];
     build_path(

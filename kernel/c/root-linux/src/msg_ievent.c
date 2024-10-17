@@ -385,14 +385,8 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     }
     json_t *__md_iev_src__ = kw_get_dict(gobj, kw_request, "__md_iev__", 0, 0);
     if(!__md_iev_src__) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "__md_iev__ NOT FOUND",
-            NULL
-        );
-        gobj_trace_json(gobj, kw_request, "__md_iev__ NOT FOUND");
-        KW_DECREF(kw_request);
+        json_object_del(kw_response, "__temp__");
+        KW_DECREF(kw_request)
         return kw_response;
     }
 
@@ -418,7 +412,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
 
     json_object_del(kw_response, "__temp__");
 
-    KW_DECREF(kw_request);
+    KW_DECREF(kw_request)
     return kw_response;
 }
 
