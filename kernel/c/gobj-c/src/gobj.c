@@ -6243,11 +6243,7 @@ PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_fl
         return FALSE;
     }
 
-    if(!event_flag) {
-        return TRUE;
-    }
-
-    if(!(event_type->event_flag & event_flag)) {
+    if(event_flag && !(event_type->event_flag & event_flag)) {
         return FALSE;
     }
     return TRUE;
@@ -6263,7 +6259,7 @@ PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t e
         return FALSE;
     }
 
-    if(!(event_type->event_flag & event_flag)) {
+    if(event_flag && !(event_type->event_flag & event_flag)) {
         return FALSE;
     }
 
@@ -7147,17 +7143,21 @@ PUBLIC int gobj_publish_event(
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
-    if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
-        if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
-            gobj_log_error(publisher, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "event NOT in output event list",
-                "event",        "%s", event,
-                NULL
-            );
-            KW_DECREF(kw)
-            return 0;
+    event_type_t *ev = gobj_event_type(publisher, event, TRUE);
+
+    if(!(ev && ev->event_flag & EVF_SYSTEM_EVENT)) {
+        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
+            if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
+                gobj_log_error(publisher, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "event NOT in output event list",
+                    "event",        "%s", event,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return 0;
+            }
         }
     }
 
@@ -7201,7 +7201,6 @@ PUBLIC int gobj_publish_event(
     /*--------------------------------------------------------------*
      *      Default publication method
      *--------------------------------------------------------------*/
-    event_type_t *ev = gobj_event_type(publisher, event, TRUE);
     json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
     int sent_count = 0;
     json_t *subs; size_t idx;
