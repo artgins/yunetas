@@ -1211,8 +1211,8 @@ PUBLIC int yev_setup_connect_event(
     SWITCHS(schema) { // WARNING Repeated
         ICASES("tcps")
         ICASES("tcp")
-        ICASES("tcphs")
-        ICASES("tcph")
+        ICASES("tcp4hs")
+        ICASES("tcp4h")
         ICASES("http")
         ICASES("https")
         ICASES("wss")
@@ -1535,8 +1535,8 @@ PUBLIC int yev_setup_accept_event(
     SWITCHS(schema) { // WARNING Repeated
         ICASES("tcps")
         ICASES("tcp")
-        ICASES("tcphs")
-        ICASES("tcph")
+        ICASES("tcp4hs")
+        ICASES("tcp4h")
         ICASES("http")
         ICASES("https")
         ICASES("wss")
