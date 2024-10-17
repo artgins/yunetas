@@ -128,13 +128,6 @@ PRIVATE int send_http_message2(hgobj gobj, const char *format, ...) JANSSON_ATTR
 PRIVATE void start_wait_frame_header(hgobj gobj);
 PRIVATE void ws_close(hgobj gobj, int code, const char *reason);
 PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request);
-PRIVATE BOOL do_request(
-    hgobj gobj,
-    const char *host,
-    const char *port,
-    const char *resource,
-    json_t *options
-);
 
 PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
 PRIVATE int framehead_consume(FRAME_HEAD *frame, istream istream, char *bf, size_t len);
@@ -1255,8 +1248,8 @@ PRIVATE unsigned char *generate_uuid(unsigned char bf[16])
  ***************************************************************************/
 PRIVATE BOOL do_request(
     hgobj gobj,
-    const char *host,
-    const char *port,
+    const char *peername,
+    const char *sockname,
     const char *resource,
     json_t *options)
 {
@@ -1281,13 +1274,8 @@ PRIVATE BOOL do_request(
     gbuffer_printf(gbuf, "User-Agent: yuneta-%s\r\n",  YUNETA_VERSION);
     gbuffer_printf(gbuf, "Upgrade: websocket\r\n");
     gbuffer_printf(gbuf, "Connection: Upgrade\r\n");
-    if(atoi(port) == 80 || atoi(port) == 443) {
-        gbuffer_printf(gbuf, "Host: %s\r\n", host);
-        gbuffer_printf(gbuf, "Origin: %s\r\n", host);
-    } else {
-        gbuffer_printf(gbuf, "Host: %s:%s\r\n", host, port);
-        gbuffer_printf(gbuf, "Origin: %s:%s\r\n", host, port);
-    }
+    gbuffer_printf(gbuf, "Host: %s\r\n", peername);
+    gbuffer_printf(gbuf, "Origin: %s\r\n", sockname);
 
     gbuffer_printf(gbuf, "Sec-WebSocket-Key: %s\r\n", key_b64);
     gbuffer_printf(gbuf, "Sec-WebSocket-Version: %d\r\n", 13);
@@ -1560,19 +1548,19 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
     } else {
         /*
+         * We are client
          * send the request
          */
-        const char *host = gobj_read_str_attr(gobj_bottom_gobj(gobj), "rHost");
-        const char *port = gobj_read_str_attr(gobj_bottom_gobj(gobj), "rPort");
-        if(host && port) {
-            do_request(
-                gobj,
-                host,
-                port,
-                gobj_read_str_attr(gobj, "resource"),
-                0
-            );
-        }
+        const char *peername = gobj_read_str_attr(gobj_bottom_gobj(gobj), "peername");
+        const char *sockname = gobj_read_str_attr(gobj_bottom_gobj(gobj), "sockname");
+
+        do_request(
+            gobj,
+            peername,
+            sockname,
+            gobj_read_str_attr(gobj, "resource"),
+            0
+        );
     }
     set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     KW_DECREF(kw)

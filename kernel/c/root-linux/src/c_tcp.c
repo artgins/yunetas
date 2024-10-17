@@ -43,8 +43,6 @@ SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection 
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
-SDATA (DTP_STRING,  "host",             SDF_RD,         "",         "host, decoded from url. Set internally"),
-SDATA (DTP_STRING,  "port",             SDF_RD,         "",         "port, decoded from url. Set internally"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
@@ -150,8 +148,6 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_write_bool_attr(gobj, "use_ssl", TRUE);
         }
         gobj_write_str_attr(gobj, "schema", schema);
-        gobj_write_str_attr(gobj, "host", host);
-        gobj_write_str_attr(gobj, "port", port);
 
         if(gobj_read_bool_attr(gobj, "use_ssl")) {
             // TODO
