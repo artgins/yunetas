@@ -6539,10 +6539,10 @@ PRIVATE json_t *read_record_content(
 
     match_cond of second level:
         id                  (str) id
-        key                 (str) key
-        rkey                (str) regular expression of key
-                                  WARNING: loading form disk keys matched in rkey)
-                                           but loading realtime of all keys
+        key                 (str) key (if not exists then rkey is used)
+        rkey                (str) regular expression of key (empty "" is equivalent to ".*"
+                            WARNING: loading form disk keys matched in rkey)
+                                   but loading realtime of all keys
 
         load_record_callback (tranger2_load_record_callback_t ), // called on LOADING and APPENDING
 
@@ -6620,19 +6620,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         tranger2_close_iterator(tranger, ll);
 
     } else {
-        const char *rkey = kw_get_str(gobj, match_cond, "rkey", 0, 0);
-        if(!rkey) { // check null, a "" is valid and equivalent to ".*"
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "key is required to trmsg_open_list",
-                NULL
-            );
-            JSON_DECREF(match_cond)
-            JSON_DECREF(extra)
-            return -1;
-        }
-
+        const char *rkey = kw_get_str(gobj, match_cond, "rkey", "", 0); // "" is equivalent to ".*"
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
         if(json_array_size(jn_keys)>0) {
             /*

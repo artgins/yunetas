@@ -305,7 +305,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "tranger2_open_list() failed",
-            "topic_name",   "%s", "__snaps__",
+            "topic_name",   "%s", topic_name,
             NULL
         );
     }
