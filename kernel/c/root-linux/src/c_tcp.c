@@ -52,6 +52,8 @@ SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verifi
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
 
+SDATA (DTP_STRING,  "tx_ready_event_name",SDF_RD,       "",         "Legacy attr. Set no-empty if you want EV_TX_READY event"),
+
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_waiting_connected", SDF_WR|SDF_PERSIST, "60000", "Timeout waiting connected in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
@@ -95,6 +97,7 @@ typedef struct _PRIVATE_DATA {
     int timeout_inactivity;
     char inform_disconnection;
     BOOL use_ssl;
+    const char *tx_ready_event_name;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -179,6 +182,7 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
+    SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
     SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
 }
 
@@ -189,7 +193,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -474,6 +479,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 PRIVATE int yev_transport_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -578,12 +584,14 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                 } else {
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
                     if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                        json_t *kw_tx_ready = json_object();
-                        json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                        if(gobj_is_pure_child(gobj)) {
-                            gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                        } else {
-                            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                        if(priv->tx_ready_event_name) {
+                            json_t *kw_tx_ready = json_object();
+                            json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                            if(gobj_is_pure_child(gobj)) {
+                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                            } else {
+                                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                            }
                         }
                     }
                 }

@@ -295,8 +295,14 @@ PRIVATE int mt_start(hgobj gobj)
         hgobj tcp0 = gobj_bottom_gobj(gobj);
         if(!tcp0) {
             // Manual connex configuration
-            json_t *kw_connex = gobj_read_json_attr(gobj, "kw_connex");
-            json_incref(kw_connex);
+            json_t *kw_connex = json_deep_copy(gobj_read_json_attr(gobj, "kw_connex"));
+            if(!kw_has_key(kw_connex, "url")) {
+                // HACK, legacy kw_connex
+                json_t *jn_urls = kw_get_list(gobj, kw_connex, "urls", 0, 0);
+                json_t *jn_url = json_array_get(jn_urls, 0);
+                const char *url = json_string_value(jn_url);
+                json_object_set_new(kw_connex, "url", json_string(url));
+            }
             tcp0 = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_connex, gobj);
             gobj_set_bottom_gobj(gobj, tcp0);
             gobj_write_str_attr(tcp0, "tx_ready_event_name", 0);

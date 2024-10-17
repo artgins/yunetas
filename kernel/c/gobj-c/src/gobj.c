@@ -2062,7 +2062,7 @@ PRIVATE json_t *extract_json_config_variables_mine(
 PRIVATE int print_attr_not_found(hgobj gobj, const char *attr)
 {
     if(strcasecmp(attr, "__json_config_variables__")!=0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "GClass Attribute NOT FOUND",
@@ -3204,7 +3204,8 @@ PUBLIC int gobj_write_str_attr(hgobj gobj_, const char *name, const char *value)
 
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
-        int ret = json_object_set_new(hs, name, json_string(value));
+        // WARNING value == 0  -> json_null()
+        int ret = json_object_set_new(hs, name, value?json_string(value):json_null());
         if(gobj->gclass->gmt->mt_writing) {
             if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
                 // Avoid call to mt_writing before mt_create!
