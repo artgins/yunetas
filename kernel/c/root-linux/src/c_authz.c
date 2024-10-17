@@ -2858,8 +2858,8 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         );
     }
 
-    JSON_DECREF(user_authzs);
-    JSON_DECREF(jn_authz_desc);
+    JSON_DECREF(user_authzs)
+    JSON_DECREF(jn_authz_desc)
     KW_DECREF(kw)
     return allow;
 }
