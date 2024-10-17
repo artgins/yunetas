@@ -40,6 +40,7 @@ typedef union {
  *---------------------------------------------*/
 PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
+SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
@@ -127,11 +128,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    const char *url = gobj_read_str_attr(gobj, "url");
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    if(!bottom_gobj) {
+    if(!empty_string(url) && !bottom_gobj) {
         json_t *kw = json_pack("{s:s, s:s}",
             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-            "url", gobj_read_str_attr(gobj, "url")
+            "url", url
         );
 
         #ifdef ESP_PLATFORM
@@ -191,6 +193,8 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    gobj_write_bool_attr(gobj, "connected", TRUE);
+
     if(gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
     } else {
@@ -205,6 +209,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    gobj_write_bool_attr(gobj, "connected", FALSE);
+
     if (gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
     } else {
