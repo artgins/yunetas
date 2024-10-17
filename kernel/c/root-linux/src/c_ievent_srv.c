@@ -1111,7 +1111,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Mainly process EV_IDENTITY_CARD_ACK
      *-----------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
-        if(gobj_has_input_event(gobj, iev_event)) { // TODO aqui usa, EVF_PUBLIC_EVENT important!!
+        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             kw_incref(iev_kw);
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
                 kw_decref(iev_kw);
@@ -1215,7 +1215,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*-----------------------------------*
          *  It's a external subscription
          *-----------------------------------*/
-
+int x;
         /*-------------------------------------------------*
          *  Check AUTHZ
          *-------------------------------------------------*/
