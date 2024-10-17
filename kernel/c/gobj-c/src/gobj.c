@@ -4402,6 +4402,8 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
                 "service",      "%s", service,
                 NULL
             );
+            json_t *jn_services = gobj_services();
+            gobj_trace_json(0, jn_services, "service NOT FOUND");
         }
         return NULL;
     }
