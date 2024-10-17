@@ -21,6 +21,13 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_TREEDB_UPDATE_NODE);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_CREATED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UPDATED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_DELETED);
 
 /***************************************************************
  *              Structures
@@ -4534,7 +4541,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 tranger,
                 treedb_name,
                 topic_name,
-                "EV_TREEDB_NODE_CREATED",
+                EV_TREEDB_NODE_CREATED,
                 record
             );
             treedb_callback = 0; // Not inform more
@@ -4593,7 +4600,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                     tranger,
                     treedb_name,
                     topic_name,
-                    "EV_TREEDB_NODE_CREATED",
+                    EV_TREEDB_NODE_CREATED,
                     record
                 );
             }
@@ -4719,7 +4726,7 @@ PUBLIC int treedb_save_node(
             tranger,
             treedb_name,
             topic_name,
-            "EV_TREEDB_NODE_UPDATED",
+            EV_TREEDB_NODE_UPDATED,
             node
         );
         treedb_callback = 0; // Not inform more
@@ -5085,7 +5092,7 @@ PUBLIC int treedb_delete_node(
                 tranger,
                 treedb_name,
                 topic_name,
-                "EV_TREEDB_NODE_DELETED",
+                EV_TREEDB_NODE_DELETED,
                 node
             );
         }
@@ -5347,7 +5354,7 @@ PUBLIC int treedb_delete_instance(
                 tranger,
                 treedb_name,
                 topic_name,
-                "EV_TREEDB_NODE_DELETED",
+                EV_TREEDB_NODE_DELETED,
                 node
             );
         }
@@ -5876,7 +5883,7 @@ PRIVATE int _link_nodes(
             tranger,
             treedb_name,
             parent_topic_name,
-            "EV_TREEDB_NODE_UPDATED",
+            EV_TREEDB_NODE_UPDATED,
             parent_node
         );
         JSON_INCREF(child_node);
@@ -5885,7 +5892,7 @@ PRIVATE int _link_nodes(
             tranger,
             treedb_name,
             child_topic_name,
-            "EV_TREEDB_NODE_UPDATED",
+            EV_TREEDB_NODE_UPDATED,
             child_node
         );
     }
@@ -6327,7 +6334,7 @@ PRIVATE int _unlink_nodes(
             tranger,
             treedb_name,
             parent_topic_name,
-            "EV_TREEDB_NODE_UPDATED",
+            EV_TREEDB_NODE_UPDATED,
             parent_node
         );
         JSON_INCREF(child_node)
@@ -6336,7 +6343,7 @@ PRIVATE int _unlink_nodes(
             tranger,
             treedb_name,
             child_topic_name,
-            "EV_TREEDB_NODE_UPDATED",
+            EV_TREEDB_NODE_UPDATED,
             child_node
         );
     }

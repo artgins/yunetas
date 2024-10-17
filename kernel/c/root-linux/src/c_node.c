@@ -3710,10 +3710,6 @@ GOBJ_DEFINE_GCLASS(C_NODE);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_TREEDB_UPDATE_NODE);
-GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_CREATED);
-GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UPDATED);
-GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_DELETED);
 
 /***************************************************************************
  *
