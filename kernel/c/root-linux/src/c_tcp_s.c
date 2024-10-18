@@ -159,14 +159,14 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(ytls_cleanup, priv->ytls);
 
-    if(gobj_current_state(gobj) != ST_STOPPED) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-            NULL
-        );
-    }
+//    if(gobj_current_state(gobj) != ST_STOPPED) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
+//            NULL
+//        );
+//    }
 }
 
 /***************************************************************************

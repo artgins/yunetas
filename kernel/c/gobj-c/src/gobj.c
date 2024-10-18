@@ -644,6 +644,11 @@ PUBLIC void gobj_end(void)
         return;
     }
 
+    if(__yuno__) {
+        gobj_destroy(__yuno__);
+        __yuno__ = 0;
+    }
+
     dl_flush(&dl_gclass, gclass_unregister);
 
     event_type_t *event_type;
@@ -653,6 +658,7 @@ PUBLIC void gobj_end(void)
     }
 
     JSON_DECREF(__jn_services__)
+    JSON_DECREF(__jn_global_settings__)
 
     if(__cur_system_memory__) {
         print_track_mem();
