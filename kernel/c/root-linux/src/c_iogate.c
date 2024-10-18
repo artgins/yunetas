@@ -11,6 +11,7 @@
 #include <command_parser.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
+#include "c_channel.h"
 #include "c_iogate.h"
 
 /***************************************************************************
@@ -110,7 +111,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    json_t *jn_channels;
     hgobj cur_channel;
     hgobj timer;
     int32_t timeout;
@@ -146,7 +146,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->jn_channels = json_array();
 
     /*
      *  SERVICE subscription model
@@ -186,47 +185,6 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_start(priv->timer);
     set_timeout_periodic(priv->timer, priv->timeout);
 
-    /*-----------------------------------------------*
-     *  Load static channels
-     *  defined in config-file or hardcoded-in-main
-     *-----------------------------------------------*/
-    json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "Channel"
-    );
-    hgobj child = gobj_first_child(gobj);
-    while(child) {
-        if(gobj_match_gobj(child, json_incref(jn_filter))) {
-            // TODO is necessary?
-            /*--------------------------------------------*
-             *  Firstly check if it exists.
-             *  Hard-coded channels cannot be repeated.
-             *--------------------------------------------*/
-            const char *channel_name = gobj_name(child);
-            if(kwid_find_record_in_list(gobj, priv->jn_channels, channel_name, 0)) {
-                continue;
-            }
-            json_t *kw_rc = json_pack("{s:s, s:s, s:s, s:b, s:b, s:b, s:s, s:s, s:s, s:s, s:I, s:I}",
-                "id", channel_name,
-                "type", "client_gate",
-                "url", "",
-                "disabled", 0,
-                "static", 1,
-                "traced", (int)gobj_read_integer_attr(child, "__trace_level__")?1:0,
-                "date", "",
-                "description", "Hard-coded channel",
-                "top_gclass", "",
-                "protocol_gclass", "",
-                "idx", (json_int_t)0,
-                "channel_gobj", (json_int_t)(size_t)child
-            );
-            json_array_append_new(priv->jn_channels, kw_rc);
-            gobj_write_pointer_attr(child, "user_data2", kw_rc);
-        }
-        child = gobj_next_child(child);
-    }
-
-    JSON_DECREF(jn_filter)
-
     return 0;
 }
 
@@ -262,7 +220,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
          *  Reset stats of channels too
          */
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -443,7 +401,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     BOOL opened = kw_get_bool(gobj, kw, "opened", 0, KW_WILD_NUMBER);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -474,7 +432,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -517,7 +475,7 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -544,7 +502,7 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -574,7 +532,7 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -601,7 +559,7 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -631,7 +589,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -656,7 +614,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -684,7 +642,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -709,7 +667,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -737,7 +695,7 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     if(empty_string(channel)) {
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -763,7 +721,7 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
         }
 
         json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", "Channel"
+            "__gclass_name__", C_CHANNEL
         );
         hgobj child = gobj_first_child(gobj);
         while(child) {
@@ -804,7 +762,7 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
     size_t count = gobj_child_size(gobj);
 
     json_t *jn_filter = json_pack("{s:s, s:b, s:b}",
-        "__gclass_name__", "Channel"
+        "__gclass_name__", C_CHANNEL,
         "opened", 1,
         "__disabled__", 0
     );
@@ -815,12 +773,15 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
     }
 
     size_t i = 0;
-    while(child && i<=count) {
+    while(i<count) {
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             priv->cur_channel = child;
             return priv->cur_channel;
         }
         child = gobj_next_child(child);
+        if(!child) {
+            child = gobj_first_child(gobj);
+        }
         i++;
     }
 
@@ -900,7 +861,7 @@ PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
     int some = 0;
 
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "Channel"
+        "__gclass_name__", C_CHANNEL
     );
     hgobj child = gobj_first_child(gobj);
     while(child) {
@@ -960,7 +921,7 @@ PRIVATE int channels_opened(hgobj gobj)
     int opened = 0;
 
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "Channel"
+        "__gclass_name__", C_CHANNEL
     );
     hgobj child = gobj_first_child(gobj);
     while(child) {
@@ -1292,7 +1253,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Drop all
      */
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "Channel"
+        "__gclass_name__", C_CHANNEL
     );
     hgobj child = gobj_first_child(gobj);
     while(child) {

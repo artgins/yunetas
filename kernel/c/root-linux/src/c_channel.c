@@ -41,15 +41,8 @@ typedef enum {
 
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_STRING,      "model",            SDF_RD,             "one-over-all", "Distribution model over tubes: one-over-all|one-over-one|all-over-all"),
-
-SDATA (DTP_STRING,      "lHost",            SDF_RD,             0,              "Local host bind filter"),
-SDATA (DTP_STRING,      "lPort",            SDF_RD,             0,              "Local port bind filter"),
-// TODO remove this when all configuration jsons have allowd_urls,denied_urls deleted
-SDATA (DTP_JSON,        "allowd_urls",      SDF_RD,             0,              "DEPRECATED Peer allowed url's filter"),
-SDATA (DTP_JSON,        "denied_urls",      SDF_RD,             0,              "DEPRECATED Peer denied url's filter"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,              "Channel opened (opened is higher level than connected"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_WR,             0,              "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_WR,             0,              "Messages received"),
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_WR,             0,              "Messages by second"),
