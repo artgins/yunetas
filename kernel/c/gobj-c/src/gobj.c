@@ -6952,7 +6952,7 @@ PUBLIC int gobj_unsubscribe_list(
                 hgobj gobj,
                 hsdata subs)
             {
-                if(!gobj_in_this_state(gobj, "ST_SESSION")) {
+                if(!gobj_in_this_state(gobj, ST_SESSION)) {
                     // on_open will send all subscriptions
                     return 0;
                 }

@@ -53,6 +53,9 @@ GOBJ_DECLARE_GCLASS(C_WEBSOCKET);
 /*------------------------*
  *      States
  *------------------------*/
+GOBJ_DECLARE_STATE(ST_WAITING_HANDSHAKE);
+GOBJ_DECLARE_STATE(ST_WAITING_FRAME_HEADER);
+GOBJ_DECLARE_STATE(ST_WAITING_PAYLOAD_DATA);
 
 /*------------------------*
  *      Events

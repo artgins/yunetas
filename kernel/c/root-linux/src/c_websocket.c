@@ -390,7 +390,7 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
     if(!gobj_is_running(gobj)) {
         return;
     }
-    gobj_change_state(gobj, "ST_WAITING_FRAME_HEADER");
+    gobj_change_state(gobj, ST_WAITING_FRAME_HEADER);
     if(priv->pingT>0) {
         set_timeout(priv->timer, priv->pingT);
     }

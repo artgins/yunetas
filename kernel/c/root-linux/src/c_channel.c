@@ -265,7 +265,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
         }
-        gobj_change_state(gobj, "ST_CLOSED");
+        gobj_change_state(gobj, ST_CLOSED);
         gobj_write_bool_attr(gobj, "opened", FALSE);
         gobj_publish_event(gobj, event, 0);
     }
