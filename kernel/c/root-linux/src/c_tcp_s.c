@@ -249,7 +249,7 @@ PRIVATE int mt_start(hgobj gobj)
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_server_callback,
-        NULL
+        gobj
     );
 
     priv->fd_listen = yev_setup_accept_event(
