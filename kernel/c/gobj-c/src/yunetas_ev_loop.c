@@ -164,8 +164,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         process_cqe(yev_loop, cqe);
     }
 
-    if(gobj_trace_level(yev_loop->yuno) & TRACE_UV) {
-        gobj_log_info(yev_loop->yuno, 0,
+    if(gobj_trace_level(0) & TRACE_UV) {
+        gobj_log_info(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "exiting",
@@ -188,8 +188,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         process_cqe(yev_loop, cqe);
     }
 
-    if(gobj_trace_level(yev_loop->yuno) & TRACE_UV) {
-        gobj_log_info(yev_loop->yuno, 0,
+    if(gobj_trace_level(0) & TRACE_UV) {
+        gobj_log_info(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "exited",
@@ -221,9 +221,8 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
     if(!yev_loop->stopping) {
         yev_loop->stopping = TRUE;
-        hgobj gobj = yev_loop->yuno;
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_log_info(gobj, 0,
+        if(gobj_trace_level(0) & TRACE_UV) {
+            gobj_log_info(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_loop_stop",
@@ -1174,7 +1173,7 @@ PUBLIC int yev_setup_connect_event(
             NULL
         );
         return -1;
-    };
+    }
 
     char schema[16];
     char dst_host[120];
