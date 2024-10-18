@@ -528,17 +528,23 @@ PRIVATE int yev_transport_callback(yev_event_t *yev_event)
                         );
                     }
 
-                    INCR_ATTR_INTEGER(rxMsgs)
-                    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(yev_event->gbuf))
+                    // TODO cambia a danger pointer
+                    //INCR_ATTR_INTEGER(rxMsgs)
+                    //INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(yev_event->gbuf))
 
-                    GBUFFER_INCREF(yev_event->gbuf)
-                    json_t *kw = json_pack("{s:I}",
-                        "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-                    );
-                    if(gobj_is_pure_child(gobj)) {
-                        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-                    } else {
-                        gobj_publish_event(gobj, EV_RX_DATA, kw);
+                    /*
+                     *  yev_event->gbuf can be null if yev_stop_event() was called
+                     */
+                    if(yev_event->gbuf) {
+                        GBUFFER_INCREF(yev_event->gbuf)
+                        json_t *kw = json_pack("{s:I}",
+                            "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+                        );
+                        if(gobj_is_pure_child(gobj)) {
+                            gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+                        } else {
+                            gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        }
                     }
 
                     /*
