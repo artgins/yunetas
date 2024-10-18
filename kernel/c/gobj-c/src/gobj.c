@@ -7148,7 +7148,7 @@ PUBLIC int gobj_publish_event(
     event_type_t *ev = gobj_event_type(publisher, event, TRUE);
 
     if(!(ev && ev->event_flag & EVF_SYSTEM_EVENT)) {
-        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
+        if(!(ev && ev->event_flag & EVF_OUTPUT_EVENT)) {
             if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
                 gobj_log_error(publisher, 0,
                     "function",     "%s", __FUNCTION__,

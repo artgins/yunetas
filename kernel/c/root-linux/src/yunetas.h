@@ -66,7 +66,7 @@ extern "C"{
 #include <tr_treedb.h>
 
 #include <c_ota.h>
-#include <c_prot_modbus_master.h>
+#include <c_prot_modbus_m.h>
 #include <c_prot_tcp4h.h>
 
 /*

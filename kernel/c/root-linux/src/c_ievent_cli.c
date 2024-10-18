@@ -1300,7 +1300,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_identity_card_ack[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_IDENTITY_CARD_ACK,  ac_identity_card_ack,   0},
-        {EV_ON_CLOSE,           ac_on_close,        ST_DISCONNECTED},
+        {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_idAck,  0},
         {0,0,0}
     };

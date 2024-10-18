@@ -34,6 +34,8 @@ GOBJ_DECLARE_GCLASS(C_TRANGER);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_TRANGER_ADD_RECORD);
+GOBJ_DECLARE_EVENT(EV_TRANGER_RECORD_ADDED);
 
 /***************************************************************
  *              Prototypes
