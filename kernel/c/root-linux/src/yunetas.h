@@ -41,6 +41,7 @@ extern "C"{
 #include <c_timer.h>
 #include <c_authz.h>
 #include <c_ievent_cli.h>
+#include <c_ievent_srv.h>
 #include <c_node.h>
 #include <c_prot_http_cl.h>
 #include <c_prot_http_sr.h>

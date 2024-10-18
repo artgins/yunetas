@@ -514,7 +514,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_closed[] = {
         {EV_ON_OPEN,            ac_on_open,         ST_OPENED},
-        {EV_TIMEOUT,            ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -524,7 +524,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       ac_send_message,    0},
         {EV_ON_ID,              ac_on_id,           0},
         {EV_ON_ID_NAK,          ac_on_id_nak,       0},
-        {EV_TIMEOUT,            ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_DROP,               ac_drop,            0},
         {EV_ON_OPEN,            0,                  0},
         {EV_ON_CLOSE,           ac_on_close,        0},
@@ -540,7 +540,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         // bottom input
-        {EV_ON_MESSAGE,             0},
         {EV_ON_ID,                  0},
         {EV_ON_ID_NAK,              0},
         {EV_ON_OPEN,                0},
@@ -552,7 +551,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         // internal
         {EV_STOPPED,                0},
-        {EV_TIMEOUT,                0},
+        {EV_TIMEOUT_PERIODIC,       0},
 
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},

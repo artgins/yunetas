@@ -739,7 +739,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 
             json_dumpf(jn_basic_info, stdout, flags);
             printf("\n");
-            JSON_DECREF(jn_basic_info);
+            JSON_DECREF(jn_basic_info)
         }
         exit(0);
     }
