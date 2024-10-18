@@ -238,6 +238,7 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
         yev_loop->running = FALSE;
+        yev_loop->yuno = 0;
     }
 
     return 0;
@@ -857,13 +858,12 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     yev_loop_t *yev_loop = yev_event->yev_loop;
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     struct io_uring_sqe *sqe;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_stop_event",
@@ -940,10 +940,10 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
     yev_set_flag(yev_event, YEV_FLAG_CANCELLING, TRUE);
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "Cancel event",
@@ -979,12 +979,10 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         return;
     }
 
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(0) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_info(gobj, 0,
+            gobj_log_info(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "yev_destroy_event",

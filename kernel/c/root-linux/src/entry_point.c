@@ -780,7 +780,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         "alias",        "%s", __yuno_tag__,
         NULL
     );
-    JSON_DECREF(__jn_config__)
+    json_decref(__jn_config__);
     register_yuneta_environment(0, 0, 0, 0, 0);
     gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped\n",
         __yuno_role__,
