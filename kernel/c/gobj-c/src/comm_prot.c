@@ -98,8 +98,8 @@ PUBLIC void comm_prot_free(void)
     comm_prot_t *lh;
     while((lh=dl_first(&dl_comm_prot))) {
         dl_delete(&dl_comm_prot, lh, 0);
-        GBMEM_FREE(lh->schema);
-        GBMEM_FREE(lh);
+        GBMEM_FREE(lh->schema)
+        GBMEM_FREE(lh)
     }
 
     __initialized__ = FALSE;

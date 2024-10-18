@@ -23,6 +23,7 @@
 #include "ansi_escape_codes.h"
 #include "gobj_environment.h"
 #include "command_parser.h"
+#include "comm_prot.h"
 #include "kwid.h"
 #include "helpers.h"
 #include "gobj.h"
@@ -672,6 +673,7 @@ PUBLIC void gobj_end(void)
         NULL
     );
 
+    comm_prot_free();
     glog_end();
 
     __initialized__ = FALSE;
@@ -1097,7 +1099,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
             "instances",    "%d", gclass->instances,
             NULL
         );
-        return;
+        // return;
     }
 
     state_t *state;
