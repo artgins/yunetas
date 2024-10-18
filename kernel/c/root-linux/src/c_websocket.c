@@ -234,8 +234,8 @@ PRIVATE void mt_create(hgobj gobj)
         HTTP_RESPONSE,  // http_parser_type
         NULL,           // on_header_event
         NULL,           // on_body_event
-        EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
-        TRUE            // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
+        NULL,           // on_message_event ==> publish the full message in a gbuffer
+        FALSE           // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
     );
 
 
