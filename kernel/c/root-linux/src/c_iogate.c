@@ -803,7 +803,8 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
 
     size_t count = gobj_child_size(gobj);
 
-    json_t *jn_filter = json_pack("{s:b, s:b}",
+    json_t *jn_filter = json_pack("{s:s, s:b, s:b}",
+        "__gclass_name__", "Channel"
         "opened", 1,
         "__disabled__", 0
     );
@@ -1434,29 +1435,22 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        // bottom input
-        {EV_ON_IEV_MESSAGE,         0},
-        {EV_ON_MESSAGE,             0},
-        {EV_ON_COMMAND,             0},
-        {EV_ON_ID,                  0},
-        {EV_ON_ID_NAK,              0},
-        {EV_ON_OPEN,                0},
-        {EV_ON_CLOSE,               0},
-
-        // top input
         {EV_SEND_MESSAGE,           0},
         {EV_SEND_IEV,               0},
         {EV_DROP,                   0},
-
-        // internal
-        {EV_STOPPED,                0},
-        {EV_TIMEOUT,                0},
 
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
+
+        {EV_ON_IEV_MESSAGE,         0},
+        {EV_ON_COMMAND,             0},
+
+        // internal
+        {EV_STOPPED,                0},
+        {EV_TIMEOUT,                0},
 
         {0, 0}
     };
