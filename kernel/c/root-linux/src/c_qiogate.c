@@ -510,7 +510,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
         "gbuffer",
         json_integer((json_int_t)(size_t)gbuf)
     );
-    gobj_send_event(gobj_emailsender, "EV_SEND_EMAIL", kw_email, gobj_default_service());
+    gobj_send_event(gobj_emailsender, EV_SEND_EMAIL, kw_email, gobj_default_service());
     return 0;
 }
 
@@ -768,7 +768,7 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)json2gbuf(0, kw_clone, JSON_COMPACT)
     );
-    return gobj_send_event(priv->gobj_bottom_side, "EV_SEND_MESSAGE", kw_send, gobj);
+    return gobj_send_event(priv->gobj_bottom_side, EV_SEND_MESSAGE, kw_send, gobj);
 }
 
 /***************************************************************************
@@ -1232,7 +1232,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     NULL
                 );
 
-                gobj_send_event(priv->gobj_bottom_side, "EV_DROP", 0, gobj);
+                gobj_send_event(priv->gobj_bottom_side, EV_DROP, 0, gobj);
             }
         }
     }

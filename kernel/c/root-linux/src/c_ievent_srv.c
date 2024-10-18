@@ -241,7 +241,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_string(stats)   // owned
     );
 
-    send_static_iev(gobj, "EV_MT_STATS", kw, src);
+    send_static_iev(gobj, EV_MT_STATS, kw, src);
 
     return 0;   // return 0 on asynchronous response.
 }
@@ -289,7 +289,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         json_string(command)   // owned
     );
 
-    send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
+    send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
     return 0;   // return 0 on asynchronous response.
 }
@@ -413,7 +413,7 @@ PRIVATE int drop(hgobj gobj)
         return -1;
     }
 
-    gobj_send_event(below_gobj, "EV_DROP", 0, gobj);
+    gobj_send_event(below_gobj, EV_DROP, 0, gobj);
     return 0;
 }
 
@@ -539,7 +539,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "__username__", gobj_read_str_attr(gobj, "__username__")
         );
         json_object_update_missing(kw_on_close, kw);
-        gobj_publish_event(gobj, "EV_ON_CLOSE", kw_on_close);
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
     }
 
     /*----------------------------*
@@ -823,7 +823,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             json_string(gobj_read_str_attr(gobj, "__username__"))
         );
 
-        gobj_publish_event(gobj, "EV_ON_OPEN", kw_on_open);
+        gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
     }
 
     JSON_DECREF(kw)
@@ -872,7 +872,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
         return send_static_iev(gobj,
-            "EV_MT_STATS_ANSWER",
+            EV_MT_STATS_ANSWER,
             msg_iev_build_response(
                 gobj,
                 -1,
@@ -902,7 +902,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
             return send_static_iev(gobj,
-                "EV_MT_STATS_ANSWER",
+                EV_MT_STATS_ANSWER,
                 msg_iev_build_response(
                     gobj,
                     -1,

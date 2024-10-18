@@ -690,7 +690,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *--------------------------------*/
         gobj_publish_event(
             gobj,
-            "EV_AUTHZ_USER_NEW",
+            EV_AUTHZ_USER_NEW,
             json_pack("{s:s, s:s}",
                 "username", username,
                 "dst_service", dst_service
@@ -761,7 +761,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "user",         "%s", username,
             NULL
         );
-        gobj_send_event(prev_channel_gobj, "EV_DROP", 0, gobj);
+        gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
         json_object_del(sessions, k);
     }
 
@@ -817,7 +817,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*------------------------------------*
      *  Subscribe to know close session
      *------------------------------------*/
-    gobj_subscribe_event(src, "EV_ON_CLOSE", 0, gobj);
+    gobj_subscribe_event(src, EV_ON_CLOSE, 0, gobj);
 
     /*--------------------------------*
      *      Autorizado, informa
@@ -1355,7 +1355,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
-    gobj_send_event(gobj, "EV_ADD_USER", json_incref(kw), src);
+    gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
 
     json_t *user = gobj_get_node(
         priv->gobj_treedb,
@@ -1488,7 +1488,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     json_object_set_new(user, "username", json_string(username));
     json_object_set_new(user, "disabled", json_true());
-    gobj_send_event(gobj, "EV_REJECT_USER", user, src);
+    gobj_send_event(gobj, EV_REJECT_USER, user, src);
 
     user = gobj_get_node(
         priv->gobj_treedb,
@@ -2543,7 +2543,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    gobj_unsubscribe_event(src, "EV_ON_CLOSE", 0, gobj);
+    gobj_unsubscribe_event(src, EV_ON_CLOSE, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -2663,7 +2663,7 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Drop sessions
          *-------------------------------*/
         hgobj prev_channel_gobj = (hgobj)(size_t)kw_get_int(gobj, session, "channel_gobj", 0, KW_REQUIRED);
-        gobj_send_event(prev_channel_gobj, "EV_DROP", 0, gobj);
+        gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
         json_object_del(sessions, k);
         ret++;
     }

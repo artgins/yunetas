@@ -430,7 +430,7 @@ PRIVATE int publish_token(
         "jwt", jwt
     );
 
-    gobj_publish_event(gobj, "EV_ON_TOKEN", kw_on_token);
+    gobj_publish_event(gobj, EV_ON_TOKEN, kw_on_token);
     return 0;
 }
 
@@ -488,7 +488,7 @@ PRIVATE json_t *action_get_token(
                 "headers", jn_headers,
                 "data", jn_data
             );
-            gobj_send_event(priv->gobj_http, "EV_SEND_MESSAGE", query, gobj);
+            gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
             break;
     } SWITCHS_END
 
@@ -669,7 +669,7 @@ PRIVATE json_t *action_logout(
                 "headers", jn_headers,
                 "data", jn_data
             );
-            gobj_send_event(priv->gobj_http, "EV_SEND_MESSAGE", query, gobj);
+            gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
             break;
     } SWITCHS_END
 

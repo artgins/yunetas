@@ -954,7 +954,7 @@ PRIVATE int frame_completed(hgobj gobj)
                         "gbuffer", (json_int_t)(size_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
-                    gobj_publish_event(gobj, "EV_ON_MESSAGE", kw);
+                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
                     unmasked = 0;
                 }
                 break;
@@ -965,7 +965,7 @@ PRIVATE int frame_completed(hgobj gobj)
                         "gbuffer", (json_int_t)(size_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
-                    gobj_publish_event(gobj, "EV_ON_MESSAGE", kw);
+                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
                     unmasked = 0;
                 }
                 break;
@@ -1807,8 +1807,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                gobj_change_state(gobj, "ST_WAITING_PAYLOAD_DATA");
-                return gobj_send_event(gobj, "EV_RX_DATA", kw, gobj);
+                gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
+                return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
                 if(frame_completed(gobj) == -1) {
@@ -1857,7 +1857,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         frame_completed(gobj);
     }
     if(gbuffer_leftbytes(gbuf)) {
-        return gobj_send_event(gobj, "EV_RX_DATA", kw, gobj);
+        return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
 
     KW_DECREF(kw)

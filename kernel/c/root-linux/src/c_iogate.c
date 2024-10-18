@@ -1281,7 +1281,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     if(channel_gobj) {
         if(gobj_read_bool_attr(channel_gobj, "opened")) {
-            gobj_send_event(channel_gobj, "EV_DROP", 0, gobj);
+            gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
         }
         KW_DECREF(kw)
         return 0;
@@ -1297,7 +1297,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while(child) {
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             if(gobj_read_bool_attr(child, "opened")) {
-                gobj_send_event(child, "EV_DROP", 0, gobj);
+                gobj_send_event(child, EV_DROP, 0, gobj);
             }
         }
         child = gobj_next_child(child);

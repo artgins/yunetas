@@ -418,7 +418,7 @@ PRIVATE int mt_subscription_added(
         );
     }
 
-    if(strcasecmp(event, "EV_TRANGER_RECORD_ADDED")==0) {
+    if(strcasecmp(event, "EV_TRANGER_RECORD_ADDED")==0) { // TODO no sería event==EV_TRANGER_RECORD_ADDED ?
         json_t *jn_data = json_array();
         size_t idx;
         json_t *jn_record;
@@ -1266,7 +1266,7 @@ PRIVATE int load_record_callback(
     //json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
     // BOOL has_fields = kw_has_key(match_cond, "fields");
 
-    gobj_publish_event(gobj, "EV_TRANGER_RECORD_ADDED", jn_record);
+    gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_record);
 
     return 0; // HACK let timeranger to add record to list.data TODO true?
 }
@@ -1285,7 +1285,7 @@ PRIVATE int load_record_callback(
  *
  ***************************************************************************/
 PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
+{ int x;
 // TODO   PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
 //    /*
@@ -1359,7 +1359,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
 //     */
 //    return gobj_send_event(
 //        src,
-//        "EV_SEND_IEV",
+//        EV_SEND_IEV,
 //        iev,
 //        gobj
 //    );

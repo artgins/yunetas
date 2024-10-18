@@ -40,9 +40,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Timeout inactivity, in seconds"),
 SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,             "Connection state. Important filter!"),
-SDATA (DTP_STRING,   "on_open_event_name",SDF_RD,        "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,   "on_close_event_name",SDF_RD,       "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,   "on_message_event_name",SDF_RD,     "EV_ON_MESSAGE","Must be empty if you don't want receive this event"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -68,9 +65,6 @@ typedef struct _PRIVATE_DATA {
     GHTTP_PARSER *parsing_request;      // A request parser instance
 
     int timeout_inactivity;
-    const char *on_open_event_name;
-    const char *on_close_event_name;
-    const char *on_message_event_name;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -98,7 +92,7 @@ PRIVATE void mt_create(hgobj gobj)
         HTTP_REQUEST,
         "",
         "",
-        "EV_ON_MESSAGE",
+        EV_ON_MESSAGE,
         FALSE
     );
 
@@ -114,9 +108,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(on_open_event_name,    gobj_read_str_attr)
-    SET_PRIV(on_close_event_name,   gobj_read_str_attr)
-    SET_PRIV(on_message_event_name, gobj_read_str_attr)
     SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
 }
 
@@ -223,9 +214,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     ghttp_parser_reset(priv->parsing_request);
 
-    if(!empty_string(priv->on_open_event_name)) {
-        gobj_publish_event(gobj, priv->on_open_event_name, 0);
-    }
+    gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
 
@@ -247,9 +236,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
-    if(!empty_string(priv->on_close_event_name)) {
-        gobj_publish_event(gobj, priv->on_close_event_name, 0);
-    }
+    gobj_publish_event(gobj, EV_ON_CLOSE, 0);
 
     KW_DECREF(kw)
     return 0;
@@ -272,7 +259,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     int result = parse_message(gobj, gbuf, priv->parsing_request);
     if (result < 0) {
-        gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
 
     KW_DECREF(kw)
@@ -337,7 +324,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     KW_DECREF(kw)
-    return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw_response, gobj);
+    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_response, gobj);
 }
 
 /***************************************************************************
@@ -345,7 +332,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -356,7 +343,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_inactivity(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw)
     return 0;
 }

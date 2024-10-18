@@ -470,7 +470,7 @@ PRIVATE int stop_task(hgobj gobj, int result)
     }
 
     gobj_publish_event(gobj,
-        "EV_END_TASK",
+        EV_END_TASK,
         kw_task
     );
     gobj_stop(gobj);
