@@ -4787,7 +4787,6 @@ PUBLIC BOOL gobj_match_gobj(
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
             int cmp = cmp_two_simple_json(jn_var1, jn_value);
-            JSON_DECREF(jn_var1)
             if(cmp!=0) {
                 matched = FALSE;
                 break;

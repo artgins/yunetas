@@ -1351,7 +1351,7 @@ PUBLIC int gobj_write_user_data(
  *  Acceso directo a la variable (con herencia de bottoms): puntero y descripción del atributo.
  *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
  */
-PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose);
+PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose); // Return is NOT YOURS
 PUBLIC json_int_t *gobj_danger_attr_ptr(hgobj gobj, const char *name);
 PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit);
 PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name);
