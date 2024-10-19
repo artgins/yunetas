@@ -95,7 +95,8 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
- *                      Register
+ *  HACK WARNING The code of this register_yuno_and_more() function is
+ *  executed below the memory handler of YunetaS.
  ***************************************************************************/
 static void register_yuno_and_more(void)
 {
