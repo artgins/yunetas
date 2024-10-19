@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
     );
     yev_start_timer_event(yev_timer_test, 100, FALSE);
 
-    yev_loop_run(yev_loop);
+    yev_loop_run_once(yev_loop);
 
     int result = close_all(tranger);
 
