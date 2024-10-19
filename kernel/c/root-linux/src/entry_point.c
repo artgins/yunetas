@@ -778,13 +778,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped",
-        __yuno_role__,
-        __yuno_name__,
-        __yuno_id__
-    );
-
-    gobj_end();
 //    JSON_DECREF(__jn_config__)
 
     return gobj_get_exit_code();
@@ -795,7 +788,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
  ***************************************************************************/
 PRIVATE void process(const char *process_name, const char *work_dir, const char *domain_dir)
 {
-    gobj_log_debug(0,0,
+    gobj_log_info(0,0,
         "msgset",       "%s", MSGSET_START_STOP,
         "msg",          "%s", "Starting yuno",
         "work_dir",     "%s", work_dir,
@@ -937,9 +930,7 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
      *      Destroy all
      *---------------------------*/
     gobj_shutdown();
-    if(__as_daemon__) {
-        gobj_end();
-    }
+    gobj_end();
 }
 
 /***************************************************************************

@@ -647,6 +647,14 @@ PUBLIC void gobj_end(void)
 
     if(__yuno__) {
         gobj_destroy(__yuno__);
+        gobj_log_info(0, 0,
+            "msgset",           "%s", MSGSET_STARTUP,
+            "msg",              "%s", "Yuno stopped, gobj end",
+            "hostname",         "%s", get_hostname(),
+            "node_uuid",        "%s", node_uuid(),
+            "yuno",             "%s", gobj_yuno_role_plus_name(),
+            NULL
+        );
         __yuno__ = 0;
     }
 
@@ -664,14 +672,6 @@ PUBLIC void gobj_end(void)
     if(__cur_system_memory__) {
         print_track_mem();
     }
-
-    gobj_log_info(0, 0,
-        "msgset",               "%s", MSGSET_STARTUP,
-        "msg",                  "%s", "gobj_end",
-        "hostname",             "%s", get_hostname(),
-        "node_uuid",            "%s", node_uuid(),
-        NULL
-    );
 
     comm_prot_free();
 

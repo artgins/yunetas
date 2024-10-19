@@ -139,12 +139,20 @@ static void register_yuno_and_more(void)
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_LOGGER, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}]", // errors_list
-                  "msg", "key is required to trmsg_open_list"
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+            "msg", "Starting yuno",
+            "msg", "Playing yuno",
+            "msg", "print time",
+            "msg", "print time",
+            "msg", "print time",
+            "msg", "print time",
+            "msg", "print time",
+            "msg", "Pausing yuno",
+            "msg", "Yuno stopped, gobj end"
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys

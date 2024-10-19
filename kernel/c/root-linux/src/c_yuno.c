@@ -644,10 +644,10 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  Run event loop
      */
-    gobj_log_debug(gobj, 0,
+    gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_STARTUP,
-        "msg",              "%s", "Running main",
+        "msg",              "%s", "Playing yuno",
         "yuno_id",          "%s", gobj_read_str_attr(gobj, "yuno_id"),
         "yuno_name",        "%s", gobj_read_str_attr(gobj, "yuno_name"),
         "yuno_role",        "%s", gobj_read_str_attr(gobj, "yuno_role"),
@@ -667,6 +667,15 @@ PRIVATE int mt_pause(hgobj gobj)
     /*
      *  This play order can come from yuneta_agent or programmatic sentence
      */
+    gobj_log_info(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_STARTUP,
+        "msg",              "%s", "Pausing yuno",
+        "yuno_id",          "%s", gobj_read_str_attr(gobj, "yuno_id"),
+        "yuno_name",        "%s", gobj_read_str_attr(gobj, "yuno_name"),
+        "yuno_role",        "%s", gobj_read_str_attr(gobj, "yuno_role"),
+        NULL
+    );
     gobj_pause(gobj_default_service());
     return 0;
 }
