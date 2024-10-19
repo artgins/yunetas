@@ -2,8 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_tr_treedb VERSION 1.0)
-get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+project(test_tr_treedb)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -35,8 +34,8 @@ set(SRCS
 ##############################################
 #   Tests
 ##############################################
-add_executable(test_tr_treedb ${SRCS})
-target_link_libraries(test_tr_treedb
+add_executable(${PROJECT_NAME} ${SRCS})
+target_link_libraries(${PROJECT_NAME}
     libyunetas-c_prot.a
     libyunetas-core-linux.a
     libtimeranger2.a
@@ -45,10 +44,14 @@ target_link_libraries(test_tr_treedb
 
     libjansson.a
     liburing.a
+    libjwt.a
     libpcre2-8.a
-    m
+    libssl.a
+    libcrypto.a
+
     uuid
     bfd     # to stacktrace
+    m
 )
 
-add_test(NAME Test_tr_treedb COMMAND test_tr_treedb)
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

@@ -12,7 +12,6 @@
 #include <string.h>
 #include <dirent.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <argp.h>
 
@@ -32,6 +31,7 @@
 #include "ydaemon.h"
 #include "rotatory.h"
 #include "yunetas_register.h"
+#include "c_authz.h"         // the grandmother
 #include "c_yuno.h"         // the grandmother
 #include "entry_point.h"
 
@@ -74,28 +74,23 @@ PRIVATE BOOL __ordered_death__ = 1;  // WARNING Vamos a probar otra vez las muer
 
 PRIVATE int __print__ = 0;
 
-PRIVATE int (*__global_startup_persistent_attrs_fn__)(void) = 0;
-PRIVATE void (*__global_end_persistent_attrs_fn__)(void) = 0;
-PRIVATE int (*__global_load_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
-PRIVATE int (*__global_save_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
-PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
-PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = 0;
+PRIVATE int (*__startup_persistent_attrs_fn__)(void) = 0;
+PRIVATE void (*__end_persistent_attrs_fn__)(void) = 0;
+PRIVATE int (*__load_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_load_persistent_attrs;
+PRIVATE int (*__save_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_save_persistent_attrs;
+PRIVATE int (*__remove_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_remove_persistent_attrs;
+PRIVATE json_t * (*__list_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_list_persistent_attrs;
 
-PRIVATE json_t * (*__global_command_parser_fn__)(
-    hgobj gobj,
-    const char *command,
-    json_t *kw,
-    hgobj src
-) = command_parser;
-PRIVATE json_t * (*__global_stats_parser_fn__)(
-    hgobj gobj,
-    const char *stats,
-    json_t *kw,
-    hgobj src
-) = stats_parser;
+PRIVATE json_function_t __command_parser_fn__ = command_parser;
+PRIVATE json_function_t __stats_parser_fn__ = stats_parser;
 
-PRIVATE authz_checker_fn __global_authz_checker_fn__ = 0;
-PRIVATE authenticate_parser_fn __global_authenticate_parser_fn__ = 0;
+PRIVATE authz_checker_fn __authz_checker_fn__ = authz_checker;
+PRIVATE authenticate_parser_fn __authenticate_parser_fn__ = authenticate_parser;
+
+json_int_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
+json_int_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
+json_int_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
+json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
 
 /***************************************************************************
  *      Structures
@@ -311,26 +306,48 @@ PUBLIC int yuneta_setup(
     int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
     int (*remove_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
     json_t * (*list_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser,
-    authz_checker_fn global_authz_checker,
-    authenticate_parser_fn global_authenticate_parser
+    json_function_t command_parser,
+    json_function_t stats_parser,
+    authz_checker_fn authz_checker,
+    authenticate_parser_fn authenticate_parser,
+    BOOL use_own_system_memory,
+    uint64_t mem_min_block,
+    uint64_t mem_max_block,
+    uint64_t mem_superblock,
+    uint64_t mem_max_system_memory,
+    BOOL debug_memory
 )
 {
-    __global_startup_persistent_attrs_fn__ = startup_persistent_attrs;
-    __global_end_persistent_attrs_fn__ = end_persistent_attrs;
-    __global_load_persistent_attrs_fn__ = load_persistent_attrs;
-    __global_save_persistent_attrs_fn__ = save_persistent_attrs;
-    __global_remove_persistent_attrs_fn__ = remove_persistent_attrs;
-    __global_list_persistent_attrs_fn__ = list_persistent_attrs;
-    if(global_command_parser) {
-        __global_command_parser_fn__ = global_command_parser;
+    if(startup_persistent_attrs) {
+        __startup_persistent_attrs_fn__ = startup_persistent_attrs;
     }
-    if(global_stats_parser) {
-        __global_stats_parser_fn__ = global_stats_parser;
+    if(end_persistent_attrs) {
+        __end_persistent_attrs_fn__ = end_persistent_attrs;
     }
-    __global_authz_checker_fn__ = global_authz_checker;
-    __global_authenticate_parser_fn__ = global_authenticate_parser;
+    if(load_persistent_attrs) {
+        __load_persistent_attrs_fn__ = load_persistent_attrs;
+    }
+    if(save_persistent_attrs) {
+        __save_persistent_attrs_fn__ = save_persistent_attrs;
+    }
+    if(remove_persistent_attrs) {
+        __remove_persistent_attrs_fn__ = remove_persistent_attrs;
+    }
+    if(list_persistent_attrs) {
+        __list_persistent_attrs_fn__ = list_persistent_attrs;
+    }
+    if(command_parser) {
+        __command_parser_fn__ = command_parser;
+    }
+    if(stats_parser) {
+        __stats_parser_fn__ = stats_parser;
+    }
+    if(authz_checker) {
+        __authz_checker_fn__ = authz_checker;
+    }
+    if(authenticate_parser) {
+        __authenticate_parser_fn__ = authenticate_parser;
+    }
 
     return 0;
 }
@@ -468,10 +485,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     int rpermission = 0664;
     const char *work_dir = 0;           /* by default total silence */
     const char *domain_dir = 0;         /* by default total silence */
-    json_int_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
-    json_int_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
-    json_int_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
-    json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
 
     json_t *jn_environment = kw_get_dict(0, __jn_config__, "environment", 0, 0);
     if(jn_environment) {
@@ -522,16 +535,16 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         argc,
         argv,
         jn_global,
-        __global_startup_persistent_attrs_fn__,
-        __global_end_persistent_attrs_fn__,
-        __global_load_persistent_attrs_fn__,
-        __global_save_persistent_attrs_fn__,
-        __global_remove_persistent_attrs_fn__,
-        __global_list_persistent_attrs_fn__,
-        __global_command_parser_fn__,
-        __global_stats_parser_fn__,
-        __global_authz_checker_fn__,
-        __global_authenticate_parser_fn__,
+        __startup_persistent_attrs_fn__,
+        __end_persistent_attrs_fn__,
+        __load_persistent_attrs_fn__,
+        __save_persistent_attrs_fn__,
+        __remove_persistent_attrs_fn__,
+        __list_persistent_attrs_fn__,
+        __command_parser_fn__,
+        __stats_parser_fn__,
+        __authz_checker_fn__,
+        __authenticate_parser_fn__,
         MEM_MAX_BLOCK,          // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY   // max_system_memory, maximum system memory
     );

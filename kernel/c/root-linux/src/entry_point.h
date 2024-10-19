@@ -22,16 +22,22 @@ extern "C"{
  *  Yuneta setup function.
  */
 PUBLIC int yuneta_setup(
-    int (*startup_persistent_attrs)(void),
-    void (*end_persistent_attrs)(void),
-    int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    int (*remove_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_t * (*list_persistent_attrs)(hgobj gobj, json_t *jn_attrs),
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser,
-    authz_checker_fn global_authz_checker,
-    authenticate_parser_fn global_authenticate_parser
+    int (*startup_persistent_attrs)(void),                          // default internal dbsimple
+    void (*end_persistent_attrs)(void),                             //          "
+    int (*load_persistent_attrs)(hgobj gobj, json_t *jn_attrs),     //          "
+    int (*save_persistent_attrs)(hgobj gobj, json_t *jn_attrs),     //          "
+    int (*remove_persistent_attrs)(hgobj gobj, json_t *jn_attrs),   //          "
+    json_t *(*list_persistent_attrs)(hgobj gobj, json_t *jn_attrs), //          "
+    json_function_t command_parser,                                 // default internal command_parser
+    json_function_t stats_parser,                                   // default internal stats_parser
+    authz_checker_fn authz_checker,                                 // default Monoclass C_AUTHZ
+    authenticate_parser_fn authenticate_parser,                     // default Monoclass C_AUTHZ
+    BOOL use_own_system_memory,
+    uint64_t mem_min_block,             // default 512
+    uint64_t mem_max_block,             // default 16*1024LL*1024LL
+    uint64_t mem_superblock,            // default 16*1024LL*1024LL
+    uint64_t mem_max_system_memory,
+    BOOL debug_memory
 );
 
 PUBLIC int yuneta_entry_point(int argc, char *argv[],
