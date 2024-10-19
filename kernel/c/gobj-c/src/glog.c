@@ -24,7 +24,6 @@
 #include "ansi_escape_codes.h"
 #include "stacktrace_with_bfd.h"
 #include "helpers.h"
-#include "gobj.h"
 
 extern void jsonp_free(void *ptr);
 

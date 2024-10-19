@@ -778,18 +778,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    gobj_log_info(0,0,
-        "gobj",         "%s", __FILE__,
-        "msgset",       "%s", MSGSET_START_STOP,
-        "msg",          "%s", "Finished",
-        "role",         "%s", __yuno_role__,
-        "id",           "%s", __yuno_id__,
-        "name",         "%s", __yuno_name__,
-        "alias",        "%s", __yuno_tag__,
-        NULL
-    );
-    JSON_DECREF(__jn_config__);
-    register_yuneta_environment(0, 0, 0, 0, 0);
     gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped",
         __yuno_role__,
         __yuno_name__,
@@ -797,6 +785,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     );
 
     gobj_end();
+    JSON_DECREF(__jn_config__)
 
     return gobj_get_exit_code();
 }

@@ -674,7 +674,6 @@ PUBLIC void gobj_end(void)
     );
 
     comm_prot_free();
-    glog_end();
 
     __initialized__ = FALSE;
 }
@@ -9814,6 +9813,18 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
 #endif
 
     __cur_system_memory__ -= size;
+
+    if(new_size > __max_block__) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
+            "size",         "%ld", (long)size,
+            "max_block",    "%d", (int)__max_block__,
+            NULL
+        );
+        return NULL;
+    }
 
     __cur_system_memory__ += new_size;
     if(__cur_system_memory__ > __max_system_memory__) {
