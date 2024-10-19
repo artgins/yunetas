@@ -92,6 +92,8 @@ PRIVATE char variable_config[]= "\
 }                                                                   \n\
 ";
 
+time_measure_t time_measure;
+
 /***************************************************************************
  *                      Register
  ***************************************************************************/
@@ -139,6 +141,17 @@ static void register_yuno_and_more(void)
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_LOGGER, 0);
 
+    set_expected_results( // Check that no logs happen
+        APP_NAME, // test name
+        json_pack("[{s:s}]", // errors_list
+                  "msg", "key is required to trmsg_open_list"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    MT_START_TIME(time_measure)
 }
 
 /***************************************************************************
@@ -182,20 +195,6 @@ int main(int argc, char *argv[])
         DEBUG_MEMORY
     );
 
-    const char *test_name = APP_NAME;
-    set_expected_results( // Check that no logs happen
-        test_name, // test name
-        json_pack("[{s:s}]", // errors_list
-            "msg", "key is required to trmsg_open_list"
-        ),
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-
-    time_measure_t time_measure;
-    MT_START_TIME(time_measure)
-
     int result = yuneta_entry_point(
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
@@ -205,7 +204,7 @@ int main(int argc, char *argv[])
     );
 
     MT_INCREMENT_COUNT(time_measure, 1)
-    MT_PRINT_TIME(time_measure, test_name)
+    MT_PRINT_TIME(time_measure, APP_NAME)
 
     double tm = mt_get_time(&time_measure);
     if(!(tm >= 5 && tm < 5.01)) {

@@ -2176,7 +2176,7 @@ PUBLIC char *tab(char *bf, int bflen);
  *      Log functions
  *---------------------------------*/
 PUBLIC void glog_init(void);
-PUBLIC void glog_end(void);
+PUBLIC void glog_end(void); // Better you don't call. It's few memory and you will have log all time
 /*
  *  log handler "stdout" is included
  */

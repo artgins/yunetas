@@ -206,7 +206,7 @@ PUBLIC void glog_init(void)
 }
 
 /****************************************************************************
- *
+ *  Better you don't call. It's few memory and you will have log all time
  ****************************************************************************/
 PUBLIC void glog_end(void)
 {

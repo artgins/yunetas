@@ -785,7 +785,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     );
 
     gobj_end();
-    JSON_DECREF(__jn_config__)
+//    JSON_DECREF(__jn_config__)
 
     return gobj_get_exit_code();
 }
