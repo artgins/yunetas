@@ -292,8 +292,15 @@ PRIVATE int process_msg(
 )
 {
     json_t *stats = gobj_stats(gobj, "", json_incref(kw), src);
-    gobj_trace_json(gobj, stats, "stats");
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "print time",
+        "txMsgs",       "%d", (int)kw_get_int(gobj, stats, "data`txMsgs", 0, KW_REQUIRED),
+        "rxMsgs",       "%d", (int)kw_get_int(gobj, stats, "data`rxMsgs", 0, KW_REQUIRED),
+        NULL
+    );
 
+    JSON_DECREF(stats)
     return 0;
 }
 
@@ -318,6 +325,9 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     (*priv->ptxMsgs)++;
 
     process_msg(gobj, kw, src);
+    if(*priv->prxMsgs == 5) {
+        gobj_shutdown();
+    }
 
     KW_DECREF(kw)
     return 0;

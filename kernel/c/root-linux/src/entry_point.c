@@ -87,10 +87,13 @@ PRIVATE json_function_t __stats_parser_fn__ = stats_parser;
 PRIVATE authz_checker_fn __authz_checker_fn__ = authz_checker;
 PRIVATE authenticate_parser_fn __authenticate_parser_fn__ = authenticate_parser;
 
-json_int_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
-json_int_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
-json_int_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
-json_int_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
+uint64_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
+uint64_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
+uint64_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
+uint64_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
+
+BOOL USE_OWN_SYSTEM_MEMORY = FALSE;
+BOOL DEBUG_MEMORY = FALSE;
 
 /***************************************************************************
  *      Structures
@@ -349,6 +352,23 @@ PUBLIC int yuneta_setup(
         __authenticate_parser_fn__ = authenticate_parser;
     }
 
+    USE_OWN_SYSTEM_MEMORY = use_own_system_memory;
+
+    if(mem_min_block) {
+        MEM_MIN_BLOCK = mem_min_block;
+    }
+    if(mem_max_block) {
+        MEM_MAX_BLOCK = mem_max_block;
+    }
+    if(mem_superblock) {
+        MEM_SUPERBLOCK = mem_superblock;
+    }
+    if(mem_max_system_memory) {
+        MEM_MAX_SYSTEM_MEMORY = mem_max_system_memory;
+    }
+
+    DEBUG_MEMORY = debug_memory;
+
     return 0;
 }
 
@@ -483,8 +503,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *------------------------------------------------*/
     int xpermission = 02775;
     int rpermission = 0664;
-    const char *work_dir = 0;           /* by default total silence */
-    const char *domain_dir = 0;         /* by default total silence */
+    const char *work_dir = 0;           /* by default, total silence */
+    const char *domain_dir = 0;         /* by default, total silence */
 
     json_t *jn_environment = kw_get_dict(0, __jn_config__, "environment", 0, 0);
     if(jn_environment) {
@@ -498,31 +518,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             xpermission,
             rpermission,
             __jn_config__
-        );
-
-        MEM_MIN_BLOCK = kw_get_int(0,
-            jn_environment,
-            "MEM_MIN_BLOCK",
-            MEM_MIN_BLOCK,
-            0
-        );
-        MEM_MAX_BLOCK = kw_get_int(0,
-            jn_environment,
-            "MEM_MAX_BLOCK",
-            MEM_MAX_BLOCK,
-            0
-        );
-        MEM_SUPERBLOCK = kw_get_int(0,
-            jn_environment,
-            "MEM_SUPERBLOCK",
-            MEM_SUPERBLOCK,
-            0
-        );
-        MEM_MAX_SYSTEM_MEMORY = kw_get_int(0,
-            jn_environment,
-            "MEM_MAX_SYSTEM_MEMORY",
-            MEM_MAX_SYSTEM_MEMORY,
-            0
         );
     }
 
@@ -783,7 +778,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    gobj_log_debug(0,0,
+    gobj_log_info(0,0,
         "gobj",         "%s", __FILE__,
         "msgset",       "%s", MSGSET_START_STOP,
         "msg",          "%s", "Finished",
@@ -793,9 +788,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         "alias",        "%s", __yuno_tag__,
         NULL
     );
-    json_decref(__jn_config__);
+    JSON_DECREF(__jn_config__);
     register_yuneta_environment(0, 0, 0, 0, 0);
-    gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped\n",
+    gobj_trace_msg(0, "<===== Yuno '%s^%s %s' stopped",
         __yuno_role__,
         __yuno_name__,
         __yuno_id__
@@ -803,15 +798,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 
     gobj_end();
 
-    /*
-     *  Restore default memory in jansson
-     */
-    json_set_alloc_funcs(
-        malloc,
-        free
-    );
-
-    exit(gobj_get_exit_code());
+    return gobj_get_exit_code();
 }
 
 /***************************************************************************
@@ -961,7 +948,9 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
      *      Destroy all
      *---------------------------*/
     gobj_shutdown();
-    gobj_end();
+    if(__as_daemon__) {
+        gobj_end();
+    }
 }
 
 /***************************************************************************

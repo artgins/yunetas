@@ -36,7 +36,7 @@ PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'yuno': {                                                       \n\
         'yuno_role': '"APP_NAME"',                                  \n\
-        'tags': ['saniki', 'dbas']                                  \n\
+        'tags': ['test', 'yunetas']                                 \n\
     }                                                               \n\
 }                                                                   \n\
 ";
@@ -68,12 +68,10 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
-        'i18n_domain': 'sanikidb',                                  \n\
+        'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections'],                                \n\
-            'TcpS0': ['listen', 'not-accepted', 'accepted'],        \n\
-            'Tcp1': ['connections'],                                \n\
-            'TcpS1': ['listen', 'not-accepted', 'accepted']         \n\
+            'C_TCP': ['connections'],                               \n\
+            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -81,21 +79,10 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'saniki2db',                                    \n\
-            'gclass': 'C_SANIKI2DB',                                \n\
+            'gclass': 'C_TEST_TIMER',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': 'authz',                                        \n\
-            'gclass': 'C_AUTHZ',                                    \n\
-            'default_service': false,                               \n\
-            'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'zchilds': [                                            \n\
@@ -118,26 +105,19 @@ static void register_yuno_and_more(void)
     /*------------------------------------------------*
      *          Traces
      *------------------------------------------------*/
-    /*------------------------------------------------*
-     *          Traces
-     *------------------------------------------------*/
     // Avoid timer trace, too much information
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("periodic_timer", TRUE);
     gobj_set_global_no_trace("timer", TRUE);
 
-    // Minimum trace: connections
-    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "connections", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
-
-    // Minimum trace: login/logout
+    // Samples of traces
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // Samples of traces
-    // gobj_set_gclass_trace(gclass_find_by_name(C_SANIKI2DB), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
@@ -147,6 +127,18 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "machine", TRUE, 0);
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_LOGGER, 0);
+
 }
 
 /***************************************************************************
@@ -189,11 +181,44 @@ int main(int argc, char *argv[])
         MEM_MAX_SYSTEM_MEMORY,
         DEBUG_MEMORY
     );
-    return yuneta_entry_point(
+
+    const char *test_name = APP_NAME;
+    set_expected_results( // Check that no logs happen
+        test_name, // test name
+        json_pack("[{s:s}]", // errors_list
+            "msg", "key is required to trmsg_open_list"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
+    int result = yuneta_entry_point(
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
         register_yuno_and_more
     );
+
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test_name)
+
+    double tm = mt_get_time(&time_measure);
+    if(!(tm >= 5 && tm < 5.01)) {
+        printf("%sERROR --> %s time %f (must be tm >= 5 && tm < 5.01)\n", On_Red BWhite, Color_Off, tm);
+        result += -1;
+    }
+
+    if(get_cur_system_memory()!=0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        result += -1;
+    }
+
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
+    return result;
 }

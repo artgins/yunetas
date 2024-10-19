@@ -1147,12 +1147,6 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
-    gobj_log_add_handler(
-        "test_stdout",
-        "stdout",
-        LOG_OPT_UP_WARNING,
-        0
-    );
 
     /*--------------------------------*
      *  Create the event loop
