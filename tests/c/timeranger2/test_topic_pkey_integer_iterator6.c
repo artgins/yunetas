@@ -468,7 +468,9 @@ int main(int argc, char *argv[])
     json_t *tranger = open_all();
 
     yev_event_t *yev_timer_test = yev_create_timer_event(
-        yev_loop, yev_timer_do_test_callback, tranger
+        yev_loop,
+        yev_timer_do_test_callback,
+        tranger
     );
     yev_start_timer_event(yev_timer_test, 100, FALSE);
 
