@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_tr_treedb)
+project(test_c_timer C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -19,22 +19,18 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-set(SRCS
-    test_tr_treedb.c
-    test_departments.c
-    test_users.c
-    test_compound.c
-    foto_final_departments.c
-    foto_final_users.c
-    users_file.c
-    foto_final1.c
-    foto_final2.c
+SET (YUNO_SRCS
+    src/main.c
+    src/c_test_timer.c
+)
+SET (YUNO_HDRS
+    src/c_test_timer.h
 )
 
 ##############################################
 #   Binary
 ##############################################
-add_executable(${PROJECT_NAME} ${SRCS})
+add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 target_link_libraries(${PROJECT_NAME}
     libyunetas-c_prot.a
     libyunetas-core-linux.a
@@ -58,3 +54,26 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+
+##############################################
+#   Installation
+##############################################
+#install(
+#    TARGETS ${PROJECT_NAME}
+#    PERMISSIONS
+#    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+#    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+#    WORLD_READ WORLD_EXECUTE
+#    DESTINATION ${YUNOS_DEST_DIR}
+#)
+
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# or compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+# Compilando para ARM poner cmake -DNOT_INCLUDE_LIBUNWIND
+#
