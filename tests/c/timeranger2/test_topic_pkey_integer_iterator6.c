@@ -123,7 +123,6 @@ PRIVATE int do_test(json_t *tranger)
      *-------------------------------------*/
     if(1) {
         const char *KEY = "0000000000000000001";
-//        json_t *topic = tranger2_topic(tranger, TOPIC_NAME);
         time_measure_t time_measure;
         json_t *match_cond;
 
@@ -172,8 +171,6 @@ PRIVATE int do_test(json_t *tranger)
             TRUE    // verbose
         );
 
-//print_json2("ANTES", tranger); // TODO TEST
-
         MT_START_TIME(time_measure)
 
         uint64_t t1 = first_t_by_disk; // coge el ultimo t1 de disco
@@ -203,8 +200,6 @@ PRIVATE int do_test(json_t *tranger)
             }
         }
 
-//print_json2("DESPUES", tranger); // TODO TEST
-
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
 
@@ -229,8 +224,6 @@ PRIVATE int do_test(json_t *tranger)
             yev_loop, yev_timer_finish_ok_callback, tranger
         );
         yev_start_timer_event(yev_timer_finish_ok, 100, FALSE);
-
-//        print_json2("iterator by disk opened 2", tranger);
     }
 
     /*-------------------------------------*
@@ -250,8 +243,6 @@ PRIVATE int do_test(json_t *tranger)
         );
     }
     result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-//    print_json2("iterator by disk closed", tranger);
 
     /*-------------------------------*
      *  tranger_backup_topic
@@ -371,8 +362,6 @@ PRIVATE int yev_timer_do_finish_error_callback(yev_event_t *yev_event)
 PRIVATE int yev_timer_do_test_callback(yev_event_t *yev_event)
 {
     json_t *tranger = yev_event->gobj;
-    yev_stop_event(yev_event);
-    yev_destroy_event(yev_event);
 
     yev_timer_finish_error = yev_create_timer_event(
         yev_loop, yev_timer_do_finish_error_callback, tranger
@@ -408,15 +397,36 @@ int main(int argc, char *argv[])
         free_func
     );
 
-//    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, TRUE);     // TODO TEST
-
+    /*-------------------------------------*
+     *      Check memory loss
+     *-------------------------------------*/
     unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_bfd);
 
+    /*-------------------------------------*
+     *  Captura salida logger very early
+     *-------------------------------------*/
+    glog_init();
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+
+    //gobj_set_deep_tracing(2);
+    //gobj_set_global_trace(0, TRUE);
+
+    //gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+
+    /*--------------------------------*
+     *      Startup gobj
+     *--------------------------------*/
     gobj_start_up(
         argc,
         argv,
@@ -436,22 +446,6 @@ int main(int argc, char *argv[])
     );
 
     yuno_catch_signals();
-
-    /*--------------------------------*
-     *      Log handlers
-     *--------------------------------*/
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
-
-    /*------------------------------*
-     *  Captura salida logger
-     *------------------------------*/
-    gobj_log_register_handler(
-        "testing",          // handler_name
-        0,                  // close_fn
-        capture_log_write,  // write_fn
-        0                   // fwrite_fn
-    );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
     /*--------------------------------*
      *  Create the event loop
@@ -490,6 +484,7 @@ int main(int argc, char *argv[])
         yev_stop_event(yev_timer_finish_ok);
         yev_destroy_event(yev_timer_finish_ok);
     }
+    yev_destroy_event(yev_timer_test);
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
@@ -497,6 +492,7 @@ int main(int argc, char *argv[])
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        print_track_mem();
         result += -1;
     }
     result += global_result;
