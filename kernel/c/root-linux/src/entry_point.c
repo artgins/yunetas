@@ -664,6 +664,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             APP_NAME
         );
     }
+    if(empty_string(yuno_name)) {
+        yuno_name = APP_NAME;
+    }
+
     snprintf(__node_owner__, sizeof(__node_owner__), "%s", node_owner);
     snprintf(__realm_id__, sizeof(__realm_id__), "%s", realm_id);
     snprintf(__realm_owner__, sizeof(__realm_owner__), "%s", realm_owner);

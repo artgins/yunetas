@@ -325,7 +325,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     (*priv->ptxMsgs)++;
 
     process_msg(gobj, kw, src);
-    if(*priv->prxMsgs == 5) {
+    if(*priv->prxMsgs == 3) {
         gobj_shutdown();
     }
 

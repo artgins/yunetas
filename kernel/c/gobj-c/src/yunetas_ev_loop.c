@@ -799,6 +799,7 @@ PUBLIC int yev_start_timer_event(
                 "msg",          "%s", "yev_start_timer_event",
                 "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "timeout_ms",   "%d", (int)timeout_ms,
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
