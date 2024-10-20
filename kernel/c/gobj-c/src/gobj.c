@@ -1093,7 +1093,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
             "instances",    "%d", gclass->instances,
             NULL
         );
-        // return;
+        return;
     }
 
     state_t *state;
