@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(yev_timer_periodic C)
+get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -16,61 +16,37 @@ else()
 endif()
 include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
-
 ##############################################
 #   Source
 ##############################################
-SET (YUNO_SRCS
-    yev_timer_periodic.c
-)
-SET (YUNO_HDRS
-)
-
-##############################################
-#   yuno
-##############################################
-add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
-
-target_link_libraries(${PROJECT_NAME}
-    libyunetas-core-linux.a
-    libyunetas-gobj.a
-
-    libjansson.a
-    liburing.a
-    libpcre2-8.a
-    m
-    uuid
-    bfd     # to stacktrace
-)
-
-target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
-
-# Add a custom command to generate assembler .lst file
-add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND objdump -SlF ${PROJECT_NAME} > ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.lst
-    COMMENT "Generating assembler"
+set(SRCS
+    yev_timer_periodic1.c
+    yev_timer_periodic2.c
 )
 
 ##############################################
-#   Installation
+#   Tests
 ##############################################
-install(
-    TARGETS ${PROJECT_NAME}
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_WRITE GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
-)
+foreach(test ${SRCS})
+    set(binary "${test}.bin")
+    add_executable(${binary} ${test})
 
-add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+    target_link_libraries(${binary}
+        libyunetas-c_prot.a
+        libyunetas-core-linux.a
+        libtimeranger2.a
+        libytls.a
+        libyunetas-gobj.a
 
-# compile in Release mode optimized but adding debug symbols, useful for profiling :
-#
-#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
-#
-# or compile with NO optimization and adding debug symbols :
-#
-#     cmake -DCMAKE_BUILD_TYPE=Debug ..
-#
+        libjansson.a
+        liburing.a
+        libpcre2-8.a
+        m
+        #z rt m
+        uuid
+        #util
+        bfd     # to stacktrace
+    )
+    add_test("${current_directory_name}/${test}" ${binary})
+
+endforeach()

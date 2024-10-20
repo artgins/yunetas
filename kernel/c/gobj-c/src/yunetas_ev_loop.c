@@ -900,36 +900,36 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     if(!(yev_event_in_ring(yev_event))) {
-//        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_YEV_LOOP,
-//            "msg",          "%s", "yev_event NOT in RING",
-//            "msg2",         "%s", "💥🟥 yev_event NOT in RING",
-//            "type",         "%s", yev_event_type_name(yev_event),
-//            "fd",           "%d", yev_event->fd,
-//            "p",            "%p", yev_event,
-//            "flag",         "%j", jn_flags,
-//            NULL
-//        );
-//        json_decref(jn_flags);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "stopping event: yev_event NOT in RING",
+            "msg2",         "%s", "💥🟥 stopping event: yev_event NOT in RING",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
         return -1;
     }
 
     if(yev_event_cancelling(yev_event)) {
-//        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_YEV_LOOP,
-//            "msg",          "%s", "yev_event ALREADY CANCELLING",
-//            "msg2",         "%s", "💥🟥 yev_event ALREADY CANCELLING",
-//            "type",         "%s", yev_event_type_name(yev_event),
-//            "fd",           "%d", yev_event->fd,
-//            "p",            "%p", yev_event,
-//            "flag",         "%j", jn_flags,
-//            NULL
-//        );
-//        json_decref(jn_flags);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "stopping event: yev_event ALREADY CANCELLING",
+            "msg2",         "%s", "💥🟥 stopping event: yev_event ALREADY CANCELLING",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
         return -1;
     }
 
@@ -946,10 +946,10 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "Cancel event",
+                "msg",          "%s", "Stopping (Cancel) event",
                 "msg2",         "%s", (yev_type_t)yev_event->type == YEV_TIMER_TYPE?
-                                        "💥🟥🟥⏰⏰ Cancel event":
-                                        "💥🟥🟥 Cancel event",
+                                        "💥🟥🟥⏰⏰ Stopping (Cancel) event":
+                                        "💥🟥🟥 Stopping (Cancel) event",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,

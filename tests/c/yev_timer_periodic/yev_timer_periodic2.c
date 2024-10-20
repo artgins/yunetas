@@ -55,7 +55,6 @@ int do_test(void)
 
     yev_loop_run_once(yev_loop);
 
-    yev_destroy_event(yev_event_once);
     yev_destroy_event(yev_event_periodic);
     yev_loop_destroy(yev_loop);
 
@@ -98,25 +97,17 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
         times_periodic++;
-        if(times_periodic == 2) {
-            gobj_trace_msg(0, "re-start time-periodic %d seconds, will provoke -11 error", 1);
-            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
-        }
         if(times_periodic == 4) {
-            gobj_trace_msg(0, "return no-realm and re-start time-periodic %d seconds", 1);
-            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
-            return -1; // On return -1 the timer will be not rearmed
-        }
-        if(times_once > 5) {
-            printf("got timer-periodic, STOP timer ONCE\n");
-            if(yev_event_in_ring(yev_event_once)) {
-                yev_stop_event(yev_event_once);
-            }
+            gobj_trace_msg(0, "stop timer with yev_stop_event");
+            yev_stop_event(yev_event_periodic);
         }
     } else {
-        times_once++;
-        printf("got timer-once %d, set in %d seconds\n", times_once, (int)wait_time*times_once);
-        yev_start_timer_event(yev_event, times_once*wait_time*1000, FALSE);
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "yev_event NOT PERIODIC",
+            NULL
+        );
     }
     return 0;
 }
@@ -152,24 +143,24 @@ int main(int argc, char *argv[])
     gobj_start_up(
         argc,
         argv,
-        NULL, // jn_global_settings
-        NULL, // startup_persistent_attrs
-        NULL, // end_persistent_attrs
-        0,  // load_persistent_attrs
-        0,  // save_persistent_attrs
-        0,  // remove_persistent_attrs
-        0,  // list_persistent_attrs
-        NULL, // global_command_parser
-        NULL, // global_stats_parser
-        NULL, // global_authz_checker
-        NULL, // global_authenticate_parser
-        8*1024L,    // max_block, largest memory block
-        100*1024L   // max_system_memory, maximum system memory
+        NULL,   // jn_global_settings
+        NULL,   // startup_persistent_attrs
+        NULL,   // end_persistent_attrs
+        NULL,   // load_persistent_attrs
+        NULL,   // save_persistent_attrs
+        NULL,   // remove_persistent_attrs
+        NULL,   // list_persistent_attrs
+        NULL,   // global_command_parser
+        NULL,   // global_stats_parser
+        NULL,   // global_authz_checker
+        NULL,   // global_authenticate_parser
+        0,      // max_block, largest memory block
+        0       // max_system_memory, maximum system memory
     );
 
     yuno_catch_signals();
 
-    //gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+    gobj_set_gobj_trace(0, "libuv", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -190,7 +181,20 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
+    const char *test = "yev_timer_periodic";
+    set_expected_results( // Check that no logs happen
+        test,   // test name
+        json_pack("[{s:s}]",  // error_list
+            "msg", "addrinfo on listen"
+        ),
+        NULL,  // expected
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
     result += do_test();
+
+    result += test_json(NULL, result);
 
     gobj_end();
 
