@@ -1096,7 +1096,7 @@ GOBJ_DECLARE_STATE(ST_CLOSED);
 PUBLIC int gobj_start_up(                   /* Initialize the yuno */
     int argc,
     char *argv[],
-    json_t *jn_global_settings,
+    json_t *jn_global_settings,             /* NOT owned */
     int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),
     int (*load_persistent_attrs)(

@@ -19,7 +19,6 @@
 /***************************************************************************
  *  Data
  ***************************************************************************/
-PRIVATE json_t *__jn_config__ = 0;
 PRIVATE int __xpermission__ = 0;    // permission for directories and executable files
 PRIVATE int __rpermission__ = 0;    // permission for regular files
 PRIVATE char __root_dir__[PATH_MAX] = {0};
@@ -32,8 +31,7 @@ PUBLIC int register_yuneta_environment(
     const char *root_dir,
     const char *domain_dir,
     int xpermission,
-    int rpermission,
-    json_t *jn_config)
+    int rpermission)
 {
     __xpermission__ = xpermission;
     __rpermission__ = rpermission;
@@ -44,18 +42,7 @@ PUBLIC int register_yuneta_environment(
     strntolower(__root_dir__, strlen(__root_dir__));
     strntolower(__domain_dir__, strlen(__domain_dir__));
 
-    __jn_config__ = jn_config;
-
     return 0;
-}
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *yuneta_json_config(void)
-{
-    return __jn_config__;
 }
 
 /***************************************************************************

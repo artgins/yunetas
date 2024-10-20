@@ -517,8 +517,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             work_dir,
             domain_dir,
             xpermission,
-            rpermission,
-            __jn_config__
+            rpermission
         );
     }
 
@@ -783,7 +782,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-//    JSON_DECREF(__jn_config__)
+    json_decref(__jn_config__);
 
     return gobj_get_exit_code();
 }
@@ -936,6 +935,8 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
      *---------------------------*/
     gobj_shutdown();
     gobj_end();
+    debug_json("XXXX", __jn_config__, TRUE);
+    json_decref(__jn_config__);
 }
 
 /***************************************************************************

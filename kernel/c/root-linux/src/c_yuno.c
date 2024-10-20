@@ -55,7 +55,6 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -263,7 +262,6 @@ SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_writ
 SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
 SDATACM (DTP_SCHEMA,    "view-attrs-schema",        a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
 
-SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,            "View final json configuration"),
 SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,          cmd_view_mem,               "View yuno memory"),
 
 SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
@@ -1066,25 +1064,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_sprintf("Not yet implemented"),   // jn_comment
         0,      // jn_schema
         0       // jn_data
-    );
-    JSON_DECREF(kw)
-    return kw_response;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    json_t *jn_data = yuneta_json_config();
-    json_incref(jn_data);
-
-    json_t *kw_response = build_command_response(
-        gobj,
-        0,          // result
-        0,          // jn_comment
-        0,          // jn_schema
-        jn_data?jn_data:json_object()     // jn_data
     );
     JSON_DECREF(kw)
     return kw_response;

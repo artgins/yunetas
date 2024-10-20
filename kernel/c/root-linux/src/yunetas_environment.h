@@ -20,10 +20,9 @@ PUBLIC int register_yuneta_environment(
     const char *root_dir,
     const char *domain_dir,
     int xpermission,    // permission for directories and executable files
-    int rpermission,    // permission for regular files
-    json_t *jn_config
+    int rpermission    // permission for regular files
 );
-PUBLIC json_t *yuneta_json_config(void);
+
 PUBLIC int yuneta_xpermission(void);    // permission for directories and executable files
 PUBLIC int yuneta_rpermission(void);    // permission for regular files
 

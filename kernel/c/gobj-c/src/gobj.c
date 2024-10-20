@@ -494,7 +494,7 @@ SDATA_END()
 PUBLIC int gobj_start_up(
     int argc_,
     char *argv_[],
-    json_t *jn_global_settings,
+    json_t *jn_global_settings,     // NOT owned
     int (*startup_persistent_attrs)(void),
     void (*end_persistent_attrs)(void),
     int (*load_persistent_attrs)(
