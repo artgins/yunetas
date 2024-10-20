@@ -474,6 +474,10 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->users_accesses) {
+        trmsg_close_list(priv->tranger, priv->users_accesses);
+        priv->users_accesses = NULL;
+    }
     gobj_stop(priv->gobj_treedb);
     gobj_stop(priv->gobj_tranger);
 

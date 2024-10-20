@@ -776,6 +776,7 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
     while(i<count) {
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             priv->cur_channel = child;
+            JSON_DECREF(jn_filter)
             return priv->cur_channel;
         }
         child = gobj_next_child(child);
@@ -785,6 +786,7 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
         i++;
     }
 
+    JSON_DECREF(jn_filter)
     return 0;
 }
 
