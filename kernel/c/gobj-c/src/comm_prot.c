@@ -31,7 +31,7 @@ typedef struct {
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE char __initialized__ = FALSE;
+PRIVATE volatile char __initialized__ = FALSE;
 PRIVATE dl_list_t dl_comm_prot;
 
 /***************************************************************************

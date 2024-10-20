@@ -529,7 +529,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     gobj_start_up(
         argc,
         argv,
-        jn_global,
+        jn_global,  // Not owned, it's duplicated
         __startup_persistent_attrs_fn__,
         __end_persistent_attrs_fn__,
         __load_persistent_attrs_fn__,
@@ -782,7 +782,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Finish
      *------------------------------------------------*/
-    json_decref(__jn_config__);
+    //json_decref(__jn_config__);
 
     return gobj_get_exit_code();
 }
@@ -935,8 +935,10 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
      *---------------------------*/
     gobj_shutdown();
     gobj_end();
-    debug_json("XXXX", __jn_config__, TRUE);
     json_decref(__jn_config__);
+    if(__as_daemon__) {
+        print_track_mem();
+    }
 }
 
 /***************************************************************************

@@ -249,7 +249,6 @@ PRIVATE uint32_t level2bit(
     const trace_level_t *user_trace_level,
     const char *level
 );
-PRIVATE void print_track_mem(void);
 PRIVATE int json2item(
     gobj_t *gobj,
     json_t *sdata,
@@ -356,8 +355,8 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass;
-PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
+PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 
 /*
  *  Global trace levels
@@ -668,10 +667,6 @@ PUBLIC void gobj_end(void)
 
     JSON_DECREF(__jn_services__)
     JSON_DECREF(__jn_global_settings__)
-
-    if(__cur_system_memory__) {
-        print_track_mem();
-    }
 
     comm_prot_free();
 
@@ -9651,8 +9646,12 @@ PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
 /***********************************************************************
  *      Print track memory
  ***********************************************************************/
-PRIVATE void print_track_mem(void)
+PUBLIC void print_track_mem(void)
 {
+    if(!__cur_system_memory__) {
+        return;
+    }
+
     gobj_log_error(0, 0,
         "function",             "%s", __FUNCTION__,
         "msgset",               "%s", MSGSET_STATISTICS,
@@ -9673,12 +9672,6 @@ PRIVATE void print_track_mem(void)
 
         track_mem = dl_next(track_mem);
     }
-    gobj_log_error(0, 0,  // repeat message at the end
-        "function",             "%s", __FUNCTION__,
-        "msgset",               "%s", MSGSET_STATISTICS,
-        "msg",                  "%s", "shutdown: system memory not free",
-        NULL
-    );
 #endif
 }
 

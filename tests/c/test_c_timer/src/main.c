@@ -41,10 +41,6 @@ PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
         'console_log_handlers': {                                   \n\
-            'to_stdout': {                                          \n\
-                'handler_type': 'stdout',                           \n\
-                'handler_options': 255                              \n\
-            }                                                       \n\
         },                                                          \n\
         'daemon_log_handlers': {                                    \n\
         }                                                           \n\
@@ -171,7 +167,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {2,0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
@@ -221,12 +217,13 @@ int main(int argc, char *argv[])
         result += -1;
     }
 
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
+
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
         result += -1;
     }
-
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     return result;
 }
