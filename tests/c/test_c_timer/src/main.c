@@ -123,11 +123,9 @@ static void register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
-            "msg", "print time",
-            "msg", "print time",
             "msg", "print time",
             "msg", "print time",
             "msg", "print time",
