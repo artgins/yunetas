@@ -123,16 +123,8 @@ static void register_yuno_and_more(void)
      gobj_set_gobj_trace(0, "libuv", TRUE, 0);
 
     /*------------------------------*
-     *  Captura salida logger
+     *  Start test
      *------------------------------*/
-    gobj_log_register_handler(
-        "testing",          // handler_name
-        0,                  // close_fn
-        capture_log_write,  // write_fn
-        0                   // fwrite_fn
-    );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
-
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
         json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
@@ -159,10 +151,21 @@ static void register_yuno_and_more(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {0,0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {2,0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*

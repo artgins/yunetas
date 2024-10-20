@@ -439,7 +439,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Load json config
      *------------------------------------------------*/
-    char *sconfig = json_config(
+    char *sconfig = json_config( // HACK I know that sconfig is malloc'ed
         arguments.print_verbose_config,     // WARNING if true will exit(0)
         arguments.print_final_config,       // WARNING if true will exit(0)
         fixed_config,
@@ -481,13 +481,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     set_show_backtrace_fn(show_backtrace_with_bfd);
 #endif
 
-    /*
-     *  WARNING now all json is gbmem allocated
-     */
+    /*---------------------------------------------------*
+     *      WARNING now all json is gbmem allocated
+     *---------------------------------------------------*/
+    glog_init();
 
-    /*------------------------------------------------*
-     *          Re-alloc with gbmem
-     *------------------------------------------------*/
+    /*-------------------------------*
+     *      Re-alloc with gbmem
+     *-------------------------------*/
     __jn_config__ = legalstring2json(sconfig, TRUE); //
     if(!__jn_config__) {
         print_error(

@@ -159,7 +159,7 @@ static const unsigned char json_exceptions[] = {
  */
 PRIVATE ul_buffer_t escape_buffer[2];
 PRIVATE ul_buffer_t ul_buffer[2];
-PRIVATE char __initialized__ = 0;
+PRIVATE volatile char __initialized__ = 0;
 PRIVATE volatile char __inside_log__ = 0;
 
 /***************************************************************
@@ -169,9 +169,9 @@ PRIVATE char trace_with_short_name = FALSE; // TODO functions to set this variab
 PRIVATE char trace_with_full_name = TRUE;  // TODO functions to set this variables
 
 PRIVATE show_backtrace_fn_t show_backtrace_fn = show_backtrace;
-PRIVATE dl_list_t dl_log_handlers;
+PRIVATE dl_list_t dl_log_handlers = {0};
 PRIVATE int max_log_register = 0;
-PRIVATE log_reg_t log_register[MAX_LOG_HANDLER_TYPES+1];
+PRIVATE log_reg_t log_register[MAX_LOG_HANDLER_TYPES+1] = {0};
 
 PRIVATE char last_message[256];
 PRIVATE uint32_t __alert_count__ = 0;
@@ -189,6 +189,7 @@ PUBLIC void glog_init(void)
     if(__initialized__) {
         return;
     }
+    __initialized__ = TRUE;
 
     dl_init(&dl_log_handlers);
 
@@ -202,7 +203,6 @@ PUBLIC void glog_init(void)
         stdout_fwrite       // fwrite_fn
     );
 
-    __initialized__ = TRUE;
 }
 
 /****************************************************************************
@@ -258,6 +258,9 @@ PUBLIC int gobj_log_register_handler(
  *****************************************************************/
 PUBLIC BOOL gobj_log_exist_handler(const char *handler_name)
 {
+    if(!__initialized__) {
+        glog_init();
+    }
     if(empty_string(handler_name)) {
         return FALSE;
     }
@@ -284,6 +287,9 @@ PUBLIC int gobj_log_add_handler(
     log_handler_opt_t handler_options,
     void *h
 ) {
+    if(!__initialized__) {
+        glog_init();
+    }
     if(empty_string(handler_name)) {
         gobj_log_set_last_message("gobj_log_add_handler(): no handler name");
         return -1;
@@ -336,6 +342,9 @@ PUBLIC int gobj_log_add_handler(
  *****************************************************************/
 PUBLIC int gobj_log_del_handler(const char *handler_name)
 {
+    if(!__initialized__) {
+        glog_init();
+    }
     /*-------------------------------------*
      *      Free memory
      *  HACK use system memory,
@@ -375,6 +384,9 @@ PUBLIC int gobj_log_del_handler(const char *handler_name)
  *****************************************************************/
 PUBLIC json_t *gobj_log_list_handlers(void)
 {
+    if(!__initialized__) {
+        glog_init();
+    }
     json_t *jn_array = json_array();
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
