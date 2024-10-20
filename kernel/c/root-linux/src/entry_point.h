@@ -48,7 +48,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *APP_DATETIME,
     const char *fixed_config,
     const char *variable_config,
-    void (*register_yunos_and_more)(void)
+    void (*register_yuno_and_more)(void), // HACK This function is executed on yunetas environment (mem, log, paths) BEFORE creating the yuno
+    void (*cleaning_fn)(void) // HACK This function is executed after free all yuneta resources
 );
 
 /*

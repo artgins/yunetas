@@ -78,12 +78,18 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
  *
  ***************************************************************************/
 static int relauncher(
-    void (*process) (const char *process_name, const char *work_dir, const char *domain_dir),
+    void (*process) (
+        const char *process_name,
+        const char *work_dir,
+        const char *domain_dir,
+        void (*cleaning_fn)(void)
+    ),
     const char *process_name,
     const char *work_dir,
     const char *domain_dir,
-    void (*catch_signals)(void))
-{
+    void (*catch_signals)(void),
+    void (*cleaning_fn)(void)
+) {
     if(debug) {
         print_error(0, "Relaunches %d times, process %s, pid %d",
             relaunch_times,
@@ -199,7 +205,7 @@ static int relauncher(
             );
         }
 
-        process(process_name, work_dir, domain_dir);
+        process(process_name, work_dir, domain_dir, cleaning_fn);
         if(debug) {
             gobj_log_debug(0,0,
                 "gobj",             "%s", __FILE__,
@@ -220,18 +226,25 @@ static int relauncher(
  *
  ***************************************************************************/
 PUBLIC int daemon_run(
-    void (*process)(const char *process_name, const char *work_dir, const char *domain_dir),
+    void (*process)(
+        const char *process_name,
+        const char *work_dir,
+        const char *domain_dir,
+        void (*cleaning_fn)(void)
+    ),
     const char *process_name,
     const char *work_dir,
     const char *domain_dir,
-    void (*catch_signals)(void))
+    void (*catch_signals)(void),
+    void (*cleaning_fn)(void)
+)
 {
     int ret;
 
     watcher_pid = getpid();
 
     continue_as_daemon(work_dir, process_name);
-    while((ret=relauncher(process, process_name, work_dir, domain_dir, catch_signals))<0) {
+    while((ret=relauncher(process, process_name, work_dir, domain_dir, catch_signals, cleaning_fn))<0) {
         // sleep 2 sec and launch again while relauncher return negative
         relaunch_times++;
         sleep(2);

@@ -78,13 +78,11 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
- *  HACK WARNING The code of this register_yuno_and_more() function
- *  is already executed on yunetas environment:
- *      the memory handler
- *      log handler
- *      paths
- *      ...
+ *  HACK This function is executed on yunetas environment (mem, log, paths)
+ *  BEFORE creating the yuno
  ***************************************************************************/
+int result = 0;
+
 static void register_yuno_and_more(void)
 {
     /*--------------------*
@@ -138,6 +136,24 @@ static void register_yuno_and_more(void)
     );
 
     MT_START_TIME(time_measure)
+}
+
+/***************************************************************************
+ *  HACK This function is executed on yunetas environment (mem, log, paths)
+ *  BEFORE creating the yuno
+ ***************************************************************************/
+static void cleaning(void)
+{
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, APP_NAME)
+
+    double tm = mt_get_time(&time_measure);
+    if(!(tm >= 3 && tm < 3.01)) {
+        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
+        result += -1;
+    }
+
+    result += test_json(NULL, result);  // NULL: we want to check only the logs
 }
 
 /***************************************************************************
@@ -198,24 +214,14 @@ int main(int argc, char *argv[])
         DEBUG_MEMORY
     );
 
-    int result = yuneta_entry_point(
+    result += yuneta_entry_point(
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        cleaning
     );
-
-    MT_INCREMENT_COUNT(time_measure, 1)
-    MT_PRINT_TIME(time_measure, APP_NAME)
-
-    double tm = mt_get_time(&time_measure);
-    if(!(tm >= 3 && tm < 3.01)) {
-        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
-        result += -1;
-    }
-
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

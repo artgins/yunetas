@@ -116,7 +116,12 @@ struct arguments {
  ***************************************************************************/
 PRIVATE void daemon_catch_signals(void);
 PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state);
-PRIVATE void process(const char *process_name, const char *work_dir, const char *domain_dir);
+PRIVATE void process(
+    const char *process_name,
+    const char *work_dir,
+    const char *domain_dir,
+    void (*cleaning_fn)(void)
+);
 
 
 /***************************************************************************
@@ -383,8 +388,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *APP_DATETIME,
     const char *fixed_config,
     const char *variable_config,
-    void (*register_yuno_and_more)(void))
-{
+    void (*register_yuno_and_more)(void), // HACK This function is executed on yunetas environment (mem, log, paths) BEFORE creating the yuno
+    void (*cleaning_fn)(void) // HACK This function is executed after free all yuneta resources
+) {
     snprintf(__argp_program_version__, sizeof(__argp_program_version__),
         "%s %s %s",
         APP_NAME,
@@ -769,20 +775,22 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *          Run
      *------------------------------------------------*/
     if(__as_daemon__) {
-        daemon_run(process, get_process_name(), work_dir, domain_dir, daemon_catch_signals);
+        daemon_run(
+            process,
+            get_process_name(),
+            work_dir,
+            domain_dir,
+            daemon_catch_signals,
+            cleaning_fn
+        );
     } else {
         daemon_catch_signals();
         if(__auto_kill_time__) {
             /* kill in x seconds, to debug exit in kdevelop */
             alarm(__auto_kill_time__);
         }
-        process(get_process_name(), work_dir, domain_dir);
+        process(get_process_name(), work_dir, domain_dir, cleaning_fn);
     }
-
-    /*------------------------------------------------*
-     *          Finish
-     *------------------------------------------------*/
-    //json_decref(__jn_config__);
 
     return gobj_get_exit_code();
 }
@@ -790,7 +798,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 /***************************************************************************
  *                      Process
  ***************************************************************************/
-PRIVATE void process(const char *process_name, const char *work_dir, const char *domain_dir)
+PRIVATE void process(
+    const char *process_name,
+    const char *work_dir,
+    const char *domain_dir,
+    void (*cleaning_fn)(void)
+)
 {
     gobj_log_info(0,0,
         "msgset",       "%s", MSGSET_START_STOP,
@@ -936,9 +949,10 @@ PRIVATE void process(const char *process_name, const char *work_dir, const char 
     gobj_shutdown();
     gobj_end();
     json_decref(__jn_config__);
-    if(__as_daemon__) {
-        print_track_mem();
+    if(cleaning_fn) {
+        cleaning_fn();
     }
+    print_track_mem();
 }
 
 /***************************************************************************
