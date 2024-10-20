@@ -1,10 +1,7 @@
 /****************************************************************************
- *          MAIN_SANIKIDB.C
- *          sanikidb main
+ *          MAIN.C
  *
- *          DBA Sanikidb
- *
- *          Saniki del aire
+ *          Main of test_timer
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -50,16 +47,6 @@ PRIVATE char variable_config[]= "\
             }                                                       \n\
         },                                                          \n\
         'daemon_log_handlers': {                                    \n\
-            'to_file': {                                            \n\
-                'handler_type': 'file',                             \n\
-                'filename_mask': 'saniki2db-W.log',                 \n\
-                'handler_options': 255                              \n\
-            },                                                      \n\
-            'to_udp': {                                             \n\
-                'handler_type': 'udp',                              \n\
-                'url': 'udp://127.0.0.1:1992',                      \n\
-                'handler_options': 255                              \n\
-            }                                                       \n\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
@@ -78,7 +65,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'saniki2db',                                    \n\
+            'name': 'test_timer',                                   \n\
             'gclass': 'C_TEST_TIMER',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
@@ -95,8 +82,12 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
- *  HACK WARNING The code of this register_yuno_and_more() function is
- *  executed below the memory handler of YunetaS.
+ *  HACK WARNING The code of this register_yuno_and_more() function
+ *  is already executed on yunetas environment:
+ *      the memory handler
+ *      log handler
+ *      paths
+ *      ...
  ***************************************************************************/
 static void register_yuno_and_more(void)
 {
@@ -129,7 +120,7 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
     // gobj_set_gobj_trace(0, "machine", TRUE, 0);
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    // gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+     gobj_set_gobj_trace(0, "libuv", TRUE, 0);
 
     /*------------------------------*
      *  Captura salida logger
