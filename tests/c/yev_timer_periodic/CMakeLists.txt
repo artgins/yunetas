@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(perf_yev_ping_pong C)
+project(yev_timer_periodic C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -16,11 +16,12 @@ else()
 endif()
 include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
+
 ##############################################
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/perf_yev_ping_pong.c
+    yev_timer_periodic.c
 )
 SET (YUNO_HDRS
 )
@@ -41,17 +42,6 @@ target_link_libraries(${PROJECT_NAME}
     uuid
     bfd     # to stacktrace
 )
-
-#if(ESP32_MODE)
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-## NO resuelto       /yuneta/development/outputs/lib/libyunetas-esp32.a   # To test partially esp32 you can include this
-#    )
-#else()
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-#    )
-#endif()
 
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

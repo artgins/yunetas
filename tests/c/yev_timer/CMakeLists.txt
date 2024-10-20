@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(perf_yev_timer C)
+project(yev_timer C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -16,14 +16,12 @@ else()
 endif()
 include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
-include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/projects/frigo/esp/esp_frigo/main)
-
 
 ##############################################
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/perf_yev_timer.c
+    yev_timer.c
 )
 SET (YUNO_HDRS
 )
@@ -41,31 +39,11 @@ target_link_libraries(${PROJECT_NAME}
     liburing.a
     libpcre2-8.a
     m
-    #z rt m
     uuid
-    #util
     bfd     # to stacktrace
 )
 
-#if(ESP32_MODE)
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-## NO resuelto       /yuneta/development/outputs/lib/libyunetas-esp32.a   # To test partially esp32 you can include this
-#    )
-#else()
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-#    )
-#endif()
-
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
-
-# Add a custom command to generate assembler .lst file
-add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND objdump -SlF ${PROJECT_NAME} > ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.lst
-    COMMENT "Generating assembler"
-)
 
 ##############################################
 #   Installation
@@ -78,6 +56,8 @@ install(
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${BIN_DEST_DIR}
 )
+
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #

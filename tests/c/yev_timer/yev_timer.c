@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
+#include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
 
@@ -26,7 +27,7 @@ yev_event_t *yev_event_periodic;
 int wait_time = 1;
 int times_once = 0;
 int times_periodic = 0;
-
+int result = 0;
 /***************************************************************************
  *              Test
  ***************************************************************************/
@@ -181,20 +182,26 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
+    //gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+
     /*--------------------------------*
      *      Log handlers
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
-
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    do_test();
+    result += do_test();
 
     gobj_end();
 
-    return gobj_get_exit_code();
+    if(get_cur_system_memory()!=0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        result += -1;
+    }
+
+    return result;
 }
 
 /***************************************************************************

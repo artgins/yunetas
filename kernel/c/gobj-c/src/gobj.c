@@ -33,7 +33,7 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
-//#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
+#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
 
 /***************************************************************
  *              GClass/GObj Structures
