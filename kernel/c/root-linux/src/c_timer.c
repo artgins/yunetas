@@ -172,7 +172,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
                 yev_event->result == -ECANCELED ||
                 (yev_event->result == -ENOENT && !yev_event->yev_loop->running)
         ) {
-            // Cases seen valids
+            // Cases seen as valid
         } else {
             json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

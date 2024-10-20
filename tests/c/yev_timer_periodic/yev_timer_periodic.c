@@ -1,5 +1,5 @@
 /****************************************************************************
- *          perf_yev_timer
+ *          yev_timer_periodic.c
  *
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
+#include <testing.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
@@ -22,12 +23,11 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-yev_event_t *yev_event_once;
 yev_event_t *yev_event_periodic;
 int wait_time = 1;
-int times_once = 0;
 int times_periodic = 0;
 int result = 0;
+
 /***************************************************************************
  *              Test
  ***************************************************************************/
@@ -45,12 +45,7 @@ int do_test(void)
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
-    yev_event_once = yev_create_timer_event(yev_loop, yev_callback, NULL);
-
     yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback, NULL);
-
-    gobj_trace_msg(0, "start time-once %d seconds", wait_time);
-    yev_start_timer_event(yev_event_once, wait_time*1000, FALSE);
 
     gobj_trace_msg(0, "start time-periodic %d seconds", 1);
     yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
@@ -75,10 +70,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     if(yev_event->result < 0) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_info(0, 0,
+        gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "timeout got",
+            "msg",          "%s", strerror(-yev_event->result),
             "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
             "type",         "%s", yev_event_type_name(yev_event),
             "fd",           "%d", yev_event->fd,
@@ -91,9 +86,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         );
         json_decref(jn_flags);
 
-        if(yev_event->result == -EAGAIN) {
-            return 0;
-        }
         // cancel timer-once and stop loop, next cancels ignored
         if(yev_loop->running) {
             if(!(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) && yev_event->result == -ECANCELED) {
@@ -154,13 +146,8 @@ int main(int argc, char *argv[])
         free_func
     );
 
-//    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, TRUE);     // TODO TEST
-
-#ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_bfd);
-#endif
 
     gobj_start_up(
         argc,
@@ -188,6 +175,17 @@ int main(int argc, char *argv[])
      *      Log handlers
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+
+    /*------------------------------*
+     *  Captura salida logger
+     *------------------------------*/
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
     /*--------------------------------*
      *      Test

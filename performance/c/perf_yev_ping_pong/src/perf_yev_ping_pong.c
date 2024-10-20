@@ -529,10 +529,8 @@ int main(int argc, char *argv[])
     //gobj_set_deep_tracing(2);           // TODO TEST
     //gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-#ifdef DEBUG
     init_backtrace_with_bfd(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_bfd);
-#endif
 
     result += gobj_start_up(
         argc,
