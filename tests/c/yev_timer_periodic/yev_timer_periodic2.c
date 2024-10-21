@@ -97,7 +97,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
         times_periodic++;
-        if(times_periodic == 4) {
+        if(times_periodic == 3) {
             gobj_trace_msg(0, "stop timer with yev_stop_event");
             yev_stop_event(yev_event_periodic);
         }

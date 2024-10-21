@@ -16,11 +16,37 @@
 #include <arpa/inet.h>
 #include "yunetas_ev_loop.h"
 
+/*
+
+           FLAG_IN_RING    -1     FLAG_CANCELING  -1    -1       CANCELED
+                ▲           ▲           ▲          ▲     ▲          │
+                │           │           │          │     │          ▼
+                ┌───────────┼───────────┼==========┼=====┼==========┐
+                │                                                   │
+                │                                                   │
+    ────────────┘                                                   └────────────
+                ▲           ▲           ▲          ▲     ▲          │
+                │           │           │          │     │          │
+              start       start       stop       stop  start        ▼
+                                                                 reset FLAG_IN_RING
+                                                                 reset FLAG_CANCELING
+                                                                    │
+                                                                    ▼
+                                                                 EV_STOPPED
+
+ */
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 #define DEFAULT_BACKLOG 512
+
+typedef enum  {
+    YEV_ST_STOPPED = 0,
+    YEV_ST_ACTIVE,          // IN_RING (active, not cancelling)
+    YEV_ST_WAIT_STOPPED,    // IN_RING CANCELING
+} yev_state_t;
+
 
 /***************************************************************
  *              Structures
@@ -38,7 +64,7 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  ***************************************************************/
 PRIVATE const char *yev_flag_s[] = {
     "YEV_FLAG_IN_RING",
-    "YEV_FLAG_CANCELLING",
+    "YEV_FLAG_CANCELING",
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_SSL",
     "YEV_FLAG_IS_TCP",
@@ -281,7 +307,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);
     if(cqe->res == -ECANCELED && yev_event_cancelling(yev_event)) {
-        yev_set_flag(yev_event, YEV_FLAG_CANCELLING, FALSE);
+        yev_set_flag(yev_event, YEV_FLAG_CANCELING, FALSE);
     }
 
     switch((yev_type_t)yev_event->type) {
@@ -896,33 +922,34 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             yev_event->src_addrlen = 0;
             break;
         case YEV_TIMER_TYPE:
+            yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
             break;
     }
 
-    if(!(yev_event_in_ring(yev_event))) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "stopping event: yev_event NOT in RING",
-            "msg2",         "%s", "💥🟥 stopping event: yev_event NOT in RING",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            NULL
-        );
-        json_decref(jn_flags);
-        return -1;
-    }
+//    if(!(yev_event_in_ring(yev_event))) {
+//        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+//        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_YEV_LOOP,
+//            "msg",          "%s", "stopping event: yev_event NOT in RING",
+//            "msg2",         "%s", "💥🟥 stopping event: yev_event NOT in RING",
+//            "type",         "%s", yev_event_type_name(yev_event),
+//            "fd",           "%d", yev_event->fd,
+//            "p",            "%p", yev_event,
+//            "flag",         "%j", jn_flags,
+//            NULL
+//        );
+//        json_decref(jn_flags);
+//        return -1;
+//    }
 
     if(yev_event_cancelling(yev_event)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "stopping event: yev_event ALREADY CANCELLING",
-            "msg2",         "%s", "💥🟥 stopping event: yev_event ALREADY CANCELLING",
+            "msg",          "%s", "stopping event: yev_event ALREADY CANCELING",
+            "msg2",         "%s", "💥🟥 stopping event: yev_event ALREADY CANCELING",
             "type",         "%s", yev_event_type_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
@@ -938,7 +965,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
     yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
-    yev_set_flag(yev_event, YEV_FLAG_CANCELLING, TRUE);
+    yev_set_flag(yev_event, YEV_FLAG_CANCELING, TRUE);
 
     if(gobj_trace_level(0) & TRACE_UV) {
         do {

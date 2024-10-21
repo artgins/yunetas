@@ -34,7 +34,7 @@ typedef enum  {
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_IN_RING            = 0x01,
-    YEV_FLAG_CANCELLING         = 0x02,
+    YEV_FLAG_CANCELING          = 0x02,
     YEV_FLAG_TIMER_PERIODIC     = 0x04,
     YEV_FLAG_USE_SSL            = 0x08,
     YEV_FLAG_IS_TCP             = 0x10,
@@ -139,7 +139,7 @@ static inline BOOL yev_event_in_ring(
 static inline BOOL yev_event_cancelling(
     yev_event_t *yev_event
 ){
-    if(yev_event->flag & YEV_FLAG_CANCELLING) {
+    if(yev_event->flag & YEV_FLAG_CANCELING) {
         return TRUE;
     } else {
         return FALSE;
