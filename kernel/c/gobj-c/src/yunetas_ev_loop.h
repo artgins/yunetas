@@ -19,6 +19,60 @@
 extern "C"{
 #endif
 
+/*
+
+
+           FLAG_IN_RING              RESPONSE
+                ▲                       │
+                │                       ▼
+                ┌───────────────────────┐
+                │                       │
+                │                       │
+    ────────────┘                       └────────────
+                ▲                       │
+                │                       ▼
+              start                  reset FLAG_IN_RING
+                                        │
+                                        ▼
+                                   publish EV_???
+
+
+   States:
+                │                       │
+   ───STOPPED───RUNNING─────────────────STOPPED──
+
+
+
+
+
+           FLAG_IN_RING    -1     FLAG_CANCELING  -1    -1       CANCELED
+                ▲           ▲           ▲          ▲     ▲          │
+                │           │           │          │     │          ▼
+                ┌───────────┼───────────┼==========┼=====┼==========┐
+                │                                                   │
+                │                                                   │
+    ────────────┘                                                   └────────────
+                ▲           ▲           ▲          ▲     ▲          │
+                │           │           │          │     │          │
+              start       start       stop       stop  start        ▼
+                                                                 reset FLAG_IN_RING
+                                                                 reset FLAG_CANCELING
+                                                                    │
+                                                                    ▼
+                                                             publish EV_STOPPED
+
+   States:
+                │                       │                           │
+   ───STOPPED───RUNNING─────────────────WAIT_STOPPED────────────────STOPPED──
+
+
+    States:     YEV_ST_STOPPED
+                YEV_ST_RUNNING,         // IN_RING (active, not cancelling)
+                YEV_ST_WAIT_STOPPED,    // IN_RING CANCELING
+
+ */
+
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -41,6 +95,12 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_CONNECTED          = 0x20,     // user
     YEV_FLAG_WANT_TX_READY      = 0x40,     // user
 } yev_flag_t;
+
+typedef enum  {
+    YEV_ST_STOPPED = 0,
+    YEV_ST_RUNNING,         // IN_RING (active, not cancelling)
+    YEV_ST_WAIT_STOPPED,    // IN_RING CANCELING
+} yev_state_t;
 
 /***************************************************************
  *              Structures
@@ -126,23 +186,16 @@ static inline void yev_set_flag(
     }
 }
 
-static inline BOOL yev_event_in_ring(
-    yev_event_t *yev_event
-){
+static inline yev_state_t yev_get_state(yev_event_t *yev_event)
+{
     if(yev_event->flag & YEV_FLAG_IN_RING) {
-        return TRUE;
+        if(yev_event->flag & YEV_FLAG_CANCELING) {
+            return YEV_ST_WAIT_STOPPED;     // IN_RING CANCELING
+        } else {
+            return YEV_ST_RUNNING;          // IN_RING (active, not cancelling)
+        }
     } else {
-        return FALSE;
-    }
-}
-
-static inline BOOL yev_event_cancelling(
-    yev_event_t *yev_event
-){
-    if(yev_event->flag & YEV_FLAG_CANCELING) {
-        return TRUE;
-    } else {
-        return FALSE;
+        return YEV_ST_STOPPED;
     }
 }
 
