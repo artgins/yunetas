@@ -1066,18 +1066,12 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
      *---------------------------*/
     yev_loop_t *yev_loop = yev_event->yev_loop;
     yev_state_t yev_state = yev_get_state(yev_event);
-    int x; // TODO check
-    if(yev_loop->stopping) {
-        if(yev_state == YEV_ST_RUNNING) {
-            yev_event->callback = NULL;
-            yev_stop_event(yev_event);
-        }
-    } else {
+    if(yev_state == YEV_ST_RUNNING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event LOOP STOPPING",
+            "msg",          "%s", "Destroying a running event, stop it",
             "type",         "%s", yev_event_type_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
@@ -1086,6 +1080,12 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             NULL
         );
         json_decref(jn_flags);
+
+        if(yev_loop->stopping) {
+            // Don't call callback if stopping loop
+            yev_event->callback = NULL;
+        }
+        yev_stop_event(yev_event);
     }
 
     if(yev_event->gbuf) {

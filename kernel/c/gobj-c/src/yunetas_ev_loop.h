@@ -21,7 +21,7 @@ extern "C"{
 
 /*
 
-
+                                    Callback:
            FLAG_IN_RING              RESPONSE
                 ▲                       │
                 │                       ▼
@@ -44,7 +44,7 @@ extern "C"{
 
 
 
-
+                                                                Callback:
            FLAG_IN_RING    -1     FLAG_CANCELING  -1    -1       CANCELED
                 ▲           ▲           ▲          ▲     ▲          │
                 │           │           │          │     │          ▼

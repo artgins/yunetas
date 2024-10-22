@@ -99,7 +99,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(yev_event_in_ring(priv->yev_event)) {
+    if(yev_get_state(priv->yev_event)==YEV_ST_RUNNING) {
         yev_stop_event(priv->yev_event);
     }
     return 0;
@@ -424,13 +424,13 @@ PUBLIC void clear_timeout(hgobj gobj)
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
             "msec",         "%ld", (long)priv->msec,
-            "exec stop ev", "%s", yev_event_in_ring(priv->yev_event)? "Yes":"No",
+            "state",        "%d", yev_get_state(priv->yev_event),
             NULL
         );
         json_decref(jn_flags);
     }
 
-    if(yev_event_in_ring(priv->yev_event)) {
+    if(yev_get_state(priv->yev_event)==YEV_ST_RUNNING) {
         yev_stop_event(priv->yev_event);
     }
 }

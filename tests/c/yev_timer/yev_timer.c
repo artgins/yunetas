@@ -118,9 +118,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         }
         if(times_once > 5) {
             printf("got timer-periodic, STOP timer ONCE\n");
-            if(yev_event_in_ring(yev_event_once)) {
-                yev_stop_event(yev_event_once);
-            }
+//            if(yev_event_in_ring(yev_event_once)) {
+//                yev_stop_event(yev_event_once);
+//            }
         }
     } else {
         times_once++;
