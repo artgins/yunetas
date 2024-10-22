@@ -53,9 +53,10 @@ int do_test(void)
     yev_loop_run(yev_loop);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
+    yev_stop_event(yev_event_periodic);
+    yev_destroy_event(yev_event_periodic);
     yev_loop_run_once(yev_loop);
 
-    yev_destroy_event(yev_event_periodic);
     yev_loop_destroy(yev_loop);
 
     return 0;
@@ -67,48 +68,34 @@ int do_test(void)
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    if(yev_event->result < 0) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", strerror(-yev_event->result),
-            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
-            NULL
-        );
-        json_decref(jn_flags);
+    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+    gobj_log_warning(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", strerror(-yev_event->result),
+        "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+        "type",         "%s", yev_event_type_name(yev_event),
+        "fd",           "%d", yev_event->fd,
+        "result",       "%d", yev_event->result,
+        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+        "p",            "%p", yev_event,
+        "flag",         "%j", jn_flags,
+        "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
+        NULL
+    );
+    json_decref(jn_flags);
 
-        // cancel timer-once and stop loop, next cancels ignored
-        if(yev_loop->running) {
-            if(!(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) && yev_event->result == -ECANCELED) {
-                yev_stop_event(yev_event_periodic);
-                yev_loop_stop(yev_loop);
-            }
-        }
+    if(yev_get_state(yev_event_periodic) == YEV_ST_STOPPED) {
+        yev_loop_stop(yev_loop);
         return 0;
     }
 
-    if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
-        times_periodic++;
-        if(times_periodic == 3) {
-            gobj_trace_msg(0, "stop timer with yev_stop_event");
-            yev_stop_event(yev_event_periodic);
-        }
-    } else {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event NOT PERIODIC",
-            NULL
-        );
+    times_periodic++;
+    if(times_periodic == 3) {
+        gobj_trace_msg(0, "stop timer with yev_stop_event");
+        yev_stop_event(yev_event_periodic);
     }
+
     return 0;
 }
 
