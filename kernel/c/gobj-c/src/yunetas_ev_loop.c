@@ -36,8 +36,6 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  *              Data
  ***************************************************************/
 PRIVATE const char *yev_flag_s[] = {
-    "YEV_FLAG_IN_RING",
-    "YEV_FLAG_CANCELING",
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_SSL",
     "YEV_FLAG_IS_TCP",
@@ -236,10 +234,42 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
         yev_loop->running = FALSE;
-        yev_loop->yuno = 0;
+        // yev_loop->yuno = 0; lo quito
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  Return previous state
+ ***************************************************************************/
+PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
+{
+    yev_state_t prev_state = yev_event->state;
+    yev_event->state = new_state;
+    return prev_state;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char * yev_get_state_name(yev_event_t *yev_event)
+{
+    if (yev_event->state == YEV_ST_IDLE) {
+        return "ST_IDLE";
+
+    } else if (yev_event->state == YEV_ST_RUNNING) {
+        return "ST_RUNNING";
+
+    } else if (yev_event->state == YEV_ST_CANCELING) {
+        return "ST_CANCELING";
+
+    } else if(yev_event->state == YEV_ST_STOPPED) {
+        return "ST_STOPPED";
+
+    } else {
+        return "???";
+    }
 }
 
 /***************************************************************************
@@ -247,6 +277,9 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
  ***************************************************************************/
 PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
+    /*------------------------*
+     *  Check parameters
+     *------------------------*/
     yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
     if(!yev_event) {
         // HACK CQE event without data is loop ending
@@ -256,6 +289,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
     hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
+    /*------------------------*
+     *      Trace
+     *------------------------*/
     if(gobj_trace_level(gobj) & TRACE_UV) {
         do {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -265,6 +301,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "process_cqe",
                 "msg2",         "%s", "💥💥💥💥⏪ process_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
                 "loop_stopping","%d", yev_loop->stopping?1:0,
                 "p",            "%p", yev_event,
@@ -278,10 +315,72 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         } while(0);
     }
 
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, FALSE);
-    if(cqe->res == -ECANCELED) {
-        yev_set_flag(yev_event, YEV_FLAG_CANCELING, FALSE);
-        // TODO publish EV_STOPPED
+    /*------------------------*
+     *      Set state
+     *------------------------*/
+    yev_state_t cur_state = yev_get_state(yev_event);
+    switch(cur_state) {
+        case YEV_ST_RUNNING:
+            if(cqe->res < 0) {
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else {
+                yev_set_state(yev_event, YEV_ST_IDLE);
+            }
+            break;
+        case YEV_ST_CANCELING:
+            yev_set_state(yev_event, YEV_ST_STOPPED);
+            if(cqe->res != -ECANCELED) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "Wrong STATE",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
+            }
+            break;
+        case YEV_ST_IDLE:
+        case YEV_ST_STOPPED:
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "Wrong STATE",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
+                "p",            "%p", yev_event,
+                NULL
+            );
+    }
+
+    if(cur_state != yev_get_state(yev_event)) {
+        // State has changed
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            do {
+                json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                gobj_log_debug(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "process_cqe",
+                    "msg2",         "%s", "💥💥💥💥⏪ process_cqe NEW STATE",
+                    "type",         "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "loop_running", "%d", yev_loop->running?1:0,
+                    "loop_stopping","%d", yev_loop->stopping?1:0,
+                    "p",            "%p", yev_event,
+                    "fd",           "%d", yev_event->fd,
+                    "flag",         "%j", jn_flags,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
+                json_decref(jn_flags);
+            } while(0);
+        }
     }
 
     switch((yev_type_t)yev_event->type) {
@@ -295,6 +394,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                      *
                      *      Repeated forever
                      */
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
                 if(cqe->res > 0 && yev_event->gbuf) {
@@ -316,7 +416,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_WRITE_TYPE:
             {
-                if(cqe->res <= 0) {
+                if(cqe->res == 0) {
+                    cqe->res = -EPIPE; // force EPIPE, close by peer
                     /*
                      *  Behavior seen in YEV_WRITE_TYPE type when socket has broken:
                      *
@@ -366,7 +467,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(ret == 0 && yev_loop->running && cqe->res > 0) {
+                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE) {
                     if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
                          *  Rearm accept event
@@ -382,7 +483,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             0
                         );
                         io_uring_submit(&yev_loop->ring);
-                        yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
                     }
                 }
             }
@@ -421,7 +522,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 
-                if(ret == 0 && yev_loop->running && cqe->res > 0 && (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
+                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE &&
+                        (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
                     if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
                          *  Rearm periodic timer event
@@ -436,7 +538,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             0
                         );
                         io_uring_submit(&yev_loop->ring);
-                        yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
                     }
                 }
             }
@@ -520,6 +622,7 @@ PUBLIC int yev_start_event(
                 "msg",          "%s", "yev_start_event",
                 "msg2",         "%s", "💥💥⏩ yev_start_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", yev_event->gbuf,
@@ -555,11 +658,11 @@ PUBLIC int yev_start_event(
      *      Check state
      *---------------------------*/
     yev_state_t yev_state = yev_get_state(yev_event);
-    if(yev_state != YEV_ST_STOPPED) {
+    if(!(yev_state == YEV_ST_IDLE || yev_state == YEV_ST_STOPPED)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         const char *msg = (yev_state==YEV_ST_RUNNING)?
-            "cannot start: is RUNNING":
-            "cannot start: is WAIT_STOPPED";
+            "cannot start timer: is RUNNING":
+            "cannot start timer: is CANCELING";
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -592,7 +695,7 @@ PUBLIC int yev_start_event(
                         NULL
                     );
                     return -1;
-                };
+                }
                 if(!yev_event->gbuf) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -603,7 +706,7 @@ PUBLIC int yev_start_event(
                         NULL
                     );
                     return -1;
-                };
+                }
                 if(gbuffer_freebytes(yev_event->gbuf)==0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -627,7 +730,7 @@ PUBLIC int yev_start_event(
                     0
                 );
                 io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_WRITE_TYPE:
@@ -653,7 +756,7 @@ PUBLIC int yev_start_event(
                         NULL
                     );
                     return -1;
-                };
+                }
                 if(gbuffer_leftbytes(yev_event->gbuf)==0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -677,7 +780,7 @@ PUBLIC int yev_start_event(
                     0
                 );
                 io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_CONNECT_TYPE:
@@ -707,7 +810,7 @@ PUBLIC int yev_start_event(
                     yev_event->dst_addrlen
                 );
                 io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_ACCEPT_TYPE:
@@ -749,7 +852,7 @@ PUBLIC int yev_start_event(
                     );
                 }
                 io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_TIMER_TYPE:
@@ -817,6 +920,7 @@ PUBLIC int yev_start_timer_event(
                 "msg",          "%s", "yev_start_timer_event",
                 "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "timeout_ms",   "%d", (int)timeout_ms,
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
@@ -851,11 +955,11 @@ PUBLIC int yev_start_timer_event(
      *      Check state
      *---------------------------*/
     yev_state_t yev_state = yev_get_state(yev_event);
-    if(yev_state != YEV_ST_STOPPED) {
+    if(!(yev_state == YEV_ST_IDLE || yev_state == YEV_ST_STOPPED)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         const char *msg = (yev_state==YEV_ST_RUNNING)?
             "cannot start timer: is RUNNING":
-            "cannot start timer: is STOPPING";
+            "cannot start timer: is CANCELING";
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -895,7 +999,7 @@ PUBLIC int yev_start_timer_event(
     io_uring_sqe_set_data(sqe, (char *)yev_event);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_event->yev_loop->ring);
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
+    yev_set_state(yev_event, YEV_ST_RUNNING);
 
     return 0;
 }
@@ -935,6 +1039,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                                         "💥🟥⏰⏰ yev_stop_event":
                                         "💥🟥 yev_stop_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", yev_event->gbuf,
@@ -951,8 +1056,8 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     yev_state_t yev_state = yev_get_state(yev_event);
     if(yev_state != YEV_ST_RUNNING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        const char *msg = (yev_state==YEV_ST_WAIT_STOPPED)?
-            "cannot stop: is WAIT_STOPPED":
+        const char *msg = (yev_state==YEV_ST_CANCELING)?
+            "cannot stop: is CANCELING":
             "cannot stop: is STOPPED";
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -993,8 +1098,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     io_uring_sqe_set_data(sqe, yev_event);
     io_uring_prep_cancel(sqe, yev_event, 0);
     io_uring_submit(&yev_event->yev_loop->ring);
-    yev_set_flag(yev_event, YEV_FLAG_IN_RING, TRUE);
-    yev_set_flag(yev_event, YEV_FLAG_CANCELING, TRUE);
+    yev_set_state(yev_event, YEV_ST_CANCELING);
 
     if(gobj_trace_level(0) & TRACE_UV) {
         do {
@@ -1007,6 +1111,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                                         "💥🟥🟥⏰⏰ Stopping (Cancel) event":
                                         "💥🟥🟥 Stopping (Cancel) event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", yev_event->gbuf,
@@ -1050,6 +1155,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
                 "msg",          "%s", "yev_destroy_event",
                 "msg2",         "%s", "💥🟥🟥 yev_destroy_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", yev_event->gbuf,
@@ -1179,6 +1285,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
                 "msg",          "%s", "yev_create_timer_event",
                 "msg2",         "%s", "💥🟦 ⏰⏰ yev_create_timer_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
@@ -1216,6 +1323,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
                 "msg",          "%s", "yev_create_connect_event",
                 "msg2",         "%s", "💥🟦 yev_create_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
@@ -1499,6 +1607,7 @@ PUBLIC int yev_setup_connect_event(
                 "msg",          "%s", "yev_setup_connect_event",
                 "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
@@ -1536,6 +1645,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
                 "msg",          "%s", "yev_create_accept_event",
                 "msg2",         "%s", "💥🟦 yev_create_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", yev_event->fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
@@ -1791,6 +1901,7 @@ PUBLIC int yev_setup_accept_event(
                 "msg",          "%s", "yev_setup_accept_event",
                 "msg2",         "%s", "💥🟦🟦 yev_setup_accept_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
                 "flag",         "%j", jn_flags,
@@ -1831,6 +1942,7 @@ PUBLIC yev_event_t *yev_create_read_event(
                 "msg",          "%s", "yev_create_read_event",
                 "msg2",         "%s", "💥🟦 yev_create_read_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", gbuf,
@@ -1872,6 +1984,7 @@ PUBLIC yev_event_t *yev_create_write_event(
                 "msg",          "%s", "yev_create_write_event",
                 "msg2",         "%s", "💥🟦 yev_create_write_event",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "fd",           "%d", fd,
                 "p",            "%p", yev_event,
                 "gbuffer",      "%p", gbuf,

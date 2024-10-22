@@ -68,7 +68,7 @@ extern "C"{
 
     States:     YEV_ST_STOPPED
                 YEV_ST_RUNNING,         // IN_RING (active, not cancelling)
-                YEV_ST_WAIT_STOPPED,    // IN_RING CANCELING
+                YEV_ST_CANCELING,    // IN_RING CANCELING
 
  */
 
@@ -87,19 +87,18 @@ typedef enum  {
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
-    YEV_FLAG_IN_RING            = 0x01,
-    YEV_FLAG_CANCELING          = 0x02,
-    YEV_FLAG_TIMER_PERIODIC     = 0x04,
-    YEV_FLAG_USE_SSL            = 0x08,
-    YEV_FLAG_IS_TCP             = 0x10,
-    YEV_FLAG_CONNECTED          = 0x20,     // user
-    YEV_FLAG_WANT_TX_READY      = 0x40,     // user
+    YEV_FLAG_TIMER_PERIODIC     = 0x01,
+    YEV_FLAG_USE_SSL            = 0x02,
+    YEV_FLAG_IS_TCP             = 0x04,
+    YEV_FLAG_CONNECTED          = 0x08,     // user
+    YEV_FLAG_WANT_TX_READY      = 0x10,     // user
 } yev_flag_t;
 
 typedef enum  {
-    YEV_ST_STOPPED = 0,
+    YEV_ST_IDLE = 0,
     YEV_ST_RUNNING,         // IN_RING (active, not cancelling)
-    YEV_ST_WAIT_STOPPED,    // IN_RING CANCELING
+    YEV_ST_CANCELING,       // IN_RING CANCELING
+    YEV_ST_STOPPED,
 } yev_state_t;
 
 /***************************************************************
@@ -116,6 +115,7 @@ struct yev_event_s {
     yev_loop_t *yev_loop;
     uint8_t type;           // yev_type_t
     uint8_t flag;           // yev_flag_t
+    uint8_t state;          // yev_state_t
     int fd;
     uint64_t timer_bf;
     gbuffer_t *gbuf;
@@ -188,15 +188,7 @@ static inline void yev_set_flag(
 
 static inline yev_state_t yev_get_state(yev_event_t *yev_event)
 {
-    if(yev_event->flag & YEV_FLAG_IN_RING) {
-        if(yev_event->flag & YEV_FLAG_CANCELING) {
-            return YEV_ST_WAIT_STOPPED;     // IN_RING CANCELING
-        } else {
-            return YEV_ST_RUNNING;          // IN_RING (active, not cancelling)
-        }
-    } else {
-        return YEV_ST_STOPPED;
-    }
+    return yev_event->state;
 }
 
 PUBLIC int yev_start_event(
