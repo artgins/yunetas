@@ -28,17 +28,17 @@ extern "C"{
                 ┌───────────────────────┐
                 │                       │
                 │                       │
-    ────────────┘                       └────────────
-                ▲                       │
-                │                       ▼
-              start                  reset FLAG_IN_RING
-                                        │
-                                        ▼
-                                   publish EV_???
+    ────────────┘                       └───────────────────────┼────
+                ▲                       │                       ▲
+                │                       ▼                       │
+              start                  reset FLAG_IN_RING        stop
+                                        │                       │
+                                        ▼                       ▼
+                                   publish EV_???11          publish EV_STOPPED
 
    States:
                 │                       │
-   ───IDLE──────┼─RUNNING───────────────┴─IDLE──
+   ───IDLE──────┼─RUNNING───────────────┴─IDLE────────────────────────────
    ───STOPPED───┘
 
 
@@ -49,11 +49,11 @@ extern "C"{
                 │           │           │          │     │          ▼
                 ┌───────────┼───────────┼==========┼=====┼==========┐
                 │                                                   │
-                │                                                   │
-    ────────────┘                                                   └────────────
-                ▲           ▲           ▲          ▲     ▲          │
-                │           │           │          │     │          │
-              start       start       stop       stop  start        ▼
+                │                                                   │                   -1
+    ────────────┘                                                   └───────────────────┼────
+                ▲           ▲           ▲          ▲     ▲          │                   ▲
+                │           │           │          │     │          │                   │
+              start       start       stop       stop  start        ▼                  stop
                                                                  reset FLAG_IN_RING
                                                                  reset FLAG_CANCELING
                                                                     │
@@ -190,6 +190,8 @@ static inline yev_state_t yev_get_state(yev_event_t *yev_event)
 {
     return yev_event->state;
 }
+
+PUBLIC const char *yev_get_state_name(yev_event_t *yev_event);
 
 PUBLIC int yev_start_event(
     yev_event_t *yev_event

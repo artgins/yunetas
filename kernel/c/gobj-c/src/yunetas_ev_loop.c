@@ -253,7 +253,7 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char * yev_get_state_name(yev_event_t *yev_event)
+PUBLIC const char * yev_get_state_name(yev_event_t *yev_event)
 {
     if (yev_event->state == YEV_ST_IDLE) {
         return "ST_IDLE";
@@ -938,6 +938,12 @@ PUBLIC int yev_start_timer_event(
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
 
+    if(periodic) {
+        yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
+    } else {
+        yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
+    }
+
     if(timeout_ms <= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1018,12 +1024,6 @@ PUBLIC int yev_start_timer_event(
         return -1;
     }
 
-    if(periodic) {
-        yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
-    } else {
-        yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
-    }
-
     struct timeval timeout = {
         .tv_sec  = timeout_ms / 1000,
         .tv_usec = (timeout_ms % 1000) * 1000,
@@ -1093,7 +1093,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     }
 
     /*---------------------------*
-     *      Check state
+     *      Free
      *---------------------------*/
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
@@ -1159,12 +1159,10 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                     NULL
                 );
                 json_decref(jn_flags);
-                return -1;
             }
-            break;
+            return -1;
 
         case YEV_ST_IDLE:
-        case YEV_ST_STOPPED:
             yev_set_state(yev_event, YEV_ST_STOPPED);
             if (yev_event->callback) {
                 yev_event->callback(
@@ -1172,6 +1170,9 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 );
             }
             break;
+
+        case YEV_ST_STOPPED:
+            return -1;
     }
     return 0;
 }

@@ -33,6 +33,8 @@ int result = 0;
  ***************************************************************************/
 int do_test(void)
 {
+    int result = 0;
+
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/
@@ -53,13 +55,16 @@ int do_test(void)
     yev_loop_run(yev_loop);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
-    yev_stop_event(yev_event_periodic);
-    yev_destroy_event(yev_event_periodic);
+    if(yev_stop_event(yev_event_periodic) != -1) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
+        result += -1;
+    }
     yev_loop_run_once(yev_loop);
+    yev_destroy_event(yev_event_periodic);
 
     yev_loop_destroy(yev_loop);
 
-    return 0;
+    return result;
 }
 
 /***************************************************************************
@@ -68,11 +73,25 @@ int do_test(void)
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    yev_state_t yev_state = yev_get_state(yev_event_periodic);
+
+    char msg[80];
+    if(yev_event->result<0) {
+        snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
+    } else {
+        if(yev_state == YEV_ST_IDLE) {
+            snprintf(msg, sizeof(msg), "timeout got %d", times_periodic);
+        } else if(yev_state == YEV_ST_STOPPED) {
+            snprintf(msg, sizeof(msg), "timeout stopped");
+        } else {
+            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
+        }
+    }
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", strerror(-yev_event->result),
+        "msg",          "%s", msg,
         "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
         "type",         "%s", yev_event_type_name(yev_event),
         "fd",           "%d", yev_event->fd,
@@ -171,8 +190,11 @@ int main(int argc, char *argv[])
     const char *test = "yev_timer_periodic";
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}]",  // error_list
-            "msg", "addrinfo on listen"
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+            "msg", "timeout got 0",
+            "msg", "timeout got 1",
+            "msg", "timeout got 2",
+            "msg", "timeout stopped"
         ),
         NULL,  // expected
         NULL,   // ignore_keys
