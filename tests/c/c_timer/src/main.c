@@ -165,6 +165,12 @@ int main(int argc, char *argv[])
      *  Captura salida logger
      *------------------------------*/
     glog_init();
+
+    /*
+     *  Add all handlers very early
+     */
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+
     gobj_log_register_handler(
         "testing",          // handler_name
         0,                  // close_fn
@@ -173,10 +179,6 @@ int main(int argc, char *argv[])
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
-    /*
-     *  Add all handler very early
-     */
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss

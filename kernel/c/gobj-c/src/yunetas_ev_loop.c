@@ -740,6 +740,7 @@ PUBLIC int yev_start_event(
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "yev_event LOOP STOPPING",
             "type",         "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -765,6 +766,7 @@ PUBLIC int yev_start_event(
             "msg",          "%s", msg,
             "state",        "%s", yev_get_state_name(yev_event),
             "type",         "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -787,6 +789,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -798,6 +801,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -809,6 +813,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
@@ -837,6 +842,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -848,6 +854,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -859,6 +866,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
@@ -887,6 +895,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: connect addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -917,6 +926,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: accept addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -957,6 +967,7 @@ PUBLIC int yev_start_event(
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Cannot start event: use yev_start_timer_event() to start timer event",
                 "event_type",   "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
                 NULL
             );

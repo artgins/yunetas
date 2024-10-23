@@ -204,9 +204,9 @@ PUBLIC int yev_start_timer_event(
 
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 
-static inline BOOL yev_event_is_stopped(yev_event_t *yev_event)
+static inline BOOL yev_event_is_stoppable(yev_event_t *yev_event)
 {
-    return (yev_event->state==YEV_ST_STOPPED)?TRUE:FALSE;
+    return (yev_event->state!=YEV_ST_STOPPED && yev_event->state!=YEV_ST_CANCELING)?TRUE:FALSE;
 }
 
 /*
