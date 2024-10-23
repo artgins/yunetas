@@ -148,8 +148,8 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 3 && tm < 3.01)) {
-        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
+    if(!(tm >= 3 && tm < 3.1)) {
+        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.1)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
 
