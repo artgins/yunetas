@@ -234,7 +234,6 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
         yev_loop->running = FALSE;
-        // yev_loop->yuno = 0; lo quito
     }
 
     return 0;
@@ -331,26 +330,38 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *      first receives cqe->res 0
              *      after receives ECANCELED
              */
-            if(cqe->res == -ECANCELED || cqe->res == 0) {
+            if(yev_loop->stopping) {
+                /*
+                 *  Stopping the loop, don't check
+                 */
                 yev_set_state(yev_event, YEV_ST_STOPPED);
-            } else if(cqe->res < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "Waiting ECANCELED and receive another error",
-                    "event_type",   "%s", yev_event_type_name(yev_event),
-                    "state",        "%s", yev_get_state_name(yev_event),
-                    "p",            "%p", yev_event,
-                    "cqe->res",     "%d", (int)cqe->res,
-                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                    NULL
-                );
-                yev_set_state(yev_event, YEV_ST_STOPPED);
+
             } else {
                 /*
-                 *  This is still a valid event, wait for another one with an error
+                 *  Not stopping the loop, check more
                  */
+                if(cqe->res == -ECANCELED || cqe->res == 0) {
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                } else if(cqe->res < 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Waiting ECANCELED and receive another error",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        "cqe->res",     "%d", (int)cqe->res,
+                        "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                        NULL
+                    );
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                } else {
+                    /*
+                     *  This is still a valid event, wait for another one with an error
+                     */
+                }
             }
+
             break;
 
         case YEV_ST_STOPPED:
@@ -371,17 +382,11 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     json_decref(jn_flags);
                 }
 
+            } else if(yev_loop->running) {
                 /*
-                 *  Don't call callback again
-                 *  if the state is STOPPED the callback was already done
-                 *  It'd normally receive first cqe->res = 0 and later cqe->res = -ECANCELED
+                 *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
+                 *  and it can receive cqe->res = -2 (No such file or directory)
                  */
-
-                /* Mark this request as processed */
-                io_uring_cqe_seen(&yev_loop->ring, cqe);
-                return cqe->res;
-
-            } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -394,7 +399,15 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     NULL
                 );
             }
-            break;
+            /*
+             *  Don't call callback again
+             *  if the state is STOPPED the callback was already done,
+             *  It'd normally receive first cqe->res = 0 and later cqe->res = -ECANCELED
+             */
+
+            /* Mark this request as processed */
+            io_uring_cqe_seen(&yev_loop->ring, cqe);
+            return cqe->res;
 
         case YEV_ST_IDLE:
         default:

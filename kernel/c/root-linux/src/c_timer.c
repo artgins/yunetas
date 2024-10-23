@@ -156,41 +156,17 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
             "msec",         "%ld", (long)priv->msec,
-            "publish",      "%s", (yev_event->result > 0)? "Yes":"No",
+            "publish",      "%s", yev_event_is_stopped(yev_event)? "No":"Yes",
             NULL
         );
         json_decref(jn_flags);
     }
 
-    if(yev_event->result > 0) {
+    if(!yev_event_is_stopped(yev_event)) {
         if(priv->periodic) {
             gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
         } else {
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
-        }
-    } else {
-        if(yev_event->result ==0 ||
-                yev_event->result == -ECANCELED ||
-                (yev_event->result == -ENOENT && !yev_event->yev_loop->running)
-        ) {
-            // Cases seen as valid
-        } else {
-            json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "timer FAILED",
-                "type",         "%s", yev_event_type_name(yev_event),
-                "fd",           "%d", yev_event->fd,
-                "errno",        "%d", -yev_event->result,
-                "strerror",     "%s", strerror(-yev_event->result),
-                "p",            "%p", yev_event,
-                "flag",         "%j", jn_flags,
-                "periodic",     "%d", priv->periodic?1:0,
-                "msec",         "%ld", (long)priv->msec,
-                NULL
-            );
-            json_decref(jn_flags);
         }
     }
 
