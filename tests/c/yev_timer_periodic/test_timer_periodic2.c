@@ -1,7 +1,7 @@
 /****************************************************************************
- *          test_timer_periodic.c
+ *          test_timer_periodic2.c
  *
- *          Create a periodic time, and at the 3 callback stop event
+ *          Create a periodic time of 1 second, and at the 3 second callback then stop timer
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.

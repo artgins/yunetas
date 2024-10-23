@@ -202,11 +202,11 @@ PUBLIC int yev_start_timer_event(
     BOOL periodic
 );
 
-/*
- *  In `connects` and `accepts` events, the socket will be closed.
- */
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 
+/*
+ *  In `connect`, `timer` and `accept` events, the socket will be closed.
+ */
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
 PUBLIC yev_event_t *yev_create_timer_event(

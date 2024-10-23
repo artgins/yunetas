@@ -1,6 +1,8 @@
 /****************************************************************************
  *          test_timer_periodic1.c
  *
+ *          Create a periodic time of 10 seconds
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -28,6 +30,57 @@ int times_periodic = 0;
 int result = 0;
 
 /***************************************************************************
+ *  Callback that will be executed when the timer period lapses.
+ *  Posts the timer expiry event to the default event loop.
+ ***************************************************************************/
+PRIVATE int yev_callback(yev_event_t *yev_event)
+{
+    yev_state_t yev_state = yev_get_state(yev_event_periodic);
+
+    char msg[80];
+    if(yev_event->result<0) {
+        snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
+    } else {
+        if(yev_state == YEV_ST_IDLE) {
+            snprintf(msg, sizeof(msg), "timeout got %d", times_periodic);
+        } else if(yev_state == YEV_ST_STOPPED) {
+            snprintf(msg, sizeof(msg), "timeout stopped");
+        } else {
+            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
+        }
+    }
+    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+    gobj_log_warning(0, 0,
+                     "function",     "%s", __FUNCTION__,
+                     "msgset",       "%s", MSGSET_YEV_LOOP,
+                     "msg",          "%s", msg,
+                     "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+                     "type",         "%s", yev_event_type_name(yev_event),
+                     "fd",           "%d", yev_event->fd,
+                     "result",       "%d", yev_event->result,
+                     "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+                     "p",            "%p", yev_event,
+                     "flag",         "%j", jn_flags,
+                     "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
+                     NULL
+    );
+    json_decref(jn_flags);
+
+    if(yev_get_state(yev_event_periodic) == YEV_ST_STOPPED) {
+        yev_loop_stop(yev_loop);
+        return 0;
+    }
+
+    times_periodic++;
+    if(times_periodic == 3) {
+        gobj_trace_msg(0, "stop timer with yev_stop_event");
+        yev_stop_event(yev_event_periodic);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *              Test
  ***************************************************************************/
 int do_test(void)
@@ -52,67 +105,16 @@ int do_test(void)
     yev_loop_run(yev_loop);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
+    if(yev_stop_event(yev_event_periodic) != -1) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
+        result += -1;
+    }
     yev_loop_run_once(yev_loop);
-
     yev_destroy_event(yev_event_periodic);
+
     yev_loop_destroy(yev_loop);
 
-    return 0;
-}
-
-/***************************************************************************
- *  Callback that will be executed when the timer period lapses.
- *  Posts the timer expiry event to the default event loop.
- ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
-{
-    if(yev_event->result < 0) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", strerror(-yev_event->result),
-            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
-            NULL
-        );
-        json_decref(jn_flags);
-
-        // cancel timer-once and stop loop, next cancels ignored
-        if(yev_loop->running) {
-            if(!(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) && yev_event->result == -ECANCELED) {
-                yev_stop_event(yev_event_periodic);
-                yev_loop_stop(yev_loop);
-            }
-        }
-        return 0;
-    }
-
-    if(yev_event->flag & YEV_FLAG_TIMER_PERIODIC) {
-        times_periodic++;
-        if(times_periodic == 2) {
-            gobj_trace_msg(0, "re-start time-periodic %d seconds, will provoke -11 error", 1);
-            yev_start_timer_event(yev_event_periodic, 1*1000, TRUE); // Will provoke EAGAIN error
-        }
-        if(times_periodic == 4) {
-            gobj_trace_msg(0, "stop timer returning -1 in callback");
-            return -1; // On return -1 the timer will be not rearmed
-        }
-    } else {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event NOT PERIODIC",
-            NULL
-        );
-    }
-    return 0;
+    return result;
 }
 
 /***************************************************************************
@@ -187,22 +189,37 @@ int main(int argc, char *argv[])
     const char *test = "yev_timer_periodic";
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}]",  // error_list
-            "msg", "addrinfo on listen"
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+                  "msg", "timeout got 0",
+                  "msg", "timeout got 1",
+                  "msg", "timeout got 2",
+                  "msg", "timeout stopped"
         ),
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
     );
 
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
     result += do_test();
 
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+
+    double tm = mt_get_time(&time_measure);
+    if(!(tm >= 3 && tm < 3.01)) {
+        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
+        result += -1;
+    }
     result += test_json(NULL, result);
 
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        print_track_mem();
         result += -1;
     }
 
