@@ -331,7 +331,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *      first receives cqe->res 0
              *      after receives ECANCELED
              */
-            if(!(cqe->res == -ECANCELED || cqe->res == 0)) {
+            if(cqe->res == -ECANCELED || cqe->res == 0) {
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else if(cqe->res < 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -343,8 +345,12 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                     NULL
                 );
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else {
+                /*
+                 *  This is still a valid event, wait for another one with an error
+                 */
             }
-            yev_set_state(yev_event, YEV_ST_STOPPED);
             break;
 
         case YEV_ST_STOPPED:
