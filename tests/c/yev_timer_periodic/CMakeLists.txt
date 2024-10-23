@@ -20,8 +20,8 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    yev_timer_periodic1.c
-    yev_timer_periodic2.c
+    test_timer_periodic1.c
+    test_timer_periodic2.c
 )
 
 ##############################################

@@ -21,7 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    yev_timer.c
+    test_timer1.c
 )
 SET (YUNO_HDRS
 )
