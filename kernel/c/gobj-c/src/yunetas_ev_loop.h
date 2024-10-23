@@ -36,11 +36,10 @@ extern "C"{
                                         ▼
                                    publish EV_???
 
-
    States:
                 │                       │
-   ───STOPPED───RUNNING─────────────────STOPPED──
-
+   ───IDLE──────┼─RUNNING───────────────┴─IDLE──
+   ───STOPPED───┘
 
 
 
@@ -63,7 +62,8 @@ extern "C"{
 
    States:
                 │                       │                           │
-   ───STOPPED───RUNNING─────────────────WAIT_STOPPED────────────────STOPPED──
+   ───IDLE──────┼─RUNNING───────────────┴─WAIT_STOPPED──────────────┴─STOPPED──
+───STOPPED──────┘
 
 
     States:     YEV_ST_STOPPED
