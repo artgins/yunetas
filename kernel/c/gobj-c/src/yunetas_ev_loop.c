@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <liburing.h>
+#include <unistd.h>
 #include <sys/timerfd.h>
 #include <netdb.h>
 #include <sys/socket.h>
