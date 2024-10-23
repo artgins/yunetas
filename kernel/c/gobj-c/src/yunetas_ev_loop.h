@@ -204,6 +204,11 @@ PUBLIC int yev_start_timer_event(
 
 PUBLIC int yev_stop_event(yev_event_t *yev_event);
 
+static inline BOOL yev_event_is_stopped(yev_event_t *yev_event)
+{
+    return (yev_event->state==YEV_ST_STOPPED)?TRUE:FALSE;
+}
+
 /*
  *  In `connect`, `timer` and `accept` events, the socket will be closed.
  */

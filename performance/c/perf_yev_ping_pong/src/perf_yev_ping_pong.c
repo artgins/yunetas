@@ -134,12 +134,25 @@ int do_test(void)
     /*--------------------------------*
      *      Stop
      *--------------------------------*/
-    yev_stop_event(yev_server_tx);
-    yev_stop_event(yev_server_rx);
-    yev_stop_event(yev_client_tx);
-    yev_stop_event(yev_client_rx);
-    yev_stop_event(yev_server_accept);
-    yev_stop_event(yev_client_connect);
+    if(!yev_event_is_stopped(yev_server_tx)) {
+        yev_stop_event(yev_server_tx);
+    }
+    if(!yev_event_is_stopped(yev_server_rx)) {
+        yev_stop_event(yev_server_rx);
+    }
+    if(!yev_event_is_stopped(yev_client_tx)) {
+        yev_stop_event(yev_client_tx);
+    }
+    if(!yev_event_is_stopped(yev_client_rx)) {
+        yev_stop_event(yev_client_rx);
+    }
+
+    if(!yev_event_is_stopped(yev_server_accept)) {
+        yev_stop_event(yev_server_accept);
+    }
+    if(!yev_event_is_stopped(yev_client_connect)) {
+        yev_stop_event(yev_client_connect);
+    }
 
     result += yev_loop_run_once(yev_loop);
 
@@ -552,7 +565,7 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+    //gobj_set_gobj_trace(0, "libuv", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers
