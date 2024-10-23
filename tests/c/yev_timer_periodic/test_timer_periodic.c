@@ -36,6 +36,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     yev_state_t yev_state = yev_get_state(yev_event_periodic);
 
+    times_periodic++;
+
     char msg[80];
     if(yev_event->result<0) {
         snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
@@ -70,7 +72,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return 0;
     }
 
-    times_periodic++;
     if(times_periodic == 3) {
         gobj_trace_msg(0, "stop timer with yev_stop_event");
         yev_stop_event(yev_event_periodic);
@@ -185,13 +186,13 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    const char *test = "yev_timer_periodic";
+    const char *test = "test_timer_periodic";
     set_expected_results( // Check that no logs happen
         test,   // test name
         json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-            "msg", "timeout got 0",
             "msg", "timeout got 1",
             "msg", "timeout got 2",
+            "msg", "timeout got 3",
             "msg", "timeout stopped",
             "msg", "yev_event already stopped"
         ),
@@ -210,7 +211,7 @@ int main(int argc, char *argv[])
 
     double tm = mt_get_time(&time_measure);
     if(!(tm >= 3 && tm < 3.02)) {
-        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
+        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.02)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
     result += test_json(NULL, result);
