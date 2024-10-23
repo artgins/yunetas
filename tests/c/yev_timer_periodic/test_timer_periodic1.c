@@ -34,7 +34,7 @@ int result = 0;
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    yev_state_t yev_state = yev_get_state(yev_event_periodic);
+    yev_state_t yev_state = yev_get_state(yev_event);
 
     times_periodic++;
 
@@ -57,6 +57,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         "msg",          "%s", msg,
         "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
         "type",         "%s", yev_event_type_name(yev_event),
+        "state",        "%s", yev_get_state_name(yev_event),
         "fd",           "%d", yev_event->fd,
         "result",       "%d", yev_event->result,
         "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
@@ -67,7 +68,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-    if(yev_get_state(yev_event_periodic) == YEV_ST_STOPPED) {
+    if(yev_get_state(yev_event) == YEV_ST_STOPPED) {
         yev_loop_stop(yev_loop);
         return 0;
     }

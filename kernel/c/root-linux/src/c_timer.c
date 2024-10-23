@@ -148,6 +148,7 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
             "msg",          "%s", "timeout got",
             "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
             "type",         "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",

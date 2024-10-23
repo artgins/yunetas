@@ -956,6 +956,18 @@ PUBLIC int yev_start_timer_event(
         return 0;
     }
 
+    struct timeval timeout = {
+        .tv_sec  = timeout_ms / 1000,
+        .tv_usec = (timeout_ms % 1000) * 1000,
+    };
+    struct itimerspec delta = {
+        .it_interval.tv_sec = periodic? timeout.tv_sec : 0,
+        .it_interval.tv_nsec = periodic? timeout.tv_usec*1000 : 0,
+        .it_value.tv_sec = timeout.tv_sec,
+        .it_value.tv_nsec = timeout.tv_usec * 1000,
+
+    };
+
     /*------------------------*
      *      Trace
      *------------------------*/
@@ -1003,40 +1015,36 @@ PUBLIC int yev_start_timer_event(
      *      Check state
      *---------------------------*/
     yev_state_t yev_state = yev_get_state(yev_event);
-    if(!(yev_state == YEV_ST_IDLE || yev_state == YEV_ST_STOPPED)) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        const char *msg = (yev_state==YEV_ST_RUNNING)?
-            "cannot start timer: is RUNNING":
-            "cannot start timer: is CANCELING";
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", msg,
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
-            NULL
-        );
-        json_decref(jn_flags);
-        return -1;
+    switch (yev_state) {
+        case YEV_ST_IDLE:
+        case YEV_ST_STOPPED:
+            break;
+
+        case YEV_ST_RUNNING:
+            timerfd_settime(yev_event->fd, 0, &delta, NULL);
+            return 0;
+
+        case YEV_ST_CANCELING:
+            {
+                json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "cannot start timer: is CANCELING",
+                    "type",         "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "fd",           "%d", yev_event->fd,
+                    "p",            "%p", yev_event,
+                    "flag",         "%j", jn_flags,
+                    "fd",           "%d", yev_event->fd,
+                    NULL
+                );
+                json_decref(jn_flags);
+            }
+            return -1;
     }
 
-    struct timeval timeout = {
-        .tv_sec  = timeout_ms / 1000,
-        .tv_usec = (timeout_ms % 1000) * 1000,
-    };
-    struct itimerspec delta = {
-        .it_interval.tv_sec = periodic? timeout.tv_sec : 0,
-        .it_interval.tv_nsec = periodic? timeout.tv_usec*1000 : 0,
-        .it_value.tv_sec = timeout.tv_sec,
-        .it_value.tv_nsec = timeout.tv_usec * 1000,
-
-    };
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
-
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
