@@ -21,6 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_timer_once1.c
+    test_timer_once2.c
 )
 
 ##############################################
