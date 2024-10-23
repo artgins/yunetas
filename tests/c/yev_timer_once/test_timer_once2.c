@@ -25,7 +25,8 @@ PUBLIC void yuno_catch_signals(void);
 yev_loop_t *yev_loop;
 yev_event_t *yev_event_once;
 yev_event_t *yev_event_periodic;
-int times_counter = 0;
+int times_counter_periodic = 0;
+int times_counter_once = 0;
 int result = 0;
 
 /***************************************************************************
@@ -36,18 +37,18 @@ PRIVATE int yev_callback_once(yev_event_t *yev_event)
 {
     yev_state_t yev_state = yev_get_state(yev_event);
 
-    times_counter++;
+    times_counter_once++;
 
     char msg[80];
     if(yev_event->result<0) {
         snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
     } else {
         if(yev_state == YEV_ST_IDLE) {
-            snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
+            snprintf(msg, sizeof(msg), "timeout once got %d", times_counter_once);
         } else if(yev_state == YEV_ST_STOPPED) {
-            snprintf(msg, sizeof(msg), "timeout stopped");
+            snprintf(msg, sizeof(msg), "timeout once stopped");
         } else {
-            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
+            snprintf(msg, sizeof(msg), "BAD state timer once %s", yev_get_state_name(yev_event));
         }
     }
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -55,7 +56,7 @@ PRIVATE int yev_callback_once(yev_event_t *yev_event)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", msg,
-        "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+        "msg2",         "%s", "⏰⏰ ✅✅ timeout once got",
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
         "fd",           "%d", yev_event->fd,
@@ -81,18 +82,18 @@ PRIVATE int yev_callback_periodic(yev_event_t *yev_event)
 {
     yev_state_t yev_state = yev_get_state(yev_event);
 
-    times_counter++;
+    times_counter_periodic++;
 
     char msg[80];
     if(yev_event->result<0) {
         snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
     } else {
         if(yev_state == YEV_ST_IDLE) {
-            snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
+            snprintf(msg, sizeof(msg), "timeout periodic got %d", times_counter_periodic);
         } else if(yev_state == YEV_ST_STOPPED) {
-            snprintf(msg, sizeof(msg), "timeout stopped");
+            snprintf(msg, sizeof(msg), "timeout periodic stopped");
         } else {
-            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
+            snprintf(msg, sizeof(msg), "BAD state timer periodic %s", yev_get_state_name(yev_event));
         }
     }
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -100,7 +101,7 @@ PRIVATE int yev_callback_periodic(yev_event_t *yev_event)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", msg,
-        "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+        "msg2",         "%s", "⏰⏰ ✅✅ timeout periodic got",
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
         "fd",           "%d", yev_event->fd,
@@ -113,15 +114,30 @@ PRIVATE int yev_callback_periodic(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-    if(times_counter == 1) {
-        gobj_trace_msg(0, "stop timer once");
+    if(times_counter_periodic == 1) {
+        gobj_trace_msg(0, "re-start timer once");
         yev_start_timer_event(yev_event_once, 1*1000, FALSE);
     }
 
-    if(times_counter == 5) {
+    if(times_counter_periodic < 3) {
+        if(yev_state != YEV_ST_IDLE) {
+            printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "state must be idle");
+            result += -1;
+        }
+    } else if(times_counter_periodic == 3) {
+        if(yev_state != YEV_ST_STOPPED) {
+            printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "state must be stopped");
+            result += -1;
+        }
+        /*
+         *  Here the two timers are stopped or idle, quit the loop
+         */
+        yev_loop_stop(yev_loop);
+
+    } else {
         gobj_trace_msg(0, "stop timer periodic");
         yev_stop_event(yev_event_periodic);
-        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "reached 5 times in periodic timer");
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "reached 4 times in periodic timer");
         result += -1;
     }
 
@@ -238,9 +254,11 @@ int main(int argc, char *argv[])
     const char *test = "test_timer2";
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}, {s:s}]",  // error_list
-            "msg", "timeout got 1",
-            "msg", "timeout stopped"
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+            "msg", "timeout periodic got 1",
+            "msg", "timeout periodic got 2",
+            "msg", "timeout once got 1",
+            "msg", "timeout periodic stopped"
         ),
         NULL,  // expected
         NULL,   // ignore_keys

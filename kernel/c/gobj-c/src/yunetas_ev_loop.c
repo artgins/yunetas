@@ -328,12 +328,60 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
         case YEV_ST_CANCELING:
-            yev_set_state(yev_event, YEV_ST_STOPPED);
-            if(cqe->res != -ECANCELED) {
+            /*
+             *  In the case of YEV_TIMER_TYPE, when canceling
+             *      first receives cqe->res 0
+             *      after receives ECANCELED
+             */
+            if(!(cqe->res == -ECANCELED || cqe->res == 0)) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "Wrong STATE",
+                    "msg",          "%s", "Waiting ECANCELED and receive another error",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
+            }
+            yev_set_state(yev_event, YEV_ST_STOPPED);
+            break;
+
+        case YEV_ST_STOPPED:
+            if(cqe->res == -ECANCELED) {
+                if(gobj_trace_level(gobj) & TRACE_UV) {
+                    json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                    gobj_log_debug(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "receive ECANCELED on stopped state",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        "cqe->res",     "%d", (int)cqe->res,
+                        "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                        NULL
+                    );
+                    json_decref(jn_flags);
+                }
+
+                /*
+                 *  Don't call callback again
+                 *  if the state is STOPPED the callback was already done
+                 *  It'd normally receive first cqe->res = 0 and later cqe->res = -ECANCELED
+                 */
+
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, cqe);
+                return cqe->res;
+
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "receive event UNKNOWN on stopped state",
                     "event_type",   "%s", yev_event_type_name(yev_event),
                     "state",        "%s", yev_get_state_name(yev_event),
                     "p",            "%p", yev_event,
@@ -343,13 +391,13 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 );
             }
             break;
+
         case YEV_ST_IDLE:
-        case YEV_ST_STOPPED:
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "Wrong STATE",
+                "msg",          "%s", "Wrong STATE receiving cqe",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
@@ -394,6 +442,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                      *
                      *      Repeated forever
                      */
+                }
+                if(cqe->res < 0) {
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
@@ -431,6 +481,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
                 }
 
+                if(cqe->res < 0) {
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                }
+
                 if(cqe->res > 0 && yev_event->gbuf) {
                     // Pop the read bytes used to write fd
                     gbuffer_get(yev_event->gbuf, cqe->res);
@@ -458,6 +512,10 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result);
                     }
+                }
+
+                if(cqe->res < 0) {
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
                 int ret = 0;
@@ -1129,27 +1187,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             io_uring_prep_cancel(sqe, yev_event, 0);
             io_uring_submit(&yev_event->yev_loop->ring);
             yev_set_state(yev_event, YEV_ST_CANCELING);
-
-            if(gobj_trace_level(0) & TRACE_UV) {
-                json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-                gobj_log_debug(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_YEV_LOOP,
-                    "msg",          "%s", "Stopping (Cancel) event",
-                    "msg2",         "%s", (yev_type_t)yev_event->type == YEV_TIMER_TYPE?
-                                            "💥🟥🟥⏰⏰ Stopping (Cancel) event":
-                                            "💥🟥🟥 Stopping (Cancel) event",
-                    "type",         "%s", yev_event_type_name(yev_event),
-                    "state",        "%s", yev_get_state_name(yev_event),
-                    "fd",           "%d", yev_event->fd,
-                    "p",            "%p", yev_event,
-                    "gbuffer",      "%p", yev_event->gbuf,
-                    "flag",         "%j", jn_flags,
-                    NULL
-                );
-                json_decref(jn_flags);
-            }
-            return 0;
+            break;
 
         case YEV_ST_CANCELING:
             {
