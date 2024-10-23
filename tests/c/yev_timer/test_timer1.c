@@ -1,14 +1,12 @@
 /****************************************************************************
- *          yev_timer.c
+ *          test_timer.c
  *
- *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
-#include <testing.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>

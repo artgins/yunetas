@@ -1,7 +1,6 @@
 /****************************************************************************
- *          yev_timer_periodic.c
+ *          test_timer_periodic1.c
  *
- *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/

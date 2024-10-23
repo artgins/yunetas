@@ -1,7 +1,8 @@
 /****************************************************************************
- *          yev_timer_periodic.c
+ *          test_timer_periodic.c
  *
- *          Copyright (c) 2023 Niyamaka.
+ *          Create a periodic time, and at the 3 callback stop event
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -27,45 +28,6 @@ yev_event_t *yev_event_periodic;
 int wait_time = 1;
 int times_periodic = 0;
 int result = 0;
-
-/***************************************************************************
- *              Test
- ***************************************************************************/
-int do_test(void)
-{
-    int result = 0;
-
-    /*--------------------------------*
-     *  Create the event loop
-     *--------------------------------*/
-    yev_loop_create(
-        0,
-        2024,
-        &yev_loop
-    );
-
-    /*--------------------------------*
-     *      Create timer
-     *--------------------------------*/
-    yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback, NULL);
-
-    gobj_trace_msg(0, "start time-periodic %d seconds", 1);
-    yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
-
-    yev_loop_run(yev_loop);
-    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
-
-    if(yev_stop_event(yev_event_periodic) != -1) {
-        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
-        result += -1;
-    }
-    yev_loop_run_once(yev_loop);
-    yev_destroy_event(yev_event_periodic);
-
-    yev_loop_destroy(yev_loop);
-
-    return result;
-}
 
 /***************************************************************************
  *  Callback that will be executed when the timer period lapses.
@@ -116,6 +78,43 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *              Test
+ ***************************************************************************/
+int do_test(void)
+{
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        0,
+        2024,
+        &yev_loop
+    );
+
+    /*--------------------------------*
+     *      Create timer
+     *--------------------------------*/
+    yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback, NULL);
+
+    gobj_trace_msg(0, "start time-periodic %d seconds", 1);
+    yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
+
+    yev_loop_run(yev_loop);
+    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
+
+    if(yev_stop_event(yev_event_periodic) != -1) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
+        result += -1;
+    }
+    yev_loop_run_once(yev_loop);
+    yev_destroy_event(yev_event_periodic);
+
+    yev_loop_destroy(yev_loop);
+
+    return result;
 }
 
 /***************************************************************************
@@ -201,14 +200,26 @@ int main(int argc, char *argv[])
         TRUE    // verbose
     );
 
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
     result += do_test();
 
+    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_PRINT_TIME(time_measure, test)
+
+    double tm = mt_get_time(&time_measure);
+    if(!(tm >= 3 && tm < 3.01)) {
+        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
+        result += -1;
+    }
     result += test_json(NULL, result);
 
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        print_track_mem();
         result += -1;
     }
 
