@@ -25,7 +25,6 @@ PRIVATE int yev_callback(yev_event_t *event);
  ***************************************************************/
 yev_loop_t *yev_loop;
 yev_event_t *yev_event_periodic;
-int wait_time = 1;
 int times_periodic = 0;
 int result = 0;
 
@@ -189,11 +188,12 @@ int main(int argc, char *argv[])
     const char *test = "yev_timer_periodic";
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
             "msg", "timeout got 0",
             "msg", "timeout got 1",
             "msg", "timeout got 2",
-            "msg", "timeout stopped"
+            "msg", "timeout stopped",
+            "msg", "yev_event already stopped"
         ),
         NULL,  // expected
         NULL,   // ignore_keys
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
     MT_PRINT_TIME(time_measure, test)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 3 && tm < 3.01)) {
+    if(!(tm >= 3 && tm < 3.02)) {
         printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.01)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }

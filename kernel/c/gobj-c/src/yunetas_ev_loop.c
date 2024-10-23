@@ -1110,7 +1110,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             yev_event->src_addrlen = 0;
             break;
         case YEV_TIMER_TYPE:
-            yev_event->flag &= ~YEV_FLAG_TIMER_PERIODIC;
             break;
     }
 
@@ -1172,6 +1171,12 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             break;
 
         case YEV_ST_STOPPED:
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "yev_event already stopped",
+                NULL
+            );
             return -1;
     }
     return 0;
