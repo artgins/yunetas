@@ -62,7 +62,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'test_timer',                                   \n\
-            'gclass': 'C_TEST_TIMER',                               \n\
+            'gclass': 'C_TEST_TIMER0',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\

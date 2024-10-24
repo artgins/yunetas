@@ -1256,6 +1256,7 @@ PUBLIC hgobj gobj_service_factory(
         json_t *jn_gclasses = gobj_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
+        gobj_trace_json(0, jn_service_config, "gclass NOT FOUND");
         JSON_DECREF(jn_service_config)
         return 0;
     }
