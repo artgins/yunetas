@@ -609,7 +609,6 @@ PRIVATE int mt_stop(hgobj gobj)
     /*
      *  When yuno stops, it's the death of the app
      */
-    clear_timeout0(priv->gobj_timer);
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
     yev_loop_stop(priv->yev_loop);

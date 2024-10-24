@@ -41,7 +41,6 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    yev_event_t *yev_event;
     BOOL periodic;
     json_int_t msec;
 } PRIVATE_DATA;
@@ -65,8 +64,6 @@ PRIVATE hgclass __gclass__ = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_timer_callback, gobj);
 
     SET_PRIV(periodic,          gobj_read_bool_attr)
     SET_PRIV(msec,              gobj_read_integer_attr)
@@ -99,9 +96,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(yev_event_is_stoppable(priv->yev_event)) {
-        yev_stop_event(priv->yev_event);
-    }
     return 0;
 }
 
@@ -112,10 +106,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->yev_event) {
-        yev_destroy_event(priv->yev_event);
-        priv->yev_event = NULL;
-    }
 }
 
 
@@ -145,8 +135,8 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "timeout got",
-            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+            "msg",          "%s", "soft timeout got",
+            "msg2",         "%s", "⏰⏰ ✅✅ soft timeout got",
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,

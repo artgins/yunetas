@@ -148,8 +148,8 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "timeout got",
-            "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+            "msg",          "%s", "hard timeout got",
+            "msg2",         "%s", "⏰⏰ ✅✅ hard timeout got",
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
@@ -322,6 +322,16 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "set_timeout0() must be used only in C_TIMER0",
+            NULL
+        );
+        return;
+    }
+
     uint32_t level = TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
@@ -355,6 +365,17 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
 PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "set_timeout_periodic0() must be used only in C_TIMER0",
+            NULL
+        );
+        return;
+    }
+
     uint32_t level = TRACE_PERIODIC_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
@@ -388,6 +409,17 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
 PUBLIC void clear_timeout0(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "clear_timeout0() must be used only in C_TIMER0",
+            NULL
+        );
+        return;
+    }
+
     uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
