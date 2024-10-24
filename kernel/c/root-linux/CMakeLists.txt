@@ -22,6 +22,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 set (SRCS
     src/sha1.c
     src/c_yuno.c
+    src/c_timer0.c
     src/c_timer.c
     src/c_tcp.c
     src/c_tcp_s.c
@@ -53,6 +54,7 @@ set (SRCS
 
 set (HDRS
     src/c_yuno.h
+    src/c_timer0.h
     src/c_timer.h
     src/c_tcp.h
     src/c_tcp_s.h

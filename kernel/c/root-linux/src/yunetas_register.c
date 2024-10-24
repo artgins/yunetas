@@ -9,6 +9,7 @@
 #include "c_tcp.h"
 #include "c_tcp_s.h"
 #include "c_uart.h"
+#include "c_timer0.h"
 #include "c_timer.h"
 #include "c_authz.h"
 #include "c_ievent_cli.h"
@@ -58,6 +59,7 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_prot_tcp4h();
     register_c_task();
     register_c_task_authenticate();
+    register_c_timer0();
     register_c_timer();
     register_c_tranger();
     register_c_treedb();
