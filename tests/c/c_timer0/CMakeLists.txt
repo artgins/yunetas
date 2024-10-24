@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_c_timer C)
+project(test_c_timer0 C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -21,10 +21,10 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 SET (YUNO_SRCS
     src/main.c
-    src/c_test_timer.c
+    src/c_test_timer0.c
 )
 SET (YUNO_HDRS
-    src/c_test_timer.h
+    src/c_test_timer0.h
 )
 
 ##############################################

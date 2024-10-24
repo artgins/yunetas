@@ -38,6 +38,7 @@ extern "C"{
 #include <c_yuno.h>         // the grandmother
 #include <c_tcp.h>
 #include <c_uart.h>
+#include <c_timer0.h>
 #include <c_timer.h>
 #include <c_authz.h>
 #include <c_ievent_cli.h>

@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_TEST_TIMER.C
+ *          C_TEST_TIMER0.C
  *          Sanikidb GClass.
  *
  *          DBA Sanikidb
@@ -10,7 +10,7 @@
 #include <string.h>
 #include <iconv.h>
 
-#include "c_test_timer.h"
+#include "c_test_timer0.h"
 
 /***************************************************************************
  *              Constants
@@ -116,7 +116,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -353,7 +353,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST_TIMER);
+GOBJ_DEFINE_GCLASS(C_TEST_TIMER0);
 
 /*------------------------*
  *      States
@@ -431,7 +431,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test_timer(void)
+PUBLIC int register_c_test_timer0(void)
 {
-    return create_gclass(C_TEST_TIMER);
+    return create_gclass(C_TEST_TIMER0);
 }

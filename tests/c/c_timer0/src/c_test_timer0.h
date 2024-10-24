@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_TEST_TIMER.H
+ *          C_TEST_TIMER0.H
  *
  *          A class to test timer class
  *
@@ -20,7 +20,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TEST_TIMER);
+GOBJ_DECLARE_GCLASS(C_TEST_TIMER0);
 
 /*------------------------*
  *      States
@@ -33,7 +33,7 @@ GOBJ_DECLARE_GCLASS(C_TEST_TIMER);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_test_timer(void);
+PUBLIC int register_c_test_timer0(void);
 
 
 #ifdef __cplusplus

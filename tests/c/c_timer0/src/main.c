@@ -7,12 +7,12 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test_timer.h"
+#include "c_test_timer0.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_timer"
+#define APP_NAME        "test_c_timer0"
 #define APP_DOC         "Test C_TIMER"
 
 #define APP_VERSION     "1.0.0"
@@ -88,7 +88,7 @@ static void register_yuno_and_more(void)
     /*--------------------*
      *  Register service
      *--------------------*/
-    register_c_test_timer();
+    register_c_test_timer0();
 
     /*------------------------------------------------*
      *          Traces
