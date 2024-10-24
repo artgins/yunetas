@@ -25,7 +25,7 @@
 #include <yuneta_version.h>
 #include <yunetas_ev_loop.h>
 #include "yunetas_environment.h"
-#include "c_timer.h"
+#include "c_timer0.h"
 #include "c_yuno.h"
 
 /***************************************************************
@@ -532,7 +532,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------*
      *  Create childs
      *------------------------*/
-    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
     if(gobj_read_integer_attr(gobj, "launch_id")) {
         save_pid_in_file(gobj);
@@ -554,7 +554,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic,            gobj_read_integer_attr)
         if(gobj_is_running(gobj)) {
-            set_timeout_periodic(priv->gobj_timer, priv->periodic);
+            set_timeout_periodic0(priv->gobj_timer, priv->periodic);
         }
     ELIF_EQ_SET_PRIV(autokill,          gobj_read_integer_attr)
         priv->autokill_init = 0;
@@ -585,7 +585,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->gobj_timer);
 
-    set_timeout_periodic(priv->gobj_timer, priv->periodic);
+    set_timeout_periodic0(priv->gobj_timer, priv->periodic);
 
     if(priv->timeout_flush > 0) {
         priv->t_flush = start_sectimer(priv->timeout_flush);
@@ -609,7 +609,7 @@ PRIVATE int mt_stop(hgobj gobj)
     /*
      *  When yuno stops, it's the death of the app
      */
-    clear_timeout(priv->gobj_timer);
+    clear_timeout0(priv->gobj_timer);
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
     yev_loop_stop(priv->yev_loop);
@@ -2537,7 +2537,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
             0,
             jn_data
         );
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         return kw_response;
     }
 
@@ -3304,7 +3304,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         // TODO rotatory_flush(0);
     }
     if(gobj_get_yuno_must_die()) {
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         gobj_shutdown(); // provoca gobj_pause y gobj_stop del gobj yuno
         return 0;
     }
@@ -3315,7 +3315,7 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             NULL
         );
         gobj_set_exit_code(-1);
-        JSON_DECREF(kw);
+        JSON_DECREF(kw)
         gobj_shutdown(); // provoca gobj_pause y gobj_stop del gobj yuno
         return 0;
     }
