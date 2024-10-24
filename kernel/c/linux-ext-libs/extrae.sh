@@ -1,5 +1,7 @@
 #!/bin/bash
 
+VERSION_OPENRESTY="v1.27.1.1"
+
 sudo apt -y install libjansson-dev          # required for libjwt
 sudo apt -y install libpcre2-dev            # required by openresty
 sudo apt -y install perl dos2unix mercurial # required by openresty
@@ -29,26 +31,39 @@ rm -rf build/
 mkdir build
 cd build
 
-echo "getting jansson-artgins"
-git clone https://github.com/artgins/jansson-artgins.git
+# Define an associative array with repositories and their corresponding versions
+declare -A REPOS
 
-echo "getting liburing"
-git clone https://github.com/axboe/liburing.git
+# Add repositories and their versions (branch, tag, or commit hash)
+REPOS["https://github.com/artgins/jansson-artgins.git"]="master"
+REPOS["https://github.com/axboe/liburing.git"]="liburing-2.7"
+REPOS["https://github.com/Mbed-TLS/mbedtls.git"]="v3.6.2"
+REPOS["https://github.com/openssl/openssl.git"]="openssl-3.4.0"
+REPOS["https://github.com/PCRE2Project/pcre2.git"]="pcre2-10.44"
+REPOS["https://github.com/benmcollins/libjwt.git"]="v1.17.2"
+REPOS["https://github.com/openresty/openresty.git"]="v1.27.1.1"
 
-echo "extrae mbedtls"
-git clone https://github.com/Mbed-TLS/mbedtls.git
+echo ""
+echo "=======================CLONING====================="
 
-echo "extrae openssl"
-git clone https://github.com/openssl/openssl.git
+# Loop through the list of repositories and clone each one
+for REPO_URL in "${!REPOS[@]}"; do
+    VERSION="${REPOS[$REPO_URL]}"
 
-echo "extrae pcre2"
-git clone https://github.com/PCRE2Project/pcre2.git
+    # Extract the repository name from the URL
+    REPO_NAME=$(basename -s .git "$REPO_URL")
 
-echo "extrae libjwt"
-git clone https://github.com/benmcollins/libjwt.git
+    # Clone the repository with the specified version
+    echo ""
+    echo "===================> Cloning $REPO_NAME at version $VERSION from $REPO_URL"
+    git clone --branch "$VERSION" --single-branch "$REPO_URL"
 
-echo "extrae openresty"
-git clone https://github.com/openresty/openresty.git
+    # Optional: Print a message after each repository is cloned
+    echo "<=================== Finished cloning $REPO_NAME"
+    echo ""
+done
 
+# Optional: Print a final message
+echo "All repositories have been cloned."
 
 cd ..
