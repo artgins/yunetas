@@ -70,6 +70,6 @@ make install
 cd ..
 cd ../..
 
-# Fix these old dependencies, the new cause errors
-/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
-/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install bungle/lua-resty-session=3.10
+# Fix these old dependencies, the new cause errors. NEWS: it seems that works with last version
+#/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
+#/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install bungle/lua-resty-session=4.0.5
