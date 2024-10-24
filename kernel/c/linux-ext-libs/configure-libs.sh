@@ -1,20 +1,11 @@
 #!/bin/bash
 
+source ./repos2clone.sh
+
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
 export CFLAGS="-Wno-error=char-subscripts -g3 -ggdb -fPIC"
-
-#------------------------------------------
-#   VERSIONS
-#------------------------------------------
-TAG_JANSSON="2.14a"
-TAG_LIBURING="liburing-2.5"
-TAG_MBEDTLS="v3.5.2"
-TAG_OPENSSL="openssl-3.2.1"
-TAG_PCRE2="pcre2-10.43"
-TAG_LIBJWT="v1.16.0"
-export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in install-libs.sh
 
 #-----------------------------------------------------#
 #   Get yunetas base path:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_OPENRESTY="v1.27.1.1"
+source ./repos2clone.sh
 
 sudo apt -y install libjansson-dev          # required for libjwt
 sudo apt -y install libpcre2-dev            # required by openresty
@@ -31,17 +31,6 @@ rm -rf build/
 mkdir build
 cd build
 
-# Define an associative array with repositories and their corresponding versions
-declare -A REPOS
-
-# Add repositories and their versions (branch, tag, or commit hash)
-REPOS["https://github.com/artgins/jansson-artgins.git"]="master"
-REPOS["https://github.com/axboe/liburing.git"]="liburing-2.7"
-REPOS["https://github.com/Mbed-TLS/mbedtls.git"]="v3.6.2"
-REPOS["https://github.com/openssl/openssl.git"]="openssl-3.4.0"
-REPOS["https://github.com/PCRE2Project/pcre2.git"]="pcre2-10.44"
-REPOS["https://github.com/benmcollins/libjwt.git"]="v1.17.2"
-REPOS["https://github.com/openresty/openresty.git"]="v1.27.1.1"
 
 echo ""
 echo "=======================CLONING====================="
@@ -55,8 +44,8 @@ for REPO_URL in "${!REPOS[@]}"; do
 
     # Clone the repository with the specified version
     echo ""
-    echo "===================> Cloning $REPO_NAME at version $VERSION from $REPO_URL"
-    git clone --branch "$VERSION" --single-branch "$REPO_URL"
+    echo "===================> Cloning $REPO_NAME from $REPO_URL"
+    git clone --recurse-submodules "$REPO_URL"
 
     # Optional: Print a message after each repository is cloned
     echo "<=================== Finished cloning $REPO_NAME"

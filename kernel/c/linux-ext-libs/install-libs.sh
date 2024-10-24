@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./repos2clone.sh
+
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
@@ -61,7 +63,6 @@ cd ../..
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
-export TAG_OPENRESTY="1.25.3.1" # WARNING repeated in configure-libs.sh
 cd build/openresty
 cd "openresty-$TAG_OPENRESTY"
 
