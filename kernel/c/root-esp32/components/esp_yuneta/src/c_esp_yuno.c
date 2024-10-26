@@ -3454,7 +3454,7 @@ PRIVATE int ac_time_on(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->autokill_init++;
@@ -3556,7 +3556,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ETHERNET_LINK_DOWN,     ac_ethernet_link_down,  0},
         {EV_WIFI_ON_OPEN,           ac_netif_on_open,       ST_YUNO_NETWORK_ON},
         {EV_ETHERNET_ON_OPEN,       ac_netif_on_open,       ST_YUNO_NETWORK_ON},
-        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout_periodic,    0},
         {0,0,0}
     };
     ev_action_t st_network_on[] = {
@@ -3565,7 +3565,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      0},
         {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      0},
         {EV_YUNO_TIME_ON,           ac_time_on,             ST_YUNO_TIME_ON},
-        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout_periodic,    0},
         {0,0,0}
     };
     ev_action_t st_time_on[] = {
@@ -3574,7 +3574,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WIFI_ON_CLOSE,          ac_netif_on_close,      0},
         {EV_ETHERNET_ON_CLOSE,      ac_netif_on_close,      0},
         {EV_YUNO_TIME_ON,           ac_time_on,             0},
-        {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout_periodic,    0},
         {0,0,0}
     };
     states_t states[] = {
