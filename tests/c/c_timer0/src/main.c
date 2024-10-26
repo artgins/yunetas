@@ -13,7 +13,7 @@
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "test_c_timer0"
-#define APP_DOC         "Test C_TIMER"
+#define APP_DOC         "Test C_TIMER0"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -94,7 +94,7 @@ static void register_yuno_and_more(void)
      *          Traces
      *------------------------------------------------*/
     // Avoid timer trace, too much information
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
     gobj_set_global_no_trace("periodic_timer", TRUE);
     gobj_set_global_no_trace("timer", TRUE);
 
@@ -114,7 +114,7 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
     // gobj_set_gobj_trace(0, "machine", TRUE, 0);
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+    // gobj_set_gobj_trace(0, "libuv", TRUE, 0);
 
     /*------------------------------*
      *  Start test

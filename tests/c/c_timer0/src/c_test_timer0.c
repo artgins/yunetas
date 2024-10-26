@@ -178,7 +178,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout_periodic(priv->timer, priv->timeout);
+    set_timeout_periodic0(priv->timer, priv->timeout);
 
     return 0;
 }
@@ -190,7 +190,7 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->timer);
+    clear_timeout0(priv->timer);
 
     return 0;
 }
