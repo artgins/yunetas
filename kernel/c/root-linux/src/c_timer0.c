@@ -24,7 +24,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_timer_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -69,7 +69,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_timer_callback, gobj);
+    priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_callback, gobj);
 
     SET_PRIV(periodic,          gobj_read_bool_attr)
     SET_PRIV(msec,              gobj_read_integer_attr)
@@ -135,7 +135,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_timer_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);

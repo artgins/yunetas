@@ -30,7 +30,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int yev_server_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *event);
 //PRIVATE void on_close_cb(uv_handle_t* handle);
 //PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
 
@@ -248,7 +248,7 @@ PRIVATE int mt_start(hgobj gobj)
      *--------------------------------*/
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
-        yev_server_callback,
+        yev_callback,
         gobj
     );
 
@@ -370,7 +370,7 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *  Accept cb
  ***************************************************************************/
-PRIVATE int yev_server_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     if(!gobj) {
@@ -428,7 +428,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "yev_server_callback FAILED ",
+            "msg",          "%s", "yev_callback FAILED ",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );

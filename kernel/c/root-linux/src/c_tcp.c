@@ -25,7 +25,7 @@
  ***************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
-PRIVATE int yev_transport_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -163,7 +163,7 @@ PRIVATE void mt_create(hgobj gobj)
 
         priv->yev_client_connect = yev_create_connect_event(
             yuno_event_loop(),
-            yev_transport_callback,
+            yev_callback,
             gobj
         );
     }
@@ -342,7 +342,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
             yuno_event_loop(),
-            yev_transport_callback,
+            yev_callback,
             gobj,
             fd,
             gbuffer_create(rx_buffer_size, rx_buffer_size)
@@ -472,7 +472,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_transport_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -754,7 +754,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     yev_event_t *yev_client_tx = yev_create_write_event(
         yuno_event_loop(),
-        yev_transport_callback,
+        yev_callback,
         gobj,
         priv->yev_client_connect->fd,
         gbuf
