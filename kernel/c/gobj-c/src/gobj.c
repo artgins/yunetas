@@ -4129,7 +4129,7 @@ PUBLIC int gobj_autostart_services(void)
             continue;
         }
         if(gobj->gobj_flag & gobj_flag_autostart) {
-            if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he have the power on!
+            if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he has the power on!
                 gobj_start(gobj);
             } else {
                 gobj_start_tree(gobj);
@@ -4151,11 +4151,7 @@ PUBLIC int gobj_autoplay_services(void)
             continue;
         }
         if(gobj->gobj_flag & gobj_flag_autoplay) {
-            if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he have the power on!
-                gobj_start(gobj);
-            } else {
-                gobj_start_tree(gobj);
-            }
+            gobj_play(gobj);
         }
     }
     return 0;

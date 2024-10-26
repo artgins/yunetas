@@ -169,12 +169,8 @@ PRIVATE void mt_create(hgobj gobj)
 
         if(priv->use_ssl) {
             json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-            json_object_set_new(jn_crypto, "trace", json_false());
-            priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+            priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
         }
-
-        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
 
         priv->yev_client_connect = yev_create_connect_event(
             yuno_event_loop(),
