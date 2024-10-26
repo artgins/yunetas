@@ -28,11 +28,17 @@
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_authzs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "authz about you want help"),
 SDATA_END()
 };
 
@@ -40,7 +46,8 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "authzs",           0,          pm_authzs,  cmd_authzs,     "Authorization's help"),
 SDATA_END()
 };
 
@@ -50,12 +57,12 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD|SDF_STATS,           0,              "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD|SDF_STATS,           0,              "Messages received"),
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,                     2*1000,         "Timeout"),
-SDATA (ASN_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,              "more user data"),
-SDATA_END()
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,             0,          "Messages received"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "2000",     "Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 };
 
 /*---------------------------------------------*
@@ -69,6 +76,13 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 {0, 0},
 };
 
+/*---------------------------------------------*
+ *      GClass authz levels
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t authz_table[] = {
+/*-AUTHZ-- type---------name--------------------flag----alias---items---description--*/
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *              Private data
@@ -79,16 +93,18 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     hgobj timer;
 
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    json_int_t *ptxMsgs;
+    json_int_t *prxMsgs;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -100,15 +116,15 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -118,7 +134,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -185,9 +201,9 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
-            /***************************
-             *      Commands
-             ***************************/
+                    /***************************
+                     *      Commands
+                     ***************************/
 
 
 
@@ -197,9 +213,26 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -212,16 +245,16 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 
-            /***************************
-             *      Local Methods
-             ***************************/
+                    /***************************
+                     *      Local Methods
+                     ***************************/
 
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -231,7 +264,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -240,7 +273,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -252,24 +285,23 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     (*priv->prxMsgs)++;
-    gobj_incr_qs(QS_RXMSGS, 1);
 
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(priv->gobj_input_side));
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(priv->gobj_input_side));
     }
 
-    GBUFFER *gbuf_resp = gbuf_create(1024, 1024, 0, 0);
+    gbuffer_t *gbuf_resp = gbuffer_create(1024, 1024);
     char *resp = "{}";
-    int len = strlen(resp);
-    gbuf_printf(gbuf_resp,
+    int len = (int)strlen(resp);
+    gbuffer_printf(gbuf_resp,
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/json; charset=utf-8\r\n"
         "Content-Length: %d\r\n\r\n",
         len
     );
-    gbuf_append(gbuf_resp, resp, len);
+    gbuffer_append(gbuf_resp, resp, len);
 
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf_resp
@@ -277,9 +309,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_send_event(priv->gobj_input_side, "EV_SEND_MESSAGE", kw_send, gobj);
 
     (*priv->ptxMsgs)++;
-    gobj_incr_qs(QS_TXMSGS, 1);
 
-    KW_DECREF(kw);
+    KW_DECREF(kw)
 
     return 0;
 }
@@ -289,10 +320,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-//     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-//         log_debug_printf("", "sample");
-//     }
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -305,7 +333,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -313,142 +341,98 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_ON_MESSAGE",   0,   0,  "Json GPS message"},
-    {"EV_ON_OPEN",      0,   0,  ""},
-    {"EV_ON_CLOSE",     0,   0,  ""},
-    // bottom input
-    {"EV_TIMEOUT",      0,  0,  ""},
-    {"EV_STOPPED",      0,  0,  ""},
-    // internal
-    {NULL, 0, 0, ""}
-};
-PRIVATE const EVENT output_events[] = {
-    {NULL, 0, 0, ""}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
+    .mt_writing = mt_writing,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_play = mt_play,
+    .mt_pause = mt_pause,
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,          0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_STOPPED",              ac_stopped,             0},
-    {"EV_TIMEOUT",              ac_timeout,             0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_PEPON);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_PEPON_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        mt_play,
-        mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    0,  // gcflag
-};
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
-PUBLIC GCLASS *gclass_pepon(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_ON_MESSAGE,             ac_on_message,          0},
+        {EV_ON_OPEN,                ac_on_open,             0},
+        {EV_ON_CLOSE,               ac_on_close,            0},
+        {EV_STOPPED,                ac_stopped,             0},
+        {EV_TIMEOUT,                ac_timeout,             0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,                   st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_TIMEOUT_PERIODIC,       0},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        authz_table,  // authz_table,
+        command_table,  // command_table,
+        s_user_trace_level,
+        0   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_pepon(void)
+{
+    return create_gclass(C_PEPON);
 }

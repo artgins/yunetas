@@ -9,7 +9,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <netdb.h>
 
 #include <parse_url.h>
 #include <kwid.h>

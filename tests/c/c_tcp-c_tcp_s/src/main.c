@@ -1,19 +1,20 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_timer
+ *          Main of test_c_tcp_tcp_s
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_test_timer.h"
+#include "c_pepon.h"
+#include "c_teston.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_timer"
-#define APP_DOC         "Test C_TIMER"
+#define APP_NAME        "test_c_tcp_tcp_s"
+#define APP_DOC         "Test C_TCP_TCP_S"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -58,17 +59,123 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
+        '__input_side__.__json_config_variables__': {               \n\
+            '__input_url__': 'tcps://0.0.0.0:7778',                 \n\
+            '__input_host__': '0.0.0.0',                            \n\
+            '__input_port__': '7778'                                \n\
+        }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test_timer',                                   \n\
-            'gclass': 'C_TEST_TIMER',                               \n\
+            'name': 'pepon',                                        \n\
+            'gclass': 'Pepon',                                      \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'zchilds': [                                            \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'teston',                                       \n\
+            'gclass': 'Teston',                                     \n\
+            'default_service': false,                               \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'zchilds': [                                            \n\
+            ]                                                       \n\
+        },                                                          \n\
+\
+\
+        {                                                           \n\
+            'name': '__input_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'zchilds': [                                            \n\
+                {                                                   \n\
+                    'name': 'server_port',                          \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'crypto': {                                 \n\
+                            'library': 'openssl',                   \n\
+'ssl_certificate': '/yuneta/agent/certs/localhost.crt',\n\
+'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',\n\
+                            'trace': false                           \n\
+                        },                                          \n\
+                        'url': '(^^__input_url__^^)',               \n\
+                        'child_tree_filter': {                      \n\
+                            'op': 'find',                           \n\
+                            'kw': {                                 \n\
+                                '__prefix_gobj_name__': '(^^__input_port__^^)-', \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false,                 \n\
+                                'lHost': '(^^__input_host__^^)',    \n\
+                                'lPort': '(^^__input_port__^^)'     \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            ],                                                      \n\
+            '[^^zchilds^^]': {                                      \n\
+                '__range__': [[1,1]],                               \n\
+                '__vars__': {                                       \n\
+                },                                                  \n\
+                '__content__': {                                    \n\
+                    'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                        'lHost': '(^^__input_host__^^)',            \n\
+                        'lPort': '(^^__input_port__^^)'             \n\
+                    },                                              \n\
+                    'zchilds': [                                    \n\
+                        {                                           \n\
+                            'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'kw': {                                 \n\
+                            }                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__output_side__',                              \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'zchilds': [                                            \n\
+                {                                                   \n\
+                    'name': 'output',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'zchilds': [                                    \n\
+                        {                                           \n\
+                            'name': 'output',                       \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'zchilds': [                            \n\
+                                {                                   \n\
+                                    'name': 'output',               \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'crypto': {                 \n\
+                                            'library': 'openssl',   \n\
+                                            'trace': false          \n\
+                                        },                          \n\
+                                        'urls':[                    \n\
+                                            'tcps://127.0.0.1:7778' \n\
+                                        ]                           \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
             ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -88,13 +195,14 @@ static void register_yuno_and_more(void)
     /*--------------------*
      *  Register service
      *--------------------*/
-    register_c_test_timer();
+    register_c_pepon();
+    register_c_teston();
 
     /*------------------------------------------------*
      *          Traces
      *------------------------------------------------*/
     // Avoid timer trace, too much information
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("periodic_timer", TRUE);
     gobj_set_global_no_trace("timer", TRUE);
 
@@ -102,7 +210,8 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
@@ -147,11 +256,11 @@ static void cleaning(void)
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
-    double tm = mt_get_time(&time_measure);
-    if(!(tm >= 3 && tm < 3.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.1)\n", On_Red BWhite, Color_Off, tm);
-        result += -1;
-    }
+//    double tm = mt_get_time(&time_measure);
+//    if(!(tm >= 3 && tm < 3.1)) {
+//        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.1)\n", On_Red BWhite, Color_Off, tm);
+//        result += -1;
+//    }
 
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 }

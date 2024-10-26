@@ -34,6 +34,7 @@ extern "C"{
 #include <stacktrace_with_bfd.h>
 #include <stats_parser.h>
 #include <testing.h>
+#include <ytls.h>
 
 #include <c_yuno.h>         // the grandmother
 #include <c_tcp.h>
