@@ -1,7 +1,7 @@
 /****************************************************************************
- *          C_TEST_TIMER0.H
+ *          C_TEST_TIMER.H
  *
- *          A class to test timer class
+ *          A class to test timer class high level (C_TIMER)
  *
  *          Copyright (c) 2024, Artgins.
  *          All Rights Reserved.
@@ -20,7 +20,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TEST_TIMER0);
+GOBJ_DECLARE_GCLASS(C_TEST_TIMER);
 
 /*------------------------*
  *      States
@@ -33,7 +33,7 @@ GOBJ_DECLARE_GCLASS(C_TEST_TIMER0);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_test_timer0(void);
+PUBLIC int register_c_test_timer(void);
 
 
 #ifdef __cplusplus

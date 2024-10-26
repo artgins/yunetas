@@ -2,7 +2,7 @@
  *          C_TEST_TIMER0.C
  *          Sanikidb GClass.
  *
- *          DBA Sanikidb
+ *          A class to test timer class low level (C_TIMER0)
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -334,6 +334,27 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_log_info(0, 0,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "timer0 child stopped",
+        "src",              "%s", gobj_full_name(src),
+        NULL
+    );
+
+    JSON_DECREF(kw)
+
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -362,12 +383,6 @@ GOBJ_DEFINE_GCLASS(C_TEST_TIMER0);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_REALTIME_TRACK);
-GOBJ_DEFINE_EVENT(EV_REALTIME_ALARM);
-GOBJ_DEFINE_EVENT(EV_LIST_GROUPS);
-GOBJ_DEFINE_EVENT(EV_LIST_ALARMS);
-GOBJ_DEFINE_EVENT(EV_UPDATE_DEVICE_SETTINGS);
-GOBJ_DEFINE_EVENT(EV_UPDATE_DEVICE_ALARMS);
 
 /***************************************************************************
  *
@@ -390,7 +405,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT_PERIODIC,       ac_timeout,                 0},
-        {EV_STOPPED,                0,                          0},
+        {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
     };
 

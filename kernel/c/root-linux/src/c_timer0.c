@@ -171,6 +171,8 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
         } else {
             gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
         }
+    } else {
+        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
     }
 
     return gobj_is_running(gobj)?0:-1;
@@ -199,6 +201,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  Resend to the parent
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_pure_child(gobj)) {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    } else {
+        return gobj_publish_event(gobj, event, kw); // reuse kw
+    }
 }
 
 
@@ -258,8 +272,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,              ac_timeout,         0},
-        {EV_TIMEOUT_PERIODIC,     ac_timeout,         0},
+        {EV_TIMEOUT,                ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,         0},
+        {EV_STOPPED,                ac_stopped,         0},
         {0,0,0}
     };
     states_t states[] = {
@@ -270,6 +285,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TIMEOUT,            EVF_OUTPUT_EVENT},
         {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

@@ -3332,6 +3332,20 @@ PRIVATE int ac_periodic_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     return 0;
 }
 
+/***************************************************************************
+ *  This event comes from timer0
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(kw)
+
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);
+    }
+
+    return 0;
+}
+
 
 
 
@@ -3396,6 +3410,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT_PERIODIC,       ac_periodic_timeout,    0},
+        {EV_STOPPED,                ac_stopped,             0},
         {0,0,0}
     };
     states_t states[] = {
@@ -3404,7 +3419,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TIMEOUT_PERIODIC,     EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TIMEOUT_PERIODIC,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_STOPPED,                0},
         {0, 0}
     };
 

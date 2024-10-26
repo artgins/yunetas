@@ -1,8 +1,8 @@
 /***********************************************************************
- *          C_TEST_TIMER0.C
+ *          C_TEST_TIMER.C
  *          Sanikidb GClass.
  *
- *          DBA Sanikidb
+ *          A class to test timer class high level (C_TIMER)
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -10,7 +10,7 @@
 #include <string.h>
 #include <iconv.h>
 
-#include "c_test_timer0.h"
+#include "c_test_timer.h"
 
 /***************************************************************************
  *              Constants
@@ -334,6 +334,22 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_log_info(0, 0,
+        "msgset",           "%s", MSGSET_INFO,
+        "msg",              "%s", "some child stopped",
+        "src",              "%s", gobj_full_name(src),
+        NULL
+    );
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -362,12 +378,6 @@ GOBJ_DEFINE_GCLASS(C_TEST_TIMER0);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_REALTIME_TRACK);
-GOBJ_DEFINE_EVENT(EV_REALTIME_ALARM);
-GOBJ_DEFINE_EVENT(EV_LIST_GROUPS);
-GOBJ_DEFINE_EVENT(EV_LIST_ALARMS);
-GOBJ_DEFINE_EVENT(EV_UPDATE_DEVICE_SETTINGS);
-GOBJ_DEFINE_EVENT(EV_UPDATE_DEVICE_ALARMS);
 
 /***************************************************************************
  *
@@ -390,7 +400,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_TIMEOUT_PERIODIC,       ac_timeout,                 0},
-        {EV_STOPPED,                0,                          0},
+        {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
     };
 
@@ -431,7 +441,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test_timer0(void)
+PUBLIC int register_c_test_timer(void)
 {
     return create_gclass(C_TEST_TIMER0);
 }

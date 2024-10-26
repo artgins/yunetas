@@ -1,7 +1,7 @@
 /****************************************************************************
  *          C_TEST_TIMER0.H
  *
- *          A class to test timer class
+ *          A class to test timer class low level (C_TIMER0)
  *
  *          Copyright (c) 2024, Artgins.
  *          All Rights Reserved.
