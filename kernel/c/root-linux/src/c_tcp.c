@@ -11,6 +11,7 @@
 #include <string.h>
 #include <parse_url.h>
 #include <kwid.h>
+#include <ytls.h>
 #include <yunetas_ev_loop.h>
 #include "c_timer.h"
 #include "c_yuno.h"
@@ -36,6 +37,7 @@ PRIVATE int yev_callback(yev_event_t *event);
 PRIVATE const sdata_desc_t tattr_desc[] = { // WARNING repeated in c_tcp/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
+SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_POINTER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 
@@ -94,7 +96,11 @@ typedef struct _PRIVATE_DATA {
     int fd_clisrv;
     int timeout_inactivity;
     char inform_disconnection;
+
     BOOL use_ssl;
+    hytls ytls;
+    hsskt sskt;
+
     const char *tx_ready_event_name;
 } PRIVATE_DATA;
 
@@ -149,7 +155,7 @@ PRIVATE void mt_create(hgobj gobj)
         }
         gobj_write_str_attr(gobj, "schema", schema);
 
-        if(gobj_read_bool_attr(gobj, "use_ssl")) {
+        //if(gobj_read_bool_attr(gobj, "use_ssl")) {
             // TODO
             //priv->transport = esp_transport_ssl_init();
             //const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
@@ -159,7 +165,16 @@ PRIVATE void mt_create(hgobj gobj)
             //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
             //    esp_transport_ssl_skip_common_name_check(priv->transport);
             //}
+        //}
+
+        if(priv->use_ssl) {
+            json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+            json_object_set_new(jn_crypto, "trace", json_false());
+            priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
         }
+
+        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+        priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
 
         priv->yev_client_connect = yev_create_connect_event(
             yuno_event_loop(),

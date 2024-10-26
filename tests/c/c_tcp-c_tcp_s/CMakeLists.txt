@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_c_tcp_tcp_s C)
+project(test_c_tcp_tcps C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:

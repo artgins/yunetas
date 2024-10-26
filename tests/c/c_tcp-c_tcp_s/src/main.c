@@ -1,7 +1,7 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_tcp_tcp_s
+ *          Main of test_c_tcp_tcps
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -13,7 +13,7 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_tcp_tcp_s"
+#define APP_NAME        "test_c_tcp_tcps"
 #define APP_DOC         "Test C_TCP_TCP_S"
 
 #define APP_VERSION     "1.0.0"
@@ -68,7 +68,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'pepon',                                        \n\
-            'gclass': 'Pepon',                                      \n\
+            'gclass': 'C_PEPON',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
@@ -79,7 +79,7 @@ PRIVATE char variable_config[]= "\
         },                                                          \n\
         {                                                           \n\
             'name': 'teston',                                       \n\
-            'gclass': 'Teston',                                     \n\
+            'gclass': 'C_TESTON',                                   \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
@@ -104,9 +104,9 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'crypto': {                                 \n\
                             'library': 'openssl',                   \n\
-'ssl_certificate': '/yuneta/agent/certs/localhost.crt',\n\
-'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',\n\
-                            'trace': false                           \n\
+'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
+'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
+                            'trace': false                          \n\
                         },                                          \n\
                         'url': '(^^__input_url__^^)',               \n\
                         'child_tree_filter': {                      \n\
@@ -115,9 +115,7 @@ PRIVATE char variable_config[]= "\
                                 '__prefix_gobj_name__': '(^^__input_port__^^)-', \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
                                 '__disabled__': false,              \n\
-                                'connected': false,                 \n\
-                                'lHost': '(^^__input_host__^^)',    \n\
-                                'lPort': '(^^__input_port__^^)'     \n\
+                                'connected': false                  \n\
                             }                                       \n\
                         }                                           \n\
                     }                                               \n\
@@ -130,10 +128,6 @@ PRIVATE char variable_config[]= "\
                 '__content__': {                                    \n\
                     'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'kw': {                                         \n\
-                        'lHost': '(^^__input_host__^^)',            \n\
-                        'lPort': '(^^__input_port__^^)'             \n\
-                    },                                              \n\
                     'zchilds': [                                    \n\
                         {                                           \n\
                             'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
@@ -167,9 +161,7 @@ PRIVATE char variable_config[]= "\
                                             'library': 'openssl',   \n\
                                             'trace': false          \n\
                                         },                          \n\
-                                        'urls':[                    \n\
-                                            'tcps://127.0.0.1:7778' \n\
-                                        ]                           \n\
+                                        'url':'tcps://127.0.0.1:7778' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
