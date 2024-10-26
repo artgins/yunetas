@@ -2,16 +2,14 @@
  *          c_timer.c
  *
  *          GClass Timer
- *          Low level linux
+ *          High level, feed timers from periodic time of yuno
  *
- *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <time.h>
 #include <gobj.h>
 #include <yunetas_ev_loop.h>
-#include "c_yuno.h"
 #include "c_timer.h"
 
 /***************************************************************
@@ -21,7 +19,6 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_timer_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -86,6 +83,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
     return 0;
 }
 
@@ -94,7 +92,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gobj_unsubscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
 
     return 0;
 }
@@ -104,8 +102,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
 }
 
 
@@ -114,55 +110,6 @@ PRIVATE void mt_destroy(hgobj gobj)
                     /***************************
                      *      Local methods
                      ***************************/
-
-
-
-
-/***************************************************************************
- *  Callback that will be executed when the timer period lapses.
- *  Posts the timer expiry event to the default event loop.
- ***************************************************************************/
-PRIVATE int yev_timer_callback(yev_event_t *yev_event)
-{
-    // TODO
-    hgobj gobj = yev_event->gobj;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
-    if(tracea) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "soft timeout got",
-            "msg2",         "%s", "⏰⏰ ✅✅ soft timeout got",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
-            "publish",      "%s", yev_event_is_stopped(yev_event)? "No":"Yes",
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
-    if(!yev_event_is_stopped(yev_event)) {
-        if(priv->periodic) {
-            gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
-        } else {
-            gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
-        }
-    }
-
-    return gobj_is_running(gobj)?0:-1;
-}
 
 
 
@@ -179,13 +126,12 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), event, json_incref(kw), gobj);
-    } else {
-        gobj_publish_event(gobj, event, json_incref(kw));
-    }
-
-    JSON_DECREF(kw)
+    printf("TIMEOUT ");
+//    if(gobj_is_pure_child(gobj)) {
+//        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+//    } else {
+//        return gobj_publish_event(gobj, event, kw); // reuse kw
+//    }
     return 0;
 }
 
@@ -246,8 +192,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,              ac_timeout,         0},
-        {EV_TIMEOUT_PERIODIC,     ac_timeout,         0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,         0},
         {0,0,0}
     };
     states_t states[] = {
@@ -258,6 +203,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TIMEOUT,            EVF_OUTPUT_EVENT},
         {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
@@ -310,8 +256,8 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "set_timeout() must be used only in C_TIMER",
@@ -348,8 +294,8 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "set_timeout_periodic() must be used only in C_TIMER",
@@ -386,8 +332,8 @@ PUBLIC void clear_timeout(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "clear_timeout() must be used only in C_TIMER",

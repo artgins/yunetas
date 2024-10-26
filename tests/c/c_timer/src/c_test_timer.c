@@ -116,7 +116,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -178,7 +178,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout_periodic0(priv->timer, priv->timeout);
+    set_timeout_periodic(priv->timer, priv->timeout);
 
     return 0;
 }
@@ -190,7 +190,7 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout0(priv->timer);
+    clear_timeout(priv->timer);
 
     return 0;
 }
@@ -340,12 +340,17 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_log_info(0, 0,
         "msgset",           "%s", MSGSET_INFO,
-        "msg",              "%s", "some child stopped",
+        "msg",              "%s", "timer child stopped",
         "src",              "%s", gobj_full_name(src),
         NULL
     );
 
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
+
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);
+    }
+
     return 0;
 }
 
@@ -369,7 +374,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST_TIMER0);
+GOBJ_DEFINE_GCLASS(C_TEST_TIMER);
 
 /*------------------------*
  *      States
@@ -443,5 +448,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_test_timer(void)
 {
-    return create_gclass(C_TEST_TIMER0);
+    return create_gclass(C_TEST_TIMER);
 }

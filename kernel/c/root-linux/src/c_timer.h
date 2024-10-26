@@ -2,9 +2,8 @@
  *          c_timer.h
  *
  *          GClass Timer
- *          Low level linux
+ *          High level, feed timers from periodic time of yuno
  *
- *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/

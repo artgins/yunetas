@@ -194,13 +194,10 @@ PRIVATE int yev_timer_callback(yev_event_t *yev_event)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), event, json_incref(kw), gobj);
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
     } else {
-        gobj_publish_event(gobj, event, json_incref(kw));
+        return gobj_publish_event(gobj, event, kw); // reuse kw
     }
-
-    JSON_DECREF(kw)
-    return 0;
 }
 
 /***************************************************************************
@@ -338,8 +335,8 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "set_timeout0() must be used only in C_TIMER0",
@@ -382,8 +379,8 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "set_timeout_periodic0() must be used only in C_TIMER0",
@@ -426,8 +423,8 @@ PUBLIC void clear_timeout0(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_typeof_gclass(gobj, "C_TIMER0")) {
-        gobj_log_error(0, 0,
+    if(!gobj_typeof_gclass(gobj, C_TIMER0)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "clear_timeout0() must be used only in C_TIMER0",
