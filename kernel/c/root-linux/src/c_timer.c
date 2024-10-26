@@ -9,7 +9,6 @@
  ****************************************************************************/
 #include <time.h>
 #include <gobj.h>
-#include <yunetas_ev_loop.h>
 #include "c_timer.h"
 
 /***************************************************************
@@ -40,6 +39,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     BOOL periodic;
     json_int_t msec;
+    uint64_t t_flush;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -75,6 +75,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
+        if(priv->msec > 0) {
+            priv->t_flush = start_msectimer(priv->msec);
+        } else {
+            priv->t_flush = 0;
+        }
     END_EQ_SET_PRIV()
 }
 
@@ -83,7 +88,13 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
+
+    if(priv->msec > 0) {
+        priv->t_flush = start_msectimer(priv->msec);
+    }
     return 0;
 }
 
@@ -126,12 +137,25 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    printf("TIMEOUT ");
-//    if(gobj_is_pure_child(gobj)) {
-//        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-//    } else {
-//        return gobj_publish_event(gobj, event, kw); // reuse kw
-//    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_event_t ev = (priv->periodic)? EV_TIMEOUT_PERIODIC : EV_TIMEOUT;
+
+    if(priv->msec > 0) {
+        if(test_msectimer(priv->t_flush)) {
+            if (priv->periodic) { // Quickly restart to avoid to add the execution time of action
+                priv->t_flush = start_msectimer(priv->msec);
+            }
+
+            if (gobj_is_pure_child(gobj)) {
+                gobj_send_event(gobj_parent(gobj), ev, json_incref(kw), gobj);
+            } else {
+                gobj_publish_event(gobj, ev, json_incref(kw));
+            }
+        }
+    }
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -268,10 +292,6 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 
     uint32_t level = TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
-    gobj_write_integer_attr(gobj, "msec", msec);
-    gobj_write_bool_attr(gobj, "periodic", FALSE);
-
     if(tracea) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -284,7 +304,8 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
         );
     }
 
-    // TODO yev_start_timer_event(priv->yev_event, msec, FALSE);
+    gobj_write_bool_attr(gobj, "periodic", FALSE);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
 }
 
 /***************************************************************************
@@ -306,10 +327,6 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 
     uint32_t level = TRACE_PERIODIC_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
-    gobj_write_integer_attr(gobj, "msec", msec);
-    gobj_write_bool_attr(gobj, "periodic", TRUE);
-
     if(tracea) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -322,7 +339,8 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
         );
     }
 
-    // TODO yev_start_timer_event(priv->yev_event, msec, TRUE);
+    gobj_write_bool_attr(gobj, "periodic", TRUE);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
 }
 
 /***************************************************************************
@@ -344,7 +362,6 @@ PUBLIC void clear_timeout(hgobj gobj)
 
     uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-
     if(tracea) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -357,7 +374,5 @@ PUBLIC void clear_timeout(hgobj gobj)
         );
     }
 
-//  TODO  if(yev_event_is_stoppable(priv->yev_event)) {
-//        yev_stop_event(priv->yev_event);
-//    }
+    gobj_write_integer_attr(gobj, "msec", 0);    // This write stop timer
 }

@@ -356,7 +356,7 @@ SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep 
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "10",           "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important."),
-SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats"),
+SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats. WARNING don't change timeout, must be 1 second as is used by autokill"),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
@@ -397,9 +397,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     yev_loop_t *yev_loop;
 
-    size_t t_flush;
-    size_t t_stats;
-    size_t t_restart;
+    time_t t_flush;
+    time_t t_stats;
+    time_t t_restart;
     json_int_t timeout_flush;
     json_int_t timeout_stats;
     json_int_t timeout_restart;
@@ -3286,17 +3286,6 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
 PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->autokill_init++;
-
-    if(priv->autokill > 0) {
-        if(priv->autokill_init >= priv->autokill) {
-            priv->autokill = 0;
-            gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
-            gobj_shutdown();
-            JSON_DECREF(kw)
-            return -1;
-        }
-    }
 
     if(priv->timeout_flush > 0 && test_sectimer(priv->t_flush)) {
         priv->t_flush = start_sectimer(priv->timeout_flush);
@@ -3321,12 +3310,22 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     if(priv->timeout_stats > 0 && test_sectimer(priv->t_stats)) {
         priv->t_stats = start_sectimer(priv->timeout_stats);
+        priv->autokill_init++;
         // TODO load_stats(gobj);
     }
 
-
     // Let others uses the periodic timer, save resources
-    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, 0);
+    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, json_incref(kw));
+
+    if(priv->autokill > 0) {
+        if(priv->autokill_init >= priv->autokill) {
+            priv->autokill = 0;
+            gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
+            gobj_shutdown();
+            JSON_DECREF(kw)
+            return -1;
+        }
+    }
 
     JSON_DECREF(kw)
     return 0;
