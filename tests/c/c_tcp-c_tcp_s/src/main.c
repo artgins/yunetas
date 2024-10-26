@@ -152,16 +152,18 @@ PRIVATE char variable_config[]= "\
                         {                                           \n\
                             'name': 'output',                       \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
+                            'kw': {                                 \n\
+                            },                                      \n\
                             'zchilds': [                            \n\
                                 {                                   \n\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
+                                        'url':'tcps://127.0.0.1:7778', \n\
                                         'crypto': {                 \n\
                                             'library': 'openssl',   \n\
                                             'trace': false          \n\
-                                        },                          \n\
-                                        'url':'tcps://127.0.0.1:7778' \n\
+                                        }                           \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\

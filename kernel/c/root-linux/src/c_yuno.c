@@ -636,7 +636,9 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  This play order can come from yuneta_agent or autoplay config option or programmatic sentence
      */
-    gobj_play(gobj_default_service());
+    if(!gobj_is_playing(gobj_default_service())) {
+        gobj_play(gobj_default_service());
+    }
 
     /*
      *  Run event loop

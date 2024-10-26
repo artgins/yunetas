@@ -45,6 +45,8 @@ SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to conn
 SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_INTEGER, "max_pkt_size",     SDF_WR,         "4048",     "Package maximum size"),
+SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
+SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };

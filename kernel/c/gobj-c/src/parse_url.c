@@ -33,8 +33,19 @@ PUBLIC int parse_url(
     if(path) path[0] = 0;
     if(query) query[0] = 0;
 
+    if(empty_string(uri)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+            "msg",                  "%s", "uri EMPTY",
+            "url",                  "%s", uri,
+            NULL
+        );
+        return -1;
+    }
+
     int result = http_parser_parse_url(uri, strlen(uri), no_schema, &u);
-    if (result != 0) {
+    if(result != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_INTERNAL_ERROR,
