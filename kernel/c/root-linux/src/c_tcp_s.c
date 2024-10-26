@@ -405,6 +405,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return -1;
     }
 
+    if(yev_event_is_stopped(yev_event)) {
+        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        return 0;
+    }
+
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             break;

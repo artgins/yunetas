@@ -493,6 +493,12 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         );
         json_decref(jn_flags);
     }
+
+    if(yev_event_is_stopped(yev_event)) {
+        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        return 0;
+    }
+
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
