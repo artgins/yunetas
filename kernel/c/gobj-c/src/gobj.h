@@ -2074,8 +2074,8 @@ enum { /* String table in s_global_trace_level */
     TRACE_EV_KW             = 0x01000000,
     TRACE_AUTHZS            = 0x02000000,
     TRACE_STATES            = 0x04000000,
-    TRACE_TIMER_PERIODIC    = 0x08000000,
-    TRACE_GBUFFERS          = 0x10000000,
+    TRACE_GBUFFERS          = 0x08000000,
+    TRACE_TIMER_PERIODIC    = 0x10000000,
     TRACE_TIMER             = 0x20000000,
 };
 #define TRACE_USER_LEVEL    0x0000FFFF

@@ -231,8 +231,6 @@ PUBLIC void trace_vjson(
     const char *fmt,
     va_list ap
 );
-PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj);
-PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj);
 PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
 PRIVATE int add_event_type(
     dl_list_t *dl,
@@ -373,8 +371,8 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
-    {"timer_periodic",  "Trace periodic timers"},
     {"gbuffers",        "Trace gbuffers"},
+    {"timer_periodic",  "Trace periodic timers"},
     {"timer",           "Trace timers"},
     {0, 0}
 };
@@ -483,6 +481,48 @@ SDATA_END()
 
 
 
+
+/***************************************************************************
+ *  Must trace? TODO set false in non-debug compilation
+ ***************************************************************************/
+PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
+{
+    if(__deep_trace__) {
+        return TRUE;
+    }
+    if(!gobj) {
+        return FALSE;
+    }
+    uint32_t trace =
+        __global_trace_level__ & TRACE_MACHINE ||
+        gobj->trace_level & TRACE_MACHINE ||
+        gobj->gclass->trace_level & TRACE_MACHINE ||
+        ((__global_trace_level__ & TRACE_TIMER_PERIODIC) && event == EV_TIMEOUT_PERIODIC) ||
+        ((__global_trace_level__ & TRACE_TIMER) && event == EV_TIMEOUT);
+
+    return trace?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *  Must no trace? TODO set false in non-debug compilation
+ ***************************************************************************/
+PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj, gobj_event_t event)
+{
+    if(__deep_trace__ > 1) {
+        return FALSE;
+    }
+    if(!gobj) {
+        return TRUE;
+    }
+    uint32_t no_trace =
+        __global_trace_no_level__ & TRACE_MACHINE ||
+        gobj->no_trace_level & TRACE_MACHINE ||
+        gobj->gclass->no_trace_level & TRACE_MACHINE ||
+        ((__global_trace_no_level__ & TRACE_TIMER_PERIODIC) && event == EV_TIMEOUT_PERIODIC) ||
+        ((__global_trace_no_level__ & TRACE_TIMER) && event == EV_TIMEOUT);
+
+    return no_trace?TRUE:FALSE;
+}
 
 /***************************************************************************
  *  Initialize the yuno
@@ -3932,7 +3972,7 @@ PUBLIC int gobj_play(hgobj gobj_)
     }
 
     if(__trace_gobj_start_stop__(gobj)) {
-        if(!is_machine_not_tracing(gobj)) {
+        if(!is_machine_not_tracing(gobj, 0)) {
             trace_machine("⏯ ⏯ play: %s",
                 gobj_full_name(gobj)
             );
@@ -3991,7 +4031,7 @@ PUBLIC int gobj_pause(hgobj gobj_)
     }
 
     if(__trace_gobj_start_stop__(gobj)) {
-        if(!is_machine_not_tracing(gobj)) {
+        if(!is_machine_not_tracing(gobj, 0)) {
             trace_machine("⏸ ⏸ pause: %s",
                 gobj_full_name(gobj)
             );
@@ -4215,7 +4255,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     /*-----------------------------------------------*
      *  Trace
      *-----------------------------------------------*/
-    BOOL tracea = is_machine_tracing(gobj) && !is_machine_not_tracing(src);
+    BOOL tracea = is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
     if(tracea) {
         trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
             (!gobj->running)?"!!":"",
@@ -4366,7 +4406,7 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
         return 0;
     }
 
-    if(is_machine_tracing(gobj)) {
+    if(is_machine_tracing(gobj, 0)) {
         trace_machine("🔽 set_bottom_gobj('%s') = '%s'",
             gobj_short_name(gobj),
             bottom_gobj?gobj_short_name(bottom_gobj):""
@@ -6008,7 +6048,7 @@ PUBLIC int gobj_send_event(
     /*----------------------------------*
      *  Find the event/action in state
      *----------------------------------*/
-    BOOL tracea = is_machine_tracing(dst) && !is_machine_not_tracing(dst) && !is_machine_not_tracing(src);
+    BOOL tracea = is_machine_tracing(dst, event) && !is_machine_not_tracing(dst, event);
     __inside__ ++;
 
     event_action_t *event_action = find_event_action(state, event);
@@ -6175,14 +6215,17 @@ PUBLIC BOOL gobj_change_state(
     gobj->last_state = gobj->current_state;
     gobj->current_state = new_state;
 
-    BOOL tracea = is_machine_tracing(gobj);
+    BOOL tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
     BOOL tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
     if(tracea || tracea_states) {
-        trace_machine("🔀🔀 mach(%s%s^%s), st(%s%s%s)",
+        trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), old st(%s%s%s)",
             (!gobj->running)?"!!":"",
             gobj_gclass_name(gobj), gobj_name(gobj),
             On_Black RGreen,
             gobj_current_state(gobj),
+            Color_Off,
+            On_Black RGreen,
+            gobj->last_state->state_name,
             Color_Off
         );
     }
@@ -7168,7 +7211,7 @@ PUBLIC int gobj_publish_event(
     }
 
     BOOL tracea = __trace_gobj_subscriptions__(publisher) ||
-        (is_machine_tracing(publisher) && !is_machine_not_tracing(publisher));
+        (is_machine_tracing(publisher, event) && !is_machine_not_tracing(publisher, event));
     if(tracea) {
         trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
             (!publisher->running)?"!!":"",
@@ -9482,41 +9525,6 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
     _set_gobj_trace_no_level(gobj, level, set);
 
     return 0;
-}
-
-/***************************************************************************
- *  Must trace?
- ***************************************************************************/
-PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj)
-{
-    if(__deep_trace__) {
-        return TRUE;
-    }
-    if(!gobj) {
-        return FALSE;
-    }
-    uint32_t trace = __global_trace_level__ & TRACE_MACHINE ||
-        gobj->trace_level & TRACE_MACHINE ||
-        gobj->gclass->trace_level & TRACE_MACHINE;
-
-    return trace?TRUE:FALSE;
-}
-
-/***************************************************************************
- *  Must no trace?
- ***************************************************************************/
-PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj)
-{
-    if(__deep_trace__ > 1) {
-        return FALSE;
-    }
-    if(!gobj) {
-        return TRUE;
-    }
-    uint32_t no_trace = gobj->no_trace_level & TRACE_MACHINE ||
-        gobj->gclass->no_trace_level & TRACE_MACHINE;
-
-    return no_trace?TRUE:FALSE;
 }
 
 /***************************************************************************
