@@ -288,7 +288,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //     json_t *kw_send = json_pack("{s:I}",
 //         "gbuffer", (json_int_t)(size_t)gbuf
 //     );
-//     gobj_send_event(priv->gobj_output_side, "EV_SEND_MESSAGE", kw_send, gobj);
+//     gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -321,7 +321,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    gobj_send_event(priv->gobj_output_side, "EV_SEND_MESSAGE", kw_send, gobj);
+    gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
     (*priv->ptxMsgs)++;
 
@@ -343,7 +343,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    gobj_send_event(priv->gobj_output_side, "EV_SEND_MESSAGE", kw_send, gobj);
+    gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
     KW_DECREF(kw)
     return 0;

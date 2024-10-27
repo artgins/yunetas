@@ -389,7 +389,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_SEND_MESSAGE", 0,   0,  ""},
+    {EV_SEND_MESSAGE, 0,   0,  ""},
     {NULL, 0, 0, 0}
 };
 PRIVATE const EVENT output_events[] = {
@@ -401,7 +401,7 @@ PRIVATE const char *state_names[] = {
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_SEND_MESSAGE",         ac_send_message,        0},
+    {EV_SEND_MESSAGE,         ac_send_message,        0},
     {0,0,0}
 };
 

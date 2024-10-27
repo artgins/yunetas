@@ -1261,13 +1261,13 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_ON_MESSAGE",   0,   0,  ""},
-    {"EV_SEND_MESSAGE", 0,   0,  ""},
-    {"EV_ON_OPEN",      0,   0,  ""},
-    {"EV_ON_CLOSE",     0,   0,  ""},
+    {EV_ON_MESSAGE,   0,   0,  0},
+    {EV_SEND_MESSAGE, 0,   0,  0},
+    {EV_ON_OPEN,      0,   0,  0},
+    {EV_ON_CLOSE,     0,   0,  0},
     // bottom input
-    {"EV_TIMEOUT",      0,  0,  0},
-    {"EV_STOPPED",      0,  0,  0},
+    {EV_TIMEOUT,      0,  0,  0},
+    {EV_STOPPED,      0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
@@ -1275,17 +1275,17 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_SEND_MESSAGE",         ac_send_message,        0},
-    {"EV_ON_MESSAGE",           ac_on_message,          0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_STOPPED",              ac_stopped,             0},
-    {"EV_TIMEOUT",              ac_timeout,             0},
+    {EV_SEND_MESSAGE,         ac_send_message,        0},
+    {EV_ON_MESSAGE,           ac_on_message,          0},
+    {EV_ON_OPEN,              ac_on_open,             0},
+    {EV_ON_CLOSE,             ac_on_close,            0},
+    {EV_STOPPED,              ac_stopped,             0},
+    {EV_TIMEOUT,              ac_timeout,             0},
     {0,0,0}
 };
 

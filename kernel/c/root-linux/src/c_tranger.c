@@ -418,7 +418,8 @@ PRIVATE int mt_subscription_added(
         );
     }
 
-    if(strcasecmp(event, "EV_TRANGER_RECORD_ADDED")==0) { // TODO no sería event==EV_TRANGER_RECORD_ADDED ?
+    //if(strcasecmp(event, EV_TRANGER_RECORD_ADDED)==0) { // TODO check the change strcasecmp -> ==
+    if(event==EV_TRANGER_RECORD_ADDED) {
         json_t *jn_data = json_array();
         size_t idx;
         json_t *jn_record;

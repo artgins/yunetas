@@ -307,7 +307,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf_resp
     );
-    gobj_send_event(priv->gobj_input_side, "EV_SEND_MESSAGE", kw_send, gobj);
+    gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 
     (*priv->ptxMsgs)++;
 
