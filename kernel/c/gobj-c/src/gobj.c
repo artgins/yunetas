@@ -2291,6 +2291,15 @@ PRIVATE int write_json_parameters(
         json_decref(__user_data__);
     }
     json_decref(new_kw);
+
+    if(__trace_gobj_create_delete2__(gobj)) {
+        trace_machine("🔰🔰🔰🔰 %s^%s => final hs",
+            gobj->gclass->gclass_name,
+            gobj->gobj_name
+        );
+        gobj_trace_json(gobj, hs, "final hs");
+    }
+
     return ret;
 }
 

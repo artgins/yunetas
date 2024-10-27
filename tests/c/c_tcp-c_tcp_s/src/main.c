@@ -88,8 +88,6 @@ PRIVATE char variable_config[]= "\
             'zchilds': [                                            \n\
             ]                                                       \n\
         },                                                          \n\
-\
-\
         {                                                           \n\
             'name': '__input_side__',                               \n\
             'gclass': 'C_IOGATE',                                   \n\

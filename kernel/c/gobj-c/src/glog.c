@@ -816,10 +816,10 @@ PUBLIC void print_error(
             fflush(stdout);
             fprintf(stdout, "\n");
 
-            if(quit != PEF_CONTINUE) {
 #ifdef __linux__
-                syslog(LOG_ERR, "ERROR YUNETAS: %s", buf);
+            syslog(LOG_ERR, "ERROR YUNETAS: %s", buf);
 #endif
+            if(quit != PEF_CONTINUE) {
                 if(quit == PEF_ABORT) {
                     if(show_backtrace_fn) {
                         show_backtrace_fn(stdout_fwrite, stdout);
