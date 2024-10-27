@@ -974,35 +974,29 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_connected[] = {
-        {EV_TX_DATA,            ac_tx_data,                 0},
-        {EV_DROP,               ac_drop,                    0},
+        {EV_TX_DATA,                ac_tx_clear_data,           0},
+        {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     ST_WAIT_TXED},
+        {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
 
     ev_action_t st_wait_txed[] = {
         {EV_TX_DATA,                ac_tx_clear_data,           0},
-        {EV_SEND_ENCRYPTED_DATA,    ac_enqueue_encrypted_data,  ST_WAIT_TXED},
+        {EV_SEND_ENCRYPTED_DATA,    ac_enqueue_encrypted_data,  0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
-
-
 
     states_t states[] = {
         {ST_DISCONNECTED,       st_disconnected},
         {ST_STOPPED,            st_stopped},
         {ST_WAIT_STOPPED,       st_wait_stopped},
         {ST_WAIT_CONNECTED,     st_wait_connected},
-        {ST_WAIT_DISCONNECTED,  st_wait_disconnected}, /* Order is important. Below the connected states */
+        {ST_WAIT_DISCONNECTED,  st_wait_disconnected},
+        /* Order is important. Below are the connected states */
         {ST_WAIT_HANDSHAKE,     st_wait_handshake},
         {ST_CONNECTED,          st_connected},
         {ST_WAIT_TXED,          st_wait_txed},
-
-//        {ST_DISCONNECTED,       st_disconnected},
-//        {ST_WAIT_CONNECTED,     st_wait_connected},
-//        {ST_CONNECTED,          st_connected},
-//        {ST_WAIT_DISCONNECTED,  st_wait_disconnected},
-//        {ST_WAIT_STOPPED,       st_wait_stopped},
         {0, 0}
     };
 
@@ -1031,7 +1025,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // authz_table,
         0,  // command_table,
         s_user_trace_level,
-        gcflag_manual_start // gclass_flag TODO is needed?
+        gcflag_manual_start // gclass_flag
     );
     if(!__gclass__) {
         // Error already logged
