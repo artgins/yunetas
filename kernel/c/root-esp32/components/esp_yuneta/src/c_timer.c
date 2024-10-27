@@ -381,7 +381,7 @@ PUBLIC int register_c_timer(void)
  ***************************************************************************/
 PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 {
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = TRACE_TIMER_PERIODIC|TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
@@ -405,7 +405,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
  ***************************************************************************/
 PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 {
-    uint32_t level = TRACE_PERIODIC_TIMER|TRACE_TIMER;
+    uint32_t level = TRACE_TIMER_PERIODIC|TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {

@@ -140,7 +140,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     hgobj gobj = yev_event->gobj;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
+    uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
@@ -389,7 +389,7 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
         return;
     }
 
-    uint32_t level = TRACE_PERIODIC_TIMER;
+    uint32_t level = TRACE_TIMER_PERIODIC;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     gobj_write_integer_attr(gobj, "msec", msec);
@@ -433,7 +433,7 @@ PUBLIC void clear_timeout0(hgobj gobj)
         return;
     }
 
-    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
+    uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {

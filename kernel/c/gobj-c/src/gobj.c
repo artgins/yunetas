@@ -373,7 +373,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
-    {"periodic_timer",  "Trace periodic timers"},
+    {"timer_periodic",  "Trace periodic timers"},
     {"gbuffers",        "Trace gbuffers"},
     {"timer",           "Trace timers"},
     {0, 0}
@@ -383,12 +383,9 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 #define __trace_gobj_create_delete2__(gobj) (gobj_trace_level(gobj) & TRACE_CREATE_DELETE2)
 #define __trace_gobj_subscriptions__(gobj)  (gobj_trace_level(gobj) & TRACE_SUBSCRIPTIONS)
 #define __trace_gobj_start_stop__(gobj)     (gobj_trace_level(gobj) & TRACE_START_STOP)
-#define __trace_gobj_oids__(gobj)           (gobj_trace_level(gobj) & TRACE_OIDS)
-#define __trace_gobj_uv__(gobj)             (gobj_trace_level(gobj) & TRACE_UV)
 #define __trace_gobj_ev_kw__(gobj)          (gobj_trace_level(gobj) & TRACE_EV_KW)
 #define __trace_gobj_authzs__(gobj)         (gobj_trace_level(gobj) & TRACE_AUTHZS)
 #define __trace_gobj_states__(gobj)         (gobj_trace_level(gobj) & TRACE_STATES)
-#define __trace_gobj_periodic_timer__(gobj) (gobj_trace_level(gobj) & TRACE_PERIODIC_TIMER)
 
 PRIVATE uint32_t __global_trace_level__ = 0;
 PRIVATE uint32_t __global_trace_no_level__ = 0;

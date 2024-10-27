@@ -81,7 +81,7 @@ typedef struct _PRIVATE_DATA {
 #endif
     int timeout_smartconfig;
     hgobj gobj_timer;
-    hgobj gobj_periodic_timer;
+    hgobj gobj_timer_periodic;
     BOOL on_open_published;
     int idx_wifi_list;
     BOOL light_on;
@@ -106,7 +106,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->gobj_timer = gobj_create_pure_child("wifi_once", C_TIMER, 0, gobj);
-    priv->gobj_periodic_timer = gobj_create_pure_child("wifi_periodic", C_TIMER, 0, gobj);
+    priv->gobj_timer_periodic = gobj_create_pure_child("wifi_periodic", C_TIMER, 0, gobj);
 
 #ifdef ESP_PLATFORM
 
@@ -147,7 +147,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_timer);
-    gobj_start(priv->gobj_periodic_timer);
+    gobj_start(priv->gobj_timer_periodic);
 
 #ifdef ESP_PLATFORM
     ESP_ERROR_CHECK(esp_wifi_start()); // Will arise WIFI_EVENT_STA_START
@@ -168,8 +168,8 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->gobj_timer);
     gobj_stop(priv->gobj_timer);
 
-    clear_timeout(priv->gobj_periodic_timer);
-    gobj_stop(priv->gobj_periodic_timer);
+    clear_timeout(priv->gobj_timer_periodic);
+    gobj_stop(priv->gobj_timer_periodic);
 
 #ifdef ESP_PLATFORM
     esp_wifi_stop();    // Will arise WIFI_EVENT_STA_STOP
@@ -468,7 +468,7 @@ PRIVATE int start_smartconfig(hgobj gobj)
         // Set smartconfig timeout if already got some config
         set_timeout(priv->gobj_timer, priv->timeout_smartconfig*1000);
     }
-    set_timeout_periodic(priv->gobj_periodic_timer, 500);
+    set_timeout_periodic(priv->gobj_timer_periodic, 500);
 
     gobj_change_state(gobj, ST_WIFI_WAIT_SSID_CONF);
 
@@ -788,7 +788,7 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
     gobj_save_persistent_attrs(gobj, json_string("wifi_list"));
 
     clear_timeout(priv->gobj_timer);
-    clear_timeout(priv->gobj_periodic_timer);
+    clear_timeout(priv->gobj_timer_periodic);
 
     connect_station(gobj);
 
@@ -812,7 +812,7 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, gobj_event_t event, json_t *kw, h
     );
 
     clear_timeout(priv->gobj_timer);
-    clear_timeout(priv->gobj_periodic_timer);
+    clear_timeout(priv->gobj_timer_periodic);
 
 #ifdef ESP_PLATFORM
     esp_smartconfig_stop();

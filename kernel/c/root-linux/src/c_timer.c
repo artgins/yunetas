@@ -325,7 +325,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
         return;
     }
 
-    uint32_t level = TRACE_PERIODIC_TIMER;
+    uint32_t level = TRACE_TIMER_PERIODIC;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
     if(tracea) {
         gobj_log_info(gobj, 0,
@@ -360,7 +360,7 @@ PUBLIC void clear_timeout(hgobj gobj)
         return;
     }
 
-    uint32_t level = priv->periodic? TRACE_PERIODIC_TIMER:TRACE_TIMER;
+    uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
     if(tracea) {
         gobj_log_info(gobj, 0,

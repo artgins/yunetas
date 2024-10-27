@@ -76,7 +76,7 @@ typedef struct _PRIVATE_DATA {
     esp_eth_phy_t *phy;
     esp_eth_netif_glue_handle_t s_eth_glue;
 #endif
-    hgobj gobj_periodic_timer;
+    hgobj gobj_timer_periodic;
     BOOL on_open_published;
     BOOL light_on;
 } PRIVATE_DATA;
@@ -100,7 +100,7 @@ PRIVATE hgclass gclass = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->gobj_periodic_timer = gobj_create_pure_child("eth_periodic", C_TIMER, 0, gobj);
+    priv->gobj_timer_periodic = gobj_create_pure_child("eth_periodic", C_TIMER, 0, gobj);
 
 //    SET_PRIV(periodic,          gobj_read_bool_attr)
 }
@@ -123,7 +123,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->gobj_periodic_timer);
+    gobj_start(priv->gobj_timer_periodic);
     start_ethernet(gobj);
 
     return 0;
@@ -136,8 +136,8 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->gobj_periodic_timer);
-    gobj_stop(priv->gobj_periodic_timer);
+    clear_timeout(priv->gobj_timer_periodic);
+    gobj_stop(priv->gobj_timer_periodic);
     stop_ethernet(gobj);
 
     return 0;
@@ -614,7 +614,7 @@ PRIVATE int ac_ethernet_link_down(hgobj gobj, gobj_event_t event, json_t *kw, hg
         "msg",          "%s", "ethernet link down",
         NULL
     );
-    clear_timeout(priv->gobj_periodic_timer);
+    clear_timeout(priv->gobj_timer_periodic);
 
     gobj_publish_event(gobj, EV_ETHERNET_LINK_DOWN, json_incref(kw));
 
@@ -646,7 +646,7 @@ PRIVATE int ac_ethernet_got_ip(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 
     gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
 
-    set_timeout_periodic(priv->gobj_periodic_timer, 1000);
+    set_timeout_periodic(priv->gobj_timer_periodic, 1000);
 
     priv->on_open_published = TRUE;
     gobj_publish_event(gobj, EV_ETHERNET_ON_OPEN, json_incref(kw)); // Wait to play default_service until get time
