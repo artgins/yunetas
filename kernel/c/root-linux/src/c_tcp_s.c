@@ -47,8 +47,8 @@ SDATA (DTP_JSON,        "crypto",               SDF_RD,             0,          
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "false",        "True if schema is secure. Set internally"),
 SDATA (DTP_INTEGER,     "connxs",               SDF_RD,             0,              "Current connections"),
 SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
-SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got from url"),
-SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got from url"),
+SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
+SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace",                SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
@@ -496,7 +496,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 );
                 close(fd_clisrv);
                 return -1;
-
             }
 
             gobj_bottom = gobj_last_bottom_gobj(gobj_top);
@@ -548,11 +547,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     }
     json_object_set_new(kw_clisrv, "ytls", json_integer((json_int_t)(size_t)priv->ytls));
     json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
-    json_object_set_new(kw_clisrv, "host", json_string(gobj_read_str_attr(gobj, "lHost")));
-    json_object_set_new(kw_clisrv, "port", json_string(gobj_read_str_attr(gobj, "lPort")));
     json_object_set_new(kw_clisrv, "__clisrv__", json_true());
     json_object_set_new(kw_clisrv, "fd_clisrv", json_integer((json_int_t)(size_t)fd_clisrv));
-
 
     hgobj clisrv = gobj_create_volatil(
         xname, // the same name as the filter, if filter.

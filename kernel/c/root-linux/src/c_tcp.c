@@ -191,6 +191,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
     SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
+    SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -603,7 +604,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 } else {
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
                     if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                        if(priv->tx_ready_event_name) {
+                        if(!empty_string(priv->tx_ready_event_name)) {
                             json_t *kw_tx_ready = json_object();
                             json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
                             if(gobj_is_pure_child(gobj)) {
