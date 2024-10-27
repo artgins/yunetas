@@ -964,6 +964,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     ev_action_t st_wait_disconnected[] = {
         {EV_DROP,                   ac_force_drop,              0}, // HACK no tenemos timeout
+                                                                    // Father insists
         {0,0,0}
     };
 
