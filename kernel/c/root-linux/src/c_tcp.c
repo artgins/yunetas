@@ -344,7 +344,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     clear_timeout(priv->gobj_timer);
     gobj_change_state(gobj, ST_CONNECTED);
 
-    INCR_ATTR_INTEGER(connxs)
+    // TODO INCR_ATTR_INTEGER(connxs)
 
     /*
      *  Ready to receive
@@ -763,14 +763,15 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     // TODO This is too slow, change by gobj_danger_attr_ptr()
-    INCR_ATTR_INTEGER(txMsgs)
-    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
+//    INCR_ATTR_INTEGER(txMsgs)
+//    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
     /*
      *  Transmit
      */
+    yev_loop_t *yev_loop = yuno_event_loop();
     yev_event_t *yev_client_tx = yev_create_write_event(
-        yuno_event_loop(),
+        yev_loop,
         yev_callback,
         gobj,
         priv->yev_client_connect->fd,

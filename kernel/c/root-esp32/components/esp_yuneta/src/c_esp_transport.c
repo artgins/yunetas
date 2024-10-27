@@ -771,7 +771,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_write_bool_attr(gobj, "connected", TRUE);
 
-    INCR_ATTR_INTEGER(connxs)
+//    INCR_ATTR_INTEGER(connxs)
 
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
@@ -820,8 +820,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    INCR_ATTR_INTEGER(rxMsgs)
-    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(gbuf))
+//    INCR_ATTR_INTEGER(rxMsgs)
+//    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(gbuf))
 
     if(gobj_is_pure_child(gobj)) {
         gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
@@ -848,8 +848,8 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-    INCR_ATTR_INTEGER(txMsgs)
-    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
+//    INCR_ATTR_INTEGER(txMsgs)
+//    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
 
 #ifdef ESP_PLATFORM
     PRIVATE_DATA *priv = gobj_priv_data(gobj);

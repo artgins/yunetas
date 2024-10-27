@@ -546,7 +546,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     clear_timeout(priv->gobj_timer);
     gobj_change_state(gobj, ST_CONNECTED);
 
-    INCR_ATTR_INTEGER(connxs)
+//    INCR_ATTR_INTEGER(connxs)
 
     /*
      *  Ready to receive
