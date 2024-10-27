@@ -55,7 +55,6 @@ SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if
 SDATA (DTP_STRING,  "tx_ready_event_name",SDF_RD,       "",         "Legacy attr. Set no-empty if you want EV_TX_READY event"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
-SDATA (DTP_INTEGER, "timeout_waiting_connected", SDF_WR|SDF_PERSIST, "60000", "Timeout waiting connected in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in miliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
@@ -711,23 +710,12 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         NULL    // local bind
     );
 
-    //  HACK cannot use timeout to connect,
+    //  HACK cannot use timeout to wait the connection,
     //      it can't be clear instantly on connection (you must wait CANCEL)
-    //      it supposed that connect-event always return (with successful or error)
+    //      it supposed that connect-event always returns (with successful or error)
     //set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
     gobj_change_state(gobj, ST_WAIT_CONNECTED);
     yev_start_event(priv->yev_client_connect);
-
-    JSON_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_wait_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    set_disconnected(gobj, "timeout connection");  // this re-set timeout
 
     JSON_DECREF(kw);
     return 0;
@@ -785,6 +773,99 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Sending data not encrypted
+ ***************************************************************************/
+PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    if(priv->sskt) {
+        if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+            gobj_trace_dump_gbuf(gobj, gbuf, "tx clear data");
+        }
+        GBUFFER_INCREF(gbuf);
+        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ytls_encrypt_data() FAILED",
+                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
+                NULL
+            );
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj); // auto-stop
+            }
+        }
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+                NULL
+            );
+        }
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "secure socket closed",
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    gbuffer_incref(gbuf); // Quédate una copia
+
+//   TODO if(priv->output_priority) {
+//        /*
+//         *  Salida prioritaria.
+//         */
+//        if(priv->gbuf_txing) {
+//            log_error(LOG_OPT_TRACE_STACK,
+//                "gobj",         "%s", gobj_full_name(gobj),
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                "msg",          "%s", "gbuf_txing NOT NULL",
+//                NULL
+//            );
+//            GBUF_DECREF(priv->gbuf_txing)
+//        }
+//        priv->gbuf_txing = gbuf;
+//        try_write_all(gobj, TRUE);
+//    } else {
+//        do_write(gobj, gbuf);
+//    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_enqueue_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    gbuffer_incref(gbuf); // Quédate una copia
+    // TODO enqueue_write(gobj, gbuf);
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -799,6 +880,18 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     set_disconnected(gobj, "drop");
 
     JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_force_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    }
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -828,6 +921,7 @@ GOBJ_DEFINE_GCLASS(C_TCP);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_SEND_ENCRYPTED_DATA);
 
 /***************************************************************************
  *
@@ -848,38 +942,67 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Define States
      *----------------------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_CONNECT,                ac_connect,                 0},
+        {EV_TIMEOUT,                ac_timeout_disconnected,    0},  // send EV_CONNECT
+        {0,0,0}
+    };
+
     ev_action_t st_stopped[] = {
         {0,0,0}
     };
-    ev_action_t st_disconnected[] = {
-        {EV_CONNECT,            ac_connect,                 0},
-        {EV_TIMEOUT,            ac_timeout_disconnected,    0},  // send EV_CONNECT
+
+    ev_action_t st_wait_stopped[] = {
+        {EV_STOPPED,                0,                          ST_STOPPED},
         {0,0,0}
     };
+
     ev_action_t st_wait_connected[] = {
-        {EV_TIMEOUT,            ac_timeout_wait_connected,  0},
-        {EV_DROP,               ac_drop,                    0},
+        {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
+
+    ev_action_t st_wait_disconnected[] = {
+        {EV_DROP,                   ac_force_drop,              0}, // HACK no tenemos timeout
+        {0,0,0}
+    };
+
+    ev_action_t st_wait_handshake[] = {
+        {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
+        {EV_DROP,                   ac_drop,                    0},
+        {0,0,0}
+    };
+
     ev_action_t st_connected[] = {
         {EV_TX_DATA,            ac_tx_data,                 0},
         {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
-    ev_action_t st_wait_disconnected[] = {
-        {0,0,0}
-    };
-    ev_action_t st_wait_stopped[] = {
+
+    ev_action_t st_wait_txed[] = {
+        {EV_TX_DATA,                ac_tx_clear_data,           0},
+        {EV_SEND_ENCRYPTED_DATA,    ac_enqueue_encrypted_data,  ST_WAIT_TXED},
+        {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
 
+
+
     states_t states[] = {
-        {ST_STOPPED,            st_stopped},
         {ST_DISCONNECTED,       st_disconnected},
-        {ST_WAIT_CONNECTED,     st_wait_connected},
-        {ST_CONNECTED,          st_connected},
-        {ST_WAIT_DISCONNECTED,  st_wait_disconnected},
+        {ST_STOPPED,            st_stopped},
         {ST_WAIT_STOPPED,       st_wait_stopped},
+        {ST_WAIT_CONNECTED,     st_wait_connected},
+        {ST_WAIT_DISCONNECTED,  st_wait_disconnected}, /* Order is important. Below the connected states */
+        {ST_WAIT_HANDSHAKE,     st_wait_handshake},
+        {ST_CONNECTED,          st_connected},
+        {ST_WAIT_TXED,          st_wait_txed},
+
+//        {ST_DISCONNECTED,       st_disconnected},
+//        {ST_WAIT_CONNECTED,     st_wait_connected},
+//        {ST_CONNECTED,          st_connected},
+//        {ST_WAIT_DISCONNECTED,  st_wait_disconnected},
+//        {ST_WAIT_STOPPED,       st_wait_stopped},
         {0, 0}
     };
 
