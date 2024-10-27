@@ -560,7 +560,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     /*
      *  srvsock needs to know of disconnected event
-     *  for deleting gobjs or do statistics
+     *  for deleting gobjs or do statistics TODO sure? review
      */
     json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
     gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
