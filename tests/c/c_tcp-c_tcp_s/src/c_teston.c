@@ -281,7 +281,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 5*1000);
+    set_timeout(priv->timer, 1*1000);
 //     gbuffer_t *gbuf = gbuf_create(1024, 1024, 0, 0);
 //     gbuf_printf(gbuf, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 //

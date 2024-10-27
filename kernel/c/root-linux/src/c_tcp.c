@@ -769,12 +769,12 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *  Transmit
      */
-    yev_loop_t *yev_loop = yuno_event_loop();
+    int fd = priv->yev_client_connect->fd; // TODO merde
     yev_event_t *yev_client_tx = yev_create_write_event(
-        yev_loop,
+        yuno_event_loop(),
         yev_callback,
         gobj,
-        priv->yev_client_connect->fd,
+        fd,
         gbuf
     );
     yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
