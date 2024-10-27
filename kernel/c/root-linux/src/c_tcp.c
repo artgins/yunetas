@@ -45,7 +45,7 @@ SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection 
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
-SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
@@ -91,7 +91,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     BOOL __clisrv__;
-    yev_event_t *yev_client_connect;    // Used in not __clisrv__ (pure tcp client)
+    yev_event_t *yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
     int fd_clisrv;
     int timeout_inactivity;
@@ -172,19 +172,18 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
     }
-    if(state == ST_STOPPED) {
-        gobj_change_state(gobj, ST_DISCONNECTED);
-    }
 
     gobj_reset_volatil_attrs(gobj);
 
     if(priv->__clisrv__) {
         set_connected(gobj, priv->fd_clisrv);
-    } else {
-        char schema[40];
-        char host[120];
-        char port[40];
 
+    } else {
+        if(state == ST_STOPPED) {
+            gobj_change_state(gobj, ST_DISCONNECTED);
+        }
+
+        char schema[40]; char host[120]; char port[40];
         if(parse_url(
             gobj,
             gobj_read_str_attr(gobj, "url"),
@@ -209,35 +208,41 @@ PRIVATE int mt_start(hgobj gobj)
         }
         gobj_write_str_attr(gobj, "schema", schema);
 
-        //if(gobj_read_bool_attr(gobj, "use_ssl")) {
-            // TODO
-            //priv->transport = esp_transport_ssl_init();
-            //const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
-            //if(!empty_string(cert_pem)) {
-            //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
-            //}
-            //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
-            //    esp_transport_ssl_skip_common_name_check(priv->transport);
-            //}
-        //}
-
-        if(priv->use_ssl) {
-            json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-            priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
-        }
-
         priv->yev_client_connect = yev_create_connect_event(
             yuno_event_loop(),
             yev_callback,
             gobj
         );
+    }
 
-        /*
-         * pure tcp client: try to connect
-         */
-        // HACK el start de tcp0 lo hace el timer
-        if(!gobj_read_bool_attr(gobj, "manual")) {
-            set_timeout(priv->gobj_timer, 100);
+    if(priv->use_ssl) {
+        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+        priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
+
+        // TODO connection with certificate
+        //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
+        //if(!empty_string(cert_pem)) {
+        //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
+        //}
+        //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
+        //    esp_transport_ssl_skip_common_name_check(priv->transport);
+    }
+
+    /*
+     * pure tcp client: try to connect
+     */
+    if(!priv->__clisrv__) {
+        if (!gobj_read_bool_attr(gobj, "manual")) {
+            if (priv->timeout_inactivity > 0) {
+                // don't connect until arrives data to transmit
+                if (gobj_read_integer_attr(gobj, "connxs") > 0) {
+                } else {
+                    // But connect once time at least.
+                    gobj_send_event(gobj, EV_CONNECT, 0, gobj);
+                }
+            } else {
+                gobj_send_event(gobj, EV_CONNECT, 0, gobj);
+            }
         }
     }
 
@@ -673,30 +678,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
 
 /***************************************************************************
- *  Timeout to start connection
- ***************************************************************************/
-PRIVATE int ac_timeout_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_read_bool_attr(gobj, "manual")) {
-        if (priv->timeout_inactivity > 0) {
-            // don't connect until arrives data to transmit
-            if (gobj_read_integer_attr(gobj, "connxs") > 0) {
-            } else {
-                // But connect once time at least.
-                gobj_send_event(gobj, EV_CONNECT, 0, gobj);
-            }
-        } else {
-            gobj_send_event(gobj, EV_CONNECT, 0, gobj);
-        }
-    }
-
-    JSON_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -823,7 +804,7 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     gbuffer_incref(gbuf); // Quédate una copia
@@ -944,7 +925,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
         {EV_CONNECT,                ac_connect,                 0},
-        {EV_TIMEOUT,                ac_timeout_disconnected,    0},  // send EV_CONNECT
         {0,0,0}
     };
 
