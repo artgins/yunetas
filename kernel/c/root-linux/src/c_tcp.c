@@ -91,6 +91,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
+    BOOL __clisrv__;
     yev_event_t *yev_client_connect;    // Used in not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
     int fd_clisrv;
@@ -126,7 +127,61 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    if(!gobj_read_bool_attr(gobj, "__clisrv__")) {
+    /*
+     *  CHILD subscription model
+     */
+    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    if(!subscriber) {
+        subscriber = gobj_parent(gobj);
+    }
+    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+
+    SET_PRIV(__clisrv__,            gobj_read_bool_attr)
+    SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
+    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
+    SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+}
+
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
+    END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->gobj_timer);
+
+    gobj_state_t state = gobj_current_state(gobj);
+    if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Initial wrong task state",
+            "state",        "%s", gobj_current_state(gobj),
+            NULL
+        );
+    }
+    if(state == ST_STOPPED) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+    }
+
+    gobj_reset_volatil_attrs(gobj);
+
+    if(priv->__clisrv__) {
+        set_connected(gobj, priv->fd_clisrv);
+    } else {
         char schema[40];
         char host[120];
         char port[40];
@@ -177,62 +232,7 @@ PRIVATE void mt_create(hgobj gobj)
             yev_callback,
             gobj
         );
-    }
 
-    /*
-     *  CHILD subscription model
-     */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
-    }
-    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
-
-    SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
-    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
-    SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
-    END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->gobj_timer);
-
-    gobj_state_t state = gobj_current_state(gobj);
-    if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Initial wrong task state",
-            "state",        "%s", gobj_current_state(gobj),
-            NULL
-        );
-    }
-    if(state == ST_STOPPED) {
-        gobj_change_state(gobj, ST_DISCONNECTED);
-    }
-
-    gobj_reset_volatil_attrs(gobj);
-
-    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
-        set_connected(gobj, priv->fd_clisrv);
-    } else {
         /*
          * pure tcp client: try to connect
          */
@@ -769,7 +769,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *  Transmit
      */
-    int fd = priv->yev_client_connect->fd; // TODO merde
+    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
     yev_event_t *yev_client_tx = yev_create_write_event(
         yuno_event_loop(),
         yev_callback,
@@ -791,7 +791,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if (!gobj_read_bool_attr(gobj, "__clisrv__")) {
+    if (!priv->__clisrv__) {
         // TODO ???
     } else {
         yev_stop_event(priv->yev_client_connect);
