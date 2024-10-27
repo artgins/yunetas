@@ -95,15 +95,14 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_is_pure_child(gobj)) {
-        /*
-         *  Not pure child, explicitly use subscriber
-         */
-        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-        if(subscriber) {
-            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
-        }
+    /*
+     *  CHILD subscription model
+     */
+    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    if(!subscriber) {
+        subscriber = gobj_parent(gobj);
     }
+    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     SET_PRIV(max_pkt_size,      (uint32_t)gobj_read_integer_attr)
     if(priv->max_pkt_size == 0) {

@@ -122,14 +122,12 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_write_str_attr(gobj, "wanted_yuno_role", priv->remote_yuno_role?priv->remote_yuno_role:"");
     gobj_write_str_attr(gobj, "wanted_yuno_service", priv->remote_yuno_service?priv->remote_yuno_service:"");
 
-    if(!gobj_is_pure_child(gobj)) {
-        /*
-         *  Not pure child, explicitly use subscriber
-         */
-        hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
-        if(subscriber) {
-            gobj_subscribe_event(gobj, NULL, NULL, subscriber);
-        }
+    /*
+     *  SERVICE subscription model
+     */
+    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
 }
 
