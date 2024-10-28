@@ -70,7 +70,6 @@
  ***************************************************************/
 PRIVATE BOOL try_to_stop_yevents(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
-PRIVATE void set_disconnected(hgobj gobj, const char *cause);
 PRIVATE int yev_callback(yev_event_t *event);
 
 /***************************************************************
@@ -339,7 +338,9 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_timer);
     }
 
-    try_to_stop_yevents(gobj);
+    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
+        try_to_stop_yevents(gobj);
+    }
 
     return 0;
 }
@@ -480,20 +481,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         );
     }
 
-    if(IS_CLI) {
-        /*
-         *  cli
-         */
-        if(gobj_is_running(gobj)) {
-            gobj_change_state(gobj, ST_DISCONNECTED);
-            set_timeout(
-                priv->gobj_timer,
-                gobj_read_integer_attr(gobj, "timeout_between_connections")
-            );
-            return;
-        }
-    }
-
     if(priv->yev_client_connect) {
         if(priv->yev_client_connect->fd > 0) {
             if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -526,18 +513,37 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         }
     }
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_STOPPED, 0);
-    }
-
     gobj_write_str_attr(gobj, "peername", "");
     gobj_write_str_attr(gobj, "sockname", "");
 
     if(IS_CLISRV) {
+        // auto stop
         if(gobj_is_running(gobj)) {
             gobj_stop(gobj);
+        }
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+        } else {
+            gobj_publish_event(gobj, EV_STOPPED, 0);
+        }
+    }
+
+    if(IS_CLI) {
+        /*
+         *  cli
+         */
+        if(gobj_is_running(gobj)) {
+            gobj_change_state(gobj, ST_DISCONNECTED);
+            set_timeout(
+                priv->gobj_timer,
+                gobj_read_integer_attr(gobj, "timeout_between_connections")
+            );
+        } else {
+            if(gobj_is_pure_child(gobj)) {
+                gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+            } else {
+                gobj_publish_event(gobj, EV_STOPPED, 0);
+            }
         }
     }
 }
@@ -571,9 +577,23 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
 
     if(priv->yev_client_connect) {
         if(priv->yev_client_connect->fd > 0) {
+            if(gobj_trace_level(gobj) & TRACE_UV) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "close socket",
+                    "msg2",         "%s", "💥🟥 close socket",
+                    "fd",           "%d", priv->yev_client_connect->fd ,
+                    "p",            "%p", priv->yev_client_connect,
+                    NULL
+                );
+            }
+
             close(priv->yev_client_connect->fd);
             priv->yev_client_connect->fd = -1;
         }
+        yev_set_flag(priv->yev_client_connect, YEV_FLAG_CONNECTED, FALSE);
+
         if(yev_event_is_stoppable(priv->yev_client_connect)) {
             to_wait_stopped = TRUE;
             yev_stop_event(priv->yev_client_connect);
@@ -642,7 +662,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    //set_disconnected(gobj, strerror(-yev_event->result));
                     try_to_stop_yevents(gobj);
 
                 } else {
@@ -707,7 +726,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    //set_disconnected(gobj, strerror(-yev_event->result));
                     try_to_stop_yevents(gobj);
 
                 } else {
@@ -749,7 +767,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    //set_disconnected(gobj, strerror(-yev_event->result));
                     try_to_stop_yevents(gobj);
 
                 } else {
