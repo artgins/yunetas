@@ -190,7 +190,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 1000); // timeout to drop
+    set_timeout(priv->timer, 2000); // timeout to drop
 
     JSON_DECREF(kw)
     return 0;
