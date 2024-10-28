@@ -144,8 +144,6 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_event_t ev = (priv->periodic)? EV_TIMEOUT_PERIODIC : EV_TIMEOUT;
 
-    gobj_trace_msg(gobj, "timer");
-
     if(priv->msec > 0) {
         if(test_msectimer(priv->t_flush)) {
             if(priv->periodic) { // Quickly restart to avoid adding the execution time of action
