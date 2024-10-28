@@ -7,8 +7,8 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_pepon.h"
-#include "c_teston.h"
+#include "common/c_pepon.h"
+#include "common/c_teston.h"
 
 /***************************************************************************
  *                      Names

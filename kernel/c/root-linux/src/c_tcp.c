@@ -17,13 +17,58 @@
 #include "c_yuno.h"
 #include "c_tcp.h"
 
+/*
+    This gclass works with two type of TCP clients:
+            - cli (pure client)
+            - clisrv (client of server)
+
+            ┌───────────────────────────┐
+            │       STOPPED             │
+            └───────────────────────────┘
+
+            ┌───────────────────────────┐
+            │       DISCONNECTED        │   (Only cli)
+            └───────────────────────────┘
+                        |
+            ┌───────────────────────────┐
+            │       WAIT_DISCONNECTED   │
+            └───────────────────────────┘
+                        |
+            ┌───────────────────────────┐
+            │       WAIT_STOPPED        │
+            └───────────────────────────┘
+                        |
+            ┌───────────────────────────┐
+            │       WAIT_CONNECTED      │   (Only cli)
+            └───────────────────────────┘
+                        |
+            ┌───────────────────────────┐
+            │       CONNECTED           │
+            └───────────────────────────┘
+                        └───────────────────┐
+                                ┌───────────────────────────┐
+                                │       WAIT_HANDSHAKE      │
+                                └───────────────────────────┘
+                                            │
+                                ┌───────────────────────────┐
+                                │       IDLE                │
+                                └───────────────────────────┘
+                                            │
+                                ┌───────────────────────────┐
+                                │       WAIT_TXED           │
+                                └───────────────────────────┘
+ */
+
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define IS_CLI      (!priv->__clisrv__)
+#define IS_CLISRV   (priv->__clisrv__)
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE BOOL try_to_stop_yevents(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
 PRIVATE int yev_callback(yev_event_t *event);
@@ -93,9 +138,16 @@ typedef struct _PRIVATE_DATA {
     BOOL __clisrv__;
     yev_event_t *yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
+    yev_event_t *yev_client_tx;
     int fd_clisrv;
     int timeout_inactivity;
     char inform_disconnection;
+
+    json_int_t *pconnxs;
+    json_int_t *ptxMsgs;
+    json_int_t *prxMsgs;
+    json_int_t *ptxBytes;
+    json_int_t *prxBytes;
 
     BOOL use_ssl;
     hytls ytls;
@@ -125,6 +177,11 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
+    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
+    priv->ptxBytes = gobj_danger_attr_ptr(gobj, "txBytes");
+    priv->prxBytes = gobj_danger_attr_ptr(gobj, "rxBytes");
+    priv->pconnxs = gobj_danger_attr_ptr(gobj, "connxs");
 
     /*
      *  CHILD subscription model
@@ -164,21 +221,41 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Initial wrong task state",
+            "msg",          "%s", "Initial wrong tcp state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
         );
+        return -1;
+    }
+
+    if(priv->yev_client_connect) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "yev_client_connect ALREADY exists",
+            "state",        "%s", gobj_current_state(gobj),
+            NULL
+        );
+        return -1;
     }
 
     gobj_reset_volatil_attrs(gobj);
 
     if(priv->__clisrv__) {
+        /*
+         *  clisrv
+         *  It's already connected when is created
+         */
         set_connected(gobj, priv->fd_clisrv);
 
     } else {
+        /*
+         *  cli
+         *  Decode url to connect, create yev_create_connect_event
+         */
         if(state == ST_STOPPED) {
             gobj_change_state(gobj, ST_DISCONNECTED);
         }
@@ -228,14 +305,16 @@ PRIVATE int mt_start(hgobj gobj)
         //    esp_transport_ssl_skip_common_name_check(priv->transport);
     }
 
-    /*
-     * pure tcp client: try to connect
-     */
-    if(!priv->__clisrv__) {
+    if(IS_CLI) {
+        /*
+         *  cli
+         *  try to connect
+         */
         if (!gobj_read_bool_attr(gobj, "manual")) {
             if (priv->timeout_inactivity > 0) {
                 // don't connect until arrives data to transmit
-                if (gobj_read_integer_attr(gobj, "connxs") > 0) {
+                if((*priv->pconnxs) > 0) {
+                    // Some connection was happen
                 } else {
                     // But connect once time at least.
                     gobj_send_event(gobj, EV_CONNECT, 0, gobj);
@@ -256,28 +335,11 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_stop(priv->gobj_timer);
-
-    BOOL change_to_wait_stopped = FALSE;
-
-    if(priv->yev_client_rx) {
-        if(yev_event_is_stoppable(priv->yev_client_rx)) {
-            change_to_wait_stopped = TRUE;
-        }
-        yev_stop_event(priv->yev_client_rx);
-    }
-    if(priv->yev_client_connect) {
-        if(yev_event_is_stoppable(priv->yev_client_connect)) {
-            change_to_wait_stopped = TRUE;
-        }
-        yev_stop_event(priv->yev_client_connect);
+    if(gobj_is_running(priv->gobj_timer)) {
+        gobj_stop(priv->gobj_timer);
     }
 
-    if(change_to_wait_stopped) {
-        gobj_change_state(gobj, ST_WAIT_STOPPED);
-    } else {
-        gobj_change_state(gobj, ST_STOPPED);
-    }
+    try_to_stop_yevents(gobj);
 
     return 0;
 }
@@ -291,6 +353,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
 }
 
 
@@ -348,7 +411,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     clear_timeout(priv->gobj_timer);
     gobj_change_state(gobj, ST_CONNECTED);
 
-    // TODO INCR_ATTR_INTEGER(connxs)
+    (*priv->pconnxs)++;
 
     /*
      *  Ready to receive
@@ -394,7 +457,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 }
 
 /***************************************************************************
- *
+ *  WARNING set disconnected when all yevents has stopped
+ *  It's the signal that gclass can be re-used
  ***************************************************************************/
 PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 {
@@ -402,15 +466,6 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
-    if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-        if(gobj_is_running(gobj)) {
-            set_timeout(
-                priv->gobj_timer,
-                gobj_read_integer_attr(gobj, "timeout_between_connections")
-            );
-        }
-        return;
-    }
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -425,47 +480,38 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         );
     }
 
-    if(gobj_is_running(gobj)) {
-        gobj_change_state(gobj, ST_DISCONNECTED);
-    }
-
-    if(priv->yev_client_connect->fd > 0) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "close socket",
-                "msg2",         "%s", "💥🟥 close socket",
-                "fd",           "%d", priv->yev_client_connect->fd ,
-                "p",            "%p", priv->yev_client_connect, // TODO and accept?
-                NULL
-            );
-        }
-
-        close(priv->yev_client_connect->fd);
-        priv->yev_client_connect->fd = -1;
-    }
-
-    yev_set_flag(priv->yev_client_connect, YEV_FLAG_CONNECTED, FALSE);
-
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, -1);
-        yev_stop_event(priv->yev_client_rx);
-    }
-
-    if(priv->yev_client_connect) {
-        yev_stop_event(priv->yev_client_connect);
-    }
-
-    if(gobj_read_bool_attr(gobj, "__clisrv__")) {
-        // TODO to stop
-    } else {
+    if(IS_CLI) {
+        /*
+         *  cli
+         */
         if(gobj_is_running(gobj)) {
+            gobj_change_state(gobj, ST_DISCONNECTED);
             set_timeout(
                 priv->gobj_timer,
                 gobj_read_integer_attr(gobj, "timeout_between_connections")
             );
+            return;
         }
+    }
+
+    if(priv->yev_client_connect) {
+        if(priv->yev_client_connect->fd > 0) {
+            if(gobj_trace_level(gobj) & TRACE_UV) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "close socket",
+                    "msg2",         "%s", "💥🟥 close socket",
+                    "fd",           "%d", priv->yev_client_connect->fd ,
+                    "p",            "%p", priv->yev_client_connect,
+                    NULL
+                );
+            }
+
+            close(priv->yev_client_connect->fd);
+            priv->yev_client_connect->fd = -1;
+        }
+        yev_set_flag(priv->yev_client_connect, YEV_FLAG_CONNECTED, FALSE);
     }
 
     /*
@@ -480,8 +526,61 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         }
     }
 
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_STOPPED, 0);
+    }
+
     gobj_write_str_attr(gobj, "peername", "");
     gobj_write_str_attr(gobj, "sockname", "");
+
+    if(IS_CLISRV) {
+        if(gobj_is_running(gobj)) {
+            gobj_stop(gobj);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Return TRUE if all yevents stopped and destroyed
+ *  if TRUE change to STOPPED state, else wait in WAIT_STOPPED
+ ***************************************************************************/
+PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL change_to_wait_stopped = FALSE;
+
+    if(priv->yev_client_connect) {
+        if(yev_event_is_stoppable(priv->yev_client_connect)) {
+            change_to_wait_stopped = TRUE;
+            yev_stop_event(priv->yev_client_connect);
+        }
+    }
+    if(priv->yev_client_rx) {
+        if(yev_event_is_stoppable(priv->yev_client_rx)) {
+            change_to_wait_stopped = TRUE;
+            yev_set_fd(priv->yev_client_rx, -1);
+            yev_stop_event(priv->yev_client_rx);
+        }
+    }
+
+    if(priv->yev_client_tx) {
+        if(yev_event_is_stoppable(priv->yev_client_tx)) {
+            change_to_wait_stopped = TRUE;
+            yev_set_fd(priv->yev_client_tx, -1);
+            yev_stop_event(priv->yev_client_tx);
+        }
+    }
+
+    if(change_to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+        return FALSE;
+    } else {
+        gobj_change_state(gobj, ST_STOPPED);
+        set_disconnected(gobj, "all stopped");
+        return TRUE;
+    }
 }
 
 /***************************************************************************
@@ -537,7 +636,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    set_disconnected(gobj, strerror(-yev_event->result));
+                    //set_disconnected(gobj, strerror(-yev_event->result));
+                    try_to_stop_yevents(gobj);
 
                 } else {
                     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
@@ -549,9 +649,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         );
                     }
 
-                    // TODO cambia a danger pointer
-                    //INCR_ATTR_INTEGER(rxMsgs)
-                    //INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(yev_event->gbuf))
+                    (*priv->prxMsgs)++;
+                    (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
 
                     /*
                      *  yev_event->gbuf can be null if yev_stop_event() was called
@@ -602,7 +701,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    set_disconnected(gobj, strerror(-yev_event->result));
+                    //set_disconnected(gobj, strerror(-yev_event->result));
+                    try_to_stop_yevents(gobj);
 
                 } else {
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
@@ -643,7 +743,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    set_disconnected(gobj, strerror(-yev_event->result));
+                    //set_disconnected(gobj, strerror(-yev_event->result));
+                    try_to_stop_yevents(gobj);
+
                 } else {
                     set_connected(gobj, yev_event->fd);
                 }
@@ -684,32 +786,47 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    JSON_DECREF(kw)
+
     const char *url = gobj_read_str_attr(gobj, "url");
-    yev_setup_connect_event(
+    if(yev_setup_connect_event(
         priv->yev_client_connect,
         url,    // client_url
         NULL    // local bind
-    );
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot connect tcp gobj",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
 
-    //  HACK cannot use timeout to wait the connection,
-    //      it can't be clear instantly on connection (you must wait CANCEL)
-    //      it supposed that connect-event always returns (with successful or error)
-    //set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
-    gobj_change_state(gobj, ST_WAIT_CONNECTED);
-    yev_start_event(priv->yev_client_connect);
+    if(yev_start_event(priv->yev_client_connect)<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot connect tcp gobj",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
 
-    JSON_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  Sending data not encrypted
  ***************************************************************************/
-PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0);
+    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
+
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -731,41 +848,8 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    // TODO This is too slow, change by gobj_danger_attr_ptr()
-//    INCR_ATTR_INTEGER(txMsgs)
-//    INCR_ATTR_INTEGER2(txBytes, gbuffer_leftbytes(gbuf))
-
-    /*
-     *  Transmit
-     */
-    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-    yev_event_t *yev_client_tx = yev_create_write_event(
-        yuno_event_loop(),
-        yev_callback,
-        gobj,
-        fd,
-        gbuf
-    );
-    yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
-    yev_start_event(yev_client_tx);
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  Sending data not encrypted
- ***************************************************************************/
-PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
     if(priv->sskt) {
-        if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-            gobj_trace_dump_gbuf(gobj, gbuf, "tx clear data");
-        }
-        GBUFFER_INCREF(gbuf);
+        GBUFFER_INCREF(gbuf)
         if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -774,9 +858,7 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
             );
-            if(gobj_is_running(gobj)) {
-                gobj_stop(gobj); // auto-stop
-            }
+            try_to_stop_yevents(gobj);
         }
         if(gbuffer_leftbytes(gbuf) > 0) {
             gobj_log_error(gobj, 0,
@@ -787,12 +869,26 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             );
         }
     } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "secure socket closed",
-            NULL
-        );
+        (*priv->ptxMsgs)++;
+        (*priv->ptxBytes) += (json_int_t)gbuffer_leftbytes(gbuf);
+
+        /*
+         *  Transmit
+         */
+        int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
+        if(!priv->yev_client_tx) {
+            priv->yev_client_tx = yev_create_write_event(
+                yuno_event_loop(),
+                yev_callback,
+                gobj,
+                fd,
+                gbuf
+            );
+
+        }
+        yev_set_flag(priv->yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+        yev_start_event(priv->yev_client_tx);
+        gobj_change_state(gobj, ST_WAIT_TXED);
     }
 
     KW_DECREF(kw)
@@ -842,7 +938,7 @@ PRIVATE int ac_enqueue_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw
 
     gbuffer_incref(gbuf); // Quédate una copia
     // TODO enqueue_write(gobj, gbuf);
-    KW_DECREF(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -851,28 +947,44 @@ PRIVATE int ac_enqueue_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if (!priv->__clisrv__) {
-        // TODO ???
-    } else {
-        yev_stop_event(priv->yev_client_connect);
-    }
-    set_disconnected(gobj, "drop");
+    try_to_stop_yevents(gobj);
 
     JSON_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
- *
+ *  This action must be only in ST_WAIT_STOPPED
+ *  When all yevents are stopped then change to STOPPED and set_disconnect
  ***************************************************************************/
-PRIVATE int ac_force_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_running(gobj)) {
-        gobj_stop(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL change_to_stopped = TRUE;
+
+    if(priv->yev_client_connect) {
+        if(!yev_event_is_stopped(priv->yev_client_connect)) {
+            change_to_stopped = FALSE;
+        }
     }
-    KW_DECREF(kw);
+    if(priv->yev_client_rx) {
+        if(!yev_event_is_stopped(priv->yev_client_rx)) {
+            change_to_stopped = FALSE;
+        }
+    }
+    if(priv->yev_client_tx) {
+        if(!yev_event_is_stopped(priv->yev_client_tx)) {
+            change_to_stopped = FALSE;
+        }
+    }
+
+    if(change_to_stopped) {
+        gobj_change_state(gobj, ST_STOPPED);
+        set_disconnected(gobj, "all stopped");
+    }
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -924,7 +1036,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECT,                ac_connect,                 0},
+        {EV_CONNECT,                ac_connect,                 ST_WAIT_CONNECTED},
+        {EV_TIMEOUT,                ac_connect,                 ST_WAIT_CONNECTED},
         {0,0,0}
     };
 
@@ -933,7 +1046,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_stopped[] = {
-        {EV_STOPPED,                0,                          ST_STOPPED},
+        {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
     };
 
@@ -943,8 +1056,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_disconnected[] = {
-        {EV_DROP,                   ac_force_drop,              0}, // HACK no tenemos timeout
-                                                                    // Father insists
+        {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
 

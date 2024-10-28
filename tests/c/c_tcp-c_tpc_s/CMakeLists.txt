@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_timeranger2 C)
+project(test_c_tcp C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -20,23 +20,22 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-set(SRCS
-    test_tranger_startup.c
-    test_topic_pkey_integer.c
-    test_topic_pkey_integer_iterator.c
-    test_topic_pkey_integer_iterator2.c
-    test_topic_pkey_integer_iterator3.c
-    test_topic_pkey_integer_iterator4.c
-    test_topic_pkey_integer_iterator5.c
-    test_topic_pkey_integer_iterator6.c
+SET(SRCS
+    test1.c
+    pepon_teston.c
+)
+
+SET(COMMON
+    common/c_pepon.c
+    common/c_teston.c
 )
 
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "${test}.bin")
-    add_executable(${binary} ${test})
+    get_filename_component(binary ${test} NAME_WE)
+    add_executable(${binary} ${test} ${COMMON})
 
     target_link_libraries(${binary}
         libyunetas-c_prot.a
@@ -47,7 +46,10 @@ foreach(test ${SRCS})
 
         libjansson.a
         liburing.a
+        libjwt.a
         libpcre2-8.a
+        libssl.a
+        libcrypto.a
 
         uuid
         bfd     # to stacktrace
