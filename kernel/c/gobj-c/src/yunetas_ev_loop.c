@@ -292,7 +292,11 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*------------------------*
      *      Trace
      *------------------------*/
-    if((gobj_trace_level(gobj) & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) {
+    uint32_t trace_level = gobj_trace_level(gobj);
+
+    if(((trace_level & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) ||
+        ((trace_level & TRACE_UV_TIMER) && yev_event->type == YEV_TIMER_TYPE)
+    ) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -367,7 +371,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_ST_STOPPED:
             if(cqe->res == -ECANCELED) {
-                if(gobj_trace_level(gobj) & TRACE_UV) {
+                if(trace_level & TRACE_UV) {
                     json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                     gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -425,7 +429,9 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     if(cur_state != yev_get_state(yev_event)) {
         // State has changed
-        if((gobj_trace_level(gobj) & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) {
+        if(((trace_level & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) ||
+           ((trace_level & TRACE_UV_TIMER) && yev_event->type == YEV_TIMER_TYPE)
+            ) {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -546,7 +552,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm accept event
                          */
-                        if(gobj_trace_level(gobj) & TRACE_UV) {
+                        if(trace_level & TRACE_UV) {
                             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                             gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -621,7 +627,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm periodic timer event
                          */
-                        if(gobj_trace_level(gobj) & TRACE_UV_TIMER) {
+                        if(trace_level & TRACE_UV_TIMER) {
                             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                             gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -725,7 +731,8 @@ PUBLIC int yev_start_event(
     /*------------------------*
      *      Trace
      *------------------------*/
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -990,7 +997,7 @@ PUBLIC int yev_start_event(
 
     if(cur_state != yev_get_state(yev_event)) {
         // State has changed
-        if(gobj_trace_level(gobj) & TRACE_UV) {
+        if(trace_level & TRACE_UV) {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1072,7 +1079,8 @@ PUBLIC int yev_start_timer_event(
     /*------------------------*
      *      Trace
      *------------------------*/
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1491,6 +1499,7 @@ PUBLIC int yev_setup_connect_event(
     }
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    uint32_t trace_level = gobj_trace_level(gobj);
 
     if(yev_event->fd >= 0) {
         gobj_log_error(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
@@ -1679,7 +1688,7 @@ PUBLIC int yev_setup_connect_event(
             }
 		}
 
-        if(gobj_trace_level(gobj) & TRACE_UV) {
+        if(trace_level & TRACE_UV) {
             print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1734,7 +1743,7 @@ PUBLIC int yev_setup_connect_event(
 
     yev_event->fd = fd;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(trace_level & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1810,6 +1819,7 @@ PUBLIC int yev_setup_accept_event(
     }
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    uint32_t trace_level = gobj_trace_level(gobj);
 
     if(yev_event->fd >= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2024,7 +2034,7 @@ PUBLIC int yev_setup_accept_event(
 
     yev_event->fd = fd;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(trace_level & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
