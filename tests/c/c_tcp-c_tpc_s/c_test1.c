@@ -9,6 +9,7 @@
 #include <string.h>
 #include <iconv.h>
 
+#include "common/c_pepon.h"
 #include "c_test1.h"
 
 /***************************************************************************
@@ -58,6 +59,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
+
+    hgobj pepon;
     json_int_t *ptxMsgs;
     json_int_t *prxMsgs;
 } PRIVATE_DATA;
@@ -84,6 +87,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->pepon = gobj_create_pure_child(gobj_name(gobj), C_PEPON, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -100,6 +104,9 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
+    if(!gobj_is_running(priv->pepon)) {
+        gobj_start(priv->pepon);
+    }
 
     return 0;
 }
@@ -112,6 +119,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
+    gobj_stop(priv->pepon);
 
     return 0;
 }
@@ -127,7 +135,8 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//    set_timeout_periodic(priv->timer, priv->timeout);
+    gobj_play(priv->pepon);
+//    set_timeout(priv->timer, priv->timeout);
 
     return 0;
 }
@@ -140,6 +149,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    gobj_pause(priv->pepon);
 
     return 0;
 }
