@@ -201,6 +201,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    static int i=0;
+    i++;
+
+    if(i>2) {
+        gobj_shutdown();
+    }
+
     JSON_DECREF(kw)
     return 0;
 }

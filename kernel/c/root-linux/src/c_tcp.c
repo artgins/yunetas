@@ -397,16 +397,29 @@ PRIVATE void set_connected(hgobj gobj, int fd)
      *  Info of "connected"
      */
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Connected",
-            "msg2",         "%s", "Connected🔵",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-            NULL
-        );
+        if(IS_CLI) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Connected To",
+                "msg2",         "%s", "Connected To 🔵",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Connected From",
+                "msg2",         "%s", "Connected From 🔵",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                NULL
+            );
+        }
     }
 
     clear_timeout(priv->gobj_timer);
@@ -468,17 +481,31 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Disconnected",
-            "msg2",         "%s", "Disconnected🔴",
-            "cause",        "%s", cause?cause:"",
-            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-            NULL
-        );
+        if(IS_CLI) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Disconnected To",
+                "msg2",         "%s", "Disconnected To 🔴",
+                "cause",        "%s", cause?cause:"",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Disconnected From",
+                "msg2",         "%s", "Disconnected From 🔴",
+                "cause",        "%s", cause?cause:"",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                NULL
+            );
+        }
     }
 
     if(priv->yev_client_connect) {

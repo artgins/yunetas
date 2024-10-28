@@ -187,44 +187,59 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
-    //gobj_set_global_no_trace("timer", TRUE);
 
     // Samples of traces
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "messages", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", TRUE);
+    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "messages", TRUE);
+    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-     gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-     gobj_set_gobj_trace(0, "machine", TRUE, 0);
-     gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
     /*------------------------------*
      *  Start test
      *------------------------------*/
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "Starting yuno",
+        "msg", "addrinfo on listen",
+        "msg", "Listening...",
+        "msg", "Playing yuno",
+        "msg", "Connected To",
+        "msg", "Clisrv accepted",
+        "msg", "Connected From",
+        "msg", "Disconnected To",
+        "msg", "Disconnected From",
+        "msg", "Connected To",
+        "msg", "Clisrv accepted",
+        "msg", "Connected From",
+        "msg", "Disconnected To",
+        "msg", "Disconnected From",
+        "msg", "Connected To",
+        "msg", "Clisrv accepted",
+        "msg", "Connected From",
+        "msg", "Disconnected To",
+        "msg", "Pausing yuno",
+        "msg", "Disconnected From",
+        "msg", "Yuno stopped, gobj end"
+    );
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
-            "msg", "Starting yuno",
-            "msg", "addrinfo on listen",
-            "msg", "Listening...",
-            "msg", "Playing yuno",
-            "msg", "Pausing yuno",
-            "msg", "Yuno stopped, gobj end"
-        ),
+        errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
