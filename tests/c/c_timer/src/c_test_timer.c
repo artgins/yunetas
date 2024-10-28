@@ -1,6 +1,5 @@
 /***********************************************************************
  *          C_TEST_TIMER.C
- *          Sanikidb GClass.
  *
  *          A class to test timer class high level (C_TIMER)
  *

@@ -1,7 +1,7 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Main of test_c_tcp_tcps
+ *          Test:
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -9,11 +9,12 @@
 #include <yunetas.h>
 #include "common/c_pepon.h"
 #include "common/c_teston.h"
+#include "c_test2.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_c_tcp_tcps"
+#define APP_NAME        "test1"
 #define APP_DOC         "Test C_TCP_TCP_S"
 
 #define APP_VERSION     "1.0.0"
@@ -189,6 +190,7 @@ static void register_yuno_and_more(void)
      *--------------------*/
     register_c_pepon();
     register_c_teston();
+    register_c_test2();
 
     /*------------------------------------------------*
      *          Traces

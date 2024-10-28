@@ -1,6 +1,5 @@
 /***********************************************************************
  *          C_TEST_TIMER0.C
- *          Sanikidb GClass.
  *
  *          A class to test timer class low level (C_TIMER0)
  *

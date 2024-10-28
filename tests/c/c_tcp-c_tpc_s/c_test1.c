@@ -1,8 +1,7 @@
 /***********************************************************************
- *          C_TEST_TIMER.C
- *          Sanikidb GClass.
+ *          C_TEST1.C
  *
- *          A class to test timer class high level (C_TIMER)
+ *          A class to test C_TCP / C_TCP_S
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -373,7 +372,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST_TIMER);
+GOBJ_DEFINE_GCLASS(C_TEST1);
 
 /*------------------------*
  *      States
@@ -445,7 +444,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_test_timer(void)
+PUBLIC int register_c_test1(void)
 {
-    return create_gclass(C_TEST_TIMER);
+    return create_gclass(C_TEST1);
 }

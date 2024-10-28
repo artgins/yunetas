@@ -1,7 +1,7 @@
 /****************************************************************************
- *          C_TEST_TIMER.H
+ *          C_TEST2.H
  *
- *          A class to test timer class high level (C_TIMER)
+ *          A class to test C_TCP / C_TCP_S
  *
  *          Copyright (c) 2024, Artgins.
  *          All Rights Reserved.
@@ -20,7 +20,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TEST_TIMER);
+GOBJ_DECLARE_GCLASS(C_TEST2);
 
 /*------------------------*
  *      States
@@ -33,7 +33,7 @@ GOBJ_DECLARE_GCLASS(C_TEST_TIMER);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_test_timer(void);
+PUBLIC int register_c_test2(void);
 
 
 #ifdef __cplusplus
