@@ -7,6 +7,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "common/c_pepon.h"
 #include "c_test1.h"
 
 /***************************************************************************
@@ -66,9 +67,20 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test1',                                        \n\
+            'name': 'c_test1',                                      \n\
             'gclass': 'C_TEST1',                                    \n\
             'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'zchilds': [                                            \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'pepon',                                        \n\
+            'gclass': 'C_PEPON',                                    \n\
+            'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
@@ -175,6 +187,7 @@ static void register_yuno_and_more(void)
     /*--------------------*
      *  Register service
      *--------------------*/
+    register_c_pepon();
     register_c_test1();
 
     /*------------------------------------------------*

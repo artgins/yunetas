@@ -287,25 +287,17 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     (*priv->prxMsgs)++;
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(priv->gobj_input_side));
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
     }
 
-    gbuffer_t *gbuf_resp = gbuffer_create(1024, 1024);
-    char *resp = "{}";
-    int len = (int)strlen(resp);
-    gbuffer_printf(gbuf_resp,
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: application/json; charset=utf-8\r\n"
-        "Content-Length: %d\r\n\r\n",
-        len
-    );
-    gbuffer_append(gbuf_resp, resp, len);
-
+    /*
+     *  Do echo of message received
+     */
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf_resp
+        "gbuffer", (json_int_t)(size_t)gbuf
     );
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 

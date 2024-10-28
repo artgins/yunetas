@@ -68,7 +68,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'test2',                                        \n\
+            'name': 'c_test2',                                      \n\
             'gclass': 'C_TEST2',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\

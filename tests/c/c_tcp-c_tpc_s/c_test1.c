@@ -42,6 +42,17 @@ SDATA_END()
 };
 
 /*---------------------------------------------*
+ *      GClass trace levels
+ *---------------------------------------------*/
+enum {
+    TRACE_MESSAGES  = 0x0001,
+};
+PRIVATE const trace_level_t s_user_trace_level[16] = {
+{"messages",        "Trace messages"},
+{0, 0},
+};
+
+/*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
@@ -155,6 +166,44 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  Gps connected
+ ***************************************************************************/
+PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Gps disconnected
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    (*priv->prxMsgs)++;
+
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
+    }
+
+    KW_DECREF(kw)
+
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -282,7 +331,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,
-        0,  // s_user_trace_level,
+        s_user_trace_level,  // s_user_trace_level,
         0   // gcflag_t
     );
     if(!__gclass__) {
