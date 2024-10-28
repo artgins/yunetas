@@ -288,7 +288,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(gobj_trace_level(gobj) & TRACE_LISTEN) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Listening...",
+            "msg",          "%s", "Listening...🔷",
             "url",          "%s", priv->url,
             "lHost",        "%s", host,
             "lPort",        "%s", port,
@@ -509,13 +509,14 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                     "msg",          "%s", "Clisrv accepted",
+                    "msg2",         "%s", "Clisrv accepted...🔷👍",
                     "tree_name",    "%s", tree_name,
                     NULL
                 );
             }
         }
     } else {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "child_tree_filter NULL",
