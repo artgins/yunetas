@@ -68,11 +68,22 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'pepon',                                        \n\
-            'gclass': 'C_PEPON',                                    \n\
+            'name': 'test1',                                        \n\
+            'gclass': 'C_TEST1',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'zchilds': [                                            \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'pepon',                                        \n\
+            'gclass': 'C_PEPON',                                    \n\
+            'default_service': false,                               \n\
+            'autostart': true,                                      \n\
+            'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'zchilds': [                                            \n\
@@ -83,7 +94,7 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_TESTON',                                   \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
+            'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
             'zchilds': [                                            \n\
