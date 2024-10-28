@@ -368,7 +368,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"start_stop",      "Trace start/stop of gobjs"},
     {"monitor",         "Monitor activity of gobjs"},
     {"event_monitor",   "Monitor events of gobjs"},
-    {"libuv",           "Trace liburing mixins"},
+    {"liburing",           "Trace liburing mixins"},
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},

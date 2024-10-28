@@ -2084,7 +2084,7 @@ enum { /* String table in s_global_trace_level */
  *      "start_stop"
  *      "monitor"
  *      "event_monitor"
- *      "libuv" (now liburing)
+ *      "liburing"
  *      "ev_kw"
  *      "authzs"
  *      "states"

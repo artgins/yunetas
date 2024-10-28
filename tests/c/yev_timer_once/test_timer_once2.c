@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers

@@ -205,8 +205,8 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
     // gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    // gobj_set_gobj_trace(0, "libuv", TRUE, 0);
+     gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
     /*------------------------------*
