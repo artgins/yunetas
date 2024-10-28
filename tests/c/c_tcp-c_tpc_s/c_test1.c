@@ -136,7 +136,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_play(priv->pepon);
-//    set_timeout(priv->timer, priv->timeout);
+    set_timeout(priv->timer, 100);
 
     return 0;
 }
@@ -309,11 +309,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_closed[] = {
         {EV_TIMEOUT,                ac_timeout,                 0},
         {EV_STOPPED,                ac_stopped,                 0},
+        {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}
     };
     ev_action_t st_opened[] = {
-        {EV_TIMEOUT,                ac_timeout,                 0},
-        {EV_STOPPED,                ac_stopped,                 0},
+        {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
         {0,0,0}
     };
 
