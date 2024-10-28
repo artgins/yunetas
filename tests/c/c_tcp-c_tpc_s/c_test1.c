@@ -89,7 +89,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->pepon = gobj_create_pure_child(gobj_name(gobj), C_PEPON, 0, gobj);
+    priv->pepon = gobj_create_pure_child("server", C_PEPON, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -188,6 +188,10 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    set_timeout(priv->timer, 1000); // timeout to drop
+
     JSON_DECREF(kw)
     return 0;
 }
@@ -210,6 +214,13 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     (*priv->prxMsgs)++;
 
+//    (*priv->prxMsgs)++;
+//    (*priv->ptxMsgs)++;
+//
+//    if(*priv->prxMsgs == 3) {
+//        gobj_shutdown();
+//    }
+
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -228,14 +239,20 @@ PRIVATE int ac_timeout_connect(hgobj gobj, const char *event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//    (*priv->prxMsgs)++;
-//    (*priv->ptxMsgs)++;
-//
-//    if(*priv->prxMsgs == 3) {
-//        gobj_shutdown();
-//    }
-
     gobj_start_tree(priv->gobj_output_side);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_send_event(priv->gobj_output_side, EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -323,6 +340,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_opened[] = {
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
+        {EV_TIMEOUT,                ac_timeout_close,           0},
         {0,0,0}
     };
 
