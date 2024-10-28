@@ -90,7 +90,6 @@ typedef struct _PRIVATE_DATA {
     json_int_t *pconnxs;
 
     yev_event_t *yev_server_accept;
-    BOOL uv_socket_open;
     int fd_listen;
     hytls ytls;
     BOOL use_ssl;
@@ -156,16 +155,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(ytls_cleanup, priv->ytls);
-
-//    if(gobj_current_state(gobj) != ST_STOPPED) {
-//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-//            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-//            NULL
-//        );
-//    }
+    EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 }
 
 /***************************************************************************
@@ -277,7 +268,6 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     yev_start_event(priv->yev_server_accept);
-    priv->uv_socket_open = TRUE;
 
     gobj_write_str_attr(gobj, "lHost", host);
     gobj_write_str_attr(gobj, "lPort", port);
@@ -309,11 +299,11 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->uv_socket_open) {
+    if(yev_event_is_stoppable(priv->yev_server_accept)) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
-        //uv_close((uv_handle_t *)&priv->yev_server_accept, on_close_cb); // TODO ???
         yev_stop_event(priv->yev_server_accept);
-        priv->uv_socket_open = 0;
+    } else {
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
     }
 
     return 0;
@@ -591,7 +581,7 @@ PRIVATE int ac_clisrv_stopped(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    (*priv->pconnxs)--;
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 
     JSON_DECREF(kw)
     return 0;

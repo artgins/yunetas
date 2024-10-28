@@ -355,6 +355,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
+    EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 }
 
 
