@@ -61,6 +61,8 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
 
     hgobj pepon;
+
+    hgobj gobj_output_side;
     json_int_t *ptxMsgs;
     json_int_t *prxMsgs;
 } PRIVATE_DATA;
@@ -136,6 +138,10 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_play(priv->pepon);
+
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
+
     set_timeout(priv->timer, 1000);
 
     return 0;
@@ -182,7 +188,7 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -191,7 +197,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -218,10 +224,10 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
 //    (*priv->prxMsgs)++;
 //    (*priv->ptxMsgs)++;
 //
@@ -229,7 +235,9 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //        gobj_shutdown();
 //    }
 
-    KW_DECREF(kw)
+    gobj_start_tree(priv->gobj_output_side);
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -307,7 +315,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_closed[] = {
-        {EV_TIMEOUT,                ac_timeout,                 0},
+        {EV_TIMEOUT,                ac_timeout_connect,         0},
         {EV_STOPPED,                ac_stopped,                 0},
         {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}

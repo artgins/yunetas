@@ -103,6 +103,9 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->t_flush = 0;
     gobj_unsubscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
 
     return 0;
@@ -141,13 +144,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_event_t ev = (priv->periodic)? EV_TIMEOUT_PERIODIC : EV_TIMEOUT;
 
+    gobj_trace_msg(gobj, "timer");
+
     if(priv->msec > 0) {
         if(test_msectimer(priv->t_flush)) {
-            if (priv->periodic) { // Quickly restart to avoid to add the execution time of action
+            if(priv->periodic) { // Quickly restart to avoid adding the execution time of action
                 priv->t_flush = start_msectimer(priv->msec);
+            } else {
+                priv->t_flush = 0;
             }
 
-            if (gobj_is_pure_child(gobj)) {
+            if(gobj_is_pure_child(gobj)) {
                 gobj_send_event(gobj_parent(gobj), ev, json_incref(kw), gobj);
             } else {
                 gobj_publish_event(gobj, ev, json_incref(kw));

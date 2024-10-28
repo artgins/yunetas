@@ -193,6 +193,9 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
+    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "messages", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", TRUE);
+
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
