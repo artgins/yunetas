@@ -288,7 +288,8 @@ PRIVATE int mt_start(hgobj gobj)
     if(gobj_trace_level(gobj) & TRACE_LISTEN) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Listening...🔷",
+            "msg",          "%s", "Listening...",
+            "msg2",          "%s", "Listening...🔷",
             "url",          "%s", priv->url,
             "lHost",        "%s", host,
             "lPort",        "%s", port,
@@ -504,13 +505,15 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             }
 
             if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
-                const char *tree_name = gobj_full_name(gobj_bottom);
+                const char *top_tree = gobj_full_name(gobj_top);
+                const char *bottom_tree = gobj_full_name(gobj_bottom);
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                     "msg",          "%s", "Clisrv accepted",
                     "msg2",         "%s", "Clisrv accepted...🔷👍",
-                    "tree_name",    "%s", tree_name,
+                    "top_tree",     "%s", top_tree,
+                    "bottom_tree",  "%s", bottom_tree,
                     NULL
                 );
             }
