@@ -292,7 +292,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*------------------------*
      *      Trace
      *------------------------*/
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if((gobj_trace_level(gobj) & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -425,7 +425,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     if(cur_state != yev_get_state(yev_event)) {
         // State has changed
-        if(gobj_trace_level(gobj) & TRACE_UV) {
+        if((gobj_trace_level(gobj) & TRACE_UV) && yev_event->type != YEV_TIMER_TYPE) {
             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -621,7 +621,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm periodic timer event
                          */
-                        if(gobj_trace_level(gobj) & TRACE_UV) {
+                        if(gobj_trace_level(gobj) & TRACE_UV_TIMER) {
                             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                             gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,

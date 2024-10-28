@@ -368,13 +368,14 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"start_stop",      "Trace start/stop of gobjs"},
     {"monitor",         "Monitor activity of gobjs"},
     {"event_monitor",   "Monitor events of gobjs"},
-    {"libuv",           "Trace libuv mixins"},
+    {"libuv",           "Trace liburing mixins"},
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
     {"gbuffers",        "Trace gbuffers"},
     {"timer_periodic",  "Trace periodic timers"},
     {"timer",           "Trace timers"},
+    {"liburing_timer",  "Trace liburing timer"},
     {0, 0}
 };
 
@@ -7211,8 +7212,8 @@ PUBLIC int gobj_publish_event(
         }
     }
 
-    BOOL tracea = __trace_gobj_subscriptions__(publisher) ||
-        (is_machine_tracing(publisher, event) && !is_machine_not_tracing(publisher, event));
+    BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
+        !is_machine_not_tracing(publisher, event);
     if(tracea) {
         trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
             (!publisher->running)?"!!":"",

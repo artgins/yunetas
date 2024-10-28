@@ -136,7 +136,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_play(priv->pepon);
-    set_timeout(priv->timer, 100);
+    set_timeout(priv->timer, 1000);
 
     return 0;
 }
