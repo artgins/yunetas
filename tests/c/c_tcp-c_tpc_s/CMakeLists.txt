@@ -21,8 +21,8 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 SET(SRCS
-    test1.c
-    pepon_teston.c
+    test1
+    test2
 )
 
 SET(COMMON
@@ -34,8 +34,8 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    get_filename_component(binary ${test} NAME_WE)
-    add_executable(${binary} ${test} ${COMMON})
+    set(binary "${test}")
+    add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
         libyunetas-c_prot.a
