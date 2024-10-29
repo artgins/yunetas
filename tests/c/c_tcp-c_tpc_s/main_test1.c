@@ -1,7 +1,8 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test:
+ *          Test: Use pepon as server and test the tcp client in c_test1
+ *          No interchange of messages, only connections
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.

@@ -2,6 +2,8 @@
  *          C_TEST2.C
  *
  *          A class to test C_TCP / C_TCP_S
+ *          Test: Use teston as client and test the tcp server in c_test2
+ *          No interchange of messages, only connections
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
