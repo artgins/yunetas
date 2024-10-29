@@ -597,7 +597,6 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
     if(priv->yev_client_rx) {
         if(yev_event_is_stoppable(priv->yev_client_rx)) {
             to_wait_stopped = TRUE;
-            yev_set_fd(priv->yev_client_rx, -1);
             yev_stop_event(priv->yev_client_rx);
         }
     }
@@ -605,7 +604,6 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
     if(priv->yev_client_tx) {
         if(yev_event_is_stoppable(priv->yev_client_tx)) {
             to_wait_stopped = TRUE;
-            yev_set_fd(priv->yev_client_tx, -1);
             yev_stop_event(priv->yev_client_tx);
         }
     }
@@ -677,22 +675,22 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     try_to_stop_yevents(gobj);
 
                 } else {
-                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
-                            gobj_short_name(gobj),
-                            gobj_read_str_attr(gobj, "sockname"),
-                            " <- ",
-                            gobj_read_str_attr(gobj, "peername")
-                        );
-                    }
-
-                    (*priv->prxMsgs)++;
-                    (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
-
                     /*
                      *  yev_event->gbuf can be null if yev_stop_event() was called
                      */
                     if(yev_event->gbuf) {
+                        if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+                            gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                                gobj_short_name(gobj),
+                                gobj_read_str_attr(gobj, "sockname"),
+                                " <- ",
+                                gobj_read_str_attr(gobj, "peername")
+                            );
+                        }
+
+                        (*priv->prxMsgs)++;
+                        (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
+
                         GBUFFER_INCREF(yev_event->gbuf)
                         json_t *kw = json_pack("{s:I}",
                             "gbuffer", (json_int_t)(size_t)yev_event->gbuf

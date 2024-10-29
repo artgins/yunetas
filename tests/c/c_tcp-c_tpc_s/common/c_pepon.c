@@ -294,7 +294,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     /*
-     *  Do echo of message received
+     *  Do echo of the message received
      */
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf

@@ -30,6 +30,7 @@ GOBJ_DECLARE_GCLASS(C_TESTON);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_START_TRAFFIC);
 
 /***************************************************************
  *              Prototypes

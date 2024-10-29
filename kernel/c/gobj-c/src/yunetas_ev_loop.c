@@ -345,7 +345,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Not stopping the loop, check more
                  */
-                if(cqe->res == -ECANCELED || cqe->res == 0) {
+                if(cqe->res == -ECANCELED) {
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 } else if(cqe->res < 0) {
                     gobj_log_error(gobj, 0,
@@ -457,7 +457,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res == 0) {
-                    cqe->res = -EPIPE; // force EPIPE, close by peer
+                    // cqe->res = -EPIPE; // force EPIPE, close by peer
                     /*
                      *  Behavior seen in YEV_READ_TYPE type when socket has broken:
                      *      - cqe->res = 0
@@ -466,6 +466,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                      */
                 }
                 if(cqe->res < 0) {
+                    yev_event->fd = -1;
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
@@ -489,7 +490,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_WRITE_TYPE:
             {
                 if(cqe->res == 0) {
-                    cqe->res = -EPIPE; // force EPIPE, close by peer
+                    // cqe->res = -EPIPE; // force EPIPE, close by peer
                     /*
                      *  Behavior seen in YEV_WRITE_TYPE type when socket has broken:
                      *
@@ -504,6 +505,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
                 if(cqe->res < 0) {
+                    yev_event->fd = -1;
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
@@ -1213,7 +1215,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
             GBUFFER_DECREF(yev_event->gbuf)
-            yev_event->fd = -1;
             break;
         case YEV_CONNECT_TYPE:
             GBMEM_FREE(yev_event->dst_addr)
