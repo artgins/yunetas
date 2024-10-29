@@ -63,7 +63,7 @@ typedef struct _PRIVATE_DATA {
 
     hgobj teston;
 
-    hgobj gobj_input_size;
+    hgobj gobj_input_side;
     json_int_t *ptxMsgs;
     json_int_t *prxMsgs;
 } PRIVATE_DATA;
@@ -140,10 +140,10 @@ PRIVATE int mt_play(hgobj gobj)
 
     gobj_play(priv->teston);
 
-    priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
-    set_timeout(priv->timer, 2000); // timeout to start gobj_input_size (set pepon in listen)
+    set_timeout(priv->timer, 2000); // timeout to start gobj_input_side (set pepon in listen)
 
     return 0;
 }
@@ -240,7 +240,7 @@ PRIVATE int ac_timeout_listen(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start_tree(priv->gobj_input_size);
+    gobj_start_tree(priv->gobj_input_side);
 
     JSON_DECREF(kw)
     return 0;
@@ -253,7 +253,7 @@ PRIVATE int ac_timeout_close(hgobj gobj, const char *event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event(priv->gobj_input_size, EV_DROP, 0, gobj);
+    gobj_send_event(priv->gobj_input_side, EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;

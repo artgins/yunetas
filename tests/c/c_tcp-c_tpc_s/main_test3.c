@@ -206,8 +206,8 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+    gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    // set_auto_kill_time(8);
+    set_auto_kill_time(4);
 
     /*------------------------------------------------*
      *          Start yuneta

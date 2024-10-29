@@ -60,9 +60,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
 
-    hgobj teston;
+    hgobj pepon;
 
-    hgobj gobj_input_size;
+    hgobj gobj_output_side;
     json_int_t *ptxMsgs;
     json_int_t *prxMsgs;
 } PRIVATE_DATA;
@@ -89,7 +89,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->teston = gobj_create_pure_child("client", C_TESTON, 0, gobj);
+    priv->pepon = gobj_create_pure_child("server", C_PEPON, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -106,8 +106,8 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    if(!gobj_is_running(priv->teston)) {
-        gobj_start(priv->teston);
+    if(!gobj_is_running(priv->pepon)) {
+        gobj_start(priv->pepon);
     }
 
     return 0;
@@ -121,7 +121,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
-    gobj_stop(priv->teston);
+    gobj_stop(priv->pepon);
 
     return 0;
 }
@@ -137,11 +137,11 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_play(priv->teston);
+    gobj_play(priv->pepon);
 
-    priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
-    gobj_start_tree(priv->gobj_input_size);
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
+    gobj_start_tree(priv->gobj_output_side);
 
     return 0;
 }
@@ -154,7 +154,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_pause(priv->teston);
+    gobj_pause(priv->pepon);
 
     return 0;
 }
@@ -189,7 +189,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event(priv->teston, EV_START_TRAFFIC, 0, gobj);
+    gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+    gbuffer_printf(gbuf, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+    json_t *kw_send = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(size_t)gbuf
+    );
+    gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
     JSON_DECREF(kw)
     return 0;
