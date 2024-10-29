@@ -2,8 +2,7 @@
  *          C_TEST3.H
  *
  *          A class to test C_TCP / C_TCP_S
- *          Test: Use teston as client and test the tcp server in c_test3
- *          With interchange of messages
+ *          Test: Use pepon as server and test interchange of messages
  *
  *          Copyright (c) 2024, Artgins.
  *          All Rights Reserved.

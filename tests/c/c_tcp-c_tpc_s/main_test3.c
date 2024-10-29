@@ -1,14 +1,13 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: Use teston as client and test the tcp server in c_test3
- *          With interchange of messages
+ *          Test: Use pepon as server and test interchange of messages
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "common/c_teston.h"
+#include "common/c_pepon.h"
 #include "c_test3.h"
 
 /***************************************************************************
@@ -177,7 +176,7 @@ static void register_yuno_and_more(void)
     /*--------------------*
      *  Register service
      *--------------------*/
-    register_c_teston();
+    register_c_pepon();
     register_c_test3();
 
     /*------------------------------------------------*

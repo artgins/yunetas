@@ -2,15 +2,14 @@
  *          C_TEST3.C
  *
  *          A class to test C_TCP / C_TCP_S
- *          Test: Use teston as client and test the tcp server in c_test3
- *          With interchange of messages
+ *          Test: Use pepon as server and test interchange of messages
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <iconv.h>
 
-#include "common/c_teston.h"
+#include "common/c_pepon.h"
 #include "c_test3.h"
 
 /***************************************************************************
@@ -142,8 +141,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
-
-    set_timeout(priv->timer, 2000); // timeout to start gobj_input_size (set pepon in listen)
+    gobj_start_tree(priv->gobj_input_size);
 
     return 0;
 }
@@ -191,7 +189,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 2000); // timeout to drop
+    gobj_send_event(priv->teston, EV_START_TRAFFIC, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -202,13 +200,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    static int i=0;
-    i++;
-
-    if(i>2) {
-        gobj_shutdown();
-    }
-
     JSON_DECREF(kw)
     return 0;
 }
@@ -228,34 +219,14 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
     }
 
+    static int i=0;
+    i++;
+
+    if(i>2) {
+        gobj_shutdown();
+    }
+
     KW_DECREF(kw)
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_listen(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start_tree(priv->gobj_input_size);
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_send_event(priv->gobj_input_size, EV_DROP, 0, gobj);
-
-    JSON_DECREF(kw)
     return 0;
 }
 
@@ -333,7 +304,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_closed[] = {
-        {EV_TIMEOUT,                ac_timeout_listen,          0},
         {EV_STOPPED,                ac_stopped,                 0},
         {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}
@@ -341,7 +311,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_opened[] = {
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
-        {EV_TIMEOUT,                ac_timeout_close,           0},
         {0,0,0}
     };
 
