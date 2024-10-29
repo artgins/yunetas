@@ -2240,11 +2240,10 @@ PUBLIC int set_tcp_socket_options(int fd, int delay)
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
 #endif
-//    struct linger lg;
-//    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
-//    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
-//    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
-    printf("=======================> fd %d ret %d\n", fd, ret); // TODO
+    struct linger lg;
+    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
+    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
+    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
     return ret;
 }
 

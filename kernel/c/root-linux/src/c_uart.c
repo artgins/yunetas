@@ -681,6 +681,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
+            "fd",           "%d", yev_event->fd,
             NULL
         );
         json_decref(jn_flags);

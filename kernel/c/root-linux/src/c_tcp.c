@@ -352,6 +352,22 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->fd_clisrv > 0) {
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket fd_clisrv",
+                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                "fd",           "%d", priv->fd_clisrv ,
+                NULL
+            );
+        }
+
+        close(priv->fd_clisrv);
+        priv->fd_clisrv = -1;
+    }
+
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
@@ -637,6 +653,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
+            "fd",           "%d", yev_event->fd,
             NULL
         );
         json_decref(jn_flags);
