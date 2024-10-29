@@ -36,6 +36,7 @@ int do_test(char *path)
     yev_loop_create(
         0,
         2024,
+        10,
         &yev_loop
     );
 

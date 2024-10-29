@@ -515,8 +515,8 @@ PRIVATE void set_disconnected(hgobj gobj)
                 gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_YEV_LOOP,
-                    "msg",          "%s", "close socket",
-                    "msg2",         "%s", "💥🟥 close yev_client_connect socket",
+                    "msg",          "%s", "close socket yev_client_connect",
+                    "msg2",         "%s", "💥🟥 close socket yev_client_connect",
                     "fd",           "%d", priv->yev_client_connect->fd ,
                     "p",            "%p", priv->yev_client_connect,
                     NULL

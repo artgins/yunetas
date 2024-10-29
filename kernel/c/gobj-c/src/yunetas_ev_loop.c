@@ -48,7 +48,7 @@ PRIVATE const char *yev_flag_s[] = {
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop_)
+PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop_)
 {
     struct io_uring ring_test;
     int err;
@@ -115,6 +115,7 @@ retry:
 
     yev_loop->yuno = yuno;
     yev_loop->entries = entries;
+    yev_loop->keep_alive = keep_alive?keep_alive:60;
 
     *yev_loop_ = yev_loop;
 
@@ -534,7 +535,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_event->result = cqe->res; // cli_srv socket
                 if(yev_event->result > 0) {
                     if (is_tcp_socket(yev_event->result)) {
-                        set_tcp_socket_options(yev_event->result);
+                        set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
                     }
                 }
 
@@ -1345,9 +1346,52 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         case YEV_WRITE_TYPE:
             break;
         case YEV_CONNECT_TYPE:
+            if(yev_event->fd > 0) {
+                if(gobj_trace_level(0) & TRACE_UV) {
+                    gobj_log_debug(0, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket yev_connect",
+                        "msg2",         "%s", "💥🟥 close socket yev_connect",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
+                close(yev_event->fd);
+                yev_event->fd = -1;
+            }
+            break;
         case YEV_ACCEPT_TYPE:
+            if(yev_event->fd > 0) {
+                if(gobj_trace_level(0) & TRACE_UV) {
+                    gobj_log_debug(0, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket yev_accept",
+                        "msg2",         "%s", "💥🟥 close socket yev_accept",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
+                close(yev_event->fd);
+                yev_event->fd = -1;
+            }
+            break;
         case YEV_TIMER_TYPE:
             if(yev_event->fd > 0) {
+                if(gobj_trace_level(0) & TRACE_UV) {
+                    gobj_log_debug(0, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket yev_timer",
+                        "msg2",         "%s", "💥🟥 close socket yev_timer",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
                 close(yev_event->fd);
                 yev_event->fd = -1;
             }
@@ -1725,8 +1769,9 @@ PUBLIC int yev_setup_connect_event(
         return ret;
     }
 
-    if(hints.ai_protocol == IPPROTO_TCP) {
-        set_tcp_socket_options(fd);
+    //if(hints.ai_protocol == IPPROTO_TCP) {
+    if (is_tcp_socket(fd)) {
+        set_tcp_socket_options(fd, yev_event->yev_loop->keep_alive);
     }
 
     yev_event->fd = fd;
@@ -2176,7 +2221,7 @@ PUBLIC const char *yev_event_type_name(yev_event_t *yev_event)
 /***************************************************************************
  *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
  ***************************************************************************/
-PUBLIC int set_tcp_socket_options(int fd)
+PUBLIC int set_tcp_socket_options(int fd, int delay)
 {
     int ret = 0;
     int on = 1;
@@ -2186,18 +2231,20 @@ PUBLIC int set_tcp_socket_options(int fd)
 
     ret += setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
 #ifdef TCP_KEEPIDLE
-    int delay = 60; /* seconds */
+    if(!delay) {
+        delay = 60; /* seconds */
+    }
     int intvl = 1;  /*  1 second; same as default on Win32 */
     int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
 #endif
-    struct linger lg;
-    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
-    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
-    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
-
+//    struct linger lg;
+//    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
+//    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
+//    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
+    printf("=======================> fd %d ret %d\n", fd, ret); // TODO
     return ret;
 }
 

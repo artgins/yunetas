@@ -143,7 +143,7 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
 
-//    set_timeout(priv->timer, 2000);
+    set_timeout(priv->timer, 2000); // timeout to start gobj_input_size (set pepon in listen)
 
     return 0;
 }

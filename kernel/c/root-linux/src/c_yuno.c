@@ -336,6 +336,7 @@ SDATA (DTP_STRING,  "work_dir",         SDF_RD,         "",             "Work di
 SDATA (DTP_STRING,  "domain_dir",       SDF_RD,         "",             "Domain dir"),
 SDATA (DTP_STRING,  "bind_ip",          SDF_RD,         "",             "Bind ip of yuno's realm. Set by agent"),
 SDATA (DTP_BOOLEAN, "yuno_multiple",    SDF_RD,         "0",            "True when yuno can open shared ports. Set by agent"),
+SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "60",           "Set keep-alive"),
 SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
 SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS, "",           "Yuno starting date"),
 SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS, "0",          "Yuno living time"),
@@ -448,6 +449,7 @@ PRIVATE void mt_create(hgobj gobj)
     yev_loop_create(
         gobj,
         (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
+        (int) gobj_read_integer_attr(gobj, "keep_alive"),
         &priv->yev_loop
     );
 

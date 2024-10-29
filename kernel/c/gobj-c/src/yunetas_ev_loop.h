@@ -135,6 +135,7 @@ struct yev_loop_s {
     struct io_uring ring;
     unsigned entries;
     hgobj yuno;
+    int keep_alive;
     volatile int running;
     volatile int stopping;
 };
@@ -143,7 +144,7 @@ struct yev_loop_s {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, yev_loop_t **yev_loop);
+PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop);
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
 
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop);
@@ -214,6 +215,11 @@ static inline BOOL yev_event_is_stoppable(yev_event_t *yev_event)
     return (yev_event->state!=YEV_ST_STOPPED && yev_event->state!=YEV_ST_CANCELING)?TRUE:FALSE;
 }
 
+//static inline void yev_set_keep_alive(yev_event_t *yev_event, int keep_alive)
+//{
+//    yev_event->keep_alive = keep_alive;
+//}
+
 /*
  *  In `connect`, `timer` and `accept` events, the socket will be closed.
  */
@@ -276,7 +282,7 @@ PUBLIC const char *yev_event_type_name(yev_event_t *yev_event);
 /*
  *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
  */
-PUBLIC int set_tcp_socket_options(int fd); // Set internally in tcp sockets (client and clisrv)
+PUBLIC int set_tcp_socket_options(int fd, int delay); // Set internally in tcp sockets (client and clisrv)
 
 PUBLIC BOOL is_tcp_socket(int fd);
 PUBLIC BOOL is_udp_socket(int fd);
