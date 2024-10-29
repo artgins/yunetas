@@ -591,7 +591,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_CONNECT_TYPE:
             {
                 if(cqe->res < 0) {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE); // user TODO
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 } else {
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
                 }
@@ -936,6 +936,7 @@ PUBLIC int yev_start_event(
                     yev_event->dst_addrlen
                 );
                 io_uring_submit(&yev_loop->ring);
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
@@ -1256,6 +1257,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
 
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
+            yev_event->result = -ECANCELED; // In idle state simulate canceled error
             if (yev_event->callback) {
                 yev_event->callback(
                     yev_event

@@ -8,10 +8,9 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <string.h>
 #include <iconv.h>
 
-#include "common/c_pepon.h"
+#include "common/c_teston.h"
 #include "c_test2.h"
 
 /***************************************************************************
@@ -62,9 +61,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
 
-    hgobj pepon;
+    hgobj teston;
 
-    hgobj gobj_output_side;
+    hgobj gobj_input_size;
     json_int_t *ptxMsgs;
     json_int_t *prxMsgs;
 } PRIVATE_DATA;
@@ -91,7 +90,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
     priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->pepon = gobj_create_pure_child("server", C_PEPON, 0, gobj);
+    priv->teston = gobj_create_pure_child("client", C_TESTON, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -108,8 +107,8 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    if(!gobj_is_running(priv->pepon)) {
-        gobj_start(priv->pepon);
+    if(!gobj_is_running(priv->teston)) {
+        gobj_start(priv->teston);
     }
 
     return 0;
@@ -123,7 +122,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
-    gobj_stop(priv->pepon);
+    gobj_stop(priv->teston);
 
     return 0;
 }
@@ -139,10 +138,10 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_play(priv->pepon);
+    gobj_play(priv->teston);
 
-    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
+    priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
 
     set_timeout(priv->timer, 1000);
 
@@ -157,7 +156,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_pause(priv->pepon);
+    gobj_pause(priv->teston);
 
     return 0;
 }
@@ -223,13 +222,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     (*priv->prxMsgs)++;
 
-//    (*priv->prxMsgs)++;
-//    (*priv->ptxMsgs)++;
-//
-//    if(*priv->prxMsgs == 3) {
-//        gobj_shutdown();
-//    }
-
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -248,7 +240,7 @@ PRIVATE int ac_timeout_connect(hgobj gobj, const char *event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start_tree(priv->gobj_output_side);
+    gobj_start_tree(priv->gobj_input_size);
 
     JSON_DECREF(kw)
     return 0;
@@ -261,7 +253,7 @@ PRIVATE int ac_timeout_close(hgobj gobj, const char *event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event(priv->gobj_output_side, EV_DROP, 0, gobj);
+    gobj_send_event(priv->gobj_input_size, EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
     return 0;

@@ -8,7 +8,6 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <string.h>
 #include <iconv.h>
 
 #include "common/c_pepon.h"
@@ -222,13 +221,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     (*priv->prxMsgs)++;
-
-//    (*priv->prxMsgs)++;
-//    (*priv->ptxMsgs)++;
-//
-//    if(*priv->prxMsgs == 3) {
-//        gobj_shutdown();
-//    }
 
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 

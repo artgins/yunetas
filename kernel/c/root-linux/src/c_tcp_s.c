@@ -376,7 +376,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_info(gobj, 0,
+        gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
