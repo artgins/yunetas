@@ -1211,22 +1211,11 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     /*---------------------------*
      *      Free
      *---------------------------*/
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-        case YEV_WRITE_TYPE:
-            GBUFFER_DECREF(yev_event->gbuf)
-            break;
-        case YEV_CONNECT_TYPE:
-            GBMEM_FREE(yev_event->dst_addr)
-            yev_event->dst_addrlen = 0;
-            break;
-        case YEV_ACCEPT_TYPE:
-            GBMEM_FREE(yev_event->src_addr)
-            yev_event->src_addrlen = 0;
-            break;
-        case YEV_TIMER_TYPE:
-            break;
-    }
+    GBUFFER_DECREF(yev_event->gbuf)
+    GBMEM_FREE(yev_event->dst_addr)
+    yev_event->dst_addrlen = 0;
+    GBMEM_FREE(yev_event->src_addr)
+    yev_event->src_addrlen = 0;
 
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
@@ -1345,16 +1334,11 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         yev_stop_event(yev_event);
     }
 
-    if(yev_event->gbuf) {
-        GBUFFER_DECREF(yev_event->gbuf)
-    }
-
-    if(yev_event->src_addr) {
-        GBMEM_FREE(yev_event->src_addr)
-    }
-    if(yev_event->dst_addr) {
-        GBMEM_FREE(yev_event->dst_addr)
-    }
+    GBUFFER_DECREF(yev_event->gbuf)
+    GBMEM_FREE(yev_event->dst_addr)
+    yev_event->dst_addrlen = 0;
+    GBMEM_FREE(yev_event->src_addr)
+    yev_event->src_addrlen = 0;
 
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
@@ -1723,6 +1707,7 @@ PUBLIC int yev_setup_connect_event(
     }
 
     if(ret == 0) {
+        GBMEM_FREE(yev_event->dst_addr)
         yev_event->dst_addr = GBMEM_MALLOC(rp->ai_addrlen);
         if(yev_event->dst_addr) {
             memcpy(yev_event->dst_addr, rp->ai_addr, rp->ai_addrlen);

@@ -143,7 +143,7 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_size = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_size, NULL, 0, gobj);
 
-    set_timeout(priv->timer, 1000);
+//    set_timeout(priv->timer, 2000);
 
     return 0;
 }
@@ -236,7 +236,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_listen(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -333,7 +333,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_closed[] = {
-        {EV_TIMEOUT,                ac_timeout_connect,         0},
+        {EV_TIMEOUT,                ac_timeout_listen,          0},
         {EV_STOPPED,                ac_stopped,                 0},
         {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}
