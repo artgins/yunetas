@@ -475,7 +475,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
  *  WARNING set disconnected when all yevents has stopped
  *  It's the signal that gclass can be re-used
  ***************************************************************************/
-PRIVATE void set_disconnected(hgobj gobj, const char *cause)
+PRIVATE void set_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -488,7 +488,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected To",
                 "msg2",         "%s", "Disconnected To 🔴",
-                "cause",        "%s", cause?cause:"",
+                "cause",        "%s", gobj_log_last_message(),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -500,7 +500,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "Disconnected From",
                 "msg2",         "%s", "Disconnected From 🔴",
-                "cause",        "%s", cause?cause:"",
+                "cause",        "%s", gobj_log_last_message(),
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                 "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -614,7 +614,7 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         return FALSE;
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        set_disconnected(gobj, "all stopped");
+        set_disconnected(gobj);
         return TRUE;
     }
 }
@@ -656,6 +656,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     /*
                      *  Disconnected
                      */
+                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+
                     if(gobj_trace_level(gobj) & TRACE_UV) {
                         if(yev_event->result != -ECANCELED) {
                             gobj_log_debug(gobj, 0,
@@ -720,6 +722,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     /*
                      *  Disconnected
                      */
+                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+
                     if(gobj_trace_level(gobj) & TRACE_UV) {
                         if(yev_event->result != -ECANCELED) {
                             gobj_log_debug(gobj, 0,
@@ -763,6 +767,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     /*
                      *  Error on connection
                      */
+                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+
                     if(gobj_trace_level(gobj) & TRACE_UV) {
                         if(yev_event->result != -ECANCELED) {
                             gobj_log_debug(gobj, 0,
@@ -1014,7 +1020,7 @@ PRIVATE int ac_wait_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     if(change_to_stopped) {
         gobj_change_state(gobj, ST_STOPPED);
-        set_disconnected(gobj, "all stopped");
+        set_disconnected(gobj);
     }
 
     JSON_DECREF(kw)

@@ -132,7 +132,7 @@ PRIVATE void json_add_null(hgen_t hgen, const char *key);
 PRIVATE void json_add_double(hgen_t hgen, const char *key, double number);
 PRIVATE void json_add_integer(hgen_t hgen, const char *key, long long int number);
 PRIVATE char *json_get_buf(hgen_t hgen);
-PRIVATE void json_vappend(hgen_t hgen, va_list ap);
+PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap);
 
 static const unsigned char json_exceptions[] = {
     0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86,
@@ -291,12 +291,12 @@ PUBLIC int gobj_log_add_handler(
         glog_init();
     }
     if(empty_string(handler_name)) {
-        gobj_log_set_last_message("gobj_log_add_handler(): no handler name");
+        print_error(0, "gobj_log_add_handler(): no handler name");
         return -1;
     }
 
     if(gobj_log_exist_handler(handler_name)) {
-        gobj_log_set_last_message("gobj_log_add_handler(): handler name already exists");
+        print_error(0, "gobj_log_add_handler(): handler name already exists");
         return -1;
     }
 
@@ -310,7 +310,7 @@ PUBLIC int gobj_log_add_handler(
         }
     }
     if(type == max_log_register) {
-        gobj_log_set_last_message("gobj_log_add_handler(): handler type not found");
+        print_error(0, "gobj_log_add_handler(): handler type not found");
         return -1;
     }
 
@@ -321,7 +321,7 @@ PUBLIC int gobj_log_add_handler(
      *-------------------------------------*/
     log_handler_t *lh = malloc(sizeof(log_handler_t));
     if(!lh) {
-        gobj_log_set_last_message("gobj_log_add_handler(): no memory");
+        print_error(0, "gobj_log_add_handler(): no memory");
         return -1;
     }
     memset(lh, 0, sizeof(log_handler_t));
@@ -373,7 +373,7 @@ PUBLIC int gobj_log_del_handler(const char *handler_name)
     }
 
     if(!found) {
-        gobj_log_set_last_message("Handler not found");
+        print_error(0, "Handler not found");
         return -1;
     }
     return 0;
@@ -914,7 +914,7 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 
     discover(gobj, 0);
 
-    json_vappend(0, ap);
+    json_vappend(0, priority, ap);
 
     if(opt & LOG_OPT_EXIT_NEGATIVE) {
         json_add_string(0, "exiting", "-1");
@@ -1123,7 +1123,7 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
 /*****************************************************************
  *  Add key/values from va_list argument
  *****************************************************************/
-PRIVATE void json_vappend(hgen_t hgen, va_list ap)
+PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 {
     char *key;
     char *fmt;
@@ -1201,7 +1201,9 @@ PRIVATE void json_vappend(hgen_t hgen, va_list ap)
                             p = va_arg (ap, wchar_t *);
                             if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
                                 if(strcmp(key, "msg")==0) {
-                                    gobj_log_set_last_message("%s", value);
+                                    if(priority <= LOG_ERR) {
+                                        gobj_log_set_last_message("%s", value);
+                                    }
                                 }
                                 json_add_string(hgen, key, value);
                             } else {
@@ -1215,7 +1217,9 @@ PRIVATE void json_vappend(hgen_t hgen, va_list ap)
                             p = va_arg (ap, char *);
                             if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
                                 if(strcmp(key, "msg")==0) {
-                                    gobj_log_set_last_message("%s", value);
+                                    if(priority <= LOG_ERR) {
+                                        gobj_log_set_last_message("%s", value);
+                                    }
                                 }
                                 json_add_string(hgen, key, value);
                             } else {
