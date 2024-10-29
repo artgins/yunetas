@@ -137,7 +137,7 @@ typedef struct _PRIVATE_DATA {
     BOOL __clisrv__;
     yev_event_t *yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
-    yev_event_t *yev_client_tx;
+    //yev_event_t *yev_client_tx;
     int fd_clisrv;
     int timeout_inactivity;
     char inform_disconnection;
@@ -370,7 +370,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
+    //EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 }
 
@@ -617,12 +617,12 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         }
     }
 
-    if(priv->yev_client_tx) {
-        if(yev_event_is_stoppable(priv->yev_client_tx)) {
-            to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_tx);
-        }
-    }
+//    if(priv->yev_client_tx) {
+//        if(yev_event_is_stoppable(priv->yev_client_tx)) {
+//            to_wait_stopped = TRUE;
+//            yev_stop_event(priv->yev_client_tx);
+//        }
+//    }
 
     if(to_wait_stopped) {
         return FALSE;
@@ -658,11 +658,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         );
         json_decref(jn_flags);
     }
-
-//    if(yev_event_is_stopped(yev_event)) {
-//        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
-//        return 0;
-//    }
 
     switch(yev_event->type) {
         case YEV_READ_TYPE:
@@ -930,18 +925,30 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
          *  Transmit
          */
         int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-        if(!priv->yev_client_tx) {
-            priv->yev_client_tx = yev_create_write_event(
-                yuno_event_loop(),
-                yev_callback,
-                gobj,
-                fd,
-                gbuf
-            );
+//        if(!priv->yev_client_tx) {
+//            priv->yev_client_tx = yev_create_write_event(
+//                yuno_event_loop(),
+//                yev_callback,
+//                gobj,
+//                fd,
+//                gbuf
+//            );
+//
+//        }
+//        yev_set_flag(priv->yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+//        yev_start_event(priv->yev_client_tx);
 
-        }
-        yev_set_flag(priv->yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
-        yev_start_event(priv->yev_client_tx);
+        yev_event_t *yev_client_tx = yev_create_write_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            fd,
+            gbuf
+        );
+
+        yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+        yev_start_event(yev_client_tx);
+
         gobj_change_state(gobj, ST_WAIT_TXED);
     }
 
@@ -1027,11 +1034,11 @@ PRIVATE int ac_wait_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             change_to_stopped = FALSE;
         }
     }
-    if(priv->yev_client_tx) {
-        if(!yev_event_is_stopped(priv->yev_client_tx)) {
-            change_to_stopped = FALSE;
-        }
-    }
+//    if(priv->yev_client_tx) {
+//        if(!yev_event_is_stopped(priv->yev_client_tx)) {
+//            change_to_stopped = FALSE;
+//        }
+//    }
 
     if(change_to_stopped) {
         gobj_change_state(gobj, ST_STOPPED);
