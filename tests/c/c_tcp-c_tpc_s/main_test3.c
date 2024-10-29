@@ -192,14 +192,14 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST3), "messages", TRUE);
-    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST3), "machine", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TEST3), "messages", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TEST3), "machine", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(4);
+    set_auto_kill_time(8);
 
     /*------------------------------------------------*
      *          Start yuneta

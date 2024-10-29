@@ -53,10 +53,6 @@
                                 ┌───────────────────────────┐
                                 │       IDLE                │
                                 └───────────────────────────┘
-                                            │
-                                ┌───────────────────────────┐
-                                │       WAIT_TXED           │
-                                └───────────────────────────┘
  */
 
 /***************************************************************
@@ -137,7 +133,6 @@ typedef struct _PRIVATE_DATA {
     BOOL __clisrv__;
     yev_event_t *yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
     yev_event_t *yev_client_rx;
-    //yev_event_t *yev_client_tx;
     int fd_clisrv;
     int timeout_inactivity;
     char inform_disconnection;
@@ -370,7 +365,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
-    //EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 }
 
@@ -617,13 +611,6 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         }
     }
 
-//    if(priv->yev_client_tx) {
-//        if(yev_event_is_stoppable(priv->yev_client_tx)) {
-//            to_wait_stopped = TRUE;
-//            yev_stop_event(priv->yev_client_tx);
-//        }
-//    }
-
     if(to_wait_stopped) {
         return FALSE;
     } else {
@@ -767,7 +754,13 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     }
                 }
 
-                // TODO ??? yev_destroy_event(yev_event);
+                if(yev_event_is_stopped(yev_event)) {
+                    printf("DESTROY====================>\n");
+                    yev_destroy_event(yev_event);
+                } else {
+                    printf("STOP====================>\n");
+                    yev_stop_event(yev_event);
+                }
             }
             break;
 
@@ -874,8 +867,6 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
-
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -925,19 +916,6 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
          *  Transmit
          */
         int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-//        if(!priv->yev_client_tx) {
-//            priv->yev_client_tx = yev_create_write_event(
-//                yuno_event_loop(),
-//                yev_callback,
-//                gobj,
-//                fd,
-//                gbuf
-//            );
-//
-//        }
-//        yev_set_flag(priv->yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
-//        yev_start_event(priv->yev_client_tx);
-
         yev_event_t *yev_client_tx = yev_create_write_event(
             yuno_event_loop(),
             yev_callback,
@@ -946,10 +924,9 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             gbuf
         );
 
+        BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
         yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
         yev_start_event(yev_client_tx);
-
-        gobj_change_state(gobj, ST_WAIT_TXED);
     }
 
     KW_DECREF(kw)
@@ -986,19 +963,6 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 //        do_write(gobj, gbuf);
 //    }
 
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_enqueue_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    gbuffer_incref(gbuf); // Quédate una copia
-    // TODO enqueue_write(gobj, gbuf);
     KW_DECREF(kw)
     return 0;
 }
@@ -1125,15 +1089,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     ev_action_t st_connected[] = {
         {EV_TX_DATA,                ac_tx_clear_data,           0},
-        {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     ST_WAIT_TXED},
-        {EV_STOPPED,                ac_drop,                    0},
-        {EV_DROP,                   ac_drop,                    0},
-        {0,0,0}
-    };
-
-    ev_action_t st_wait_txed[] = {
-        {EV_TX_DATA,                ac_tx_clear_data,           0},
-        {EV_SEND_ENCRYPTED_DATA,    ac_enqueue_encrypted_data,  0},
+        {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
         {EV_STOPPED,                ac_drop,                    0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
@@ -1148,7 +1104,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         /* Order is important. Below are the connected states */
         {ST_WAIT_HANDSHAKE,     st_wait_handshake},
         {ST_CONNECTED,          st_connected},
-        {ST_WAIT_TXED,          st_wait_txed},
         {0, 0}
     };
 

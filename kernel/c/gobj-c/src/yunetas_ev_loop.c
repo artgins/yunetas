@@ -904,16 +904,29 @@ PUBLIC int yev_start_event(
                 }
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
-                io_uring_prep_write(
-                    sqe,
-                    yev_event->fd,
-                    gbuffer_cur_rd_pointer(yev_event->gbuf),
-                    gbuffer_leftbytes(yev_event->gbuf),
-                    0
-                );
-                io_uring_submit(&yev_loop->ring);
-                yev_set_state(yev_event, YEV_ST_RUNNING);
+                if(sqe) {
+                    io_uring_sqe_set_data(sqe, yev_event);
+                    io_uring_prep_write(
+                        sqe,
+                        yev_event->fd,
+                        gbuffer_cur_rd_pointer(yev_event->gbuf),
+                        gbuffer_leftbytes(yev_event->gbuf),
+                        0
+                    );
+                    io_uring_submit(&yev_loop->ring);
+                    yev_set_state(yev_event, YEV_ST_RUNNING);
+                } else {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
             }
             break;
         case YEV_CONNECT_TYPE:
