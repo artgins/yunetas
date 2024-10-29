@@ -189,13 +189,15 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_timer1";
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "timeout got 1",
+        "msg", "Operation canceled",
+        "msg", "yev_event already stopped"
+    );
+
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
-            "msg", "timeout got 1",
-            "msg", "timeout stopped",
-            "msg", "yev_event already stopped"
-        ),
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

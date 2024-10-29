@@ -348,6 +348,11 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 if(cqe->res == -ECANCELED) {
                     yev_set_state(yev_event, YEV_ST_STOPPED);
+                } else if(cqe->res == 0) {
+                    /* Mark this request as processed */
+                    io_uring_cqe_seen(&yev_loop->ring, cqe);
+                    return 0;
+
                 } else if(cqe->res < 0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,

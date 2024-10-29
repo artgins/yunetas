@@ -253,14 +253,15 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_timer2";
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "timeout periodic got 1",
+        "msg", "timeout periodic got 2",
+        "msg", "timeout once got 1",
+        "msg", "Operation canceled"
+    );
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-            "msg", "timeout periodic got 1",
-            "msg", "timeout periodic got 2",
-            "msg", "timeout once got 1",
-            "msg", "timeout periodic stopped"
-        ),
+        error_list, // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

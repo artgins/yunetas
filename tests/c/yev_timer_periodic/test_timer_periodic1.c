@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
             "msg", "timeout got 1",
             "msg", "timeout got 2",
             "msg", "timeout got 3",
-            "msg", "timeout stopped",
+            "msg", "Operation canceled",
             "msg", "yev_event already stopped"
         ),
         NULL,  // expected
