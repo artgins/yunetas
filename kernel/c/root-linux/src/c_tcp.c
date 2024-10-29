@@ -595,6 +595,16 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL to_wait_stopped = FALSE;
 
+    if(gobj_trace_level(gobj) & TRACE_UV) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "try_to_stop_yevents",
+            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            NULL
+        );
+    }
+
     gobj_change_state(gobj, ST_WAIT_STOPPED);
 
     if(priv->yev_client_connect) {
@@ -655,8 +665,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_event->result));
 
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        if(yev_event->result != -ECANCELED) {
+                    if(yev_event->result != -ECANCELED) {
+                        try_to_stop_yevents(gobj);
+
+                        if(gobj_trace_level(gobj) & TRACE_UV) {
                             gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -671,7 +683,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    try_to_stop_yevents(gobj);
 
                 } else {
                     /*
@@ -721,8 +732,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_event->result));
 
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
-                        if(yev_event->result != -ECANCELED) {
+                    if(yev_event->result != -ECANCELED) {
+                        try_to_stop_yevents(gobj);
+
+                        if(gobj_trace_level(gobj) & TRACE_UV) {
                             gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -737,7 +750,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
                     }
-                    try_to_stop_yevents(gobj);
 
                 } else {
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
