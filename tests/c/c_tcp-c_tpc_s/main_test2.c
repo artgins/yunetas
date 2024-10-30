@@ -4,7 +4,16 @@
  *          Test: Use teston as client and test the tcp server in c_test2
  *          No interchange of messages, only connections
  *
- *          Copyright (c) 2024 by ArtGins.
+ *          Tasks
+ *          - Play teston to connect to us
+ *          - Wait 2 seconds until play __input_side__ (pepon)
+ *              - This will cause messages of "Disconnected To" in teston
+ *          - Play __input_side__
+ *          - When client connected, wait 1 second, to dropping the connection.
+ *          - Teston will retry the connect (each 2 seconds)
+ *          - On 3 disconnections, shutdown
+ *
+  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
