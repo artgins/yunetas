@@ -448,59 +448,12 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
     switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
+        case YEV_CONNECT_TYPE:
             {
-                if(cqe->res == 0) {
-                    // TODO cqe->res = -EPIPE; // force EPIPE, close by peer
-                    /*
-                     *  Behavior seen in YEV_READ_TYPE type when socket has broken:
-                     *      - cqe->res = 0
-                     *
-                     *      Repeated forever
-                     */
-                    //yev_event->fd = -1;
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                }
-
-                if(cqe->res > 0 && yev_event->gbuf) {
-                    // Mark the written bytes of reading fd
-                    gbuffer_set_wr(yev_event->gbuf, cqe->res);
-                }
-
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe->res;
-                if (yev_event->callback) {
-                    yev_event->callback(
-                        yev_event
-                    );
-                }
-            }
-            break;
-
-        case YEV_WRITE_TYPE:
-            {
-                if(cqe->res == 0) {
-                    // cqe->res = -EPIPE; // force EPIPE, close by peer
-                    /*
-                     *  Behavior seen in YEV_WRITE_TYPE type when socket has broken:
-                     *
-                     *  First time:
-                     *      - cqe->res = len written
-                     *
-                     *  Next times:
-                     *      - cqe->res = -EPIPE (EPIPE Broken pipe)
-                     */
-                    // TODO check massive writes
-                    // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
-                    //yev_event->fd = -1;
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                }
-
-                if(cqe->res > 0 && yev_event->gbuf) {
-                    // Pop the read bytes used to write fd
-                    gbuffer_get(yev_event->gbuf, cqe->res);
+                if(cqe->res < 0) {
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                } else {
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
                 }
 
                 /*
@@ -575,12 +528,28 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_CONNECT_TYPE:
+        case YEV_WRITE_TYPE:
             {
-                if(cqe->res < 0) {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
-                } else {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
+                if(cqe->res == 0) {
+                    // cqe->res = -EPIPE; // force EPIPE, close by peer
+                    /*
+                     *  Behavior seen in YEV_WRITE_TYPE type when socket has broken:
+                     *
+                     *  First time:
+                     *      - cqe->res = len written
+                     *
+                     *  Next times:
+                     *      - cqe->res = -EPIPE (EPIPE Broken pipe)
+                     */
+                    // TODO check massive writes
+                    // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
+                    //yev_event->fd = -1;
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                }
+
+                if(cqe->res > 0 && yev_event->gbuf) {
+                    // Pop the read bytes used to write fd
+                    gbuffer_get(yev_event->gbuf, cqe->res);
                 }
 
                 /*
@@ -588,6 +557,37 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res;
                 if(yev_event->callback) {
+                    yev_event->callback(
+                        yev_event
+                    );
+                }
+            }
+            break;
+
+        case YEV_READ_TYPE:
+            {
+                if(cqe->res == 0) {
+                    // TODO cqe->res = -EPIPE; // force EPIPE, close by peer
+                    /*
+                     *  Behavior seen in YEV_READ_TYPE type when socket has broken:
+                     *      - cqe->res = 0
+                     *
+                     *      Repeated forever
+                     */
+                    //yev_event->fd = -1;
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                }
+
+                if(cqe->res > 0 && yev_event->gbuf) {
+                    // Mark the written bytes of reading fd
+                    gbuffer_set_wr(yev_event->gbuf, cqe->res);
+                }
+
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe->res;
+                if (yev_event->callback) {
                     yev_event->callback(
                         yev_event
                     );
@@ -864,59 +864,6 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
-        case YEV_READ_TYPE:
-            {
-                if(yev_event->fd <= 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: fd negative",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                    return -1;
-                }
-                if(!yev_event->gbuf) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: gbuffer NULL",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                    return -1;
-                }
-                if(gbuffer_freebytes(yev_event->gbuf)==0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
-                        NULL
-                    );
-                    return -1;
-                }
-
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
-                io_uring_prep_read(
-                    sqe,
-                    yev_event->fd,
-                    gbuffer_cur_wr_pointer(yev_event->gbuf),
-                    gbuffer_freebytes(yev_event->gbuf),
-                    0
-                );
-                io_uring_submit(&yev_loop->ring);
-                yev_set_state(yev_event, YEV_ST_RUNNING);
-            }
-            break;
         case YEV_WRITE_TYPE:
             {
                 if(yev_event->fd <= 0) {
@@ -981,6 +928,59 @@ PUBLIC int yev_start_event(
                     );
                     return -1;
                 }
+            }
+            break;
+        case YEV_READ_TYPE:
+            {
+                if(yev_event->fd <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Cannot start event: fd negative",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(!yev_event->gbuf) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(gbuffer_freebytes(yev_event->gbuf)==0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
+                io_uring_prep_read(
+                    sqe,
+                    yev_event->fd,
+                    gbuffer_cur_wr_pointer(yev_event->gbuf),
+                    gbuffer_freebytes(yev_event->gbuf),
+                    0
+                );
+                io_uring_submit(&yev_loop->ring);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_TIMER_TYPE:
