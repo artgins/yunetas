@@ -455,6 +455,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 if(cqe->res < 0) {
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 } else {
+                    // HACK res == 0 when connected
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
                 }
 
