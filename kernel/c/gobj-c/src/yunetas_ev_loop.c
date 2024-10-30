@@ -789,6 +789,81 @@ PUBLIC int yev_start_event(
      *      Summit sqe
      *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
+        case YEV_CONNECT_TYPE:
+            {
+                if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Cannot start event: connect addr NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
+                /*
+                 *  Use the file descriptor fd to start connecting to the destination
+                 *  described by the socket address at addr and of structure length addrlen.
+                 */
+                io_uring_prep_connect(
+                    sqe,
+                    yev_event->fd,
+                    yev_event->dst_addr,
+                    yev_event->dst_addrlen
+                );
+                io_uring_submit(&yev_loop->ring);
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
+            }
+            break;
+        case YEV_ACCEPT_TYPE:
+            {
+                if(!yev_event->src_addr || yev_event->src_addrlen <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                        "msg",          "%s", "Cannot start event: accept addr NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "state",        "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
+                /*
+                 *  Use the file descriptor fd to start accepting a connection request
+                 *  described by the socket address at addr and of structure length addrlen
+                 */
+                if(multishot_available) {
+                    io_uring_prep_multishot_accept(
+                        sqe,
+                        yev_event->fd,
+                        NULL,
+                        NULL,
+                        0
+                    );
+
+                } else {
+                    io_uring_prep_accept(
+                        sqe,
+                        yev_event->fd,
+                        yev_event->src_addr,
+                        &yev_event->src_addrlen,
+                        0
+                    );
+                }
+                io_uring_submit(&yev_loop->ring);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
+            }
+            break;
         case YEV_READ_TYPE:
             {
                 if(yev_event->fd <= 0) {
@@ -906,81 +981,6 @@ PUBLIC int yev_start_event(
                     );
                     return -1;
                 }
-            }
-            break;
-        case YEV_CONNECT_TYPE:
-            {
-                if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: connect addr NULL",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                    return -1;
-                }
-
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
-                /*
-                 *  Use the file descriptor fd to start connecting to the destination
-                 *  described by the socket address at addr and of structure length addrlen.
-                 */
-                io_uring_prep_connect(
-                    sqe,
-                    yev_event->fd,
-                    yev_event->dst_addr,
-                    yev_event->dst_addrlen
-                );
-                io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
-                yev_set_state(yev_event, YEV_ST_RUNNING);
-            }
-            break;
-        case YEV_ACCEPT_TYPE:
-            {
-                if(!yev_event->src_addr || yev_event->src_addrlen <= 0) {
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Cannot start event: accept addr NULL",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                    return -1;
-                }
-
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
-                /*
-                 *  Use the file descriptor fd to start accepting a connection request
-                 *  described by the socket address at addr and of structure length addrlen
-                 */
-                if(multishot_available) {
-                    io_uring_prep_multishot_accept(
-                        sqe,
-                        yev_event->fd,
-                        NULL,
-                        NULL,
-                        0
-                    );
-
-                } else {
-                    io_uring_prep_accept(
-                        sqe,
-                        yev_event->fd,
-                        yev_event->src_addr,
-                        &yev_event->src_addrlen,
-                        0
-                    );
-                }
-                io_uring_submit(&yev_loop->ring);
-                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
         case YEV_TIMER_TYPE:
