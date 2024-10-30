@@ -202,7 +202,7 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
-    // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+    gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);

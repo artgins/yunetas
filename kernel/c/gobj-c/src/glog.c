@@ -191,7 +191,7 @@ PUBLIC void glog_init(void)
     }
     __initialized__ = TRUE;
 
-    dl_init(&dl_log_handlers);
+    dl_init(&dl_log_handlers, 0);
 
     /*--------------------------------*
      *  Register included handlers

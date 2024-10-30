@@ -41,7 +41,7 @@ PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
 {
     if(!__initialized__) {
         __initialized__ = TRUE;
-        dl_init(&dl_comm_prot);
+        dl_init(&dl_comm_prot, 0);
     }
 
     comm_prot_t *lh = GBMEM_MALLOC(sizeof(comm_prot_t));

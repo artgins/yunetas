@@ -962,7 +962,7 @@ PUBLIC char *json_config(
     pe_flag_t quit)
 {
     dl_list_t dl_op = {0};
-    dl_init(&dl_op);
+    dl_init(&dl_op, 0);
 
     size_t flags = JSON_INDENT(4);
     /*

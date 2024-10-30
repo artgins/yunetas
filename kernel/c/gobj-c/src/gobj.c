@@ -602,7 +602,7 @@ PUBLIC int gobj_start_up(
         {EV_STATE_CHANGED,     EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {0, 0}
     };
-    dl_init(&dl_global_event_types);
+    dl_init(&dl_global_event_types, 0);
 
     event_type_t *event_types = global_events;
     while(event_types && event_types->event) {
@@ -610,7 +610,7 @@ PUBLIC int gobj_start_up(
         event_types++;
     }
 
-    dl_init(&dl_gclass);
+    dl_init(&dl_gclass, 0);
     __jn_services__ = json_object();
 
     // dl_init(&dl_trans_filter);
@@ -1510,7 +1510,7 @@ PUBLIC hgobj gobj_create_gobj(
      *--------------------------------*/
     gobj->gclass = gclass;
     gobj->parent = parent;
-    dl_init(&gobj->dl_childs);
+    dl_init(&gobj->dl_childs, gobj);
     gobj->dl_subscribings = json_array();
     gobj->dl_subscriptions = json_array();
     gobj->current_state = dl_first(&gclass->dl_states);
@@ -1933,11 +1933,11 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *--------------------------------*/
     if(parent) {
         dl_delete(&gobj->parent->dl_childs, gobj, 0);
-        if(gobj_is_volatil(gobj)) {
-            if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
-                gobj_set_bottom_gobj(gobj->parent, NULL);
-            }
-        }
+//        if(gobj_is_volatil(gobj)) {
+//            if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
+//                gobj_set_bottom_gobj(gobj->parent, NULL);
+//            }
+//        }
     }
 
     /*--------------------------------*
@@ -2008,6 +2008,13 @@ PUBLIC void gobj_destroy_childs(hgobj gobj_)
         gobj_t *next = dl_next(child);
         if(!(child->obflag & (obflag_destroyed|obflag_destroying))) {
             gobj_destroy(child);
+        } else {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Destroying a destroyed child",
+                NULL
+            );
         }
         /*
          *  Next
@@ -4414,9 +4421,10 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
     }
 
     if(is_machine_tracing(gobj, 0)) {
-        trace_machine("🔽 set_bottom_gobj('%s') = '%s'",
+        trace_machine("🔽 set_bottom_gobj('%s') = '%s', prev '%s'",
             gobj_short_name(gobj),
-            bottom_gobj?gobj_short_name(bottom_gobj):""
+            bottom_gobj?gobj_short_name(bottom_gobj):"",
+            gobj->bottom_gobj?gobj_short_name(gobj->bottom_gobj):""
         );
     }
     if(gobj->bottom_gobj) {
@@ -6225,7 +6233,7 @@ PUBLIC BOOL gobj_change_state(
     BOOL tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
     BOOL tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
     if(tracea || tracea_states) {
-        trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), old st(%s%s%s)",
+        trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), prev st(%s%s%s)",
             (!gobj->running)?"!!":"",
             gobj_gclass_name(gobj), gobj_name(gobj),
             On_Black RGreen,
@@ -9949,7 +9957,7 @@ PUBLIC size_t gobj_get_maximum_block(void)
 /***************************************************************
  *      Initialize double list
  ***************************************************************/
-PUBLIC int dl_init(dl_list_t *dl)
+PUBLIC int dl_init(dl_list_t *dl, hgobj gobj)
 {
     if(dl->head || dl->tail || dl->__itemsInContainer__) {
         gobj_trace_msg(0, "dl_init(): Wrong dl_list_t, MUST be empty");
@@ -9958,6 +9966,7 @@ PUBLIC int dl_init(dl_list_t *dl)
     dl->head = 0;
     dl->tail = 0;
     dl->__itemsInContainer__ = 0;
+    dl->gobj = gobj;
     return 0;
 }
 
@@ -10131,6 +10140,8 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Deleting item with DIFFERENT dl_list_t",
+            "gobj curr",    "%s", curr->__dl__->gobj?gobj_short_name(curr->__dl__->gobj):"",
+            "gobj param",   "%s", dl->gobj?gobj_short_name(dl->gobj):"",
             NULL
         );
         return -1;

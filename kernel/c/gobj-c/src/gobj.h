@@ -186,28 +186,6 @@ static inline BOOL empty_json(const json_t *jn)
 }
 
 /***************************************************************
- *              DL_LIST Structures
- ***************************************************************/
-#define DL_ITEM_FIELDS              \
-    struct dl_list_s *__dl__;       \
-    struct dl_item_s  *__next__;    \
-    struct dl_item_s  *__prev__;    \
-    size_t __id__;
-
-typedef struct dl_item_s {
-    DL_ITEM_FIELDS
-} dl_item_t;
-
-typedef struct dl_list_s {
-    struct dl_item_s *head;
-    struct dl_item_s *tail;
-    size_t __itemsInContainer__;
-    size_t __last_id__; // auto-incremental, always.
-} dl_list_t;
-
-typedef void (*fnfree)(void *);
-
-/***************************************************************
  *              Log Structures
  ***************************************************************/
 /*
@@ -302,34 +280,6 @@ typedef void (*loghandler_close_fn_t)(void *h);
 typedef int  (*loghandler_write_fn_t)(void *h, int priority, const char *bf, size_t len);
 typedef int  (*loghandler_fwrite_fn_t)(void *h, int priority, const char *format, ...)  JANSSON_ATTRS((format(printf, 3, 4)));
 typedef void (*show_backtrace_fn_t)(loghandler_fwrite_fn_t fwrite_fn, void *h);
-
-/***************************************************************
- *              gbuffer
- ***************************************************************/
-typedef struct gbuffer_s {
-    DL_ITEM_FIELDS
-
-    size_t refcount;            /* to delete by reference counter */
-
-    char *label;                /* like user_data */
-    size_t mark;                /* like user_data */
-
-    size_t data_size;           /* nº bytes allocated for data */
-    size_t max_memory_size;     /* maximum size in memory */
-
-    /*
-     *  Con tail controlo la entrada de bytes en el packet.
-     *  El número total de bytes en el packet será tail.
-     */
-    size_t tail;    /* write pointer */
-    size_t curp;    /* read pointer */
-
-    /*
-     *  Data dynamically allocated
-     *  In file_mode this buffer only is for read from file.
-     */
-    char *data;
-} gbuffer_t;
 
 /***************************************************************
  *              SData
@@ -582,6 +532,60 @@ typedef const char *gobj_lmethod_t;     /**< unique pointer that exposes local m
 typedef void *hgclass;
 typedef void *hgobj;
 
+/***************************************************************
+ *              DL_LIST Structures
+ ***************************************************************/
+#define DL_ITEM_FIELDS              \
+    struct dl_list_s *__dl__;       \
+    struct dl_item_s  *__next__;    \
+    struct dl_item_s  *__prev__;    \
+    size_t __id__;
+
+typedef struct dl_item_s {
+    DL_ITEM_FIELDS
+} dl_item_t;
+
+typedef struct dl_list_s {
+    struct dl_item_s *head;
+    struct dl_item_s *tail;
+    size_t __itemsInContainer__;
+    size_t __last_id__; // auto-incremental, always.
+    hgobj gobj;
+} dl_list_t;
+
+typedef void (*fnfree)(void *);
+
+/***************************************************************
+ *              gbuffer
+ ***************************************************************/
+typedef struct gbuffer_s {
+    DL_ITEM_FIELDS
+
+    size_t refcount;            /* to delete by reference counter */
+
+    char *label;                /* like user_data */
+    size_t mark;                /* like user_data */
+
+    size_t data_size;           /* nº bytes allocated for data */
+    size_t max_memory_size;     /* maximum size in memory */
+
+    /*
+     *  Con tail controlo la entrada de bytes en el packet.
+     *  El número total de bytes en el packet será tail.
+     */
+    size_t tail;    /* write pointer */
+    size_t curp;    /* read pointer */
+
+    /*
+     *  Data dynamically allocated
+     *  In file_mode this buffer only is for read from file.
+     */
+    char *data;
+} gbuffer_t;
+
+/***************************************************************
+ *              GClass/GObj Structures
+ ***************************************************************/
 typedef int (*gobj_action_fn)(
     hgobj gobj,
     gobj_event_t event,
@@ -2304,7 +2308,7 @@ PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
 /*---------------------------------*
  *      Double link  functions
  *---------------------------------*/
-PUBLIC int dl_init(dl_list_t *dl);
+PUBLIC int dl_init(dl_list_t *dl, hgobj gobj);
 PUBLIC void *dl_first(dl_list_t *dl);
 PUBLIC void *dl_last(dl_list_t *dl);
 PUBLIC void *dl_next(void *curr);
