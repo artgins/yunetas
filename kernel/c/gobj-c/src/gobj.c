@@ -1933,7 +1933,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *--------------------------------*/
     if(parent) {
         dl_delete(&gobj->parent->dl_childs, gobj, 0);
-//        if(gobj_is_volatil(gobj)) {
+//TODO        if(gobj_is_volatil(gobj)) {
 //            if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
 //                gobj_set_bottom_gobj(gobj->parent, NULL);
 //            }
@@ -1971,11 +1971,11 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *      Dealloc data
      *--------------------------------*/
     EXEC_AND_RESET(sys_free_fn, gobj->gobj_name)
-    JSON_DECREF(gobj->jn_attrs)
+    //JSON_DECREF(gobj->jn_attrs)
     JSON_DECREF(gobj->jn_stats)
     JSON_DECREF(gobj->jn_user_data)
-    JSON_DECREF(gobj->dl_subscribings);
-    JSON_DECREF(gobj->dl_subscriptions);
+    JSON_DECREF(gobj->dl_subscribings)
+    JSON_DECREF(gobj->dl_subscriptions)
     EXEC_AND_RESET(sys_free_fn, gobj->priv)
 
     EXEC_AND_RESET(sys_free_fn, gobj->full_name)
@@ -2369,7 +2369,7 @@ PUBLIC int gobj_save_persistent_attrs(hgobj gobj_, json_t *jn_attrs)
             "msg",          "%s", "Cannot save writable-persistent attrs in no named-gobjs",
             NULL
         );
-        JSON_DECREF(jn_attrs);
+        JSON_DECREF(jn_attrs)
         return -1;
     }
     if(__global_save_persistent_attrs_fn__) {
@@ -2403,7 +2403,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
     json_t *jn_dict = json_object();
 
     if(!__global_list_persistent_attrs_fn__) {
-        JSON_DECREF(jn_attrs);
+        JSON_DECREF(jn_attrs)
         return jn_dict;
     }
 
@@ -2430,7 +2430,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
         }
     }
 
-    JSON_DECREF(jn_attrs);
+    JSON_DECREF(jn_attrs)
     return jn_dict;
 }
 
@@ -10140,8 +10140,6 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Deleting item with DIFFERENT dl_list_t",
-            "gobj curr",    "%s", curr->__dl__->gobj?gobj_short_name(curr->__dl__->gobj):"",
-            "gobj param",   "%s", dl->gobj?gobj_short_name(dl->gobj):"",
             NULL
         );
         return -1;
