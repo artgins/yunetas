@@ -3097,50 +3097,6 @@ PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
 }
 
 /***************************************************************************
- *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
- *  DANGER if you don't cast well: OVERFLOW variables!
- ***************************************************************************/
-PUBLIC json_int_t *gobj_danger_attr_ptr(hgobj gobj, const char *name)
-{
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
-    if(hs) {
-        json_t *it = json_object_get(hs, name);
-        return json_integer_value_pointer(it);
-    }
-    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "GClass Attribute NOT FOUND",
-        "gclass",       "%s", gobj_gclass_name(gobj),
-        "attr",         "%s", name?name:"",
-        NULL
-    );
-    return 0;
-}
-
-/***************************************************************************
- *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
- *  DANGER if you don't cast well: OVERFLOW variables!
- ***************************************************************************/
-PUBLIC json_int_t *gobj_danger_attr_ptr2(hgobj gobj, const char *name, const sdata_desc_t **pit)
-{
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
-    if(hs) {
-        json_t *it = json_object_get(hs, name);
-        return json_integer_value_pointer(it);
-    }
-    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "GClass Attribute NOT FOUND",
-        "gclass",       "%s", gobj_gclass_name(gobj),
-        "attr",         "%s", name?name:"",
-        NULL
-    );
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)

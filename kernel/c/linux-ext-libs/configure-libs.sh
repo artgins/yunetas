@@ -25,7 +25,7 @@ YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext"
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson-artgins
+cd build/jansson
 mkdir -p build
 cd build
 
