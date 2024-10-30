@@ -574,7 +574,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_CONNECT_TYPE:
             {
-printf("<<===================== connect %d\n", cqe->res);
                 if(cqe->res < 0) {
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 } else {
@@ -908,7 +907,6 @@ PUBLIC int yev_start_event(
             break;
         case YEV_CONNECT_TYPE:
             {
-printf("=====================>> connect\n");
                 if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,

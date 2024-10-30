@@ -792,6 +792,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             NULL
                         );
                     }
+                    if(gobj_is_running(gobj)) {
+                        try_to_stop_yevents(gobj);
+                    }
 
                 } else {
                     set_connected(gobj, yev_event->fd);
