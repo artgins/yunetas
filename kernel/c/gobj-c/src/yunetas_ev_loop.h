@@ -95,10 +95,10 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
 } yev_flag_t;
 
 typedef enum  {
-    YEV_ST_IDLE = 0,
+    YEV_ST_IDLE = 0,        // not in ring, ready for more operations
     YEV_ST_RUNNING,         // IN_RING (active, not cancelling)
     YEV_ST_CANCELING,       // IN_RING CANCELING
-    YEV_ST_STOPPED,
+    YEV_ST_STOPPED,         // not inn ring, ready for die
 } yev_state_t;
 
 /***************************************************************
