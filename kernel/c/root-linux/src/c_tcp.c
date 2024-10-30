@@ -436,7 +436,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     clear_timeout(priv->gobj_timer);
     gobj_change_state(gobj, ST_CONNECTED);
 
-    (*priv->pconnxs)++;
+//    (*priv->pconnxs)++;
 
     /*
      *  Ready to receive
@@ -698,8 +698,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
 
-                        (*priv->prxMsgs)++;
-                        (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
+//                        (*priv->prxMsgs)++;
+//                        (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
 
                         GBUFFER_INCREF(yev_event->gbuf)
                         json_t *kw = json_pack("{s:I}",
@@ -921,8 +921,8 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             );
         }
     } else {
-        (*priv->ptxMsgs)++;
-        (*priv->ptxBytes) += (json_int_t)gbuffer_leftbytes(gbuf);
+//        (*priv->ptxMsgs)++;
+//        (*priv->ptxBytes) += (json_int_t)gbuffer_leftbytes(gbuf);
 
         /*
          *  Transmit
