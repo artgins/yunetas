@@ -4,6 +4,13 @@
  *          A class to test C_TCP / C_TCP_S
  *          Test: Use pepon as server and test interchange of messages
  *
+ *          Tasks
+ *          - Play pepon as server with echo
+ *          - Open __out_side__ (teston)
+ *          - On open (pure cli connected to pepon), send a Hola message
+ *          - On receiving the message re-send again
+ *          - On 3 received messages shutdown
+ *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -138,10 +145,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_play(priv->pepon);
-
-    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
-    gobj_start_tree(priv->gobj_output_side);
+    set_timeout(priv->timer, 1000); // timeout to connecting
 
     return 0;
 }
@@ -185,8 +189,36 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *  Gps connected
  ***************************************************************************/
-gbuffer_t *gbuf_to_send = 0;
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    set_timeout(priv->timer, 1000); // timeout to start sending messages
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
+    gobj_start_tree(priv->gobj_output_side);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+gbuffer_t *gbuf_to_send = 0;
+PRIVATE int ac_timeout_send_messages(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -203,7 +235,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Gps disconnected
+ *
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -246,7 +278,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     static int i=0;
     i++;
 
-    if(i>0) {
+    if(i>2) {
         gobj_shutdown();
     } else {
         GBUFFER_INCREF(gbuf)
@@ -254,7 +286,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "gbuffer", (json_int_t)(size_t)gbuf
         );
         gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
-
     }
 
     KW_DECREF(kw)
@@ -336,12 +367,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_closed[] = {
         {EV_STOPPED,                ac_stopped,                 0},
+        {EV_TIMEOUT,                ac_timeout_to_connect,      0},
         {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}
     };
     ev_action_t st_opened[] = {
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
+        {EV_TIMEOUT,                ac_timeout_send_messages,   0},
         {0,0,0}
     };
 

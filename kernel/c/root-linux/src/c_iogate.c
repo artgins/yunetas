@@ -1176,7 +1176,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         send_one_rotate(gobj, event, kw_incref(kw), src);
         break;
     }
-print_json2("KK", kw);
     KW_DECREF(kw)
     return 0;
 }

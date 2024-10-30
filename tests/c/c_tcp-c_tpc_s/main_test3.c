@@ -3,7 +3,14 @@
  *
  *          Test: Use pepon as server and test interchange of messages
  *
+  *          Tasks
+ *          - Play pepon as server with echo
+ *          - Open __out_side__ (teston)
+ *          - On open (pure cli connected to pepon), send a Hola message
+ *          - On receiving the message re-send again
+ *          - On 3 received messages shutdown
  *
+*
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -200,44 +207,36 @@ static void register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+//    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+//    gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
-        "msg", "Playing yuno",
-        "msg", "Disconnected To",
         "msg", "addrinfo on listen",
         "msg", "Listening...",
+        "msg", "Playing yuno",
         "msg", "Connected To",
         "msg", "Clisrv accepted",
         "msg", "Connected From",
-        "msg", "Disconnected From",
-        "msg", "Disconnected To",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Disconnected From",
-        "msg", "Disconnected To",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Disconnected From",
+        "msg", "Message is the same",
+        "msg", "Message is the same",
+        "msg", "Message is the same",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
     );
+
 
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
@@ -295,7 +294,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {8065, 0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
