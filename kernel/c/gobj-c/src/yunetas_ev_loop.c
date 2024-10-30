@@ -332,7 +332,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
         case YEV_ST_CANCELING:
             /*
-             *  In the case of YEV_TIMER_TYPE, when canceling
+             *  In the case of YEV_TIMER_TYPE and others, when canceling
              *      first receives cqe->res 0
              *      after receives ECANCELED
              */
@@ -463,16 +463,14 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         case YEV_READ_TYPE:
             {
                 if(cqe->res == 0) {
-                    // cqe->res = -EPIPE; // force EPIPE, close by peer
+                    // TODO cqe->res = -EPIPE; // force EPIPE, close by peer
                     /*
                      *  Behavior seen in YEV_READ_TYPE type when socket has broken:
                      *      - cqe->res = 0
                      *
                      *      Repeated forever
                      */
-                }
-                if(cqe->res < 0) {
-                    yev_event->fd = -1;
+                    //yev_event->fd = -1;
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
@@ -508,10 +506,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                      */
                     // TODO check massive writes
                     // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
-                }
-
-                if(cqe->res < 0) {
-                    yev_event->fd = -1;
+                    //yev_event->fd = -1;
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
@@ -542,10 +537,6 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
                     }
-                }
-
-                if(cqe->res < 0) {
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
                 }
 
                 int ret = 0;
