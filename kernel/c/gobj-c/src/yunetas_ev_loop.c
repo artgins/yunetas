@@ -475,7 +475,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res; // cli_srv socket
+                yev_event->result = cqe->res; // HACK: is the cli_srv socket
                 if(yev_event->result > 0) {
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
