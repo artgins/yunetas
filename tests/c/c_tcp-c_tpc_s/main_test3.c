@@ -13,7 +13,7 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test3"
+#define APP_NAME        "test_tcp_tcp_s_" "test3"
 #define APP_DOC         "Test C_TCP_TCP_S"
 
 #define APP_VERSION     "1.0.0"

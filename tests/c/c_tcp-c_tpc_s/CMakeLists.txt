@@ -35,7 +35,7 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "${test}")
+    set(binary "test_tcp_tcp_s_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}

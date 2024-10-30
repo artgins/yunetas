@@ -38,6 +38,8 @@
 /***************************************************************************
  *      Constants
  ***************************************************************************/
+#define PREFIX_TEST_APP "test_" /* The apps with this prefix don't get the limit of 15 bytes in APP_NAME */
+
 #define KW_GET(__name__, __default__, __func__) \
     __name__ = __func__(0, kw, #__name__, __default__, 0);
 
@@ -409,11 +411,13 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *      - 15+null by Linux (longer names are not showed in top)
      *------------------------------------------------*/
     if(strlen(APP_NAME) > 15) {
-        print_error(
-            PEF_EXIT,
-            "role name '%s' TOO LONG!, maximum is 15 characters",
-            APP_NAME
-        );
+        if(strncmp(APP_NAME, PREFIX_TEST_APP, strlen(PREFIX_TEST_APP))!=0) {
+            print_error(
+                PEF_EXIT,
+                "role name '%s' TOO LONG!, maximum is 15 characters",
+                APP_NAME
+            );
+        }
     }
 
     /*------------------------------------------------*
