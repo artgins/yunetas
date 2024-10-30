@@ -30,7 +30,7 @@ int multishot_available = 0; // Available since kernel 5.19
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe);
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
@@ -160,7 +160,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
             break;
         }
 
-        process_cqe(yev_loop, cqe);
+        callback_cqe(yev_loop, cqe);
     }
 
     if(gobj_trace_level(0) & TRACE_UV) {
@@ -175,7 +175,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        process_cqe(yev_loop, cqe);
+        callback_cqe(yev_loop, cqe);
     }
 
     if(!yev_loop->stopping) {
@@ -184,7 +184,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        process_cqe(yev_loop, cqe);
+        callback_cqe(yev_loop, cqe);
     }
 
     if(gobj_trace_level(0) & TRACE_UV) {
@@ -208,7 +208,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        process_cqe(yev_loop, cqe);
+        callback_cqe(yev_loop, cqe);
     }
     return 0;
 }
@@ -276,7 +276,7 @@ PUBLIC const char * yev_get_state_name(yev_event_t *yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
     /*------------------------*
      *  Check parameters
@@ -302,8 +302,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "process_cqe",
-            "msg2",         "%s", "💥💥💥💥⏪ process_cqe",
+            "msg",          "%s", "callback_cqe",
+            "msg2",         "%s", "💥💥💥💥⏪ callback_cqe",
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "loop_running", "%d", yev_loop->running?1:0,
@@ -427,8 +427,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "process_cqe NEW STATE",
-                "msg2",         "%s", "💥💥💥💥⏪ process_cqe NEW STATE",
+                "msg",          "%s", "callback_cqe NEW STATE",
+                "msg2",         "%s", "💥💥💥💥⏪ callback_cqe NEW STATE",
                 "type",         "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
