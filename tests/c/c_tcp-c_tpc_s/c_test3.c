@@ -15,6 +15,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define MESSAGE "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 /***************************************************************************
  *              Structures
@@ -186,7 +187,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = gbuffer_create(1024, 1024);
-    gbuffer_printf(gbuf, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    gbuffer_printf(gbuf, MESSAGE);
 
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
@@ -221,11 +222,35 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
     }
 
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    if(strcmp(p, MESSAGE)!=0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message is not the same",
+            NULL
+        );
+    } else {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message is the same",
+            NULL
+        );
+    }
+
     static int i=0;
     i++;
 
-    if(i>4) {
+    if(i>0) {
         gobj_shutdown();
+    } else {
+        GBUFFER_INCREF(gbuf)
+        json_t *kw_send = json_pack("{s:I}",
+            "gbuffer", (json_int_t)(size_t)gbuf
+        );
+        gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
+
     }
 
     KW_DECREF(kw)

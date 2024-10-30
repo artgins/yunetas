@@ -762,10 +762,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 }
 
                 if(yev_event_is_stopped(yev_event)) {
-                    printf("DESTROY====================>\n");
                     yev_destroy_event(yev_event);
                 } else {
-                    printf("STOP====================>\n");
                     yev_stop_event(yev_event);
                 }
             }

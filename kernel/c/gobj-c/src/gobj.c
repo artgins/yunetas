@@ -1933,11 +1933,11 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *--------------------------------*/
     if(parent) {
         dl_delete(&gobj->parent->dl_childs, gobj, 0);
-//TODO        if(gobj_is_volatil(gobj)) {
-//            if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
-//                gobj_set_bottom_gobj(gobj->parent, NULL);
-//            }
-//        }
+        if(gobj_is_volatil(gobj)) {
+            if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
+                gobj_set_bottom_gobj(gobj->parent, NULL);
+            }
+        }
     }
 
     /*--------------------------------*

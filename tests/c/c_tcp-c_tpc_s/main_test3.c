@@ -202,13 +202,13 @@ static void register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Samples of global traces
-    gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+    // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
     /*------------------------------*
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {8065, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
