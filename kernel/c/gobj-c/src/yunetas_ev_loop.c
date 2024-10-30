@@ -451,7 +451,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *      cqe ready
      *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
-        case YEV_CONNECT_TYPE:
+        case YEV_CONNECT_TYPE: // cqe ready
             {
                 if(cqe->res < 0) {
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
@@ -471,7 +471,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_ACCEPT_TYPE:
+        case YEV_ACCEPT_TYPE: // cqe ready
             {
                 /*
                  *  Call callback
@@ -531,7 +531,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_WRITE_TYPE:
+        case YEV_WRITE_TYPE: // cqe ready
             {
                 if(cqe->res == 0) {
                     // cqe->res = -EPIPE; // force EPIPE, close by peer
@@ -567,7 +567,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_READ_TYPE:
+        case YEV_READ_TYPE: // cqe ready
             {
                 if(cqe->res == 0) {
                     // TODO cqe->res = -EPIPE; // force EPIPE, close by peer
@@ -598,7 +598,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
 
-        case YEV_TIMER_TYPE:
+        case YEV_TIMER_TYPE: // cqe ready
             {
                 /*
                  *  Call callback
@@ -792,7 +792,7 @@ PUBLIC int yev_start_event(
      *      Summit sqe
      *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
-        case YEV_CONNECT_TYPE:
+        case YEV_CONNECT_TYPE: // Summit sqe
             {
                 if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -820,11 +820,11 @@ PUBLIC int yev_start_event(
                     yev_event->dst_addrlen
                 );
                 io_uring_submit(&yev_loop->ring);
-                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 yev_set_state(yev_event, YEV_ST_RUNNING);
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
             }
             break;
-        case YEV_ACCEPT_TYPE:
+        case YEV_ACCEPT_TYPE: // Summit sqe
             {
                 if(!yev_event->src_addr || yev_event->src_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -867,7 +867,7 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
-        case YEV_WRITE_TYPE:
+        case YEV_WRITE_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -933,7 +933,7 @@ PUBLIC int yev_start_event(
                 }
             }
             break;
-        case YEV_READ_TYPE:
+        case YEV_READ_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -986,7 +986,7 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
-        case YEV_TIMER_TYPE:
+        case YEV_TIMER_TYPE: // Summit sqe
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1341,6 +1341,9 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     GBMEM_FREE(yev_event->src_addr)
     yev_event->src_addrlen = 0;
 
+    /*-------------------------------*
+     *      destroy
+     *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
@@ -1398,7 +1401,7 @@ PRIVATE yev_event_t *create_event(
 }
 
 /***************************************************************************
- *
+ *  Create the handler fd for timer
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_timer_event(
     yev_loop_t *yev_loop,
