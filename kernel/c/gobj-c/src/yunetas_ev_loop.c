@@ -48,6 +48,8 @@ PRIVATE const char *yev_flag_s[] = {
 /***************************************************************************
  *
  ***************************************************************************/
+// TODO use io_uring_wait_cqes, fewer system calls
+
 PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop_)
 {
     struct io_uring ring_test;
