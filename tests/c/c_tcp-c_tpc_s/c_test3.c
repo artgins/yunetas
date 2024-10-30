@@ -33,8 +33,6 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,             0,          "Messages received"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -63,8 +61,8 @@ typedef struct _PRIVATE_DATA {
     hgobj pepon;
 
     hgobj gobj_output_side;
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -86,8 +84,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->pepon = gobj_create_pure_child("server", C_PEPON, 0, gobj);
 
@@ -217,7 +213,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 

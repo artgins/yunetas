@@ -87,7 +87,7 @@ typedef struct _PRIVATE_DATA {
     json_t * clisrv_kw;
     BOOL trace;
 
-    json_int_t *pconnxs;
+    json_int_t connxs;
 
     yev_event_t *yev_server_accept;
     int fd_listen;
@@ -125,8 +125,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(trace, gobj_read_bool_attr)
 
     SET_PRIV(clisrv_kw, gobj_read_json_attr)
-
-    priv->pconnxs = gobj_danger_attr_ptr(gobj, "connxs");
 
     priv->subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!priv->subscriber)
@@ -453,9 +451,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     /*-------------------*
      *  Name of clisrv
      *-------------------*/
+    priv->connxs++;
     char xname[80];
     snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
-        *priv->pconnxs
+        priv->connxs
     );
 
     /*-----------------------------------------------------------*

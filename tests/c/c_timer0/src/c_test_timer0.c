@@ -56,8 +56,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,             0,          "Messages received"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -90,8 +88,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
+    int rxMsgs;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -113,8 +110,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
     /*
@@ -194,40 +189,6 @@ PRIVATE int mt_pause(hgobj gobj)
     return 0;
 }
 
-/***************************************************************************
- *      Framework Method stats
- ***************************************************************************/
-PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(stats && strcmp(stats, "__reset__")==0) {
-        (*priv->ptxMsgs) = 0;
-        (*priv->prxMsgs) = 0;
-    }
-
-    json_t *jn_stats = json_object();
-
-    json_object_set_new(
-        jn_stats,
-        "txMsgs",
-        json_integer(*(priv->ptxMsgs))
-    );
-    json_object_set_new(
-        jn_stats,
-        "rxMsgs",
-        json_integer(*(priv->prxMsgs))
-    );
-
-    return msg_iev_build_response(
-        gobj,
-        0,
-        0,
-        0,
-        jn_stats, // owned
-        kw  // owned
-    );
-}
 
 
 
@@ -294,8 +255,6 @@ PRIVATE int process_msg(
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "print time",
-        "txMsgs",       "%d", (int)kw_get_int(gobj, stats, "data`txMsgs", 0, KW_REQUIRED),
-        "rxMsgs",       "%d", (int)kw_get_int(gobj, stats, "data`rxMsgs", 0, KW_REQUIRED),
         NULL
     );
 
@@ -320,11 +279,10 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    (*priv->prxMsgs)++;
-    (*priv->ptxMsgs)++;
+    priv->rxMsgs++;
 
     process_msg(gobj, kw, src);
-    if(*priv->prxMsgs == 3) {
+    if(priv->rxMsgs == 3) {
         gobj_shutdown();
     }
 
@@ -367,7 +325,6 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop = mt_stop,
     .mt_play = mt_play,
     .mt_pause = mt_pause,
-    .mt_stats = mt_stats,
 };
 
 /*------------------------*

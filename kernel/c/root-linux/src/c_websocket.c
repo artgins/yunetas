@@ -141,7 +141,6 @@ PRIVATE int frame_completed(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "connected",        SDF_RD|SDF_STATS,           0,              "Connection state. Important filter!"),
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",              "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",              "Timeout to close"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
@@ -172,7 +171,6 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     BOOL iamServer;         // What side? server or client
     int pingT;
-    json_int_t *pconnected;
 
     FRAME_HEAD frame_head;
     istream istream_frame;
@@ -181,6 +179,7 @@ typedef struct _PRIVATE_DATA {
     FRAME_HEAD message_head;
     gbuffer_t *gbuf_message;
 
+    char connected;
     char close_frame_sent;              // close frame sent
     char on_close_broadcasted;          // event on_close already broadcasted
     char on_open_broadcasted;           // event on_open already broadcasted
@@ -212,7 +211,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->pconnected = gobj_danger_attr_ptr(gobj, "connected");
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
@@ -322,7 +320,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(*priv->pconnected) {
+    if(priv->connected) {
         //TODO NOOOO disconnect_on_last_transmit
         ws_close(gobj, STATUS_NORMAL, 0);
     }
@@ -1536,7 +1534,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    *priv->pconnected = 1;
+    priv->connected = 1;
     priv->close_frame_sent = FALSE;
 
     ghttp_parser_reset(priv->parsing_request);
@@ -1574,7 +1572,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    *priv->pconnected = 0;
+    priv->connected = 0;
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);

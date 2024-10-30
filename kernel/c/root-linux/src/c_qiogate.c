@@ -74,7 +74,7 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
 
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
@@ -142,11 +142,11 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_bottom_side;
     BOOL bottom_side_opened;
 
-    uint32_t *ppending_acks;
+    uint32_t pending_acks;
     uint32_t max_pending_acks;
 
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
     json_int_t txMsgsec;
     json_int_t rxMsgsec;
     BOOL drop_on_timeout_ack;
@@ -172,9 +172,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
-    priv->ppending_acks = gobj_danger_attr_ptr(gobj, "pending_acks");
 
     gobj_set_qs(QS_LOWER_RESPONSE_TIME, -1);
     gobj_set_qs(QS_MEDIUM_RESPONSE_TIME, 0);

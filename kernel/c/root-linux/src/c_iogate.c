@@ -117,8 +117,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj subscriber;
     send_type_t send_type;
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
     uint64_t last_txMsgs;
     uint64_t last_rxMsgs;
     uint64_t last_ms;
@@ -143,8 +143,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
@@ -209,8 +207,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(stats && strcmp(stats, "__reset__")==0) {
-        (*priv->ptxMsgs) = 0;
-        (*priv->prxMsgs) = 0;
+        priv->txMsgs = 0;
+        priv->rxMsgs = 0;
         gobj_write_integer_attr(gobj, "txMsgsec", 0);
         gobj_write_integer_attr(gobj, "rxMsgsec", 0);
         gobj_write_integer_attr(gobj, "maxtxMsgsec", 0);
@@ -250,12 +248,12 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_object_set_new(
         jn_stats,
         "txMsgs",
-        json_integer(*(priv->ptxMsgs))
+        json_integer(priv->txMsgs)
     );
     json_object_set_new(
         jn_stats,
         "rxMsgs",
-        json_integer(*(priv->prxMsgs))
+        json_integer(priv->rxMsgs)
     );
     json_object_set_new(
         jn_stats,
@@ -847,7 +845,7 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     int ret = gobj_send_event(channel_gobj, event, kw, gobj); // reuse kw
     if(ret == 0) {
-        (*priv->ptxMsgs)++;
+        priv->txMsgs++;
     }
 
     return ret;
@@ -893,7 +891,7 @@ PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 int ret = gobj_send_event(child, event, json_incref(kw), gobj); // reuse kw
                 if(ret == 0) {
                     some++;
-                    (*priv->ptxMsgs)++;
+                    priv->txMsgs++;
                 }
             }
         }
@@ -1075,7 +1073,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     if(!kw) {
         kw = json_object();
@@ -1137,7 +1135,7 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     kw_set_subdict_value(
         gobj,
@@ -1300,8 +1298,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     uint64_t t = (ms - priv->last_ms);
     if(t>0) {
-        uint64_t txMsgsec = *(priv->ptxMsgs) - priv->last_txMsgs;
-        uint64_t rxMsgsec = *(priv->prxMsgs) - priv->last_rxMsgs;
+        uint64_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        uint64_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
 
         txMsgsec *= 1000;
         rxMsgsec *= 1000;
@@ -1321,8 +1319,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
     }
     priv->last_ms = ms;
-    priv->last_txMsgs = *(priv->ptxMsgs);
-    priv->last_rxMsgs = *(priv->prxMsgs);
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
 
     JSON_DECREF(kw)
     return 0;

@@ -137,11 +137,11 @@ typedef struct _PRIVATE_DATA {
     int timeout_inactivity;
     char inform_disconnection;
 
-    json_int_t *pconnxs;
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
-    json_int_t *ptxBytes;
-    json_int_t *prxBytes;
+    json_int_t connxs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
+    json_int_t txBytes;
+    json_int_t rxBytes;
 
     BOOL use_ssl;
     hytls ytls;
@@ -171,11 +171,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
-    priv->ptxBytes = gobj_danger_attr_ptr(gobj, "txBytes");
-    priv->prxBytes = gobj_danger_attr_ptr(gobj, "rxBytes");
-    priv->pconnxs = gobj_danger_attr_ptr(gobj, "connxs");
 
     /*
      *  CHILD subscription model
@@ -307,7 +302,7 @@ PRIVATE int mt_start(hgobj gobj)
         if (!gobj_read_bool_attr(gobj, "manual")) {
             if (priv->timeout_inactivity > 0) {
                 // don't connect until arrives data to transmit
-                if((*priv->pconnxs) > 0) {
+                if(priv->connxs > 0) {
                     // Some connection was happen
                 } else {
                     // But connect once time at least.
@@ -436,7 +431,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     clear_timeout(priv->gobj_timer);
     gobj_change_state(gobj, ST_CONNECTED);
 
-//    (*priv->pconnxs)++;
+    priv->connxs++;
 
     /*
      *  Ready to receive
@@ -698,8 +693,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             );
                         }
 
-//                        (*priv->prxMsgs)++;
-//                        (*priv->prxBytes) += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
+                        priv->rxMsgs++;
+                        priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
 
                         GBUFFER_INCREF(yev_event->gbuf)
                         json_t *kw = json_pack("{s:I}",
@@ -921,8 +916,8 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             );
         }
     } else {
-//        (*priv->ptxMsgs)++;
-//        (*priv->ptxBytes) += (json_int_t)gbuffer_leftbytes(gbuf);
+        priv->txMsgs++;
+        priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
         /*
          *  Transmit

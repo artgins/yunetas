@@ -74,8 +74,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
-    json_int_t *ptxMsgs;
-    json_int_t *prxMsgs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
     json_int_t last_txMsgs;
     json_int_t last_rxMsgs;
     uint64_t last_ms;
@@ -101,8 +101,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
 
     /*
      *  CHILD subscription model
@@ -281,7 +279,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "%s", gobj_short_name(src)
         );
     }
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     gobj_publish_event(gobj, event, kw); // reuse kw
     return 0;
@@ -301,7 +299,7 @@ PRIVATE int ac_on_id(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "%s", gobj_short_name(src)
         );
     }
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     gobj_publish_event(gobj, event, kw); // reuse kw
     return 0;
@@ -321,7 +319,7 @@ PRIVATE int ac_on_id_nak(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "%s", gobj_short_name(src)
         );
     }
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
 
     gobj_publish_event(gobj, event, kw); // reuse kw
     return 0;
@@ -372,7 +370,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
         ret = -1;
     }
-    (*priv->ptxMsgs)++;
+    priv->txMsgs++;
 
     KW_DECREF(kw)
     return ret;
@@ -429,8 +427,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     json_int_t t = (json_int_t)(ms - priv->last_ms);
     if(t>0) {
-        json_int_t txMsgsec = *(priv->ptxMsgs) - priv->last_txMsgs;
-        json_int_t rxMsgsec = *(priv->prxMsgs) - priv->last_rxMsgs;
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
 
         txMsgsec *= 1000;
         rxMsgsec *= 1000;
@@ -450,8 +448,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
     }
     priv->last_ms = ms;
-    priv->last_txMsgs = *(priv->ptxMsgs);
-    priv->last_rxMsgs = *(priv->prxMsgs);
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
 
     JSON_DECREF(kw)
     return 0;

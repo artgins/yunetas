@@ -3119,8 +3119,10 @@ PRIVATE cell_control_t *get_cell_control(
         json_object_set_new(jn_type, saddress, json_integer(0));
     }
     json_t *jn_value = json_object_get(jn_type, saddress);
-    cell_control_t *cell_control = (cell_control_t *)(size_t)json_integer_value_pointer(jn_value);
-    return cell_control;
+    // TODO cambia el metodo, json_integer_value_pointer() is not available
+    // TODO cell_control_t *cell_control = (cell_control_t *)(size_t)json_integer_value_pointer(jn_value);
+// TODO   return cell_control;
+    return NULL;
 }
 
 
