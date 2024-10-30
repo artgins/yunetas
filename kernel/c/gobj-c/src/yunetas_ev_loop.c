@@ -376,24 +376,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_ST_STOPPED:
-            if(cqe->res == -ECANCELED) {
-                if(trace_level & TRACE_UV) {
-                    json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-                    gobj_log_debug(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "receive ECANCELED on stopped state",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        "cqe->res",     "%d", (int)cqe->res,
-                        "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                        NULL
-                    );
-                    json_decref(jn_flags);
-                }
-
-            } else if(yev_loop->running) {
+            if(yev_loop->running) {
                 /*
                  *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
                  *  and it can receive cqe->res = -2 (No such file or directory)
@@ -401,7 +384,7 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "receive event UNKNOWN on stopped state",
+                    "msg",          "%s", "receive event in stopped state",
                     "event_type",   "%s", yev_event_type_name(yev_event),
                     "state",        "%s", yev_get_state_name(yev_event),
                     "p",            "%p", yev_event,
@@ -429,6 +412,8 @@ PRIVATE int process_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
+                "cqe->res",     "%d", (int)cqe->res,
+                "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                 NULL
             );
     }

@@ -378,7 +378,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
-            "msg2",         "%s", "💥 yev server callback",
+            "msg2",         "%s", "🌐💥 yev server callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
@@ -406,7 +406,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "msg",          "%s", "TCP_S: event type NOT IMPLEMENTED",
+                "msg2",         "%s", "🌐TCP_S: event type NOT IMPLEMENTED",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
@@ -421,7 +422,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "yev_callback FAILED ",
+            "msg",          "%s", "TCP_S: yev_callback FAILED ",
+            "msg2",         "%s", "🌐TCP_S: yev_callback FAILED ",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
@@ -437,7 +439,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "Ip not allowed",
+                    "msg",          "%s", "TCP_S: Ip not allowed",
+                    "msg2",         "%s", "🌐TCP_S: Ip not allowed",
                     "url",          "%s", priv->url,
                     "peername",     "%s", peername,
                     NULL
@@ -479,7 +482,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "Connection not accepted: no free child tree found",
+                    "msg",          "%s", "TCP_S: Connection not accepted: no free child tree found",
+                    "msg2",         "%s", "🌐TCP_S: Connection not accepted: no free child tree found",
                     "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
                     "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
                     NULL
@@ -500,7 +504,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                     "msg",          "%s", "Clisrv accepted",
-                    "msg2",         "%s", "Clisrv accepted...🔷👍",
+                    "msg2",         "%s", "🌐TCP_S: Clisrv accepted...🔷👍",
                     "top_tree",     "%s", top_tree,
                     "bottom_tree",  "%s", bottom_tree,
                     NULL
@@ -511,7 +515,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "child_tree_filter NULL",
+            "msg",          "%s", "TCP_S: child_tree_filter NULL",
+            "msg2",         "%s", "🌐TCP_S: child_tree_filter NULL",
             "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
             "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
             NULL
@@ -521,7 +526,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     }
 
     if(!priv->subscriber) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "No subscriber",

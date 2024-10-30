@@ -639,7 +639,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
-            "msg2",         "%s", "💥 yev callback",
+            "msg2",         "%s", "🌐🌐💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
@@ -660,23 +660,24 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_event->result));
 
-                    if(yev_event->result != -ECANCELED) {
-                        try_to_stop_yevents(gobj);
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: read FAILED",
+                            "msg2",         "%s", "🌐TCP: read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            "p",            "%p", yev_event,
+                            NULL
+                        );
+                    }
 
-                        if(gobj_trace_level(gobj) & TRACE_UV) {
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                                "msg",          "%s", "read FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
+                    if(gobj_is_running(gobj)) {
+                        try_to_stop_yevents(gobj);
                     }
 
                 } else {
@@ -711,9 +712,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      *  Clear buffer
                      *  Re-arm read
                      */
-                    if(yev_event->gbuf) {
-                        gbuffer_clear(yev_event->gbuf);
-                        yev_start_event(yev_event);
+                    if(gobj_is_running(gobj)) {
+                        if(yev_event->gbuf) {
+                            gbuffer_clear(yev_event->gbuf);
+                            yev_start_event(yev_event);
+                        }
                     }
                 }
             }
@@ -727,23 +730,26 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_event->result));
 
-                    if(yev_event->result != -ECANCELED) {
-                        try_to_stop_yevents(gobj);
+                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: write FAILED",
+                            "msg2",         "%s", "🌐TCP: write FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            "p",            "%p", yev_event,
+                            NULL
+                        );
+                    }
 
-                        if(gobj_trace_level(gobj) & TRACE_UV) {
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                                "msg",          "%s", "write FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
+                    yev_destroy_event(yev_event);
+
+                    if(gobj_is_running(gobj)) {
+                        try_to_stop_yevents(gobj);
                     }
 
                 } else {
@@ -759,13 +765,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             }
                         }
                     }
+                    yev_destroy_event(yev_event);
                 }
 
-                if(yev_event_is_stopped(yev_event)) {
-                    yev_destroy_event(yev_event);
-                } else {
-                    yev_stop_event(yev_event);
-                }
             }
             break;
 
@@ -778,20 +780,18 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     gobj_log_set_last_message("%s", strerror(-yev_event->result));
 
                     if(gobj_trace_level(gobj) & TRACE_UV) {
-                        if(yev_event->result != -ECANCELED) {
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                                "msg",          "%s", "connect FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                            "msg",          "%s", "TCP: connect FAILED",
+                            "msg2",         "%s", "🌐TCP: connect FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "errno",        "%d", -yev_event->result,
+                            "strerror",     "%s", strerror(-yev_event->result),
+                            "p",            "%p", yev_event,
+                            NULL
+                        );
                     }
-                    try_to_stop_yevents(gobj);
 
                 } else {
                     set_connected(gobj, yev_event->fd);
@@ -802,7 +802,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "event type NOT IMPLEMENTED",
+                "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
+                "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
