@@ -447,6 +447,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         }
     }
 
+    /*-------------------------------*
+     *      cqe ready
+     *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
         case YEV_CONNECT_TYPE:
             {
@@ -1343,47 +1346,15 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         case YEV_WRITE_TYPE:
             break;
         case YEV_CONNECT_TYPE:
-            if(yev_event->fd > 0) {
-                if(gobj_trace_level(0) & TRACE_UV) {
-                    gobj_log_debug(0, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "close socket yev_connect",
-                        "msg2",         "%s", "💥🟥 close socket yev_connect",
-                        "fd",           "%d", yev_event->fd ,
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                }
-                close(yev_event->fd);
-                yev_event->fd = -1;
-            }
-            break;
         case YEV_ACCEPT_TYPE:
-            if(yev_event->fd > 0) {
-                if(gobj_trace_level(0) & TRACE_UV) {
-                    gobj_log_debug(0, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "close socket yev_accept",
-                        "msg2",         "%s", "💥🟥 close socket yev_accept",
-                        "fd",           "%d", yev_event->fd ,
-                        "p",            "%p", yev_event,
-                        NULL
-                    );
-                }
-                close(yev_event->fd);
-                yev_event->fd = -1;
-            }
-            break;
         case YEV_TIMER_TYPE:
             if(yev_event->fd > 0) {
                 if(gobj_trace_level(0) & TRACE_UV) {
                     gobj_log_debug(0, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
-                        "msg",          "%s", "close socket yev_timer",
-                        "msg2",         "%s", "💥🟥 close socket yev_timer",
+                        "msg",          "%s", "close socket",
+                        "msg2",         "%s", "💥🟥 close socket",
                         "fd",           "%d", yev_event->fd ,
                         "p",            "%p", yev_event,
                         NULL
