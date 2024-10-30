@@ -57,6 +57,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
+SDATA (DTP_BOOLEAN,     "do_echo",          SDF_RD,             "1",        "Do echo of received messages"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "2000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -289,18 +290,21 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
     }
 
-    /*
-     *  Do echo of the message received
-     */
-    json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
-    );
-    gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
+    if(gobj_read_bool_attr(gobj, "do_echo")) {
+        /*
+         *  Do echo of the message received
+         */
+        json_t *kw_send = json_pack("{s:I}",
+            "gbuffer", (json_int_t)(size_t)gbuf
+        );
+        gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 
-    priv->txMsgs++;
+        priv->txMsgs++;
+    } else {
+        GBUFFER_DECREF(gbuf)
+    }
 
     KW_DECREF(kw)
-
     return 0;
 }
 

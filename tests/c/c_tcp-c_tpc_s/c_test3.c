@@ -86,7 +86,10 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->pepon = gobj_create_pure_child("server", C_PEPON, 0, gobj);
+    json_t *kw_pepon = json_pack("{s:b}",
+        "do_echo", 1
+    );
+    priv->pepon = gobj_create_pure_child("server", C_PEPON, kw_pepon, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -182,15 +185,16 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *  Gps connected
  ***************************************************************************/
+gbuffer_t *gbuf_to_send = 0;
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer_t *gbuf = gbuffer_create(1024, 1024);
-    gbuffer_printf(gbuf, MESSAGE);
+    gbuf_to_send = gbuffer_create(1024, 1024);
+    gbuffer_printf(gbuf_to_send, MESSAGE);
 
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(size_t)gbuf_to_send
     );
     gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
