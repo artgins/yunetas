@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.5)
 ##############################################
 #   Source
 ##############################################
+add_subdirectory(yev_loop/yev_events)
 add_subdirectory(yev_loop/yev_timer_once)
 add_subdirectory(yev_loop/yev_timer_periodic)
 add_subdirectory(timeranger2)

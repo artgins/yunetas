@@ -20,8 +20,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_tr_msg1
-    test_tr_msg2
+    test_yevent_listen1
 )
 
 ##############################################
@@ -42,11 +41,11 @@ foreach(test ${SRCS})
         liburing.a
         libpcre2-8.a
         m
+        #z rt m
         uuid
+        #util
         bfd     # to stacktrace
     )
-    target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
-
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()

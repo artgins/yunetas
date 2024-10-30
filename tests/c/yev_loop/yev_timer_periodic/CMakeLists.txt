@@ -20,15 +20,15 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_timer_periodic1.c
+    test_timer_periodic1
 )
 
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "${test}.bin")
-    add_executable(${binary} ${test})
+    set(binary "${test}")
+    add_executable(${binary} "${test}.c")
 
     target_link_libraries(${binary}
         libyunetas-c_prot.a

@@ -21,22 +21,22 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_tranger_startup.c
-    test_topic_pkey_integer.c
-    test_topic_pkey_integer_iterator.c
-    test_topic_pkey_integer_iterator2.c
-    test_topic_pkey_integer_iterator3.c
-    test_topic_pkey_integer_iterator4.c
-    test_topic_pkey_integer_iterator5.c
-    test_topic_pkey_integer_iterator6.c
+    test_tranger_startup
+    test_topic_pkey_integer
+    test_topic_pkey_integer_iterator
+    test_topic_pkey_integer_iterator2
+    test_topic_pkey_integer_iterator3
+    test_topic_pkey_integer_iterator4
+    test_topic_pkey_integer_iterator5
+    test_topic_pkey_integer_iterator6
 )
 
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "${test}.bin")
-    add_executable(${binary} ${test})
+    set(binary "${test}")
+    add_executable(${binary} "${test}.c")
 
     target_link_libraries(${binary}
         libyunetas-c_prot.a
