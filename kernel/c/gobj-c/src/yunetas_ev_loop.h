@@ -144,7 +144,6 @@ struct yev_loop_s {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-// TODO use io_uring_wait_cqes, fewer system calls
 PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop);
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
 
