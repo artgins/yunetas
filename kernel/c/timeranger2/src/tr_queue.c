@@ -92,7 +92,7 @@ PUBLIC tr_queue trq_open(
         trq_close(trq);
         return 0;
     }
-    dl_init(&trq->dl_q_msg);
+    dl_init(&trq->dl_q_msg, 0);
 
     if(backup_queue_size > 0 && kw_get_bool(gobj, trq->tranger, "master", 0, KW_REQUIRED)) {
         json_t *jn_topic_var = json_object();

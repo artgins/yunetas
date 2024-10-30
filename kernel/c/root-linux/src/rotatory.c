@@ -96,7 +96,7 @@ PUBLIC int rotatory_start_up(void)
         atexit_registered = 1;
     }
 
-    dl_init(&dl_clients);
+    dl_init(&dl_clients, 0);
     __initialized__ = TRUE;
     return 0;
 }
