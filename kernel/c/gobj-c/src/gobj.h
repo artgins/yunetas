@@ -2347,7 +2347,7 @@ PUBLIC gbuffer_t *gbuffer_create(
 size_t max_memory_size
 );
 PUBLIC void gbuffer_remove(gbuffer_t *gbuf); /* WARNING do not call gbuffer_remove(), call gbuffer_decref() */
-PUBLIC void gbuffer_incref(gbuffer_t *gbuf);
+PUBLIC gbuffer_t *gbuffer_incref(gbuffer_t *gbuf);
 PUBLIC void gbuffer_decref(gbuffer_t *gbuf);
 
 /*

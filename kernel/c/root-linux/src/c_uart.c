@@ -846,7 +846,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -866,7 +866,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         yev_callback,
         gobj,
         priv->tty_fd,
-        gbuf
+        gbuffer_incref(gbuf)
     );
     yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_client_tx);

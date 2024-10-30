@@ -80,7 +80,7 @@ extern "C"{
 /*---------------------------------*
  *          KW
  *---------------------------------*/
-typedef void (*incref_fn_t)(void *);
+typedef void *(*incref_fn_t)(void *);
 typedef void (*decref_fn_t)(void *);
 typedef json_t * (*serialize_fn_t)(hgobj gobj, void *ptr);
 typedef void * (*deserialize_fn_t)(hgobj gobj, json_t *jn);

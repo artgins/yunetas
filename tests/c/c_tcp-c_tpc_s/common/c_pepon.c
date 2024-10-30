@@ -284,7 +284,17 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     priv->rxMsgs++;
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "gbuffer NULL",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
@@ -295,13 +305,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Do echo of the message received
          */
         json_t *kw_send = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(size_t)gbuf
+            "gbuffer", (json_int_t)(size_t)gbuffer_incref(gbuf)
         );
         gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 
         priv->txMsgs++;
-    } else {
-        GBUFFER_DECREF(gbuf)
     }
 
     KW_DECREF(kw)

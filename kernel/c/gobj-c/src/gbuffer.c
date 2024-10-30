@@ -149,21 +149,21 @@ PUBLIC void gbuffer_remove(gbuffer_t *gbuf)
      *  Libera la memoria
      *-----------------------*/
     if(gbuf->label) {
-        GBMEM_FREE(gbuf->label);
+        GBMEM_FREE(gbuf->label)
         gbuf->label = 0;
     }
     if(gbuf->data) {
-        GBMEM_FREE(gbuf->data);
+        GBMEM_FREE(gbuf->data)
         gbuf->data = 0;
     }
 
-    GBMEM_FREE(gbuf);
+    GBMEM_FREE(gbuf)
 }
 
 /***************************************************************************
  *    Incr ref
  ***************************************************************************/
-PUBLIC void gbuffer_incref(gbuffer_t *gbuf)
+PUBLIC gbuffer_t *gbuffer_incref(gbuffer_t *gbuf)
 {
     if(!gbuf || gbuf->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -172,9 +172,10 @@ PUBLIC void gbuffer_incref(gbuffer_t *gbuf)
             "msg",          "%s", "BAD gbuf_incref()",
             NULL
         );
-        return;
+        return NULL;
     }
     ++(gbuf->refcount);
+    return gbuf;
 }
 
 /***************************************************************************
