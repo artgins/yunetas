@@ -1970,16 +1970,16 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Dealloc data
      *--------------------------------*/
-    EXEC_AND_RESET(sys_free_fn, gobj->gobj_name)
-    //JSON_DECREF(gobj->jn_attrs)
+    JSON_DECREF(gobj->jn_attrs)
     JSON_DECREF(gobj->jn_stats)
     JSON_DECREF(gobj->jn_user_data)
     JSON_DECREF(gobj->dl_subscribings)
     JSON_DECREF(gobj->dl_subscriptions)
-    EXEC_AND_RESET(sys_free_fn, gobj->priv)
 
+    EXEC_AND_RESET(sys_free_fn, gobj->gobj_name)
     EXEC_AND_RESET(sys_free_fn, gobj->full_name)
     EXEC_AND_RESET(sys_free_fn, gobj->short_name)
+    EXEC_AND_RESET(sys_free_fn, gobj->priv)
 
     if(gobj->obflag & obflag_created) {
         gobj->gclass->instances--;
@@ -3063,6 +3063,16 @@ PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    if(gobj_is_destroying(gobj)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj destroying",
             NULL
         );
         return 0;
