@@ -38,7 +38,7 @@
 /***************************************************************************
  *      Constants
  ***************************************************************************/
-#define PREFIX_TEST_APP "test_" /* The apps with this prefix don't get the limit of 15 bytes in APP_NAME */
+#define PREFIX_TEST_APP "test_" /* BUG The apps with this prefix don't get the limit of 15 bytes in APP_NAME */
 
 #define KW_GET(__name__, __default__, __func__) \
     __name__ = __func__(0, kw, #__name__, __default__, 0);
