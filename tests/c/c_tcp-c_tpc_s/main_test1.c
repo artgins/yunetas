@@ -4,6 +4,11 @@
  *          Test: Use pepon as server and test the tcp client in c_test1
  *          No interchange of messages, only connections
  *
+ *          Tasks
+ *          - In 1 second, connecting to pepon
+ *          - In 1 seconds after connected ,dropping the connection.
+ *          - After 3 disconnections, shutdown
+
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -207,15 +212,15 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
     // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    //gobj_set_gobj_trace(0, "machine", TRUE, 0);
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
 
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "addrinfo on listen",
         "msg", "Listening...",
@@ -235,7 +240,6 @@ static void register_yuno_and_more(void)
         "msg", "Connected From",
         "msg", "Disconnected To",
         "msg", "Pausing yuno",
-        "msg", "Disconnected From",
         "msg", "Yuno stopped, gobj end"
     );
     set_expected_results( // Check that no logs happen

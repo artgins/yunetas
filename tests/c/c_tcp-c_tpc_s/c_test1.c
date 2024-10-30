@@ -5,6 +5,11 @@
  *          Test: Use pepon as server and test the tcp client in c_test1
  *          No interchange of messages, only connections
  *
+ *          Tasks
+ *          - In 1 second, connecting to pepon
+ *          - In 1 seconds after connected ,dropping the connection.
+ *          - After 3 disconnections, shutdown
+ *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -187,7 +192,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 2000); // timeout to drop
+    set_timeout(priv->timer, 1000); // timeout to drop
 
     JSON_DECREF(kw)
     return 0;

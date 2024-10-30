@@ -5,6 +5,11 @@
  *          Test: Use pepon as server and test the tcp client in c_test1
  *          No interchange of messages, only connections
  *
+ *          Tasks
+ *          - In 1 second, connecting to pepon
+ *          - In 1 seconds after connected ,dropping the connection.
+ *          - After 3 disconnections, shutdown
+ *
  *          Copyright (c) 2024, Artgins.
  *          All Rights Reserved.
  ****************************************************************************/
