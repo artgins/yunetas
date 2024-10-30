@@ -326,60 +326,59 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *------------------------*/
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
-        case YEV_ST_RUNNING:
+        case YEV_ST_RUNNING:  // cqe ready
             if(cqe->res < 0) {
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else {
                 yev_set_state(yev_event, YEV_ST_IDLE);
             }
             break;
-        case YEV_ST_CANCELING:
+        case YEV_ST_CANCELING: // cqe ready
             /*
              *  In the case of YEV_TIMER_TYPE and others, when canceling
              *      first receives cqe->res 0
              *      after receives ECANCELED
              */
-            if(yev_loop->stopping) {
-                /*
-                 *  Stopping the loop, don't check
-                 */
+            if(cqe->res == -ECANCELED) {
                 yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else if(cqe->res == 0) {
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, cqe);
+                return 0;
 
+            } else if(cqe->res < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "Waiting ECANCELED and receive another error",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
+                yev_set_state(yev_event, YEV_ST_STOPPED);
             } else {
                 /*
-                 *  Not stopping the loop, check more
+                 *  This is still a valid event, wait for another one with an error
                  */
-                if(cqe->res == -ECANCELED) {
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                } else if(cqe->res == 0) {
-                    /* Mark this request as processed */
-                    io_uring_cqe_seen(&yev_loop->ring, cqe);
-                    return 0;
-
-                } else if(cqe->res < 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                        "msg",          "%s", "Waiting ECANCELED and receive another error",
-                        "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
-                        "p",            "%p", yev_event,
-                        "cqe->res",     "%d", (int)cqe->res,
-                        "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                        NULL
-                    );
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                } else {
-                    /*
-                     *  This is still a valid event, wait for another one with an error
-                     */
-                }
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "Waiting ECANCELED and receive successful response",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "state",        "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
             }
-
             break;
 
-        case YEV_ST_STOPPED:
-            if(yev_loop->running) {
+        case YEV_ST_STOPPED: // cqe ready
+            //if(yev_loop->running) {
                 /*
                  *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
                  *  and it can receive cqe->res = -2 (No such file or directory)
@@ -395,7 +394,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                     NULL
                 );
-            }
+            //}
             /*
              *  Don't call callback again
              *  if the state is STOPPED the callback was already done,
@@ -406,7 +405,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             io_uring_cqe_seen(&yev_loop->ring, cqe);
             return cqe->res;
 
-        case YEV_ST_IDLE:
+        case YEV_ST_IDLE: // cqe ready
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1218,6 +1217,41 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
     GBMEM_FREE(yev_event->src_addr)
     yev_event->src_addrlen = 0;
 
+    /*-------------------------------*
+     *      stopping
+     *-------------------------------*/
+    switch((yev_type_t)yev_event->type) {
+        case YEV_READ_TYPE:
+        case YEV_WRITE_TYPE:
+            break;
+        case YEV_CONNECT_TYPE:
+        case YEV_ACCEPT_TYPE:
+            // Each connection needs a new socket fd, i.e. after each disconnection.
+            // TODO prueba a cerrar el socket fd or fd_clisrv a ver si el resto de sqe in ring retorna sin cancelar
+            if(yev_event->fd > 0) {
+                if(gobj_trace_level(0) & TRACE_UV) {
+                    gobj_log_debug(0, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_YEV_LOOP,
+                        "msg",          "%s", "close socket",
+                        "msg2",         "%s", "💥🟥 close socket",
+                        "fd",           "%d", yev_event->fd ,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                }
+                close(yev_event->fd);
+                yev_event->fd = -1;
+            }
+            break;
+        case YEV_TIMER_TYPE:
+            // the fd can be re-used
+            break;
+    }
+
+    /*-------------------------------*
+     *      Checking state
+     *-------------------------------*/
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
         case YEV_ST_RUNNING:
@@ -1335,6 +1369,9 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         yev_stop_event(yev_event);
     }
 
+    /*---------------------------*
+     *      Free
+     *---------------------------*/
     GBUFFER_DECREF(yev_event->gbuf)
     GBMEM_FREE(yev_event->dst_addr)
     yev_event->dst_addrlen = 0;
@@ -1342,14 +1379,14 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
     yev_event->src_addrlen = 0;
 
     /*-------------------------------*
-     *      destroy
+     *      destroying
      *-------------------------------*/
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
             break;
-        case YEV_CONNECT_TYPE:
-        case YEV_ACCEPT_TYPE:
+        case YEV_CONNECT_TYPE:  // it must not happen
+        case YEV_ACCEPT_TYPE:   // it must not happen
         case YEV_TIMER_TYPE:
             if(yev_event->fd > 0) {
                 if(gobj_trace_level(0) & TRACE_UV) {
