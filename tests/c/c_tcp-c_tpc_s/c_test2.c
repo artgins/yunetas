@@ -5,6 +5,10 @@
  *          Test: Use teston as client and test the tcp server in c_test2
  *          No interchange of messages, only connections
  *
+ *          Tasks
+ *          - Play teston to connect to us
+ *          -
+ *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -212,26 +216,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->rxMsgs++;
-
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s <== %s", gobj_short_name(gobj), gobj_short_name(src));
-    }
-
-    KW_DECREF(kw)
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_timeout_listen(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -335,7 +319,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_opened[] = {
-        {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_ON_MESSAGE,             0,                          0},
         {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
         {EV_TIMEOUT,                ac_timeout_close,           0},
         {0,0,0}
