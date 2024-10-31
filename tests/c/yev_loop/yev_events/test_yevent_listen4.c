@@ -149,7 +149,7 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     yev_stop_event(yev_event_accept);
-    yev_loop_run_once(yev_loop);
+    yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
     yev_destroy_event(yev_event_accept2);
