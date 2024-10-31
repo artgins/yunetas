@@ -80,6 +80,7 @@ int do_test(void)
         NULL,
         2024,
         10,
+        NULL,
         &yev_loop
     );
 

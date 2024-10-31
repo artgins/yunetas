@@ -156,6 +156,7 @@ int do_test(void)
         0,
         2024,
         10,
+        NULL,
         &yev_loop
     );
 

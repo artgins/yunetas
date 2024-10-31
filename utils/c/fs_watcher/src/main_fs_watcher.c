@@ -37,6 +37,7 @@ int do_test(char *path)
         0,
         2024,
         10,
+        NULL,
         &yev_loop
     );
 

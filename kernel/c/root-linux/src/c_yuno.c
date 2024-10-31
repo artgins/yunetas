@@ -450,6 +450,7 @@ PRIVATE void mt_create(hgobj gobj)
         gobj,
         (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
         (int) gobj_read_integer_attr(gobj, "keep_alive"),
+        NULL,
         &priv->yev_loop
     );
 
