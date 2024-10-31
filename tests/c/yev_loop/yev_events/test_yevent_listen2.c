@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <unistd.h>
 #include <signal.h>
 #include <gobj.h>
 #include <testing.h>
