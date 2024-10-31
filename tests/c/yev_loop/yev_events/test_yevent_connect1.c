@@ -62,7 +62,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 } else {
                     msg ="What?";
                 }
-                ret = -1; // break the loop
+                ret = 0; // re-arm
             }
             break;
         case YEV_CONNECT_TYPE:

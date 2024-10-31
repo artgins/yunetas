@@ -52,6 +52,7 @@ foreach(test ${SRCS})
         libssl.a
         libcrypto.a
 
+        pthread dl  # used by openssl
         uuid
         bfd     # to stacktrace
         m
