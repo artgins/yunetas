@@ -48,7 +48,13 @@ PRIVATE const char *yev_flag_s[] = {
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop_)
+PUBLIC int yev_loop_create(
+    hgobj yuno,
+    unsigned entries,
+    int keep_alive,
+    yev_callback_t callback,
+    yev_loop_t **yev_loop_
+)
 {
     struct io_uring ring_test;
     int err;
@@ -117,6 +123,7 @@ retry:
     yev_loop->entries = entries;
     yev_loop->keep_alive = keep_alive?keep_alive:60;
     yev_loop->cqes = GBMEM_MALLOC(entries * sizeof(struct io_uring_cqe *));
+    yev_loop->callback = callback;
 
     *yev_loop_ = yev_loop;
 
@@ -287,6 +294,18 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*------------------------*
      *  Check parameters
      *------------------------*/
+    if(cqe == NULL) {
+        /*
+         *  It's the timeout
+         */
+        if(yev_loop->callback) {
+            yev_loop->callback(
+                0
+            );
+        }
+        return 0;
+    }
+
     yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
     if(!yev_event) {
         // HACK CQE event without data is loop ending
@@ -1426,7 +1445,7 @@ PRIVATE yev_event_t *create_event(
 
     yev_event->yev_loop = yev_loop;
     yev_event->gobj = gobj;
-    yev_event->callback = callback;
+    yev_event->callback = callback? callback:yev_loop->callback;
     yev_event->fd = fd;
 
     return yev_event;

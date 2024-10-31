@@ -138,13 +138,20 @@ struct yev_loop_s {
     int keep_alive;
     volatile int running;
     struct io_uring_cqe **cqes;
+    yev_callback_t callback;
 };
 
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop);
+PUBLIC int yev_loop_create(
+    hgobj yuno,
+    unsigned entries,
+    int keep_alive,
+    yev_callback_t callback,
+    yev_loop_t **yev_loop
+);
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
 
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds);
