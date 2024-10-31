@@ -39,26 +39,11 @@ int result = 0;
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    yev_state_t yev_state = yev_get_state(yev_event);
-
-    char msg[80];
-    if(yev_event->result<0) {
-        snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
-    } else {
-        if(yev_state == YEV_ST_IDLE) {
-            snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
-        } else if(yev_state == YEV_ST_STOPPED) {
-            snprintf(msg, sizeof(msg), "timeout stopped");
-        } else {
-            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
-        }
-    }
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", msg,
-        "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
+        "msg",          "%s", "event",
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
         "fd",           "%d", yev_event->fd,
@@ -113,17 +98,21 @@ int do_test(void)
         0, //backlog,
         FALSE // shared
     );
+    yev_start_event(yev_event_accept);
+    yev_loop_run_once(yev_loop);
 
-    int pid_telnet = launch_daemon("telnet", "localhost", 3333);
-
+    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
     yev_loop_run(yev_loop);
 
-    yev_loop_run_once(yev_loop);
-    yev_destroy_event(yev_event_accept);
 
+    //yev_destroy_event(yev_event_accept);
+
+    yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
-    kill(pid_telnet, 9);
+    if(pid_telnet > 0) {
+        kill(pid_telnet, 9);
+    }
 
     return result;
 }

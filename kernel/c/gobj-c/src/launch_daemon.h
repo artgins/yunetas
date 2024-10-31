@@ -17,7 +17,7 @@ extern "C"{
 /***************************************************
  *              Prototypes
  **************************************************/
-PUBLIC int launch_daemon(const char *program, ...); // Return pid of daemon
+PUBLIC int launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...); // Return pid of daemon
 
 #ifdef __cplusplus
 }
