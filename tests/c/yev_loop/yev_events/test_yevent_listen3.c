@@ -2,9 +2,9 @@
  *          test_yevent_listen2.c
  *
  *          - set in listening
- *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
+ *          - close the socket: NOTHING happen (not getting some error)
  *          - make a external client connect with telnet
- *          - the connection is ACCEPTED !!!
+ *          - the connection is ACCEPTED !!! and the socket listening is CLOSED!!
  *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
@@ -143,8 +143,9 @@ int do_test(void)
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
     yev_loop_run(yev_loop, 2);
 
-//    yev_stop_event(yev_event_accept);
-//    yev_loop_run_once(yev_loop);
+    // the event has not been re-armed as return -1 in callback
+    // yev_stop_event(yev_event_accept);
+    // yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
 

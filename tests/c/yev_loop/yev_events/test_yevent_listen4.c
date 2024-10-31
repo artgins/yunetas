@@ -2,8 +2,10 @@
  *          test_yevent_listen2.c
  *
  *          - set in listening
- *          - close the socket: NOTHING happen
- *          - stop the event
+ *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
+ *          - make a external client connect with telnet
+ *          - the connection is ACCEPTED !!!
+ *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -33,6 +35,7 @@ PRIVATE int yev_callback(yev_event_t *event);
  ***************************************************************/
 yev_loop_t *yev_loop;
 yev_event_t *yev_event_accept;
+yev_event_t *yev_event_accept2;
 int result = 0;
 
 char *msg = "";
@@ -126,27 +129,38 @@ int do_test(void)
     yev_start_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
 
-    if(yev_event_accept->fd > 0) {
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "closing the socket",
-            "socket",       "%d", yev_event_accept->fd,
-            NULL
-        );
-        close(yev_event_accept->fd);
-        yev_event_accept->fd = -1;
-    }
+    /*--------------------------------*
+     *      Create listen2
+     *--------------------------------*/
+    yev_event_accept2 = yev_create_accept_event(
+        yev_loop,
+        yev_callback,
+        0
+    );
+    yev_setup_accept_event( // create the socket listening in yev_event->fd
+        yev_event_accept2,
+        server_url, // listen_url,
+        0, //backlog,
+        FALSE // shared
+    );
+    yev_start_event(yev_event_accept2);
+    yev_loop_run(yev_loop, 1);
 
-    yev_loop_run(yev_loop, 2);
+//    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+//    yev_loop_run(yev_loop, 2);
 
-    yev_stop_event(yev_event_accept);
-    yev_loop_run_once(yev_loop);
+//    yev_stop_event(yev_event_accept);
+//    yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
+    yev_destroy_event(yev_event_accept2);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
+
+//    if(pid_telnet > 0) {
+//        kill(pid_telnet, 9);
+//    }
 
     return result;
 }
@@ -224,7 +238,7 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "closing the socket",
-        "msg", "Listen socket failed"
+        "msg", "Listen Connection Accepted"
     );
 
     set_expected_results( // Check that no logs happen
