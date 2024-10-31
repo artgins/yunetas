@@ -1,8 +1,9 @@
 /****************************************************************************
  *          test_yevent_listen2.c
  *
- *          Set in listening
- *          Close the socket
+ *          - set in listening
+ *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
+ *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -225,9 +226,10 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
-        "msg", "Listen Connection Accepted"
+        "msg", "closing the socket",
+        "msg", "Listen socket failed"
     );
 
     set_expected_results( // Check that no logs happen
