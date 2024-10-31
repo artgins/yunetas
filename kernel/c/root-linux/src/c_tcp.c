@@ -630,6 +630,13 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;
+    }
+
     hgobj gobj = yev_event->gobj;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

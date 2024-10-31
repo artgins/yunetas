@@ -157,44 +157,44 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
     );
 
     struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
-
     yev_loop->running = TRUE;
     while(yev_loop->running) {
-        int ret;
+        int err;
+        struct io_uring_cqe *cqe;
         if(timeout_in_seconds > 0) {
-            ret = io_uring_wait_cqes(&yev_loop->ring, yev_loop->cqes, yev_loop->entries, &timeout, NULL);
+            err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
         } else {
-            ret = io_uring_wait_cqes(&yev_loop->ring, yev_loop->cqes, yev_loop->entries, NULL, NULL);
+            err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
-        if (ret < 0) {
-            if(ret == -EINTR) {
+        printf("io_uring_wait_cqes() %d\n", err);
+        if (err < 0) {
+            if(err == -EINTR) {
                 // Ctrl+C cause this
+                continue;
+            }
+            if(err == -ETIME) {
+                // Timeout
+                if(callback_cqe(yev_loop, NULL)<0) {
+                    yev_loop->running = FALSE;
+                }
                 continue;
             }
             gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "io_uring_wait_cqe() FAILED",
-                "err",          "%d", -ret,
-                "serr",         "%s", strerror(-ret),
+                "err",          "%d", -err,
+                "serr",         "%s", strerror(-err),
                 NULL
             );
             break;
-        } else if(ret == 0) {
-            // Timeout
-            if(callback_cqe(yev_loop, NULL)<0) {
-                yev_loop->running = TRUE;
-            }
-
-        } else {
-            for (int i = 0; i < ret; i++) {
-                if(callback_cqe(yev_loop, yev_loop->cqes[i])<0) {
-                    yev_loop->running = TRUE;
-                }
-                /* Mark this request as processed */
-                io_uring_cqe_seen(&yev_loop->ring, yev_loop->cqes[i]);
-            }
         }
+
+        if(callback_cqe(yev_loop, cqe)<0) {
+            yev_loop->running = FALSE;
+        }
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
     yev_loop_run_once(yev_loop);

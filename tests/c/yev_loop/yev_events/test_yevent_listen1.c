@@ -41,6 +41,13 @@ int fd = -1;
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;
+    }
+
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             {
@@ -94,7 +101,7 @@ int do_test(void)
         0,
         2024,
         10,
-        NULL,
+        yev_callback,
         &yev_loop
     );
 
@@ -113,10 +120,11 @@ int do_test(void)
         FALSE // shared
     );
     yev_start_event(yev_event_accept);
-    yev_loop_run_once(yev_loop);
+    yev_loop_run(yev_loop, 1);
+//    yev_loop_run_once(yev_loop);
 
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
-    yev_loop_run(yev_loop, 4);
+    yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
 
