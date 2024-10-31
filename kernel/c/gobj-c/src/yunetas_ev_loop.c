@@ -753,27 +753,6 @@ PUBLIC int yev_start_event(
     }
 
     /*---------------------------*
-     *  Check if loop exiting
-     *---------------------------*/
-    if(!yev_loop->running) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event LOOP STOPPING",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
-            NULL
-        );
-        json_decref(jn_flags);
-        return -1;
-    }
-
-    /*---------------------------*
      *      Check state
      *---------------------------*/
     yev_state_t cur_state = yev_get_state(yev_event);
@@ -1057,7 +1036,6 @@ PUBLIC int yev_start_timer_event(
 
     yev_event_t *yev_event = yev_event_;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
-    yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
 
     if(periodic) {
@@ -1110,26 +1088,6 @@ PUBLIC int yev_start_timer_event(
             NULL
         );
         json_decref(jn_flags);
-    }
-
-    /*---------------------------*
-     *  Check if loop exiting
-     *---------------------------*/
-    if(!yev_loop->running) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "yev_event LOOP STOPPING",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
-            NULL
-        );
-        json_decref(jn_flags);
-        return -1;
     }
 
     /*---------------------------*

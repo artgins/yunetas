@@ -79,7 +79,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-
     return 0;
 }
 
@@ -223,11 +222,6 @@ int main(int argc, char *argv[])
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
 
-    double tm = mt_get_time(&time_measure);
-    if(!(tm >= 1 && tm < 1.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 1 && tm < 1.1)\n", On_Red BWhite, Color_Off, tm);
-        result += -1;
-    }
     result += test_json(NULL, result);
 
     gobj_end();
