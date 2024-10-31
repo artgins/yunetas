@@ -149,8 +149,8 @@ PUBLIC int yev_loop_create(
     hgobj yuno,
     unsigned entries,
     int keep_alive,
-    yev_callback_t callback, // if event is null (timeout) and return -1 the loop in yev_loop_run will break;
-                             // if the callback in other function is NULL then this callback will be used.
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+                             // if the callback in another function is NULL then this callback will be used.
     yev_loop_t **yev_loop
 );
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
@@ -235,13 +235,13 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
 PUBLIC yev_event_t *yev_create_timer_event( // Create the handler fd for timer
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj
 );
 
 PUBLIC yev_event_t *yev_create_inotify_event(
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
@@ -249,7 +249,7 @@ PUBLIC yev_event_t *yev_create_inotify_event(
 
 PUBLIC yev_event_t *yev_create_connect_event(
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj
 );
 PUBLIC int yev_setup_connect_event(
@@ -260,7 +260,7 @@ PUBLIC int yev_setup_connect_event(
 
 PUBLIC yev_event_t *yev_create_accept_event(
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj
 );
 PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
@@ -272,14 +272,14 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 
 PUBLIC yev_event_t *yev_create_read_event(
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 );
 PUBLIC yev_event_t *yev_create_write_event(
     yev_loop_t *yev_loop,
-    yev_callback_t callback,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf

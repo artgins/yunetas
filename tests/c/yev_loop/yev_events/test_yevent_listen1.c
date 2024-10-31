@@ -117,7 +117,7 @@ int do_test(void)
     yev_loop_run_once(yev_loop);
 
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
-    yev_loop_run(yev_loop, -1);
+    yev_loop_run(yev_loop, 4);
 
     yev_destroy_event(yev_event_accept);
 

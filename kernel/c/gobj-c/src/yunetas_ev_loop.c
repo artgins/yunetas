@@ -148,15 +148,13 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    if(gobj_trace_level(0) & TRACE_UV) {
-        gobj_log_debug(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev loop running",
-            "msg2",         "%s", "💥🟩 yev loop running",
-            NULL
-        );
-    }
+    gobj_log_debug(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", "yev loop running",
+        "msg2",         "%s", "💥🟩 yev loop running",
+        NULL
+    );
 
     struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
 
@@ -185,12 +183,14 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         } else if(ret == 0) {
             // Timeout
             if(callback_cqe(yev_loop, NULL)<0) {
-                break;
+                yev_loop->running = TRUE;
             }
 
         } else {
             for (int i = 0; i < ret; i++) {
-                callback_cqe(yev_loop, yev_loop->cqes[i]);
+                if(callback_cqe(yev_loop, yev_loop->cqes[i])<0) {
+                    yev_loop->running = TRUE;
+                }
                 /* Mark this request as processed */
                 io_uring_cqe_seen(&yev_loop->ring, yev_loop->cqes[i]);
             }
@@ -199,15 +199,13 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
 
     yev_loop_run_once(yev_loop);
 
-    if(gobj_trace_level(0) & TRACE_UV) {
-        gobj_log_debug(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev loop exited",
-            "msg2",         "%s", "💥🟩🟩 yev loop exited",
-            NULL
-        );
-    }
+    gobj_log_debug(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", "yev loop exited",
+        "msg2",         "%s", "💥🟩🟩 yev loop exited",
+        NULL
+    );
 
     return 0;
 }
@@ -421,7 +419,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              */
 
             /* Mark this request as processed */
-            return cqe->res;
+            return 0;
 
         case YEV_ST_IDLE: // cqe ready
         default:
@@ -466,6 +464,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*-------------------------------*
      *      cqe ready
      *-------------------------------*/
+    int ret = 0;
     switch((yev_type_t)yev_event->type) {
         case YEV_CONNECT_TYPE: // cqe ready
             {
@@ -481,7 +480,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res;
                 if(yev_event->callback) {
-                    yev_event->callback(
+                    ret = yev_event->callback(
                         yev_event
                     );
                 }
@@ -500,7 +499,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     }
                 }
 
-                int ret = 0;
                 if(yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -577,7 +575,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res;
                 if(yev_event->callback) {
-                    yev_event->callback(
+                    ret = yev_event->callback(
                         yev_event
                     );
                 }
@@ -608,7 +606,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res;
                 if (yev_event->callback) {
-                    yev_event->callback(
+                    ret = yev_event->callback(
                         yev_event
                     );
                 }
@@ -621,7 +619,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  *  Call callback
                  */
                 yev_event->result = cqe->res;
-                int ret = 0;
                 if(yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -670,7 +667,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
