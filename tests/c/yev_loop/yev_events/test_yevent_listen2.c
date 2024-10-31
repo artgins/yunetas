@@ -126,14 +126,31 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     if(yev_event_accept->fd > 0) {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "closing the socket",
+            "socket",       "%d", yev_event_accept->fd,
+            NULL
+        );
         close(yev_event_accept->fd);
+        yev_event_accept->fd = -1;
     }
-    yev_loop_run(yev_loop, 0);
+
+//    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+    yev_loop_run(yev_loop, 2);
+
+    yev_stop_event(yev_event_accept);
+    yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
+
+//    if(pid_telnet > 0) {
+//        kill(pid_telnet, 9);
+//    }
 
     return result;
 }

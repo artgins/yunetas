@@ -218,11 +218,27 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
 {
     struct io_uring_cqe *cqe;
 
+    gobj_log_debug(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", "yev loop ONCE running",
+        "msg2",         "%s", "💥🟩 yev loop ONCE running",
+        NULL
+    );
+
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         callback_cqe(yev_loop, cqe);
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
+
+    gobj_log_debug(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_YEV_LOOP,
+        "msg",          "%s", "yev loop ONCE exited",
+        "msg2",         "%s", "💥🟩🟩 yev loop ONCE exited",
+        NULL
+    );
     return 0;
 }
 
