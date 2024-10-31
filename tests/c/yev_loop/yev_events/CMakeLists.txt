@@ -22,6 +22,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 set(SRCS
     test_yevent_listen1
     test_yevent_listen2
+    test_yevent_listen3
 )
 
 ##############################################

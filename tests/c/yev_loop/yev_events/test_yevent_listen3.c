@@ -3,7 +3,8 @@
  *
  *          - set in listening
  *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
- *          - stop the event
+ *          - make a external client connect with telnet
+ *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -138,15 +139,20 @@ int do_test(void)
         yev_event_accept->fd = -1;
     }
 
+    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
     yev_loop_run(yev_loop, 2);
 
-    yev_stop_event(yev_event_accept);
-    yev_loop_run_once(yev_loop);
+//    yev_stop_event(yev_event_accept);
+//    yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
+
+    if(pid_telnet > 0) {
+        kill(pid_telnet, 9);
+    }
 
     return result;
 }

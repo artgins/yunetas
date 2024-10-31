@@ -157,11 +157,12 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         NULL
     );
 
+    struct io_uring_cqe *cqe;
+
     struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
     yev_loop->running = TRUE;
     while(yev_loop->running) {
         int err;
-        struct io_uring_cqe *cqe;
         if(timeout_in_seconds > 0) {
             err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
         } else {
@@ -197,7 +198,14 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    yev_loop_run_once(yev_loop);
+    /*
+     *  Get remain cqe
+     */
+    cqe = 0;
+    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+        callback_cqe(yev_loop, cqe);
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
+    }
 
     gobj_log_debug(0, 0,
         "function",     "%s", __FUNCTION__,
