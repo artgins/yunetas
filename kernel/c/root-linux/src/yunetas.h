@@ -35,6 +35,7 @@ extern "C"{
 #include <stats_parser.h>
 #include <testing.h>
 #include <ytls.h>
+#include <launch_daemon.h>
 
 #include <c_yuno.h>         // the grandmother
 #include <c_tcp.h>
