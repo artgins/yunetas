@@ -1,9 +1,14 @@
 /****************************************************************************
  *          test_yevent_listen2.c
  *
- *          - set in listening
- *          - close the socket: NOTHING happen
- *          - stop the event
+ *          Setup
+ *          -----
+ *          Create listen
+ *          Close the socket: NOTHING happen
+ *          Stop the event
+ *
+ *          Process
+ *          -------
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -13,7 +18,6 @@
 #include <signal.h>
 #include <gobj.h>
 #include <testing.h>
-#include <launch_daemon.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
@@ -61,7 +65,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
                 } else {
-                    msg = "Listen socket failed";
+                    msg = "Listen socket failed or stopped";
                 }
                 ret = -1; // break the loop
             }
@@ -125,8 +129,15 @@ int do_test(void)
         FALSE // shared
     );
     yev_start_event(yev_event_accept);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
 
+    /*--------------------------------*
+     *  Close the socket
+     *--------------------------------*/
     if(yev_event_accept->fd > 0) {
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -141,6 +152,9 @@ int do_test(void)
 
     yev_loop_run(yev_loop, 2);
 
+    /*--------------------------------*
+     *  Stop the event
+     *--------------------------------*/
     yev_stop_event(yev_event_accept);
     yev_loop_run_once(yev_loop);
 

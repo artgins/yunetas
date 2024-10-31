@@ -1,11 +1,17 @@
 /****************************************************************************
  *          test_yevent_listen3.c
  *
- *          - set in listening
- *          - close the socket: NOTHING happen (not getting some error)
- *          - make a external client connect with telnet
- *          - the connection is ACCEPTED !!! and the socket listening is CLOSED!!
- *          - close the event
+ *          Setup
+ *          -----
+ *          Create listen
+ *          Close the socket: NOTHING happen (not getting some error)
+ *          Launch a client to connect us (telnet)
+ *
+ *          Process
+ *          -------
+ *          Accept the connection and no re-arm returning -1
+ *          - the connection is ACCEPTED !!! while the socket listening is CLOSED!!
+ *
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -63,7 +69,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
                 } else {
-                    msg = "Listen socket failed";
+                    msg = "Listen socket failed or stopped";
                 }
                 ret = -1; // break the loop
             }
@@ -129,6 +135,9 @@ int do_test(void)
     yev_start_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
 
+    /*--------------------------------*
+     *      Close the socket
+     *--------------------------------*/
     if(yev_event_accept->fd > 0) {
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -141,7 +150,14 @@ int do_test(void)
         yev_event_accept->fd = -1;
     }
 
+    /*--------------------------------*
+     *  Launch a client to connect us
+     *--------------------------------*/
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 2);
 
     // the event has not been re-armed as return -1 in callback

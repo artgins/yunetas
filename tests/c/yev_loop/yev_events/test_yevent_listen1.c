@@ -1,10 +1,14 @@
 /****************************************************************************
  *          test_yevent_listen1.c
  *
- *          Set in listening
- *          Accept the connection and exit
+ *          Setup
+ *          -----
+ *          Create listen
+ *          Launch a client to connect us (telnet)
  *
- *          Using the telnet command to connect
+ *          Process
+ *          -------
+ *          Accept the connection and no re-arm returning -1
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -61,7 +65,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
                 } else {
-                    msg = "Listen socket failed";
+                    msg = "Listen socket failed or stopped";
                 }
                 ret = -1; // break the loop
             }
@@ -125,11 +129,26 @@ int do_test(void)
         FALSE // shared
     );
     yev_start_event(yev_event_accept);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
 
+    /*--------------------------------*
+     *  Launch a client to connect us
+     *--------------------------------*/
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
 
+    /*------------------------------------------------------------*
+     *  Here we are because a telnet was connected us or timeout
+     *  The yev_event_accept was not re-armed
+     *------------------------------------------------------------*/
     yev_destroy_event(yev_event_accept);
 
     yev_loop_stop(yev_loop);

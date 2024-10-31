@@ -1,11 +1,19 @@
 /****************************************************************************
  *          test_yevent_listen5.c
  *
- *          - set in listening
- *          - connect
- *          - disconnect
+ *          Setup
+ *          -----
+ *          Create listen (re-arm)  (TODO change the order in another test?)
+ *          Create connect
  *
- *          WARNING: the clisrv socket don't close because it's not set in reading/writing
+ *          Process
+ *          -------
+ *          Server accept the connection - re-arm
+ *          Client connected, break the loop
+ *
+ *          After breaking the loop of handshaking  Stop connect, Stop Accepted (TODO change the order)
+ *
+ *          WARNING: the clisrv socket don't be closed because it's not set in reading/writing
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -157,12 +165,22 @@ int do_test(void)
         NULL
     );
     yev_start_event(yev_event_connect);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *  Server accept the connection - re-arm
+     *  Client connected, break the loop
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
 
+    /*--------------------------------*
+     *  Stop connect event: disconnected
+     *  Stop accept event:
+     *--------------------------------*/
     yev_stop_event(yev_event_connect);
     yev_loop_run(yev_loop, 1);
     yev_stop_event(yev_event_accept);
-    yev_loop_run_once(yev_loop);
+    yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
     yev_destroy_event(yev_event_connect);

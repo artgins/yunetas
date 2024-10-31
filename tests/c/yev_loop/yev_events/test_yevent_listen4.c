@@ -1,11 +1,15 @@
 /****************************************************************************
  *          test_yevent_listen4.c
  *
- *          - set in listening
- *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
- *          - make a external client connect with telnet
- *          - the connection is ACCEPTED !!!
- *          - close the event
+ *          Setup
+ *          -----
+ *          Create listen
+ *          Create listen2
+ *
+ *          The second listen2 must fail
+ *
+ *          Process
+ *          -------
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -63,7 +67,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Listen socket stopped";
+                    msg = "Listen socket failed or stopped";
                 } else {
                     msg ="What?";
                 }
@@ -129,6 +133,10 @@ int do_test(void)
         FALSE // shared
     );
     yev_start_event(yev_event_accept);
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
 
     /*--------------------------------*
