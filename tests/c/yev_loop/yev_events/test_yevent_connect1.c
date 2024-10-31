@@ -2,7 +2,10 @@
  *          test_yevent_listen5.c
  *
  *          - set in listening
- *          - close the event
+ *          - connect
+ *          - disconnect
+ *
+ *          WARNING: the clisrv socket don't close because it's not set in reading/writing
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -68,7 +71,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Connection Refused";
+                    if(yev_event->result == -125) {
+                        msg = "Connect canceled";
+                    } else {
+                        msg = "Connection Refused";
+                    }
                 } else {
                     msg ="What?=";
                 }
@@ -153,6 +160,7 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     yev_stop_event(yev_event_connect);
+    yev_loop_run(yev_loop, 1);
     yev_stop_event(yev_event_accept);
     yev_loop_run_once(yev_loop);
 
@@ -237,9 +245,9 @@ int main(int argc, char *argv[])
     const char *test = "test_yevent_listen1";
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
-        "msg", "bind() FAILED",
-        "msg", "Cannot get addr to listen",
-        "msg", "Cannot start event: accept addr NULL",
+        "msg", "Connection Accepted",
+        "msg", "Listen Connection Accepted",
+        "msg", "Connect canceled",
         "msg", "Listen socket stopped"
     );
 
