@@ -45,6 +45,7 @@ target_link_libraries(${PROJECT_NAME}
     libssl.a
     libcrypto.a
 
+    pthread dl  # used by openssl
     uuid
     bfd     # to stacktrace
     m
