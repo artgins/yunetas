@@ -120,7 +120,7 @@ struct yev_event_s {
     uint64_t timer_bf;
     gbuffer_t *gbuf;
     hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
-    yev_callback_t callback;
+    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
     void *user_data;
 
     int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
@@ -138,7 +138,7 @@ struct yev_loop_s {
     int keep_alive;
     volatile int running;
     struct io_uring_cqe **cqes;
-    yev_callback_t callback;
+    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
 };
 
 
