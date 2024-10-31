@@ -30,20 +30,44 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-yev_event_t *yev_event_once;
-int times_counter = 0;
+yev_event_t *yev_event_accept;
 int result = 0;
+
+char *msg = "";
+int fd = -1;
 
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
+    switch(yev_event->type) {
+        case YEV_ACCEPT_TYPE:
+            {
+                fd = yev_event->result;
+
+                yev_state_t yev_state = yev_get_state(yev_event);
+                if(yev_state == YEV_ST_IDLE) {
+                    msg = "Listen Connection Accepted";
+                } else {
+                    msg = "Listen socket failed";
+                }
+            }
+            break;
+        default:
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "yev_event not implemented",
+                NULL
+            );
+            break;
+    }
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", "event",
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", msg,
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
         "fd",           "%d", yev_event->fd,
@@ -51,20 +75,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
         "p",            "%p", yev_event,
         "flag",         "%j", jn_flags,
-        "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
         NULL
     );
     json_decref(jn_flags);
 
-    if(yev_get_state(yev_event) == YEV_ST_STOPPED) {
-        yev_loop_stop(yev_loop);
-        return 0;
-    }
-
-    if(times_counter == 1) {
-        gobj_trace_msg(0, "stop timer with yev_stop_event");
-        yev_stop_event(yev_event_once);
-    }
 
     return 0;
 }
@@ -87,12 +101,12 @@ int do_test(void)
     /*--------------------------------*
      *      Create listen
      *--------------------------------*/
-    yev_event_t *yev_event_accept = yev_create_accept_event(
+    yev_event_accept = yev_create_accept_event(
         yev_loop,
         yev_callback,
         0
     );
-    yev_setup_accept_event(
+    yev_setup_accept_event( // create the socket listening in yev_event->fd
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
@@ -104,8 +118,7 @@ int do_test(void)
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
     yev_loop_run(yev_loop);
 
-
-    //yev_destroy_event(yev_event_accept);
+    yev_destroy_event(yev_event_accept);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

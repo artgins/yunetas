@@ -144,6 +144,16 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
+    if(gobj_trace_level(0) & TRACE_UV) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev loop running",
+            "msg2",         "%s", "💥🟩 yev loop running",
+            NULL
+        );
+    }
+
     yev_loop->running = TRUE;
     while(yev_loop->running) {
         int err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
@@ -166,39 +176,18 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         callback_cqe(yev_loop, cqe);
     }
 
-    if(gobj_trace_level(0) & TRACE_UV) {
-        gobj_log_debug(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "exiting",
-            "msg2",         "%s", "💥🟩 exiting",
-            NULL
-        );
-    }
-
-    cqe = 0;
-    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        callback_cqe(yev_loop, cqe);
-    }
-
-    if(!yev_loop->stopping) {
-        yev_loop_stop(yev_loop);
-    }
-
-    cqe = 0;
-    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        callback_cqe(yev_loop, cqe);
-    }
+    yev_loop_run_once(yev_loop);
 
     if(gobj_trace_level(0) & TRACE_UV) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "exited",
-            "msg2",         "%s", "💥🟩🟩 exited",
+            "msg",          "%s", "yev loop exited",
+            "msg2",         "%s", "💥🟩🟩 yev loop exited",
             NULL
         );
     }
+
     return 0;
 }
 
@@ -221,8 +210,8 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
-    if(!yev_loop->stopping) {
-        yev_loop->stopping = TRUE;
+    if(yev_loop->running) {
+        yev_loop->running = FALSE;
         if(gobj_trace_level(0) & TRACE_UV) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -238,7 +227,8 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
-        yev_loop->running = FALSE;
+
+        yev_loop_run_once(yev_loop);
     }
 
     return 0;
@@ -310,7 +300,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "loop_running", "%d", yev_loop->running?1:0,
-            "loop_stopping","%d", yev_loop->stopping?1:0,
             "p",            "%p", yev_event,
             "fd",           "%d", yev_event->fd,
             "flag",         "%j", jn_flags,
@@ -434,7 +423,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "type",         "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
-                "loop_stopping","%d", yev_loop->stopping?1:0,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
@@ -495,6 +483,19 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm accept event
                          */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        yev_event->src_addrlen = sizeof(*yev_event->src_addr);
+                        io_uring_prep_accept(
+                            sqe,
+                            yev_event->fd,
+                            yev_event->src_addr,
+                            &yev_event->src_addrlen,
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
+
                         if(trace_level & TRACE_UV) {
                             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                             gobj_log_debug(gobj, 0,
@@ -513,19 +514,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             );
                             json_decref(jn_flags);
                         }
-
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
-                        yev_event->src_addrlen = sizeof(*yev_event->src_addr);
-                        io_uring_prep_accept(
-                            sqe,
-                            yev_event->fd,
-                            yev_event->src_addr,
-                            &yev_event->src_addrlen,
-                            0
-                        );
-                        io_uring_submit(&yev_loop->ring);
-                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
                     }
                 }
             }
@@ -617,6 +605,18 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                         /*
                          *  Rearm periodic timer event
                          */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        io_uring_prep_read(
+                            sqe,
+                            yev_event->fd,
+                            &yev_event->timer_bf,
+                            sizeof(yev_event->timer_bf),
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
+
                         if(trace_level & TRACE_UV_TIMER) {
                             json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
                             gobj_log_debug(gobj, 0,
@@ -635,18 +635,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             );
                             json_decref(jn_flags);
                         }
-
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
-                        io_uring_prep_read(
-                            sqe,
-                            yev_event->fd,
-                            &yev_event->timer_bf,
-                            sizeof(yev_event->timer_bf),
-                            0
-                        );
-                        io_uring_submit(&yev_loop->ring);
-                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
                     }
                 }
             }
@@ -744,7 +732,7 @@ PUBLIC int yev_start_event(
     /*---------------------------*
      *  Check if loop exiting
      *---------------------------*/
-    if(yev_loop->stopping) {
+    if(!yev_loop->running) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1011,7 +999,6 @@ PUBLIC int yev_start_event(
                 "type",         "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
-                "loop_stopping","%d", yev_loop->stopping?1:0,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
                 "flag",         "%j", jn_flags,
@@ -1105,7 +1092,7 @@ PUBLIC int yev_start_timer_event(
     /*---------------------------*
      *  Check if loop exiting
      *---------------------------*/
-    if(yev_loop->stopping) {
+    if(!yev_loop->running) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1363,7 +1350,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         );
         json_decref(jn_flags);
 
-        if(yev_loop->stopping) {
+        if(!yev_loop->running) {
             // Don't call callback if stopping loop
             yev_event->callback = NULL;
         }
@@ -1844,7 +1831,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_setup_accept_event(
+PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
     yev_event_t *yev_event,
     const char *listen_url,
     int backlog,

@@ -137,7 +137,6 @@ struct yev_loop_s {
     hgobj yuno;
     int keep_alive;
     volatile int running;
-    volatile int stopping;
 };
 
 
@@ -255,7 +254,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
     yev_callback_t callback,
     hgobj gobj
 );
-PUBLIC int yev_setup_accept_event(
+PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
     yev_event_t *yev_event,
     const char *listen_url,
     int backlog,    /* queue of pending connections for socket listening, default 512 */
