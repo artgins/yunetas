@@ -258,7 +258,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
 PUBLIC int yev_setup_accept_event(
     yev_event_t *yev_event,
     const char *listen_url,
-    int backlog,
+    int backlog,    /* queue of pending connections for socket listening, default 512 */
     BOOL shared
 );
 

@@ -15,6 +15,11 @@
 #include <yunetas_ev_loop.h>
 
 /***************************************************************
+ *              Constants
+ ***************************************************************/
+const char *server_url = "tcp://localhost:3333";
+
+/***************************************************************
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
@@ -29,14 +34,11 @@ int times_counter = 0;
 int result = 0;
 
 /***************************************************************************
- *  Callback that will be executed when the timer period lapses.
- *  Posts the timer expiry event to the default event loop.
+ *  yev_loop callback
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
     yev_state_t yev_state = yev_get_state(yev_event);
-
-    times_counter++;
 
     char msg[80];
     if(yev_event->result<0) {
@@ -97,22 +99,24 @@ int do_test(void)
     );
 
     /*--------------------------------*
-     *      Create timer
+     *      Create listen
      *--------------------------------*/
-    yev_event_once = yev_create_timer_event(yev_loop, yev_callback, NULL);
-
-    gobj_trace_msg(0, "start time %d seconds", 1);
-    yev_start_timer_event(yev_event_once, 1*1000, FALSE);
+    yev_event_t *yev_event_accept = yev_create_accept_event(
+        yev_loop,
+        yev_callback,
+        0
+    );
+    yev_setup_accept_event(
+        yev_event_accept,
+        server_url, // listen_url,
+        0, //backlog,
+        FALSE // shared
+    );
 
     yev_loop_run(yev_loop);
-    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
-    if(yev_stop_event(yev_event_once) != -1) {
-        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
-        result += -1;
-    }
     yev_loop_run_once(yev_loop);
-    yev_destroy_event(yev_event_once);
+    yev_destroy_event(yev_event_accept);
 
     yev_loop_destroy(yev_loop);
 
