@@ -252,7 +252,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj
 );
-PUBLIC int yev_setup_connect_event(
+PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url     /* only host:port */
