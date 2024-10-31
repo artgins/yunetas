@@ -153,6 +153,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop running",
         "msg2",         "%s", "💥🟩 yev loop running",
+        "timeout",      "%d", timeout_in_seconds,
         NULL
     );
 
@@ -203,6 +204,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop exited",
         "msg2",         "%s", "💥🟩🟩 yev loop exited",
+        "timeout",      "%d", timeout_in_seconds,
         NULL
     );
 

@@ -128,7 +128,7 @@ int do_test(void)
     if(yev_event_accept->fd > 0) {
         close(yev_event_accept->fd);
     }
-    yev_loop_run(yev_loop, 1);
+    yev_loop_run(yev_loop, 0);
 
     yev_destroy_event(yev_event_accept);
 
