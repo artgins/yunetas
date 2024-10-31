@@ -1,10 +1,8 @@
 /****************************************************************************
- *          test_yevent_listen1.c
+ *          test_yevent_listen2.c
  *
  *          Set in listening
- *          Accept the connection and exit
- *
- *          Using the telnet command to connect
+ *          Close the socket
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -127,17 +125,15 @@ int do_test(void)
     yev_start_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
 
-    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+    if(yev_event_accept->fd > 0) {
+        close(yev_event_accept->fd);
+    }
     yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
-
-    if(pid_telnet > 0) {
-        kill(pid_telnet, 9);
-    }
 
     return result;
 }
