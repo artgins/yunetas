@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_listen2.c
+ *          test_yevent_listen3.c
  *
  *          - set in listening
  *          - close the socket: NOTHING happen (not getting some error)

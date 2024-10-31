@@ -1521,7 +1521,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_setup_connect_event(
+PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_event->fd
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url

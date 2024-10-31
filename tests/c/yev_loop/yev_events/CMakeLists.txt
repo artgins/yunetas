@@ -24,6 +24,7 @@ set(SRCS
     test_yevent_listen2
     test_yevent_listen3
     test_yevent_listen4
+    test_yevent_connect1
 )
 
 ##############################################

@@ -1,10 +1,7 @@
 /****************************************************************************
- *          test_yevent_listen4.c
+ *          test_yevent_listen5.c
  *
  *          - set in listening
- *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
- *          - make a external client connect with telnet
- *          - the connection is ACCEPTED !!!
  *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
@@ -14,7 +11,6 @@
 #include <signal.h>
 #include <gobj.h>
 #include <testing.h>
-#include <launch_daemon.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
@@ -35,11 +31,8 @@ PRIVATE int yev_callback(yev_event_t *event);
  ***************************************************************/
 yev_loop_t *yev_loop;
 yev_event_t *yev_event_accept;
-yev_event_t *yev_event_accept2;
+yev_event_t *yev_event_connect;
 int result = 0;
-
-char *msg = "";
-int fd = -1;
 
 /***************************************************************************
  *  yev_loop callback
@@ -53,12 +46,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return -1;  // break the loop
     }
 
+    char *msg = "???";
     int ret = 0;
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             {
-                fd = yev_event->result;
-
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
@@ -66,6 +58,19 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     msg = "Listen socket stopped";
                 } else {
                     msg ="What?";
+                }
+                ret = -1; // break the loop
+            }
+            break;
+        case YEV_CONNECT_TYPE:
+            {
+                yev_state_t yev_state = yev_get_state(yev_event);
+                if(yev_state == YEV_ST_IDLE) {
+                    msg = "Connection Accepted";
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    msg = "Connection Refused";
+                } else {
+                    msg ="What?=";
                 }
                 ret = -1; // break the loop
             }
@@ -132,27 +137,27 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     /*--------------------------------*
-     *      Create listen2
+     *      Create connect
      *--------------------------------*/
-    yev_event_accept2 = yev_create_accept_event(
+    yev_event_connect = yev_create_connect_event(
         yev_loop,
         yev_callback,
         0
     );
-    yev_setup_accept_event( // create the socket listening in yev_event->fd
-        yev_event_accept2,
+    yev_setup_connect_event( // create the socket listening in yev_event->fd
+        yev_event_connect,
         server_url, // listen_url,
-        0, //backlog,
-        FALSE // shared
+        NULL
     );
-    yev_start_event(yev_event_accept2);
+    yev_start_event(yev_event_connect);
     yev_loop_run(yev_loop, 1);
 
+    yev_stop_event(yev_event_connect);
     yev_stop_event(yev_event_accept);
     yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
-    yev_destroy_event(yev_event_accept2);
+    yev_destroy_event(yev_event_connect);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
