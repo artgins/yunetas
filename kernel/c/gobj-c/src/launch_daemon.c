@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include "launch_daemon.h"
 
@@ -136,6 +135,8 @@ PUBLIC int launch_daemon(const char *program, ...)
 /***************************************************************************
  *  Function to handle signals, specifically cleaning up child processes
  ***************************************************************************/
+#include <sys/wait.h>
+
 PRIVATE void handle_signals(int sig)
 {
     if (sig == SIGCHLD) {

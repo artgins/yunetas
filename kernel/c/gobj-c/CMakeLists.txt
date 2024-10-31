@@ -38,7 +38,7 @@ set (SRCS
     src/json_config.c
     src/replace_string.c
     src/yunetas_ev_loop.c
-    src/launch_daemonc
+    src/launch_daemon.c
 
     src/stacktrace_with_bfd.c
 )

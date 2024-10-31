@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <gobj.h>
 #include <testing.h>
+#include <launch_daemon.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
 #include <yunetas_ev_loop.h>
@@ -113,12 +114,16 @@ int do_test(void)
         FALSE // shared
     );
 
+    int pid_telnet = launch_daemon("telnet", "localhost", 3333);
+
     yev_loop_run(yev_loop);
 
     yev_loop_run_once(yev_loop);
     yev_destroy_event(yev_event_accept);
 
     yev_loop_destroy(yev_loop);
+
+    kill(pid_telnet, 9);
 
     return result;
 }
