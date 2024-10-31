@@ -48,9 +48,6 @@ PRIVATE const char *yev_flag_s[] = {
 /***************************************************************************
  *
  ***************************************************************************/
-// TODO use io_uring_wait_cqes, fewer system calls
-// el batch_size debe ser = entries !!
-
 PUBLIC int yev_loop_create(hgobj yuno, unsigned entries, int keep_alive, yev_loop_t **yev_loop_)
 {
     struct io_uring ring_test;
@@ -119,6 +116,7 @@ retry:
     yev_loop->yuno = yuno;
     yev_loop->entries = entries;
     yev_loop->keep_alive = keep_alive?keep_alive:60;
+    yev_loop->cqes = GBMEM_MALLOC(entries * sizeof(struct io_uring_cqe *));
 
     *yev_loop_ = yev_loop;
 
@@ -131,16 +129,15 @@ retry:
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
     io_uring_queue_exit(&yev_loop->ring);
+    GBMEM_FREE(yev_loop->cqes)
     GBMEM_FREE(yev_loop)
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
+PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
 {
-    struct io_uring_cqe *cqe;
-
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
@@ -154,26 +151,41 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop)
         );
     }
 
+    struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
+
     yev_loop->running = TRUE;
     while(yev_loop->running) {
-        int err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
-        if (err < 0) {
-            if(err == -EINTR) {
+        int ret;
+        if(timeout_in_seconds > 0) {
+            ret = io_uring_wait_cqes(&yev_loop->ring, yev_loop->cqes, yev_loop->entries, &timeout, NULL);
+        } else {
+            ret = io_uring_wait_cqes(&yev_loop->ring, yev_loop->cqes, yev_loop->entries, NULL, NULL);
+        }
+        if (ret < 0) {
+            if(ret == -EINTR) {
                 // Ctrl+C cause this
                 continue;
             }
-            gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+            gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "io_uring_wait_cqe() FAILED",
-                "err",          "%d", -err,
-                "serr",         "%s", strerror(-err),
+                "err",          "%d", -ret,
+                "serr",         "%s", strerror(-ret),
                 NULL
             );
             break;
-        }
+        } else if(ret == 0) {
+            // Timeout
+            callback_cqe(yev_loop, NULL);
 
-        callback_cqe(yev_loop, cqe);
+        } else {
+            for (int i = 0; i < ret; i++) {
+                callback_cqe(yev_loop, yev_loop->cqes[i]);
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, yev_loop->cqes[i]);
+            }
+        }
     }
 
     yev_loop_run_once(yev_loop);
@@ -201,6 +213,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         callback_cqe(yev_loop, cqe);
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
     return 0;
 }
@@ -278,8 +291,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     if(!yev_event) {
         // HACK CQE event without data is loop ending
         /* Mark this request as processed */
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
-        return cqe->res;
+        return -1;
     }
     hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
@@ -332,7 +344,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else if(cqe->res == 0) {
                 /* Mark this request as processed */
-                io_uring_cqe_seen(&yev_loop->ring, cqe);
                 return 0;
 
             } else if(cqe->res < 0) {
@@ -391,7 +402,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              */
 
             /* Mark this request as processed */
-            io_uring_cqe_seen(&yev_loop->ring, cqe);
             return cqe->res;
 
         case YEV_ST_IDLE: // cqe ready
@@ -640,9 +650,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             }
             break;
     }
-
-    /* Mark this request as processed */
-    io_uring_cqe_seen(&yev_loop->ring, cqe);
 
     return 0;
 }

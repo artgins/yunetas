@@ -104,7 +104,7 @@ int do_test(void)
     gobj_trace_msg(0, "start time-periodic %d seconds", 1);
     yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
 
-    yev_loop_run(yev_loop);
+    yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
     if(yev_stop_event(yev_event_periodic) != -1) {

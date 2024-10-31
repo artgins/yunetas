@@ -130,7 +130,7 @@ int do_test(void)
      *      Begin run loop
      *--------------------------------*/
     t = start_msectimer(1000);
-    result += yev_loop_run(yev_loop);
+    result += yev_loop_run(yev_loop, -1);
 
     /*--------------------------------*
      *      Stop

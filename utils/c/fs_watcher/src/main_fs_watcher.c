@@ -54,7 +54,7 @@ int do_test(char *path)
 
     fs_start_watcher_event(fs_event_h);
 
-    yev_loop_run(yev_loop);
+    yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
     print_json2("tracked_paths", fs_event_h->jn_tracked_paths);

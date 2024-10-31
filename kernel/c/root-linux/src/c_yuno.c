@@ -655,7 +655,7 @@ PRIVATE int mt_play(hgobj gobj)
         NULL
     );
 
-    yev_loop_run(priv->yev_loop);   // Infinite loop while some handler is active
+    yev_loop_run(priv->yev_loop, -1);   // Infinite loop while some handler is active
 
     return 0;
 }
