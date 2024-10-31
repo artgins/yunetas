@@ -4,6 +4,7 @@
  *          - set in listening
  *          - close the socket: NOTHING happen (needs arriving a connection to get some error)
  *          - make a external client connect with telnet
+ *          - the connection is ACCEPTED !!!
  *          - close the event
  *
  *          Copyright (c) 2024, ArtGins.
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "closing the socket",
-        "msg", "Listen socket failed"
+        "msg", "Listen Connection Accepted"
     );
 
     set_expected_results( // Check that no logs happen
