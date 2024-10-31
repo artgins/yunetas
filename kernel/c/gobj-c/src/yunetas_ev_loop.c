@@ -378,6 +378,11 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else if(cqe->res == 0) {
                 /* Mark this request as processed */
+                /*
+                 *  When canceling firstly arrive the event type with res = 0
+                 *  Seen in:
+                 *      YEV_ACCEPT_TYPE
+                 */
                 return 0;
 
             } else if(cqe->res < 0) {
