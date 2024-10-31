@@ -184,7 +184,9 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
             break;
         } else if(ret == 0) {
             // Timeout
-            callback_cqe(yev_loop, NULL);
+            if(callback_cqe(yev_loop, NULL)<0) {
+                break;
+            }
 
         } else {
             for (int i = 0; i < ret; i++) {
@@ -296,12 +298,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *------------------------*/
     if(cqe == NULL) {
         /*
-         *  It's the timeout
+         *  It's the timeout, call to the yev_loop callback, if return -1 the loop will break;
          */
         if(yev_loop->callback) {
-            yev_loop->callback(
-                0
-            );
+            return yev_loop->callback(0);
         }
         return 0;
     }

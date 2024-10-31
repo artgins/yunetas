@@ -149,7 +149,8 @@ PUBLIC int yev_loop_create(
     hgobj yuno,
     unsigned entries,
     int keep_alive,
-    yev_callback_t callback,
+    yev_callback_t callback, // if event is null (timeout) and return -1 the loop in yev_loop_run will break;
+                             // if the callback in other function is NULL then this callback will be used.
     yev_loop_t **yev_loop
 );
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
