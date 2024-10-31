@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test_yevent_listen1.c
  *
- *          Test ...
+ *          Test listen, accept the connection and exit
+ *          Using the telnet command to connect
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -45,9 +46,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         /*
          *  It's the timeout
          */
-        return 0;
+        return -1;  // break the loop
     }
 
+    int ret = 0;
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             {
@@ -59,6 +61,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 } else {
                     msg = "Listen socket failed";
                 }
+                ret = -1; // break the loop
             }
             break;
         default:
@@ -86,7 +89,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -121,7 +124,6 @@ int do_test(void)
     );
     yev_start_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
-//    yev_loop_run_once(yev_loop);
 
     int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
     yev_loop_run(yev_loop, 1);
@@ -208,10 +210,9 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "timeout got 1",
-        "msg", "Operation canceled",
-        "msg", "yev_event already stopped"
+    json_t *error_list = json_pack("[{s:s}, {s:s}]",  // error_list
+        "msg", "addrinfo on listen",
+        "msg", "Listen Connection Accepted"
     );
 
     set_expected_results( // Check that no logs happen

@@ -166,7 +166,6 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         } else {
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
-        printf("io_uring_wait_cqes() %d\n", err);
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
