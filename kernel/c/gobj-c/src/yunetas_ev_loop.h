@@ -76,7 +76,7 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define DEFAULT_ENTRIES 2024
+#define DEFAULT_ENTRIES 2400    /* 2400 is recommended for manage 1000 connections */
 
 typedef enum  {
     YEV_TIMER_TYPE        = 1,
