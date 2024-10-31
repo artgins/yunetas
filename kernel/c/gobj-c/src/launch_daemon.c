@@ -62,6 +62,11 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     } else if (pid > 0) {
         // Parent process
         close(pipe_fd[1]);  // Close write end of the pipe
+
+        // Set the read end of the pipe to non-blocking
+        int flags = fcntl(pipe_fd[0], F_GETFL, 0);
+        fcntl(pipe_fd[0], F_SETFL, flags | O_NONBLOCK);
+
         int execvp_status;
         ssize_t bytes = read(pipe_fd[0], &execvp_status, sizeof(execvp_status));
         close(pipe_fd[0]);
