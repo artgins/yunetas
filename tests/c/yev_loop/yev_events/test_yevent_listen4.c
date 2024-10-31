@@ -62,8 +62,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    msg = "Listen socket stopped";
                 } else {
-                    msg = "Listen socket failed";
+                    msg ="What?";
                 }
                 ret = -1; // break the loop
             }
@@ -146,21 +148,14 @@ int do_test(void)
     yev_start_event(yev_event_accept2);
     yev_loop_run(yev_loop, 1);
 
-//    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
-//    yev_loop_run(yev_loop, 2);
-
-//    yev_stop_event(yev_event_accept);
-//    yev_loop_run_once(yev_loop);
+    yev_stop_event(yev_event_accept);
+    yev_loop_run_once(yev_loop);
 
     yev_destroy_event(yev_event_accept);
     yev_destroy_event(yev_event_accept2);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
-
-//    if(pid_telnet > 0) {
-//        kill(pid_telnet, 9);
-//    }
 
     return result;
 }
@@ -235,10 +230,12 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
-        "msg", "closing the socket",
-        "msg", "Listen Connection Accepted"
+        "msg", "bind() FAILED",
+        "msg", "Cannot get addr to listen",
+        "msg", "Cannot start event: accept addr NULL",
+        "msg", "Listen socket stopped"
     );
 
     set_expected_results( // Check that no logs happen
