@@ -26,6 +26,7 @@ set(SRCS
     test_yevent_listen4
     test_yevent_connect1
     test_yevent_connect2
+    test_yevent_cancel1
     test_yevent_timer_once1
     test_yevent_timer_once2
     test_yevent_timer_periodic1
