@@ -155,7 +155,7 @@ int do_test(void)
     /*--------------------------------*
      *  Launch a client to connect us
      *--------------------------------*/
-    int pid_telnet = launch_daemon(FALSE, "telnet", "localhost", "3333", NULL);
+    int pid_telnet = launch_daemon(TRUE, "telnet", "localhost", "3333", NULL);
 
     /*--------------------------------*
      *  Process ring queue
