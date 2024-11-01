@@ -404,7 +404,7 @@ int do_test(void)
         gbuf = gbuffer_create(1024, 1024);
         yev_event_t *yev_server_msg = yev_create_read_event(
             yev_loop,
-            yev_server_callback,
+            yev_client_callback,
             NULL,   // gobj
             yev_event_connect->fd,
             gbuf
