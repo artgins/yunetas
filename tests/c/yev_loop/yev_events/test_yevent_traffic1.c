@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_cancel1.c
+ *          test_yevent_traffic1.c
  *
  *          Setup
  *          -----
@@ -8,14 +8,6 @@
  *
  *          Process
  *          -------
- *          Server accept the connection - re-arm
- *          Client connected, break the loop
- *
- *          After breaking the loop of connection,
- *          Stop connect event
- *          Stop accept event
- *
- *          WARNING: the clisrv socket don't be closed because it's not set in reading/writing
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -267,17 +259,17 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen",
-        "msg", "Connection Accepted",
-        "msg", "Connect canceled",
-        "msg", "Listen Connection Accepted",
-        "msg", "Listen socket failed or stopped"
-    );
+//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+//        "msg", "addrinfo on listen",
+//        "msg", "Connection Accepted",
+//        "msg", "Connect canceled",
+//        "msg", "Listen Connection Accepted",
+//        "msg", "Listen socket failed or stopped"
+//    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        error_list,  // error_list
+        0, //error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
