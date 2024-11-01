@@ -167,8 +167,8 @@ int do_test(void)
         yev_event_connect,
         server_url, // listen_url,
         NULL,   // src_url, only host:port
-        0,      // ai_family AF_UNSPEC
-        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AF_INET,      // ai_family AF_UNSPEC
+        AI_ADDRCONFIG       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_connect);
 
