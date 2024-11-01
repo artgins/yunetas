@@ -116,11 +116,15 @@ int do_test(void)
      *--------------------------------*/
     yev_event_once = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
-    gobj_trace_msg(0, "start time %d seconds", 1);
+    /*--------------------------------*
+     *      Start timer 1 second
+     *--------------------------------*/
     yev_start_timer_event(yev_event_once, 1*1000, FALSE);
 
-    yev_loop_run(yev_loop, -1);
-    gobj_trace_msg(0, "Quiting of main yev_loop_run()");
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
+    yev_loop_run(yev_loop, 4);
 
     if(yev_stop_event(yev_event_once) != -1) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");

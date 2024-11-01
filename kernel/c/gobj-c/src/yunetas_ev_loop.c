@@ -418,9 +418,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     NULL
                 );
                 yev_set_state(yev_event, YEV_ST_STOPPED);
+
             } else {
                 /*
-                 *  This is still a valid event, wait for another one with an error
+                 *  This is still a valid event, wait for another one with an error ???
                  */
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -476,6 +477,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                 NULL
             );
+            /* Mark this request as processed */
+            return 0;
     }
 
     if(cur_state != yev_get_state(yev_event)) {
@@ -1134,8 +1137,8 @@ PUBLIC int yev_start_timer_event(
     /*---------------------------*
      *      Check state
      *---------------------------*/
-    yev_state_t yev_state = yev_get_state(yev_event);
-    switch (yev_state) {
+    yev_state_t cur_state = yev_get_state(yev_event);
+    switch (cur_state) {
         case YEV_ST_IDLE:
         case YEV_ST_STOPPED:
             break;
@@ -1164,12 +1167,35 @@ PUBLIC int yev_start_timer_event(
             return -1;
     }
 
+    /*-------------------------------*
+     *      Summit sqe
+     *-------------------------------*/
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
     io_uring_submit(&yev_event->yev_loop->ring);
     yev_set_state(yev_event, YEV_ST_RUNNING);
+
+    if(cur_state != yev_get_state(yev_event)) {
+        // State has changed
+        if(trace_level & TRACE_UV) {
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "yev_start_event NEW STATE",
+                "msg2",         "%s", "💥💥⏩ yev_start_event NEW STATE",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
+                "p",            "%p", yev_event,
+                "fd",           "%d", yev_event->fd,
+                "flag",         "%j", jn_flags,
+                NULL
+            );
+            json_decref(jn_flags);
+        }
+    }
 
     return 0;
 }
