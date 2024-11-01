@@ -206,17 +206,6 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    /*
-     *  Get remain cqe
-     */
-    cqe = 0;
-    while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        if(callback_cqe(yev_loop, cqe)<0) {
-            //break;
-        }
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
-    }
-
     gobj_log_debug(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -284,8 +273,6 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
-
-        yev_loop_run_once(yev_loop);
     }
 
     return 0;
@@ -1205,7 +1192,7 @@ PUBLIC int yev_start_timer_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_t *yev_event)
+PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept and connect)
 {
     /*------------------------*
      *  Check parameters
@@ -1261,8 +1248,9 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             break;
         case YEV_CONNECT_TYPE:
         case YEV_ACCEPT_TYPE:
-            // Each connection needs a new socket fd, i.e. after each disconnection.
-            // TODO prueba a cerrar el socket fd or fd_clisrv a ver si el resto de sqe in ring retorna sin cancelar
+        case YEV_TIMER_TYPE:
+            // Each connection needs a new socket fd, i.e., after each disconnection.
+            // The timer (once) if it's in idle can be reused, if stopped you must create one new.
             if(yev_event->fd > 0) {
                 if(gobj_trace_level(0) & TRACE_UV) {
                     gobj_log_debug(0, 0,
@@ -1278,9 +1266,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
                 close(yev_event->fd);
                 yev_event->fd = -1;
             }
-            break;
-        case YEV_TIMER_TYPE:
-            // the fd can be re-used
             break;
     }
 

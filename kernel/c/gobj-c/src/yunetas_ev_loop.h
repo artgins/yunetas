@@ -217,7 +217,10 @@ PUBLIC int yev_start_timer_event(
     BOOL periodic
 );
 
-PUBLIC int yev_stop_event(yev_event_t *yev_event);
+/*
+ *  The timer (once) if it's in idle can be reused, if it's stopped, you must create one new.
+ */
+PUBLIC int yev_stop_event(yev_event_t *yev_event);  // close fd (of timer, accept and connect)
 
 static inline BOOL yev_event_is_stopped(yev_event_t *yev_event)
 {
