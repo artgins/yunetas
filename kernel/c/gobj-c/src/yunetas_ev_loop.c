@@ -723,9 +723,13 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
+                    // if NULL reset the current gbuf
 ) {
-    if(gbuf == yev_event->gbuf) {
+    if(gbuf && gbuf == yev_event->gbuf) {
         return 0;
+    }
+    if(!gbuf) {
+        GBUFFER_DECREF(yev_event->gbuf)
     }
     if(yev_event->gbuf) {
         gobj_log_warning(yev_event->gobj, LOG_OPT_TRACE_STACK,

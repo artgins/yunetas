@@ -179,12 +179,24 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
                             // but it's set and the old removed.
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
+                    // if NULL reset the current gbuf
 );
+
+static inline gbuffer_t *yev_get_gbuf(yev_event_t *yev_event)
+{
+    return yev_event->gbuf;
+}
 
 PUBLIC int yev_set_user_data(
     yev_event_t *yev_event,
     void *user_data
 );
+
+static inline int yev_get_fd(
+    yev_event_t *yev_event
+) {
+    return yev_event->fd;
+}
 
 static inline void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
     yev_event_t *yev_event,

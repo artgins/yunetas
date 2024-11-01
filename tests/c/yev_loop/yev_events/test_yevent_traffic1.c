@@ -10,9 +10,9 @@
  *          -------
  *          On client connected, it transmits a message
  *          The server echo the message
- *          The client match the received message with the sent.
- *          The client repeat the message until 3 times.
- *          The server drop the connection on 2th message
+ *          The client matchs the received message with the sent.
+ *          The client repeats the message until 3 times.
+ *          The server drops the connection on 2th message
  *          The client must re-connect until reach the response of the 3th message.
  *
  *          Copyright (c) 2024, ArtGins.
@@ -72,22 +72,102 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
     char *msg = "???";
     int ret = 0;
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             {
-                yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Listen Connection Accepted";
+                    msg = "Server: Listen Connection Accepted";
                     ret = 0; // re-arm
                 } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Listen socket failed or stopped";
+                    msg = "Server: Listen socket failed or stopped";
                     ret = -1; // break the loop
                 } else {
-                    msg = "What?";
+                    msg = "Server: What?";
                     ret = -1; // break the loop
                 }
             }
             break;
+        case YEV_READ_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  Data from the client
+                     */
+                    msg = "Server: Message from the client";
+                    gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
+                    /*
+                     *  Server: Process the message
+                     */
+                    gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Message from the client");
+
+                    /*
+                     *  Response to the client
+                     *  Get their callback and fd
+                     */
+                    yev_event_t *yev_response = yev_create_write_event(
+                        yev_loop,
+                        yev_event->callback,
+                        NULL,   // gobj
+                        yev_get_fd(yev_event),
+                        gbuf_rx
+                    );
+                    yev_start_event(yev_response);
+
+                    /*
+                     *  Re-arm the read event
+                     */
+                    gbuffer_clear(gbuf_rx); // Empty the buffer
+                    yev_start_event(yev_event);
+
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    /*
+                     *  Bad read
+                     *  Disconnected
+                     */
+                    msg = "Server: Server's client disconnected reading";
+                    /*
+                     *  Free the message
+                     */
+                    yev_set_gbuffer(yev_event, NULL);
+                    // TODO inform disconnection
+
+                } else {
+                    msg = "Server: What?";
+                    /*
+                     *  Free the message
+                     */
+                    yev_set_gbuffer(yev_event, NULL);
+                }
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  Write going well
+                     *  You can advise to someone, ready to more writes.
+                     */
+                    msg = "Server: Tx ready";
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    /*
+                     *  Cannot send, something went bad
+                     *  Disconnected
+                     */
+                    msg = "Server: Server's client disconnected writing";
+                    // TODO
+                } else {
+                    msg = "Server: What?";
+                }
+
+                /*
+                 *  Destroy the write event
+                 */
+                yev_destroy_event(yev_event);
+            }
+            break;
+
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -132,45 +212,76 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
     char *msg = "???";
     int ret = 0;
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_CONNECT_TYPE:
             {
-                yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Connection Accepted";
+                    msg = "Client: Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
                     if(yev_event->result == -125) {
-                        msg = "Connect canceled";
+                        msg = "Client: Connect canceled";
                     } else {
-                        msg = "Connection Refused";
+                        msg = "Client: Connection Refused";
                     }
                     ret = -1; // break the loop
                 } else {
-                    msg = "What?";
+                    msg = "Client: What?";
                     ret = -1; // break the loop
                 }
             }
             break;
-        case YEV_WRITE_TYPE: {
+
+        case YEV_WRITE_TYPE:
             {
-                if(yev_event->result < 0) {
-                    /*
-                     *  Cannot send, something went bad
-                     *  Disconnected
-                     */
-                    msg = "Client disconnected";
-                    // TODO
-                } else {
+                if(yev_state == YEV_ST_IDLE) {
                     /*
                      *  Write going well
                      *  You can advise to someone, ready to more writes.
                      */
-                    msg = "Tx ready";
+                    msg = "Client: Tx ready";
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    /*
+                     *  Cannot send, something went bad
+                     *  Disconnected
+                     */
+                    msg = "Client: Client disconnected writing";
+                    // TODO
+                } else {
+                    msg = "Client: What?";
                 }
 
+                /*
+                 *  Destroy the write event
+                 */
+                yev_destroy_event(yev_event);
             }
             break;
-        }
+
+        case YEV_READ_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  Data from the client
+                     */
+                    msg = "Client: Response from the server";
+                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                    gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
+
+
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    /*
+                     *  Bad read
+                     *  Disconnected
+                     */
+                    msg = "Client: Client disconnected reading";
+                    // TODO
+                } else {
+                    msg = "Server: What?";
+                }
+            }
+            break;
+
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -323,9 +434,9 @@ int do_test(void)
      *--------------------------------*/
     yev_loop_run(yev_loop, -1);
 
-    // The client match the received message with the sent.
-    // The client repeat the message until 3 times.
-    // The server drop the connection on 2th message
+    // The client matchs the received message with the sent.
+    // The client repeats the message until 3 times.
+    // The server drops the connection on 2th message
     // The client must re-connect until reach the response of the 3th message.
 
     /*--------------------------------*
