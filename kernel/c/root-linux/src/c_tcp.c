@@ -850,7 +850,9 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(yev_setup_connect_event(
         priv->yev_client_connect,
         url,    // client_url
-        NULL    // local bind
+        NULL,   // local bind
+        0,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

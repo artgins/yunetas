@@ -244,7 +244,9 @@ PRIVATE int mt_start(hgobj gobj)
         priv->yev_server_accept,
         url,        // server_url,
         0,          // backlog, default 512
-        gobj_read_bool_attr(gobj, "shared") // shared
+        gobj_read_bool_attr(gobj, "shared"), // shared
+        0,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     if(priv->fd_listen < 0) {
         gobj_log_error(gobj, 0,

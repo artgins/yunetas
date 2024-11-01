@@ -111,6 +111,15 @@ typedef int (*yev_callback_t)(
     yev_event_t *event
 );
 
+typedef struct {
+    struct sockaddr dst_addr;  // TODO eso solo le hace falta al connect y accept type
+    socklen_t dst_addrlen;      // TODO     improve to reduce space
+    struct sockaddr src_addr;
+    socklen_t src_addrlen;
+    int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
+    int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
+} sock_info_t;
+
 struct yev_event_s {
     yev_loop_t *yev_loop;
     uint8_t type;           // yev_type_t
@@ -122,13 +131,9 @@ struct yev_event_s {
     hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
     void *user_data;
+    int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
-    int result;     // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
-
-    struct sockaddr *dst_addr; // TODO eso solo le hace falta al connect y accept type
-    socklen_t dst_addrlen;
-    struct sockaddr *src_addr;
-    socklen_t src_addrlen;
+    sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
 };
 
 struct yev_loop_s {
@@ -255,7 +260,9 @@ PUBLIC yev_event_t *yev_create_connect_event(
 PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
     yev_event_t *yev_event,
     const char *dst_url,
-    const char *src_url     /* only host:port */
+    const char *src_url,    /* local bind, only host:port */
+    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );
 
 PUBLIC yev_event_t *yev_create_accept_event(
@@ -267,7 +274,9 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     yev_event_t *yev_event,
     const char *listen_url,
     int backlog,    /* queue of pending connections for socket listening, default 512 */
-    BOOL shared
+    BOOL shared,
+    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );
 
 PUBLIC yev_event_t *yev_create_read_event(

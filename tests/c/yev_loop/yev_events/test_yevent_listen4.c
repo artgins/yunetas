@@ -130,7 +130,9 @@ int do_test(void)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
-        FALSE // shared
+        FALSE, // shared
+        AF_INET,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept);
 
@@ -151,7 +153,9 @@ int do_test(void)
         yev_event_accept2,
         server_url, // listen_url,
         0, //backlog,
-        FALSE // shared
+        FALSE, // shared
+        AF_INET,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept2);
     yev_loop_run(yev_loop, 1);

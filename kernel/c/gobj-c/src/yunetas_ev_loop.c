@@ -542,12 +542,11 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                          */
                         struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                         io_uring_sqe_set_data(sqe, yev_event);
-                        yev_event->src_addrlen = sizeof(*yev_event->src_addr);
                         io_uring_prep_accept(
                             sqe,
                             yev_event->fd,
-                            yev_event->src_addr,
-                            &yev_event->src_addrlen,
+                            &yev_event->sock_info->src_addr,
+                            &yev_event->sock_info->src_addrlen,
                             0
                         );
                         io_uring_submit(&yev_loop->ring);
@@ -814,7 +813,7 @@ PUBLIC int yev_start_event(
     switch((yev_type_t)yev_event->type) {
         case YEV_CONNECT_TYPE: // Summit sqe
             {
-                if(!yev_event->dst_addr || yev_event->dst_addrlen <= 0) {
+                if(!yev_event->sock_info || yev_event->sock_info->dst_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -836,8 +835,8 @@ PUBLIC int yev_start_event(
                 io_uring_prep_connect(
                     sqe,
                     yev_event->fd,
-                    yev_event->dst_addr,
-                    yev_event->dst_addrlen
+                    &yev_event->sock_info->dst_addr,
+                    yev_event->sock_info->dst_addrlen
                 );
                 io_uring_submit(&yev_loop->ring);
                 yev_set_state(yev_event, YEV_ST_RUNNING);
@@ -846,7 +845,7 @@ PUBLIC int yev_start_event(
             break;
         case YEV_ACCEPT_TYPE: // Summit sqe
             {
-                if(!yev_event->src_addr || yev_event->src_addrlen <= 0) {
+                if(!yev_event->sock_info || yev_event->sock_info->src_addrlen <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -878,8 +877,8 @@ PUBLIC int yev_start_event(
                     io_uring_prep_accept(
                         sqe,
                         yev_event->fd,
-                        yev_event->src_addr,
-                        &yev_event->src_addrlen,
+                        &yev_event->sock_info->src_addr,
+                        &yev_event->sock_info->src_addrlen,
                         0
                     );
                 }
@@ -1211,10 +1210,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
      *      Free
      *---------------------------*/
     GBUFFER_DECREF(yev_event->gbuf)
-    GBMEM_FREE(yev_event->dst_addr)
-    yev_event->dst_addrlen = 0;
-    GBMEM_FREE(yev_event->src_addr)
-    yev_event->src_addrlen = 0;
+    GBMEM_FREE(yev_event->sock_info)
 
     /*-------------------------------*
      *      stopping
@@ -1372,10 +1368,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
      *      Free
      *---------------------------*/
     GBUFFER_DECREF(yev_event->gbuf)
-    GBMEM_FREE(yev_event->dst_addr)
-    yev_event->dst_addrlen = 0;
-    GBMEM_FREE(yev_event->src_addr)
-    yev_event->src_addrlen = 0;
+    GBMEM_FREE(yev_event->sock_info)
 
     /*-------------------------------*
      *      destroying
@@ -1497,6 +1490,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
     }
 
     yev_event->type = YEV_CONNECT_TYPE;
+    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -1524,7 +1518,9 @@ PUBLIC yev_event_t *yev_create_connect_event(
 PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_event->fd
     yev_event_t *yev_event,
     const char *dst_url,
-    const char *src_url
+    const char *src_url,    /* local bind, only host:port */
+    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6 */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 ) {
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1534,6 +1530,13 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
             NULL
         );
         return -1;
+    }
+
+    if(!ai_family) {
+        ai_family = AF_UNSPEC;
+    }
+    if(!ai_flags) {
+        ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
     }
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
@@ -1578,8 +1581,8 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
     }
 
     struct addrinfo hints = {
-        .ai_family = AF_UNSPEC,  /* Allow IPv4 or IPv6 */
-        .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
+        .ai_family = ai_family,
+        .ai_flags = ai_flags,
     };
 
     SWITCHS(schema) { // WARNING Repeated
@@ -1615,7 +1618,7 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
             break;
-    } SWITCHS_END;
+    } SWITCHS_END
 
     struct addrinfo *results;
     struct addrinfo *rp;
@@ -1768,16 +1771,24 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
     }
 
     if(ret == 0) {
-        GBMEM_FREE(yev_event->dst_addr)
-        yev_event->dst_addr = GBMEM_MALLOC(rp->ai_addrlen);
-        if(yev_event->dst_addr) {
-            memcpy(yev_event->dst_addr, rp->ai_addr, rp->ai_addrlen);
-            yev_event->dst_addrlen = (socklen_t) rp->ai_addrlen;
+        if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->dst_addr)) {
+            memcpy(&yev_event->sock_info->dst_addr, rp->ai_addr, rp->ai_addrlen);
+            yev_event->sock_info->dst_addrlen = (socklen_t) rp->ai_addrlen;
         } else {
             close(fd);
             fd = -1;
             ret = -1;
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "What merde?",
+                "url",          "%s", dst_url,
+                "host",         "%s", dst_host,
+                "port",         "%s", dst_port,
+                NULL
+            );
         }
+
     }
 
     freeaddrinfo(results);
@@ -1828,6 +1839,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
     }
 
     yev_event->type = YEV_ACCEPT_TYPE;
+    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -1856,7 +1868,9 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     yev_event_t *yev_event,
     const char *listen_url,
     int backlog,
-    BOOL shared
+    BOOL shared,
+    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6 */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 ) {
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1866,6 +1880,13 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             NULL
         );
         return -1;
+    }
+
+    if(!ai_family) {
+        ai_family = AF_UNSPEC;
+    }
+    if(!ai_flags) {
+        ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
     }
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
@@ -1913,8 +1934,8 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
         backlog = DEFAULT_BACKLOG;
     }
     struct addrinfo hints = {
-        .ai_family = AF_UNSPEC,  /* Allow IPv4 or IPv6 */
-        .ai_flags = AI_V4MAPPED | AI_ADDRCONFIG,
+        .ai_family = ai_family,
+        .ai_flags = ai_flags,
     };
 
     SWITCHS(schema) { // WARNING Repeated
@@ -2075,14 +2096,22 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     }
 
     if(ret == 0) {
-        yev_event->src_addr = GBMEM_MALLOC(rp->ai_addrlen);
-        if(yev_event->src_addr) {
-            memcpy(yev_event->src_addr, rp->ai_addr, rp->ai_addrlen);
-            yev_event->src_addrlen = (socklen_t) rp->ai_addrlen;
+        if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->src_addr)) {
+            memcpy(&yev_event->sock_info->src_addr, rp->ai_addr, rp->ai_addrlen);
+            yev_event->sock_info->src_addrlen = (socklen_t) rp->ai_addrlen;
         } else {
             close(fd);
             fd = -1;
             ret = -1;
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "What merde?",
+                "url",          "%s", listen_url,
+                "host",         "%s", host,
+                "port",         "%s", port,
+                NULL
+            );
         }
     }
 

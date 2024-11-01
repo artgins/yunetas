@@ -148,7 +148,9 @@ int do_test(void)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
-        FALSE // shared
+        FALSE, // shared
+        AF_INET,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
@@ -164,7 +166,9 @@ int do_test(void)
     yev_setup_connect_event( // create the socket listening in yev_event->fd
         yev_event_connect,
         server_url, // listen_url,
-        NULL
+        NULL,   // src_url, only host:port
+        0,      // ai_family AF_UNSPEC
+        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_connect);
 
