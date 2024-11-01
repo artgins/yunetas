@@ -491,6 +491,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             );
             json_decref(jn_flags);
         }
+        cur_state = yev_get_state(yev_event);
     }
 
     /*-------------------------------*
@@ -500,11 +501,11 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     switch((yev_type_t)yev_event->type) {
         case YEV_CONNECT_TYPE: // cqe ready
             {
-                if(cqe->res < 0) {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
-                } else {
+                if(cur_state == YEV_ST_IDLE) {
                     // HACK res == 0 when connected
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
+                } else {
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                 }
 
                 /*

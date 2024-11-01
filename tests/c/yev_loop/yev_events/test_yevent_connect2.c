@@ -1,19 +1,19 @@
 /****************************************************************************
- *          test_yevent_connect1.c
+ *          test_yevent_connect2.c
  *
  *          Setup
  *          -----
- *          Create listen (re-arm)
  *          Create connect
+ *          Create listen (re-arm)
  *
  *          Process
  *          -------
+ *          Client refused, re-connect
  *          Server accept the connection - re-arm
- *          Client connected, break the loop
  *
  *          After breaking the loop of connection,
- *          Stop connect event
  *          Stop accept event
+ *          Stop connect event
  *
  *          WARNING: the clisrv socket don't be closed because it's not set in reading/writing
  *
@@ -85,11 +85,22 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         msg = "Connect canceled";
                     } else {
                         msg = "Connection Refused";
+
+                        // Re-connect
+                        yev_setup_connect_event( // create the socket listening in yev_event->fd
+                            yev_event_connect,
+                            server_url, // listen_url,
+                            NULL,   // src_url, only host:port
+                            AF_INET,      // ai_family AF_UNSPEC
+                            AI_ADDRCONFIG       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+                        );
+                        yev_start_event(yev_event_connect);
+
                     }
                 } else {
                     msg ="What?=";
                 }
-                ret = -1; // break the loop
+                ret = 0;
             }
             break;
         default:
@@ -137,25 +148,6 @@ int do_test(void)
     );
 
     /*--------------------------------*
-     *      Create listen
-     *--------------------------------*/
-    yev_event_accept = yev_create_accept_event(
-        yev_loop,
-        yev_callback,
-        0
-    );
-    yev_setup_accept_event( // create the socket listening in yev_event->fd
-        yev_event_accept,
-        server_url, // listen_url,
-        0, //backlog,
-        FALSE, // shared
-        AF_INET,  // ai_family AF_UNSPEC
-        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-    );
-    yev_start_event(yev_event_accept);
-    yev_loop_run(yev_loop, 1);
-
-    /*--------------------------------*
      *      Create connect
      *--------------------------------*/
     yev_event_connect = yev_create_connect_event(
@@ -173,19 +165,38 @@ int do_test(void)
     yev_start_event(yev_event_connect);
 
     /*--------------------------------*
+     *      Create listen
+     *--------------------------------*/
+    yev_event_accept = yev_create_accept_event(
+        yev_loop,
+        yev_callback,
+        0
+    );
+    yev_setup_accept_event( // create the socket listening in yev_event->fd
+        yev_event_accept,
+        server_url, // listen_url,
+        0, //backlog,
+        FALSE, // shared
+        AF_INET,  // ai_family AF_UNSPEC
+        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+    );
+    yev_start_event(yev_event_accept);
+    yev_loop_run(yev_loop, 2);
+
+    /*--------------------------------*
      *  Process ring queue
      *  Server accept the connection - re-arm
      *  Client connected, break the loop
      *--------------------------------*/
-    yev_loop_run(yev_loop, 1);
+    yev_loop_run(yev_loop, 4);
 
     /*--------------------------------*
-     *  Stop connect event: disconnected
      *  Stop accept event:
+     *  Stop connect event: disconnected
      *--------------------------------*/
-    yev_stop_event(yev_event_connect);
-    yev_loop_run(yev_loop, 1);
     yev_stop_event(yev_event_accept);
+    yev_loop_run(yev_loop, 1);
+    yev_stop_event(yev_event_connect);
     yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
@@ -267,17 +278,18 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen",
-        "msg", "Connection Accepted",
-        "msg", "Connect canceled",
-        "msg", "Listen Connection Accepted",
-        "msg", "Listen socket failed or stopped"
-    );
+//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+//        "msg", "addrinfo on listen",
+//        "msg", "Connection Accepted",
+//        "msg", "Connect canceled",
+//        "msg", "Listen Connection Accepted",
+//        "msg", "Listen socket failed or stopped"
+//    );
+
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        error_list,  // error_list
+        0, //error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
