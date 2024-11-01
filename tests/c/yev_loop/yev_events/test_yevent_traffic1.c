@@ -110,7 +110,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                         yev_event->callback,
                         NULL,   // gobj
                         yev_get_fd(yev_event),
-                        gbuf_rx
+                        gbuffer_incref(gbuf_rx)
                     );
                     yev_start_event(yev_response);
 
@@ -165,6 +165,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                  *  Destroy the write event
                  */
                 yev_destroy_event(yev_event);
+                yev_event = NULL;
             }
             break;
 
@@ -179,21 +180,23 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             break;
     }
 
-    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-    gobj_log_warning(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", msg,
-        "type",         "%s", yev_event_type_name(yev_event),
-        "state",        "%s", yev_get_state_name(yev_event),
-        "fd",           "%d", yev_event->fd,
-        "result",       "%d", yev_event->result,
-        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-        "p",            "%p", yev_event,
-        "flag",         "%j", jn_flags,
-        NULL
-    );
-    json_decref(jn_flags);
+    if(yev_event) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", msg,
+            "type",         "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
 
     return ret;
 }
@@ -255,6 +258,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Destroy the write event
                  */
                 yev_destroy_event(yev_event);
+                yev_event = NULL;
             }
             break;
 
@@ -267,7 +271,6 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     msg = "Client: Response from the server";
                     gbuffer_t *gbuf = yev_get_gbuf(yev_event);
                     gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
-
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -293,21 +296,23 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             break;
     }
 
-    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-    gobj_log_warning(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", msg,
-        "type",         "%s", yev_event_type_name(yev_event),
-        "state",        "%s", yev_get_state_name(yev_event),
-        "fd",           "%d", yev_event->fd,
-        "result",       "%d", yev_event->result,
-        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-        "p",            "%p", yev_event,
-        "flag",         "%j", jn_flags,
-        NULL
-    );
-    json_decref(jn_flags);
+    if(yev_event) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", msg,
+            "type",         "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", yev_event->fd,
+            "result",       "%d", yev_event->result,
+            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
 
     return ret;
 }
@@ -399,7 +404,7 @@ int do_test(void)
             yev_loop,
             yev_server_callback,
             NULL,   // gobj
-            yev_get_result(yev_event_accept), //srv_cli_fd,
+            yev_event_connect->fd,
             gbuf
         );
         yev_start_event(yev_server_msg);
