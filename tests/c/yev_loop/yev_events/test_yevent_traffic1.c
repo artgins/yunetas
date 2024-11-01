@@ -105,6 +105,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      *  Response to the client
                      *  Get their callback and fd
                      */
+                    gobj_trace_msg(0, "server: send response");
                     yev_event_t *yev_response = yev_create_write_event(
                         yev_loop,
                         yev_event->callback,
@@ -117,8 +118,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  Re-arm the read event
                      */
-                    gbuffer_clear(gbuf_rx); // Empty the buffer
-                    yev_start_event(yev_event);
+//                    gbuffer_clear(gbuf_rx); // Empty the buffer
+//                    yev_start_event(yev_event);
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -384,6 +385,7 @@ int do_test(void)
          *  If connected, create the message to send.
          *  And set a read event to receive the response.
          */
+        gobj_trace_msg(0, "client: send request");
         json_t *message = json_string(MESSAGE);
         yev_event_t * yev_client_msg = 0;
         gbuffer_t *gbuf = json2gbuf(0, message, JSON_ENCODE_ANY);
