@@ -1,7 +1,18 @@
 /****************************************************************************
  *          test_timer1.c
  *
- *          Create a timer of 2 second
+ *          Setup
+ *          -----
+ *          Create a once timer of 4 second
+ *          Create a periodic timer of 1 second
+ *
+ *          Process
+ *          -------
+ *          callback_periodic
+ *              - On got timer #1: Re-start timer once in 1 second
+ *
+ *          callback_once
+ *              - On got timer #1: Stop periodic timer
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -69,6 +80,7 @@ PRIVATE int yev_callback_once(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
+    gobj_trace_msg(0, "stop periodic timer");
     yev_stop_event(yev_event_periodic);
 
     return 0;
