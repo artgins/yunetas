@@ -188,7 +188,7 @@ int do_test(void)
      *  Server accept the connection - re-arm
      *  Client connected, break the loop
      *--------------------------------*/
-    yev_loop_run(yev_loop, 4);
+    yev_loop_run(yev_loop, 2);
 
     /*--------------------------------*
      *  Stop accept event:
@@ -278,18 +278,18 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-//        "msg", "addrinfo on listen",
-//        "msg", "Connection Accepted",
-//        "msg", "Connect canceled",
-//        "msg", "Listen Connection Accepted",
-//        "msg", "Listen socket failed or stopped"
-//    );
-
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "addrinfo on listen",
+        "msg", "Connection Refused",
+        "msg", "Connection Accepted",
+        "msg", "Listen Connection Accepted",
+        "msg", "Listen socket failed or stopped",
+        "msg", "Connect canceled"
+    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        0, //error_list,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
