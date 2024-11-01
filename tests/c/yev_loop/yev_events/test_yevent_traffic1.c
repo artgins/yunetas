@@ -42,7 +42,7 @@ int result = 0;
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback_server(yev_event_t *yev_event)
 {
     if(!yev_event) {
         /*
@@ -67,6 +67,49 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 ret = 0; // re-arm
             }
             break;
+        default:
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "yev_event not implemented",
+                NULL
+            );
+            break;
+    }
+    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+    gobj_log_warning(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", msg,
+        "type",         "%s", yev_event_type_name(yev_event),
+        "state",        "%s", yev_get_state_name(yev_event),
+        "fd",           "%d", yev_event->fd,
+        "result",       "%d", yev_event->result,
+        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+        "p",            "%p", yev_event,
+        "flag",         "%j", jn_flags,
+        NULL
+    );
+    json_decref(jn_flags);
+
+    return ret;
+}
+
+/***************************************************************************
+ *  yev_loop callback
+ ***************************************************************************/
+PRIVATE int yev_callback_client(yev_event_t *yev_event)
+{
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return -1;  // break the loop
+    }
+
+    char *msg = "???";
+    int ret = 0;
+    switch(yev_event->type) {
         case YEV_CONNECT_TYPE:
             {
                 yev_state_t yev_state = yev_get_state(yev_event);
@@ -79,7 +122,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         msg = "Connection Refused";
                     }
                 } else {
-                    msg ="What?=";
+                    msg ="What?";
                 }
                 ret = -1; // break the loop
             }
@@ -124,7 +167,7 @@ int do_test(void)
         0,
         2024,
         10,
-        yev_callback,
+        NULL,
         &yev_loop
     );
 
@@ -133,7 +176,7 @@ int do_test(void)
      *--------------------------------*/
     yev_event_accept = yev_create_accept_event(
         yev_loop,
-        yev_callback,
+        yev_callback_server,
         0
     );
     yev_setup_accept_event( // create the socket listening in yev_event->fd
@@ -152,7 +195,7 @@ int do_test(void)
      *--------------------------------*/
     yev_event_connect = yev_create_connect_event(
         yev_loop,
-        yev_callback,
+        yev_callback_client,
         0
     );
     yev_setup_connect_event( // create the socket listening in yev_event->fd

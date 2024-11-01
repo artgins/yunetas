@@ -320,7 +320,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
      *------------------------*/
     if(cqe == NULL) {
         /*
-         *  It's the timeout, call to the yev_loop callback, if return -1 the loop will break;
+         *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
         if(yev_loop->callback) {
             return yev_loop->callback(0);

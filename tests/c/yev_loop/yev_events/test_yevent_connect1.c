@@ -87,7 +87,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         msg = "Connection Refused";
                     }
                 } else {
-                    msg ="What?=";
+                    msg ="What?";
                 }
                 ret = -1; // break the loop
             }

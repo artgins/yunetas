@@ -98,7 +98,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
                     }
                 } else {
-                    msg ="What?=";
+                    msg ="What?";
                 }
                 ret = 0;
             }
