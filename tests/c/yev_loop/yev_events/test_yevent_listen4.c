@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
         "msg", "bind() FAILED",
         "msg", "Cannot get addr to listen",
         "msg", "Cannot start event: accept addr NULL",
-        "msg", "Listen socket stopped"
+        "msg", "Listen socket failed or stopped"
     );
 
     set_expected_results( // Check that no logs happen

@@ -11,7 +11,9 @@
  *          Server accept the connection - re-arm
  *          Client connected, break the loop
  *
- *          After breaking the loop of handshaking  Stop connect, Stop Accepted (TODO change the order)
+ *          After breaking the loop of connection,
+ *          stop connect event,
+ *          stop accepted event (TODO change the order)
  *
  *          WARNING: the clisrv socket don't be closed because it's not set in reading/writing
  *
@@ -66,7 +68,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Listen socket stopped";
+                    msg = "Listen socket failed or stopped";
                 } else {
                     msg ="What?";
                 }
@@ -266,7 +268,7 @@ int main(int argc, char *argv[])
         "msg", "Connection Accepted",
         "msg", "Listen Connection Accepted",
         "msg", "Connect canceled",
-        "msg", "Listen socket stopped"
+        "msg", "Listen socket failed or stopped"
     );
 
     set_expected_results( // Check that no logs happen

@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "closing the socket",
-        "msg", "Listen socket failed"
+        "msg", "Listen socket failed or stopped"
     );
 
     set_expected_results( // Check that no logs happen
