@@ -583,7 +583,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                                 "p",            "%p", yev_event,
                                 "gbuffer",      "%p", yev_event->gbuf,
                                 "flag",         "%j", jn_flags,
-                                "fd",           "%d", yev_event->fd,
                                 NULL
                             );
                             json_decref(jn_flags);
@@ -703,7 +702,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                                 "p",            "%p", yev_event,
                                 "gbuffer",      "%p", yev_event->gbuf,
                                 "flag",         "%j", jn_flags,
-                                "fd",           "%d", yev_event->fd,
                                 NULL
                             );
                             json_decref(jn_flags);
@@ -796,7 +794,6 @@ PUBLIC int yev_start_event(
             "p",            "%p", yev_event,
             "gbuffer",      "%p", yev_event->gbuf,
             "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
             NULL
         );
         json_decref(jn_flags);
@@ -821,7 +818,6 @@ PUBLIC int yev_start_event(
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
             NULL
         );
         json_decref(jn_flags);
@@ -1176,7 +1172,6 @@ PUBLIC int yev_start_timer_event(
                     "fd",           "%d", yev_event->fd,
                     "p",            "%p", yev_event,
                     "flag",         "%j", jn_flags,
-                    "fd",           "%d", yev_event->fd,
                     NULL
                 );
                 json_decref(jn_flags);
@@ -1322,7 +1317,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
                     "fd",           "%d", yev_event->fd,
                     "p",            "%p", yev_event,
                     "flag",         "%j", jn_flags,
-                    "fd",           "%d", yev_event->fd,
                     NULL
                 );
                 json_decref(jn_flags);
@@ -1409,7 +1403,6 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
             NULL
         );
         json_decref(jn_flags);
