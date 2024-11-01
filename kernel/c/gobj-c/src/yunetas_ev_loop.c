@@ -1249,7 +1249,6 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
      *      Free
      *---------------------------*/
     GBUFFER_DECREF(yev_event->gbuf)
-    GBMEM_FREE(yev_event->sock_info)
 
     /*-------------------------------*
      *      stopping
