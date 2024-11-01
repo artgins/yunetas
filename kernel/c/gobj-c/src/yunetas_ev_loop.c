@@ -212,7 +212,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         if(callback_cqe(yev_loop, cqe)<0) {
-            break;
+            //break;
         }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
@@ -247,7 +247,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         if(callback_cqe(yev_loop, cqe)<0) {
-            break;
+            //break;
         }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
@@ -1317,9 +1317,12 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event)
             yev_set_state(yev_event, YEV_ST_STOPPED);
             yev_event->result = -ECANCELED; // In idle state simulate canceled error
             if (yev_event->callback) {
-                yev_event->callback(
+                int ret = yev_event->callback(
                     yev_event
                 );
+                if(ret < 0) {
+                    yev_loop->running = 0;
+                }
             }
             break;
 

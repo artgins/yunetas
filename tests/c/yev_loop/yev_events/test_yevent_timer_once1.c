@@ -3,6 +3,9 @@
  *
  *          Create a timer of 1 second
  *
+ *          When received the timeout stop the event
+ *          When received the stop break the loop
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -41,15 +44,14 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return -1;  // break the loop
     }
 
-    times_counter++;
-    char msg[80];
+    char msg[80] = "";
 
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_TIMER_TYPE:
             {
-                yev_state_t yev_state = yev_get_state(yev_event);
-
                 if(yev_state == YEV_ST_IDLE) {
+                    times_counter++;
                     snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
                 } else if(yev_state == YEV_ST_STOPPED) {
                     snprintf(msg, sizeof(msg), "timeout stopped");
@@ -66,7 +68,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 "msg",          "%s", "yev_event not implemented",
                 NULL
             );
-            break;
+            return 0;
     }
 
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -87,9 +89,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-    if(times_counter == 1) {
-        gobj_trace_msg(0, "stop timer");
+    if(yev_state == YEV_ST_IDLE) {
         yev_stop_event(yev_event_once);
+    } else if(yev_state == YEV_ST_STOPPED) {
+        return -1;  // break the loop
     }
 
     return 0;
@@ -210,7 +213,7 @@ int main(int argc, char *argv[])
     const char *test = "test_timer1";
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "timeout got 1",
-        "msg", "Operation canceled",
+        "msg", "timeout stopped",
         "msg", "yev_event already stopped"
     );
 
