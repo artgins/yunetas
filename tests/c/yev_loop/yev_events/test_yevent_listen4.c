@@ -242,10 +242,9 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_yevent_listen1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "bind() FAILED",
-        "msg", "Cannot get addr to listen",
         "msg", "Cannot start event: accept addr NULL",
         "msg", "Listen socket failed or stopped"
     );
