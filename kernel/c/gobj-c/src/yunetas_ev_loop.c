@@ -1064,10 +1064,21 @@ PUBLIC int yev_start_timer_event(
         );
         return -1;
     }
-
     yev_event_t *yev_event = yev_event_;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
-    struct io_uring_sqe *sqe;
+
+    if(yev_event->fd < 0) {
+        yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
+        if(yev_event->fd < 0) {
+            gobj_log_critical(yev_event->yev_loop->yuno?gobj:0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
+                NULL
+            );
+            return -1;
+        }
+    }
 
     if(periodic) {
         yev_event->flag |= YEV_FLAG_TIMER_PERIODIC;
@@ -1084,7 +1095,7 @@ PUBLIC int yev_start_timer_event(
             "p",            "%p", yev_event,
             NULL
         );
-        return 0;
+        return -1;
     }
 
     struct timeval timeout = {
@@ -1158,6 +1169,7 @@ PUBLIC int yev_start_timer_event(
     /*-------------------------------*
      *      Summit sqe
      *-------------------------------*/
+    struct io_uring_sqe *sqe;
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
     sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
@@ -1458,7 +1470,7 @@ PRIVATE yev_event_t *create_event(
 }
 
 /***************************************************************************
- *  Create the handler fd for timer
+ *
  ***************************************************************************/
 PUBLIC yev_event_t *yev_create_timer_event(
     yev_loop_t *yev_loop,
@@ -1472,16 +1484,6 @@ PUBLIC yev_event_t *yev_create_timer_event(
     }
 
     yev_event->type = YEV_TIMER_TYPE;
-    yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
-    if(yev_event->fd < 0) {
-        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
-            NULL
-        );
-        return NULL;
-    }
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);

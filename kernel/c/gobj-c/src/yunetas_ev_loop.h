@@ -211,7 +211,7 @@ PUBLIC const char *yev_get_state_name(yev_event_t *yev_event);
 PUBLIC int yev_start_event(
     yev_event_t *yev_event
 );
-PUBLIC int yev_start_timer_event(
+PUBLIC int yev_start_timer_event( // Create the handler fd for timer if not exist
     yev_event_t *yev_event,
     time_t timeout_ms,  // timeout_ms <= 0 is equivalent to use yev_stop_event()
     BOOL periodic
@@ -242,7 +242,7 @@ static inline BOOL yev_event_is_stoppable(yev_event_t *yev_event)
  */
 PUBLIC void yev_destroy_event(yev_event_t *yev_event);
 
-PUBLIC yev_event_t *yev_create_timer_event( // Create the handler fd for timer
+PUBLIC yev_event_t *yev_create_timer_event(
     yev_loop_t *yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj
