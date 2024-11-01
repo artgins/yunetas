@@ -1642,9 +1642,21 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
 
     int fd = -1;
     for (rp = results; rp; rp = rp->ai_next) {
-		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-		if (fd == -1) {
-            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
+        print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "addrinfo found, to connect",
+            "addrinfo",     "%s", saddr,
+            "ai_flags",     "%d", rp->ai_flags,
+            "ai_family",    "%d", rp->ai_family,
+            "ai_socktype",  "%d", rp->ai_socktype,
+            "ai_protocol",  "%d", rp->ai_protocol,
+            "ai_canonname", "%s", rp->ai_canonname,
+            NULL
+        );
+        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1655,13 +1667,13 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
                 "strerror",     "%s", strerror(errno),
                 NULL
             );
-			continue;
-		}
+            continue;
+        }
 
         /*--------------------------------------*
          *  Option to bind to local host/port
          *--------------------------------------*/
-		if(!empty_string(src_url)) {
+        if(!empty_string(src_url)) {
             char src_host[120] = {0};
             char src_port[10] = {0};
             if(!empty_string(src_host)) {
@@ -1706,8 +1718,7 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
             }
 
             ret = bind(fd, res->ai_addr, (socklen_t) res->ai_addrlen);
-			if (ret == -1) {
-                print_addrinfo(gobj, saddr, sizeof(saddr), res, atoi(src_port));
+            if (ret == -1) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1724,10 +1735,9 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
                 close(fd);
                 return -1;
             }
-		}
+        }
 
         if(trace_level & TRACE_UV) {
-            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1742,7 +1752,7 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
 
         ret = 0;    // Got a addr
         break;
-	}
+    }
 
     if (!rp || fd == -1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1940,7 +1950,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             hints.ai_socktype = SOCK_STREAM; /* TCP socket */
             hints.ai_protocol = IPPROTO_TCP;
             break;
-    } SWITCHS_END;
+    } SWITCHS_END
 
     struct addrinfo *results;
     struct addrinfo *rp;
@@ -1967,9 +1977,22 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 
     int fd = -1;
     for (rp = results; rp; rp = rp->ai_next) {
-		fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-		if (fd == -1) {
-            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
+        print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "addrinfo found, to listen ",
+            "addrinfo",     "%s", saddr,
+            "ai_flags",     "%d", rp->ai_flags,
+            "ai_family",    "%d", rp->ai_family,
+            "ai_socktype",  "%d", rp->ai_socktype,
+            "ai_protocol",  "%d", rp->ai_protocol,
+            "ai_canonname", "%s", rp->ai_canonname,
+            NULL
+        );
+
+        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1980,8 +2003,8 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
                 "strerror",     "%s", strerror(errno),
                 NULL
             );
-			continue;
-		}
+            continue;
+        }
 
         if(hints.ai_protocol == IPPROTO_TCP) {
             int on = 1;
@@ -1993,7 +2016,6 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 
         ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
         if (ret == -1) {
-            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -2010,7 +2032,6 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 
         ret = listen(fd, backlog);
         if(ret == -1) {
-            print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -2025,7 +2046,6 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             continue;
         }
 
-		print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -2039,7 +2059,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 
         ret = 0;    // Got a addr
         break;
-	}
+    }
 
     if (!rp || fd == -1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2248,8 +2268,8 @@ PUBLIC int set_tcp_socket_options(int fd, int delay)
     ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
 #endif
     struct linger lg;
-    lg.l_onoff = 1;		/* non-zero value enables linger option in kernel */
-    lg.l_linger = 0;	/* timeout interval in seconds 0: close immediately discarding any unsent data  */
+    lg.l_onoff = 1;        /* non-zero value enables linger option in kernel */
+    lg.l_linger = 0;    /* timeout interval in seconds 0: close immediately discarding any unsent data  */
     ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
     return ret;
 }
