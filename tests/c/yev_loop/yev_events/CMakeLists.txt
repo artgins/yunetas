@@ -25,6 +25,9 @@ set(SRCS
     test_yevent_listen3
     test_yevent_listen4
     test_yevent_connect1
+    test_yevent_timer_once1
+    test_yevent_timer_once2
+    test_yevent_timer_periodic1
 )
 
 ##############################################
@@ -44,10 +47,9 @@ foreach(test ${SRCS})
         libjansson.a
         liburing.a
         libpcre2-8.a
+
         m
-        #z rt m
         uuid
-        #util
         bfd     # to stacktrace
     )
     add_test("${current_directory_name}/${test}" ${binary})
