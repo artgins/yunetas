@@ -236,7 +236,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         if(callback_cqe(yev_loop, cqe)<0) {
-            //break;
+            break;
         }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
