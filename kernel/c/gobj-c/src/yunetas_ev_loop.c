@@ -506,6 +506,21 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
                 } else {
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                    if(yev_event->fd > 0) {
+                        if(gobj_trace_level(0) & TRACE_UV) {
+                            gobj_log_debug(0, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_YEV_LOOP,
+                                "msg",          "%s", "close socket",
+                                "msg2",         "%s", "💥🟥 close socket",
+                                "fd",           "%d", yev_event->fd ,
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                        }
+                        close(yev_event->fd);
+                        yev_event->fd = -1;
+                    }
                 }
 
                 /*
