@@ -14,6 +14,9 @@
  *          callback_once
  *              - On got timer #1: Stop periodic timer
  *
+ *          callback_periodic
+ *              - On got timer #3: (when stopped) -> yev_loop_stop() !!
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
