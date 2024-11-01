@@ -128,7 +128,7 @@ int do_test(void)
         0, //backlog,
         FALSE, // shared
         AF_INET,  // ai_family AF_UNSPEC
-        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept);
 
