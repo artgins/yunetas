@@ -2048,7 +2048,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
                 NULL
             );
             close(fd);
-            continue;
+            break;
         }
 
         ret = listen(fd, backlog);
@@ -2064,7 +2064,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
                 NULL
             );
             close(fd);
-            continue;
+            break;
         }
 
         gobj_log_info(gobj, 0,
