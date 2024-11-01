@@ -1,10 +1,16 @@
 /****************************************************************************
  *          test_timer1.c
  *
+ *          Setup
+ *          -----
  *          Create a timer of 1 second
  *
+ *          Process
+ *          -------
  *          When received the timeout stop the event
  *          When received the stop break the loop
+ *
+ *          After loop destroy the event
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -27,7 +33,6 @@ PRIVATE int yev_callback(yev_event_t *event);
  *              Data
  ***************************************************************/
 yev_loop_t *yev_loop;
-yev_event_t *yev_event_once;
 int times_counter = 0;
 int result = 0;
 
@@ -90,7 +95,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     json_decref(jn_flags);
 
     if(yev_state == YEV_ST_IDLE) {
-        yev_stop_event(yev_event_once);
+        yev_stop_event(yev_event);
     } else if(yev_state == YEV_ST_STOPPED) {
         return -1;  // break the loop
     }
@@ -117,6 +122,7 @@ int do_test(void)
     /*--------------------------------*
      *      Create timer
      *--------------------------------*/
+    yev_event_t *yev_event_once;
     yev_event_once = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
     /*--------------------------------*
@@ -129,11 +135,18 @@ int do_test(void)
      *--------------------------------*/
     yev_loop_run(yev_loop, 4);
 
+    /*--------------------------------*
+     *  re-stop the event
+     *--------------------------------*/
     if(yev_stop_event(yev_event_once) != -1) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "re-stop event must return -1");
         result += -1;
     }
     yev_loop_run_once(yev_loop);
+
+    /*--------------------------------*
+     *  Destroy the event
+     *--------------------------------*/
     yev_destroy_event(yev_event_once);
 
     yev_loop_destroy(yev_loop);
