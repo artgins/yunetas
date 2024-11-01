@@ -34,22 +34,41 @@ int result = 0;
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    yev_state_t yev_state = yev_get_state(yev_event);
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return -1;  // break the loop
+    }
 
     times_counter++;
-
     char msg[80];
-    if(yev_event->result<0) {
-        snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
-    } else {
-        if(yev_state == YEV_ST_IDLE) {
-            snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
-        } else if(yev_state == YEV_ST_STOPPED) {
-            snprintf(msg, sizeof(msg), "timeout stopped");
-        } else {
-            snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
-        }
+
+    switch(yev_event->type) {
+        case YEV_TIMER_TYPE:
+            {
+                yev_state_t yev_state = yev_get_state(yev_event);
+
+                if(yev_state == YEV_ST_IDLE) {
+                    snprintf(msg, sizeof(msg), "timeout got %d", times_counter);
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    snprintf(msg, sizeof(msg), "timeout stopped");
+
+                } else {
+                    snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
+                }
+            }
+            break;
+        default:
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "yev_event not implemented",
+                NULL
+            );
+            break;
     }
+
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
@@ -68,13 +87,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     );
     json_decref(jn_flags);
 
-    if(yev_get_state(yev_event) == YEV_ST_STOPPED) {
-        yev_loop_stop(yev_loop);
-        return 0;
-    }
-
     if(times_counter == 1) {
-        gobj_trace_msg(0, "stop timer with yev_stop_event");
+        gobj_trace_msg(0, "stop timer");
         yev_stop_event(yev_event_once);
     }
 

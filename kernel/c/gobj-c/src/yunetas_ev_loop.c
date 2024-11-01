@@ -171,6 +171,9 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
+
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, cqe);
                 continue;
             }
             if(err == -ETIME) {
@@ -178,6 +181,9 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
                 if(callback_cqe(yev_loop, NULL)<0) {
                     yev_loop->running = FALSE;
                 }
+
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, cqe);
                 continue;
             }
             gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
@@ -188,6 +194,8 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
                 "serr",         "%s", strerror(-err),
                 NULL
             );
+            /* Mark this request as processed */
+            io_uring_cqe_seen(&yev_loop->ring, cqe);
             break;
         }
 
@@ -203,7 +211,9 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
      */
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        callback_cqe(yev_loop, cqe);
+        if(callback_cqe(yev_loop, cqe)<0) {
+            break;
+        }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
@@ -236,7 +246,9 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        callback_cqe(yev_loop, cqe);
+        if(callback_cqe(yev_loop, cqe)<0) {
+            break;
+        }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
