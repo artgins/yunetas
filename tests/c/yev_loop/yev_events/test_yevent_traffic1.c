@@ -8,6 +8,12 @@
  *
  *          Process
  *          -------
+ *          On client connected, it transmits a message
+ *          The server echo the message
+ *          The client match the received message with the sent.
+ *          The client repeat the message until 3 times.
+ *          The server drop the connection on 2th message
+ *          The client must re-connect until reach the response of the 3th message.
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -24,6 +30,7 @@
  *              Constants
  ***************************************************************/
 const char *server_url = "tcp://localhost:3333";
+#define MESSAGE "AaaaaaaaaaaaaaaaBbbbbbbbbbbbbbb2"
 
 /***************************************************************
  *              Prototypes
@@ -52,9 +59,9 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
 }
 
 /***************************************************************************
- *  yev_loop callback
+ *  yev_loop callback   SERVER
  ***************************************************************************/
-PRIVATE int yev_callback_server(yev_event_t *yev_event)
+PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
     if(!yev_event) {
         /*
@@ -86,6 +93,7 @@ PRIVATE int yev_callback_server(yev_event_t *yev_event)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "yev_event not implemented",
+                "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
             break;
@@ -111,9 +119,9 @@ PRIVATE int yev_callback_server(yev_event_t *yev_event)
 }
 
 /***************************************************************************
- *  yev_loop callback
+ *  yev_loop callback   CLIENT
  ***************************************************************************/
-PRIVATE int yev_callback_client(yev_event_t *yev_event)
+PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
     if(!yev_event) {
         /*
@@ -143,11 +151,32 @@ PRIVATE int yev_callback_client(yev_event_t *yev_event)
                 }
             }
             break;
+        case YEV_WRITE_TYPE: {
+            {
+                if(yev_event->result < 0) {
+                    /*
+                     *  Cannot send, something went bad
+                     *  Disconnected
+                     */
+                    msg = "Client disconnected";
+                    // TODO
+                } else {
+                    /*
+                     *  Write going well
+                     *  You can advise to someone, ready to more writes.
+                     */
+                    msg = "Tx ready";
+                }
+
+            }
+            break;
+        }
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "yev_event not implemented",
+                "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
             break;
@@ -193,7 +222,7 @@ int do_test(void)
      *--------------------------------*/
     yev_event_accept = yev_create_accept_event(
         yev_loop,
-        yev_callback_server,
+        yev_server_callback,
         0
     );
     yev_setup_accept_event( // create the socket listening in yev_event->fd
@@ -212,7 +241,7 @@ int do_test(void)
      *--------------------------------*/
     yev_event_connect = yev_create_connect_event(
         yev_loop,
-        yev_callback_client,
+        yev_client_callback,
         0
     );
     yev_setup_connect_event( // create the socket listening in yev_event->fd
@@ -230,6 +259,74 @@ int do_test(void)
      *  Client connected, break the loop
      *--------------------------------*/
     yev_loop_run(yev_loop, 1);
+
+    /*------------------------------------------------*
+     *  On client connected, it transmits a message
+     *------------------------------------------------*/
+    if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
+        /*
+         *  If connected, create the message to send.
+         *  And set a read event to receive the response.
+         */
+        json_t *message = json_string(MESSAGE);
+        yev_event_t * yev_client_msg = 0;
+        gbuffer_t *gbuf = json2gbuf(0, message, JSON_ENCODE_ANY);
+        yev_client_msg = yev_create_write_event(
+            yev_loop,
+            yev_client_callback,
+            NULL,   // gobj
+            yev_event_connect->fd,
+            gbuf
+        );
+        yev_start_event(yev_client_msg);
+
+        /*
+         *  Setup a reader yevent
+         */
+        gbuf = gbuffer_create(1024, 1024);
+        yev_event_t *yev_server_msg = yev_create_read_event(
+            yev_loop,
+            yev_server_callback,
+            NULL,   // gobj
+            yev_get_result(yev_event_accept), //srv_cli_fd,
+            gbuf
+        );
+        yev_start_event(yev_server_msg);
+    }
+
+    /*--------------------------------*
+     *  The server echo the message
+     *--------------------------------*/
+    if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
+            yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
+        ) {
+        /*
+         *  If connected, create and setup a read event to receive the messages of client.
+         */
+        /*
+         *  Setup a reader yevent
+         */
+        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+        yev_event_t *yev_server_msg = yev_create_read_event(
+            yev_loop,
+            yev_server_callback,
+            NULL,   // gobj
+            yev_get_result(yev_event_accept), //srv_cli_fd,
+            gbuf
+        );
+        yev_start_event(yev_server_msg);
+    }
+
+
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
+    yev_loop_run(yev_loop, -1);
+
+    // The client match the received message with the sent.
+    // The client repeat the message until 3 times.
+    // The server drop the connection on 2th message
+    // The client must re-connect until reach the response of the 3th message.
 
     /*--------------------------------*
      *  Stop connect event: disconnected
@@ -318,7 +415,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    const char *test = "test_yevent_listen1";
+    const char *test = "test_yevent_traffic1"; // TODO busca que hay muchos repetidos!!! "test_yevent_listen1";
 //    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
 //        "msg", "addrinfo on listen",
 //        "msg", "Connection Accepted",

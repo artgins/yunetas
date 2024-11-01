@@ -1222,7 +1222,7 @@ PUBLIC gbuffer_t *json2gbuf(
         gbuf = gbuffer_create(4*1024, gobj_get_maximum_block());
     }
     json_dump_callback(jn, dump2gbuf, gbuf, flags);
-    JSON_DECREF(jn);
+    JSON_DECREF(jn)
     return gbuf;
 }
 

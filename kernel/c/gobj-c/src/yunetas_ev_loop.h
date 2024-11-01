@@ -172,7 +172,11 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
  *      These functions will create and configure a socket to listen or to connect
  */
 
+
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
+                            // you can set the same gbuffer without warning.
+                            // you get a warning if overwritten the current gbuf,
+                            // but it's set and the old removed.
     yev_event_t *yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
 );
@@ -204,6 +208,11 @@ static inline void yev_set_flag(
 static inline yev_state_t yev_get_state(yev_event_t *yev_event)
 {
     return yev_event->state;
+}
+
+static inline int yev_get_result(yev_event_t *yev_event)
+{
+    return yev_event->result;
 }
 
 PUBLIC const char *yev_get_state_name(yev_event_t *yev_event);

@@ -757,12 +757,12 @@ PUBLIC int yev_set_user_data(
  *
  ***************************************************************************/
 PUBLIC int yev_start_event(
-    yev_event_t *yev_event_
+    yev_event_t *yev_event
 ) {
     /*------------------------*
      *  Check parameters
      *------------------------*/
-    if(!yev_event_) {
+    if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -772,7 +772,6 @@ PUBLIC int yev_start_event(
         return -1;
     }
 
-    yev_event_t *yev_event = yev_event_;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     yev_loop_t *yev_loop = yev_event->yev_loop;
 
@@ -1064,14 +1063,14 @@ PUBLIC int yev_start_event(
  *
  ***************************************************************************/
 PUBLIC int yev_start_timer_event(
-    yev_event_t *yev_event_,
+    yev_event_t *yev_event,
     time_t timeout_ms,
     BOOL periodic
 ) {
     /*------------------------*
      *  Check parameters
      *------------------------*/
-    if(!yev_event_) {
+    if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -1080,7 +1079,6 @@ PUBLIC int yev_start_timer_event(
         );
         return -1;
     }
-    yev_event_t *yev_event = yev_event_;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     if(yev_event->fd < 0) {
