@@ -29,7 +29,6 @@ const char *server_url = "tcp://localhost:3333";
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(yev_event_t *event);
 
 /***************************************************************
  *              Data
@@ -38,6 +37,19 @@ yev_loop_t *yev_loop;
 yev_event_t *yev_event_accept;
 yev_event_t *yev_event_connect;
 int result = 0;
+
+/***************************************************************************
+ *  yev_loop callback
+ ***************************************************************************/
+PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+    if (!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return -1;  // break the loop
+    }
+    return 0;
+}
 
 /***************************************************************************
  *  yev_loop callback
@@ -59,12 +71,14 @@ PRIVATE int yev_callback_server(yev_event_t *yev_event)
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Listen Connection Accepted";
+                    ret = 0; // re-arm
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Listen socket failed or stopped";
+                    ret = -1; // break the loop
                 } else {
-                    msg ="What?";
+                    msg = "What?";
+                    ret = -1; // break the loop
                 }
-                ret = 0; // re-arm
             }
             break;
         default:
@@ -76,6 +90,7 @@ PRIVATE int yev_callback_server(yev_event_t *yev_event)
             );
             break;
     }
+
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
@@ -121,10 +136,11 @@ PRIVATE int yev_callback_client(yev_event_t *yev_event)
                     } else {
                         msg = "Connection Refused";
                     }
+                    ret = -1; // break the loop
                 } else {
-                    msg ="What?";
+                    msg = "What?";
+                    ret = -1; // break the loop
                 }
-                ret = -1; // break the loop
             }
             break;
         default:
@@ -136,6 +152,7 @@ PRIVATE int yev_callback_client(yev_event_t *yev_event)
             );
             break;
     }
+
     json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
@@ -167,7 +184,7 @@ int do_test(void)
         0,
         2024,
         10,
-        NULL,
+        yev_loop_callback,  // process timeouts of loop
         &yev_loop
     );
 
