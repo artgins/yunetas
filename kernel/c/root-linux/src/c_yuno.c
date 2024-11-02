@@ -639,7 +639,6 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     yev_loop_stop(priv->yev_loop);
-    yev_loop_run_once(priv->yev_loop);
     yev_loop_destroy(priv->yev_loop);
 }
 
