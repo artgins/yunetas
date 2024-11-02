@@ -68,7 +68,7 @@ int server_on_handshake_done_cb(void *user_data, int error)
 //    );
 //    gobj_publish_event(gobj, priv->connected_event_name, kw_ev);
 
-    ytls_flush(ytls_server, sskt_server);
+    ytls_flush(ytls_server, sskt_server, user_data);
 
     return 0;
 }
@@ -86,7 +86,7 @@ int client_on_handshake_done_cb(void *user_data, int error)
 //    );
 //    gobj_publish_event(gobj, priv->connected_event_name, kw_ev);
 
-    ytls_flush(ytls_client, sskt_client);
+    ytls_flush(ytls_client, sskt_client, user_data);
 
     return 0;
 }
