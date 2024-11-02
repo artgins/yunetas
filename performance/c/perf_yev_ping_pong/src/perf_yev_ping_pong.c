@@ -5,6 +5,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <unistd.h>
 #include <string.h>
 #include <signal.h>
 #include <stdio.h>
