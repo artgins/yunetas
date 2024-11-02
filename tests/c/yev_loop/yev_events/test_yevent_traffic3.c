@@ -19,6 +19,7 @@
  ****************************************************************************/
 #define APP "test_yevent_traffic3"
 
+#include <unistd.h>
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
