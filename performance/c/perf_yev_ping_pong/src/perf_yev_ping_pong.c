@@ -583,7 +583,7 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -605,12 +605,12 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "yev_ping_pong";
-//    json_t *error_list = json_pack("[{s:s}]",  // error_list
-//        "msg", "addrinfo on listen"
-//    );
+    json_t *error_list = json_pack("[{s:s}]",  // error_list
+        "msg", "addrinfo on listen"
+    );
     set_expected_results( // Check that no logs happen
         test,   // test name
-        0,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
