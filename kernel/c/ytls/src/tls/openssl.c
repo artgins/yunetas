@@ -110,7 +110,7 @@ typedef struct sskt_s {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int flush_clear_data(sskt_t *sskt, void *user_data);
+PRIVATE int flush_clear_data(sskt_t *sskt);
 
 /***************************************************************
  *              Api
@@ -131,13 +131,13 @@ PRIVATE hsskt new_secure_filter(
 );
 PRIVATE void shutdown_sskt(hsskt sskt);
 PRIVATE void free_secure_filter(hsskt sskt);
-PRIVATE int do_handshake(hsskt sskt, void *user_data);
+PRIVATE int do_handshake(hsskt sskt);
 PRIVATE int flush_encrypted_data(sskt_t *sskt);
-PRIVATE int encrypt_data(hsskt sskt, gbuffer_t *gbuf, void *user_data);
-PRIVATE int decrypt_data(hsskt sskt, gbuffer_t *gbuf, void *user_data);
+PRIVATE int encrypt_data(hsskt sskt, gbuffer_t *gbuf);
+PRIVATE int decrypt_data(hsskt sskt, gbuffer_t *gbuf);
 PRIVATE const char *last_error(hsskt sskt);
 PRIVATE void set_trace(hsskt sskt, BOOL set);
-PRIVATE int flush(hsskt sskt, void *user_data);
+PRIVATE int flush(hsskt sskt);
 
 PRIVATE api_tls_t api_tls = {
     "OPENSSL",
@@ -542,6 +542,7 @@ PRIVATE hsskt new_secure_filter(
     sskt->on_handshake_done_cb = on_handshake_done_cb;
     sskt->on_clear_data_cb = on_clear_data_cb;
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
+    sskt->user_data = user_data;
 
     sskt->ssl = SSL_new(ytls->ctx);
     if(!sskt->ssl) {
@@ -585,7 +586,7 @@ PRIVATE hsskt new_secure_filter(
 
     SSL_set_bio(sskt->ssl, sskt->rbio, sskt->wbio);
 
-    if(do_handshake(sskt, user_data)<0) {
+    if(do_handshake(sskt)<0) {
         SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
         GBMEM_FREE(sskt)
         return 0;
@@ -648,7 +649,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 /***************************************************************************
     Do handshake
  ***************************************************************************/
-PRIVATE int do_handshake(hsskt sskt_, void *user_data)
+PRIVATE int do_handshake(hsskt sskt_)
 {
     sskt_t *sskt = sskt_;
     hgobj gobj = sskt->ytls->gobj;
@@ -682,7 +683,7 @@ PRIVATE int do_handshake(hsskt sskt_, void *user_data)
                 );
             }
             flush_encrypted_data(sskt);
-            flush_clear_data(sskt, user_data);
+            flush_clear_data(sskt);
             break;
 
         default:
@@ -774,8 +775,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
  ***************************************************************************/
 PRIVATE int encrypt_data(
     hsskt sskt_,
-    gbuffer_t *gbuf, // owned
-    void *user_data
+    gbuffer_t *gbuf // owned
 )
 {
     sskt_t *sskt = sskt_;
@@ -807,7 +807,7 @@ PRIVATE int encrypt_data(
                     );
                 }
                 flush_encrypted_data(sskt);
-                flush_clear_data(sskt, user_data);
+                flush_clear_data(sskt);
                 continue;
 
             default:
@@ -846,7 +846,7 @@ PRIVATE int encrypt_data(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int flush_clear_data(sskt_t *sskt, void *user_data)
+PRIVATE int flush_clear_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
 
@@ -895,8 +895,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt, void *user_data)
  ***************************************************************************/
 PRIVATE int decrypt_data(
     hsskt sskt_,
-    gbuffer_t *gbuf, // owned
-    void *user_data
+    gbuffer_t *gbuf // owned
 )
 {
     sskt_t *sskt = sskt_;
@@ -929,13 +928,13 @@ PRIVATE int decrypt_data(
             gobj_trace_dump(gobj, p, len, "------- <== decrypt_data");
         }
         if(!SSL_is_init_finished(sskt->ssl)) {
-            if(do_handshake(sskt, user_data)<0) {
+            if(do_handshake(sskt)<0) {
                 // Error already logged
                 GBUFFER_DECREF(gbuf)
                 return -1;
             }
         } else {
-            if(flush_clear_data(sskt, user_data)<0) {
+            if(flush_clear_data(sskt)<0) {
                 // Error already logged
                 GBUFFER_DECREF(gbuf)
                 return -1;
@@ -961,10 +960,10 @@ PRIVATE const char *last_error(hsskt sskt_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int flush(hsskt sskt, void *user_data)
+PRIVATE int flush(hsskt sskt)
 {
     flush_encrypted_data(sskt);
-    flush_clear_data(sskt, user_data);
+    flush_clear_data(sskt);
     return 0;
 }
 
