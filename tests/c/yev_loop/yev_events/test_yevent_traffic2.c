@@ -12,11 +12,6 @@
  *          SERVER: On client connect, set ready to read
  *          CLIENT: Transmit until 3 messages
  *
- *          The client matchs the received message with the sent.
- *          The client repeats the message until 3 times.
- *          The server drops the connection on 2th message
- *          The client must re-connect until reach the response of the 3th message.
- *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -456,8 +451,8 @@ int do_test(void)
             json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
             const char *text = json_string_value(msg);
 
-            if(strcmp(text, MESSAGE)!=0) {
-                printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+            if(!text || strcmp(text, MESSAGE)!=0) {
+                printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't match");
                 print_track_mem();
                 result += -1;
             }
@@ -473,12 +468,6 @@ int do_test(void)
     }
 
     yev_loop_run_once(yev_loop);
-
-    // The client repeats the message until 3 times.
-    // The server drops the connection on 2th message
-    // The client must re-connect until reach the response of the 3th message.
-
-//    yev_loop_run(yev_loop, -1);
 
     /*--------------------------------*
      *  Stop connect event: disconnected

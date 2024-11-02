@@ -1582,17 +1582,18 @@ PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_even
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     uint32_t trace_level = gobj_trace_level(gobj);
 
-    if(yev_event->fd >= 0) {
-        gobj_log_error(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
+    if(yev_event->fd > 0) {
+        close(yev_event->fd);
+        yev_event->fd = 0;
+        gobj_log_info(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "fd ALREADY set",
+            "msg",          "%s", "fd ALREADY set, close and set the new",
             "url",          "%s", dst_url,
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             NULL
         );
-        return -1;
     }
 
     char schema[16];

@@ -9648,7 +9648,7 @@ PUBLIC void print_track_mem(void)
     gobj_log_error(0, 0,
         "function",             "%s", __FUNCTION__,
         "msgset",               "%s", MSGSET_STATISTICS,
-        "msg",                  "%s", "shutdown: system memory not free",
+        "msg",                  "%s", "print_track_mem(): system memory not free",
         NULL
     );
 #ifdef CONFIG_TRACK_MEMORY
