@@ -387,11 +387,11 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             if(cqe->res == -ECANCELED || cqe->res == -ENOENT) {
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else if(cqe->res == 0) {
-                /* Mark this request as processed */
                 /*
                  *  When canceling firstly arrive the event type with res = 0
-                 *  Seen in:
-                 *      YEV_ACCEPT_TYPE
+                 */
+                /*
+                 *  Mark this request as processed
                  */
                 return 0;
 
@@ -413,19 +413,12 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             } else {
                 /*
                  *  This is still a valid event, wait for another one with error
+                 *  Don't give it to callback, the resources could be not exist
                  */
-                gobj_log_debug(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "Waiting ECANCELED and receive successful response",
-                    "event_type",   "%s", yev_event_type_name(yev_event),
-                    "state",        "%s", yev_get_state_name(yev_event),
-                    "p",            "%p", yev_event,
-                    "fd",           "%d", yev_event->fd,
-                    "cqe->res",     "%d", (int)cqe->res,
-                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                    NULL
-                );
+                /*
+                 *  Mark this request as processed
+                 */
+                return 0;
             }
             break;
 
