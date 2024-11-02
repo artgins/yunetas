@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <unistd.h>
 
 #include <parse_url.h>
 #include <kwid.h>
