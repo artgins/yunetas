@@ -1244,7 +1244,7 @@ PRIVATE size_t on_load_callback(void *bf, size_t bfsize, void *data)
     return chunk;
 }
 
-PUBLIC json_t * gbuf2json(
+PUBLIC json_t * gbuf2json( // own
     gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
     int verbose     // 1 log, 2 log+dump
 )

@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_traffic1.c
+ *          test_yevent_traffic2.c
  *
  *          Setup
  *          -----
@@ -11,11 +11,14 @@
  *          On client connected, it transmits a message
  *          The server echo the message
  *          The client matchs the received message with the sent.
+ *          The client repeats the message until 3 times.
+ *          The server drops the connection on 2th message
+ *          The client must re-connect until reach the response of the 3th message.
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic1";
+#define APP "test_yevent_traffic2"
 
 #include <string.h>
 #include <signal.h>
@@ -455,6 +458,12 @@ int do_test(void)
      }
     json_decref(msg);
 
+    // The client repeats the message until 3 times.
+    // The server drops the connection on 2th message
+    // The client must re-connect until reach the response of the 3th message.
+
+//    yev_loop_run(yev_loop, -1);
+
     /*--------------------------------*
      *  Stop connect event: disconnected
      *  Stop accept event:
@@ -552,22 +561,17 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen"
-        "msg", "Client: Connection Accepted"
-        "msg", "Server: Listen Connection Accepted"
-        "msg", "client: send request"
-        "msg", "Server: Message from the client"
-        "msg", "Client: Response from the server"
-        "msg", "Client: Client disconnected reading"
-        "msg", "Server: Server's client disconnected reading"
-        "msg", "Client: Connect canceled"
-        "msg", "Server: Listen socket failed or stopped"
-    );
+//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+//        "msg", "addrinfo on listen",
+//        "msg", "Connection Accepted",
+//        "msg", "Connect canceled",
+//        "msg", "Listen Connection Accepted",
+//        "msg", "Listen socket failed or stopped"
+//    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        error_list,  // error_list
+        0, //error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

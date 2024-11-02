@@ -16,6 +16,8 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#define APP "test_yevent_listen3"
+
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
@@ -247,7 +249,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    const char *test = "test_yevent_listen1";
+    const char *test = APP;
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "closing the socket",
