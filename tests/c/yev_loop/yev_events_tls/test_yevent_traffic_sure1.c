@@ -51,6 +51,94 @@ hsskt sskt_server;
 hytls ytls_client;
 hsskt sskt_client;
 
+
+/***************************************************************************
+ *  YTLS callbacks
+ ***************************************************************************/
+int server_on_handshake_done_cb(void *user_data, int error)
+{
+//    priv->inform_disconnection = TRUE;
+//    priv->secure_connected = TRUE;
+//
+//    gobj_change_state(gobj, "ST_CONNECTED");
+//
+//    json_t *kw_ev = json_pack("{s:s, s:s}",
+//        "peername", priv->peername,
+//        "sockname", priv->sockname
+//    );
+//    gobj_publish_event(gobj, priv->connected_event_name, kw_ev);
+
+    ytls_flush(ytls_server, sskt_server);
+
+    return 0;
+}
+
+int client_on_handshake_done_cb(void *user_data, int error)
+{
+//    priv->inform_disconnection = TRUE;
+//    priv->secure_connected = TRUE;
+//
+//    gobj_change_state(gobj, "ST_CONNECTED");
+//
+//    json_t *kw_ev = json_pack("{s:s, s:s}",
+//        "peername", priv->peername,
+//        "sockname", priv->sockname
+//    );
+//    gobj_publish_event(gobj, priv->connected_event_name, kw_ev);
+
+    ytls_flush(ytls_client, sskt_client);
+
+    return 0;
+}
+
+int server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+{
+    yev_event_t *yev_event = user_data;
+
+//    json_t *kw = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)gbuf
+//    );
+//    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
+    return 0;
+}
+
+int server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+{
+    yev_event_t *yev_event = user_data;
+
+//    json_t *kw = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)gbuf
+//    );
+//    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+    return 0;
+}
+
+int client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+{
+    yev_event_t *yev_event = user_data;
+
+    //    json_t *kw = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)gbuf
+//    );
+//    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
+    return 0;
+}
+
+int client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+{
+    yev_event_t *yev_event = user_data;
+//    json_t *kw = json_pack("{s:I}",
+//        "gbuffer", (json_int_t)(size_t)gbuf
+//    );
+//    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+    return 0;
+}
+
+
+
+
+
+
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
@@ -89,10 +177,12 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     // Set connected
                     sskt_server = ytls_new_secure_filter(
                         ytls_server,
-                        0, // TODO on_handshake_done_cb,
-                        0, // TODO on_clear_data_cb,
-                        0, // TODO on_encrypted_data_cb,
-                        0
+                        server_on_handshake_done_cb,
+                        server_on_clear_data_cb,
+                        server_on_encrypted_data_cb,
+                        yev_event   // TODO HACK read and write events need to know
+                                    // who is his parent, the  yevent ACCEPT,
+                                    // cause he is the owner of callbacks
                     );
                     if(!sskt_server) {
                         msg = "Server: Bad ytls";
@@ -154,7 +244,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *      The clear data will be returned in on_clear_data_cb callback!! TODO
                      */
-                    if(ytls_decrypt_data(ytls_server, sskt_server, gbuf_rx)<0) {
+                    if(ytls_decrypt_data(ytls_server, sskt_server, gbuf_rx, yev_event)<0) {
                         gobj_log_error(0, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -179,7 +269,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  The encrypted data will be returned in on_encrypted_data_cb callback!! TODO
                      */
-                    if(ytls_encrypt_data(ytls_server, sskt_server, gbuf_rx)<0) {
+                    if(ytls_encrypt_data(ytls_server, sskt_server, gbuf_rx, yev_event)<0) {
                         gobj_log_error(0, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -290,10 +380,12 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     // Set connected
                     sskt_client = ytls_new_secure_filter(
                         ytls_client,
-                        0, // TODO on_handshake_done_cb,
-                        0, // TODO on_clear_data_cb,
-                        0, // TODO on_encrypted_data_cb,
-                        0
+                        client_on_handshake_done_cb,
+                        client_on_clear_data_cb,
+                        client_on_encrypted_data_cb,
+                        yev_event   // TODO HACK read and write events need to know
+                                    // who is his parent, the  yevent CONNECT,
+                                    // cause he is the owner of callbacks
                     );
                     if(!sskt_client) {
                         msg = "Client: Bad ytls";
@@ -358,7 +450,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     /*
                      *      The clear data will be returned in on_clear_data_cb callback!! TODO
                      */
-                    if(ytls_decrypt_data(ytls_client, sskt_client, gbuf_rx)<0) {
+                    if(ytls_decrypt_data(ytls_client, sskt_client, gbuf_rx, yev_event)<0) {
                         gobj_log_error(0, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBUV_ERROR,
@@ -511,7 +603,7 @@ int do_test(void)
         /*
          *  The encrypted data will be returned in on_encrypted_data_cb callback!! TODO
          */
-        if(ytls_encrypt_data(ytls_client, sskt_client, gbuf_tx)<0) {
+        if(ytls_encrypt_data(ytls_client, sskt_client, gbuf_tx, yev_client_msg)<0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -611,6 +703,9 @@ int do_test(void)
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
+
+    EXEC_AND_RESET(ytls_cleanup, ytls_server)
+    EXEC_AND_RESET(ytls_cleanup, ytls_client)
 
     return result;
 }

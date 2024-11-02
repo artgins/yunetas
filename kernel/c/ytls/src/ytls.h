@@ -48,18 +48,20 @@ typedef struct api_tls_s {
         void *user_data
     );
     void (*free_secure_filter)(hsskt sskt);
-    int (*do_handshake)(hsskt sskt); // Must return 1 (done), 0 (in progress), -1 (failure)
+    int (*do_handshake)(hsskt sskt, void *user_data); // Must return 1 (done), 0 (in progress), -1 (failure)
     int (*encrypt_data)(
         hsskt sskt,
-        gbuffer_t *gbuf  // owned
+        gbuffer_t *gbuf,  // owned
+        void *user_data
     );
     int (*decrypt_data)(
         hsskt sskt,
-        gbuffer_t *gbuf  // owned
+        gbuffer_t *gbuf,  // owned
+        void *user_data
     );
     const char * (*get_last_error)(hsskt sskt);
     void (*set_trace)(hsskt sskt, BOOL set);
-    int (*flush)(hsskt sskt); // flush clear and encrypted data
+    int (*flush)(hsskt sskt, void *user_data); // flush clear and encrypted data
     void (*shutdown)(hsskt sskt);
 } api_tls_t;
 
@@ -138,7 +140,7 @@ PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt);
         -1  (handshake failure).
     Callback on_handshake_done_cb will be called once for successfully case, or more for failure case.
 **rst**/
-PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
+PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt, void *user_data);
 
 /**rst**
     Use this function to encrypt clear data.
@@ -147,7 +149,8 @@ PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
 PUBLIC int ytls_encrypt_data(
     hytls ytls,
     hsskt sskt,
-    gbuffer_t *gbuf // owned
+    gbuffer_t *gbuf, // owned
+    void *user_data
 );
 
 /**rst**
@@ -157,7 +160,8 @@ PUBLIC int ytls_encrypt_data(
 PUBLIC int ytls_decrypt_data(
     hytls ytls,
     hsskt sskt,
-    gbuffer_t *gbuf // owned
+    gbuffer_t *gbuf, // owned
+    void *user_data
 );
 
 /**rst**
@@ -173,7 +177,7 @@ PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set);
 /**rst**
     Flush data
 **rst**/
-PUBLIC int ytls_flush(hytls ytls, hsskt sskt);
+PUBLIC int ytls_flush(hytls ytls, hsskt sskt, void *user_data);
 
 
 #ifdef __cplusplus

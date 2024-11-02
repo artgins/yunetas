@@ -909,7 +909,7 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     if(priv->sskt) {
         GBUFFER_INCREF(gbuf)
-        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
+        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf, 0)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,

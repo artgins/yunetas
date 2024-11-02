@@ -133,10 +133,10 @@ PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt)
 /***************************************************************************
     Do handshake
  ***************************************************************************/
-PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)
+PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt, void *user_data)
 {
     api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
-    return api_tls->do_handshake(sskt);
+    return api_tls->do_handshake(sskt, user_data);
 }
 
 /***************************************************************************
@@ -146,11 +146,12 @@ PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt)
 PUBLIC int ytls_encrypt_data(
     hytls ytls,
     hsskt sskt,
-    gbuffer_t *gbuf // owned
+    gbuffer_t *gbuf, // owned
+    void *user_data
 )
 {
     api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
-    return api_tls->encrypt_data(sskt, gbuf);
+    return api_tls->encrypt_data(sskt, gbuf, user_data);
 }
 
 /***************************************************************************
@@ -160,11 +161,12 @@ PUBLIC int ytls_encrypt_data(
 PUBLIC int ytls_decrypt_data(
     hytls ytls,
     hsskt sskt,
-    gbuffer_t *gbuf // owned
+    gbuffer_t *gbuf, // owned
+    void *user_data
 )
 {
     api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
-    return api_tls->decrypt_data(sskt, gbuf);
+    return api_tls->decrypt_data(sskt, gbuf, user_data);
 }
 
 /***************************************************************************
@@ -188,8 +190,8 @@ PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set)
 /***************************************************************************
     Flush data
  ***************************************************************************/
-PUBLIC int ytls_flush(hytls ytls, hsskt sskt)
+PUBLIC int ytls_flush(hytls ytls, hsskt sskt, void *user_data)
 {
     api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
-    return api_tls->flush(sskt);
+    return api_tls->flush(sskt, user_data);
 }
