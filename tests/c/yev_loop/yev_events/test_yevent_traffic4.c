@@ -12,7 +12,7 @@
  *          SERVER: On client connect, set ready to read
  *          CLIENT: Transmit until 4 messages
  *
- *          The server close the clisrv socket on 2th message
+ *          The client close the clisrv socket on 2th message
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -64,8 +64,6 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
  ***************************************************************************/
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
-    static int rx_counter = 0;
-
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -97,7 +95,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  Data from the client
                      */
-                    rx_counter++;
                     msg = "Server: Message from the client";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
                     /*
@@ -123,11 +120,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      */
                     gbuffer_clear(gbuf_rx); // Empty the buffer
                     yev_start_event(yev_event);
-
-                    if(rx_counter == 2) {
-                        gobj_info_msg(0, "close clisrv socket");
-                        close(yev_get_fd(yev_event));
-                    }
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -215,6 +207,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
  ***************************************************************************/
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
+    static int rx_counter = 0;
+
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -273,6 +267,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
         case YEV_READ_TYPE:
             {
+                rx_counter++;
                 if(yev_state == YEV_ST_IDLE) {
                     /*
                      *  Data from the client
@@ -280,6 +275,11 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     msg = "Client: Response from the server";
                     gbuffer_t *gbuf = yev_get_gbuf(yev_event);
                     gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
+
+                    if(rx_counter == 2) {
+                        gobj_info_msg(0, "close client socket");
+                        close(yev_get_fd(yev_event));
+                    }
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -588,7 +588,8 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+
         "msg", "addrinfo on listen",
         "msg", "Client: Connection Accepted",
         "msg", "Server: Listen Connection Accepted",
@@ -596,14 +597,13 @@ int main(int argc, char *argv[])
         "msg", "Server: Message from the client",
         "msg", "Client: Response from the server",
         "msg", "client: send request 2",
-        "msg", "close clisrv socket",
         "msg", "Server: Message from the client",
+        "msg", "close client socket",
         "msg", "Client: Response from the server",
         "msg", "client: send request 3",
-        "msg", "Server: Message from the client",
+        "msg", "Server: Server's client disconnected reading",
         "msg", "Client: Client disconnected reading",
         "msg", "ERROR <-- No message received in loop 3",
-        "msg", "Server: Server's client disconnected reading",
         "msg", "Client: Connect canceled",
         "msg", "Server: Listen socket failed or stopped"
     );
