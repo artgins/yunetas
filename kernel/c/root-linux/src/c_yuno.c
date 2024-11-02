@@ -422,6 +422,19 @@ PRIVATE hgclass __gclass__ = 0;
 
 
 /***************************************************************************
+ *  yev_loop callback
+ ***************************************************************************/
+PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+    if (!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;  // don't break the loop, here don't use yev_loop_run with timeout, by now
+    }
+    return 0;
+}
+
+/***************************************************************************
  *      Framework Method
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
@@ -450,7 +463,7 @@ PRIVATE void mt_create(hgobj gobj)
         gobj,
         (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
         (int) gobj_read_integer_attr(gobj, "keep_alive"),
-        NULL,
+        yev_loop_callback,
         &priv->yev_loop
     );
 
@@ -614,7 +627,6 @@ PRIVATE int mt_stop(hgobj gobj)
      */
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
-    yev_loop_stop(priv->yev_loop);
 
     return 0;
 }
@@ -626,7 +638,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-     yev_loop_destroy(priv->yev_loop);
+    yev_loop_stop(priv->yev_loop);
+    yev_loop_run_once(priv->yev_loop);
+    yev_loop_destroy(priv->yev_loop);
 }
 
 /***************************************************************************
