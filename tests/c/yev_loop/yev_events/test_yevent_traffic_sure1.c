@@ -8,18 +8,15 @@
  *
  *          Process
  *          -------
- *          CLIENT: On client connected, set ready to read
- *          SERVER: On client connect, set ready to read
- *          CLIENT: Transmit until 4 messages
- *
- *          The server close the client socket on 2th message on tx_ready
+ *          On client connected, it transmits a message
+ *          The server echo the message
+ *          The client matchs the received message with the sent.
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic_sure1"
+#define APP "test_yevent_traffic_sure1";
 
-#include <unistd.h>
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
@@ -32,7 +29,7 @@
  *              Constants
  ***************************************************************/
 const char *server_url = "tcp://localhost:3333";
-#define MESSAGE "AaaaaaaaaaaaaaaaBbbbbbbbbbbbbbb%d"
+#define MESSAGE "AaaaaaaaaaaaaaaaBbbbbbbbbbbbbbb2"
 
 /***************************************************************
  *              Prototypes
@@ -65,8 +62,6 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
  ***************************************************************************/
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
-    static int rx_counter = 0;
-
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -79,109 +74,107 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    msg = "Server: Listen Connection Accepted";
-                    ret = 0; // re-arm
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Server: Listen socket failed or stopped";
-                    ret = -1; // break the loop
-                } else {
-                    msg = "Server: What?";
-                    ret = -1; // break the loop
-                }
+        {
+            if(yev_state == YEV_ST_IDLE) {
+                msg = "Server: Listen Connection Accepted";
+                ret = 0; // re-arm
+            } else if(yev_state == YEV_ST_STOPPED) {
+                msg = "Server: Listen socket failed or stopped";
+                ret = -1; // break the loop
+            } else {
+                msg = "Server: What?";
+                ret = -1; // break the loop
             }
+        }
             break;
         case YEV_READ_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  Data from the client
-                     */
-                    rx_counter++;
-                    msg = "Server: Message from the client";
-                    gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
-                    /*
-                     *  Server: Process the message
-                     */
-                    gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Message from the client");
+        {
+            if(yev_state == YEV_ST_IDLE) {
+                /*
+                 *  Data from the client
+                 */
+                msg = "Server: Message from the client";
+                gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
+                /*
+                 *  Server: Process the message
+                 */
+                gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Message from the client");
 
-                    /*
-                     *  Response to the client
-                     *  Get their callback and fd
-                     */
-                    yev_event_t *yev_response = yev_create_write_event(
-                        yev_loop,
-                        yev_event->callback,
-                        NULL,   // gobj
-                        yev_get_fd(yev_event),
-                        gbuffer_incref(gbuf_rx)
-                    );
-                    yev_start_event(yev_response);
+                /*
+                 *  Response to the client
+                 *  Get their callback and fd
+                 */
+                yev_event_t *yev_response = yev_create_write_event(
+                    yev_loop,
+                    yev_event->callback,
+                    NULL,   // gobj
+                    yev_get_fd(yev_event),
+                    gbuffer_incref(gbuf_rx)
+                );
+                yev_start_event(yev_response);
 
-                    /*
-                     *  re-arm the read event
-                     */
-                    gbuffer_clear(gbuf_rx); // Empty the buffer
-                    yev_start_event(yev_event);
+                /*
+                 *  Re-arm the read event
+                 */
+//                    gbuffer_clear(gbuf_rx); // Empty the buffer
+//                    yev_start_event(yev_event);
 
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    /*
-                     *  Bad read
-                     *  Disconnected
-                     */
-                    msg = "Server: Server's client disconnected reading";
-                    /*
-                     *  Free the message
-                     */
-                    yev_set_gbuffer(yev_event, NULL);
-                    // TODO inform disconnection
+            } else if(yev_state == YEV_ST_STOPPED) {
+                /*
+                 *  Bad read
+                 *  Disconnected
+                 */
+                msg = "Server: Server's client disconnected reading";
+                /*
+                 *  Free the message
+                 */
+                yev_set_gbuffer(yev_event, NULL);
+                // TODO inform disconnection
 
-                } else {
-                    msg = "Server: What?";
-                    /*
-                     *  Free the message
-                     */
-                    yev_set_gbuffer(yev_event, NULL);
-                }
+            } else {
+                msg = "Server: What?";
+                /*
+                 *  Free the message
+                 */
+                yev_set_gbuffer(yev_event, NULL);
             }
+        }
             break;
 
         case YEV_WRITE_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  Write going well
-                     *  You can advise to someone, ready to more writes.
-                     */
-                    msg = "Server: Tx ready";
-
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    /*
-                     *  Cannot send, something went bad
-                     *  Disconnected
-                     */
-                    msg = "Server: Server's client disconnected writing";
-                    // TODO
-                } else {
-                    msg = "Server: What?";
-                }
-
+        {
+            if(yev_state == YEV_ST_IDLE) {
                 /*
-                 *  Destroy the write event
+                 *  Write going well
+                 *  You can advise to someone, ready to more writes.
                  */
-                yev_destroy_event(yev_event);
-                yev_event = NULL;
+                msg = "Server: Tx ready";
+            } else if(yev_state == YEV_ST_STOPPED) {
+                /*
+                 *  Cannot send, something went bad
+                 *  Disconnected
+                 */
+                msg = "Server: Server's client disconnected writing";
+                // TODO
+            } else {
+                msg = "Server: What?";
             }
+
+            /*
+             *  Destroy the write event
+             */
+            yev_destroy_event(yev_event);
+            yev_event = NULL;
+        }
             break;
 
         default:
             gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "yev_event not implemented",
-                "event_type",   "%s", yev_event_type_name(yev_event),
-                NULL
+                           "function",     "%s", __FUNCTION__,
+                           "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                           "msg",          "%s", "yev_event not implemented",
+                           "event_type",   "%s", yev_event_type_name(yev_event),
+                           NULL
             );
             break;
     }
@@ -189,17 +182,17 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     if(yev_event) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", msg,
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            NULL
+                         "function",     "%s", __FUNCTION__,
+                         "msgset",       "%s", MSGSET_INFO,
+                         "msg",          "%s", msg,
+                         "type",         "%s", yev_event_type_name(yev_event),
+                         "state",        "%s", yev_get_state_name(yev_event),
+                         "fd",           "%d", yev_event->fd,
+                         "result",       "%d", yev_event->result,
+                         "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+                         "p",            "%p", yev_event,
+                         "flag",         "%j", jn_flags,
+                         NULL
         );
         json_decref(jn_flags);
     }
@@ -212,8 +205,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
  ***************************************************************************/
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
-    static int rx_counter = 0;
-
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -226,82 +217,81 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_CONNECT_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    msg = "Client: Connection Accepted";
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    if(yev_event->result == -125) {
-                        msg = "Client: Connect canceled";
-                    } else {
-                        msg = "Client: Connection Refused";
-                    }
-                    ret = -1; // break the loop
+        {
+            if(yev_state == YEV_ST_IDLE) {
+                msg = "Client: Connection Accepted";
+            } else if(yev_state == YEV_ST_STOPPED) {
+                if(yev_event->result == -125) {
+                    msg = "Client: Connect canceled";
                 } else {
-                    msg = "Client: What?";
-                    ret = -1; // break the loop
+                    msg = "Client: Connection Refused";
                 }
+                ret = -1; // break the loop
+            } else {
+                msg = "Client: What?";
+                ret = -1; // break the loop
             }
+        }
             break;
 
         case YEV_WRITE_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  Write going well
-                     *  You can advise to someone, ready to more writes.
-                     */
-                    msg = "Client: Tx ready";
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    /*
-                     *  Cannot send, something went bad
-                     *  Disconnected
-                     */
-                    msg = "Client: Client disconnected writing";
-                    // TODO
-                } else {
-                    msg = "Client: What?";
-                }
-
+        {
+            if(yev_state == YEV_ST_IDLE) {
                 /*
-                 *  Destroy the write event
+                 *  Write going well
+                 *  You can advise to someone, ready to more writes.
                  */
-                yev_destroy_event(yev_event);
-                yev_event = NULL;
+                msg = "Client: Tx ready";
+            } else if(yev_state == YEV_ST_STOPPED) {
+                /*
+                 *  Cannot send, something went bad
+                 *  Disconnected
+                 */
+                msg = "Client: Client disconnected writing";
+                // TODO
+            } else {
+                msg = "Client: What?";
             }
+
+            /*
+             *  Destroy the write event
+             */
+            yev_destroy_event(yev_event);
+            yev_event = NULL;
+        }
             break;
 
         case YEV_READ_TYPE:
-            {
-                rx_counter++;
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  Data from the client
-                     */
-                    msg = "Client: Response from the server";
-                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
-                    gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
+        {
+            if(yev_state == YEV_ST_IDLE) {
+                /*
+                 *  Data from the client
+                 */
+                msg = "Client: Response from the server";
+                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
 
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    /*
-                     *  Bad read
-                     *  Disconnected
-                     */
-                    msg = "Client: Client disconnected reading";
-                    // TODO
-                } else {
-                    msg = "Server: What?";
-                }
-                ret = -1; // break the loop when the client get their response
+            } else if(yev_state == YEV_ST_STOPPED) {
+                /*
+                 *  Bad read
+                 *  Disconnected
+                 */
+                msg = "Client: Client disconnected reading";
+                // TODO
+            } else {
+                msg = "Server: What?";
             }
+            ret = -1; // break the loop when the client get their response
+        }
             break;
 
         default:
             gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "yev_event not implemented",
-                "event_type",   "%s", yev_event_type_name(yev_event),
-                NULL
+                           "function",     "%s", __FUNCTION__,
+                           "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                           "msg",          "%s", "yev_event not implemented",
+                           "event_type",   "%s", yev_event_type_name(yev_event),
+                           NULL
             );
             break;
     }
@@ -309,17 +299,17 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     if(yev_event) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", msg,
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            NULL
+                         "function",     "%s", __FUNCTION__,
+                         "msgset",       "%s", MSGSET_INFO,
+                         "msg",          "%s", msg,
+                         "type",         "%s", yev_event_type_name(yev_event),
+                         "state",        "%s", yev_get_state_name(yev_event),
+                         "fd",           "%d", yev_event->fd,
+                         "result",       "%d", yev_event->result,
+                         "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+                         "p",            "%p", yev_event,
+                         "flag",         "%j", jn_flags,
+                         NULL
         );
         json_decref(jn_flags);
     }
@@ -387,14 +377,31 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     /*----------------------------------------------------------*
-     *  CLIENT: On client connected, set ready to read
+     *  CLIENT: On client connected, it transmits a message
      *---------------------------------------------------------*/
     yev_event_t *yev_client_reader_msg = 0;
     if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
         /*
+         *  If connected, create the message to send.
+         *  And set a read event to receive the response.
+         */
+        gobj_info_msg(0, "client: send request");
+        json_t *message = json_string(MESSAGE);
+        yev_event_t * yev_client_msg = 0;
+        gbuffer_t *gbuf = json2gbuf(0, message, JSON_ENCODE_ANY);
+        yev_client_msg = yev_create_write_event(
+            yev_loop,
+            yev_client_callback,
+            NULL,   // gobj
+            yev_event_connect->fd,
+            gbuf
+        );
+        yev_start_event(yev_client_msg);
+
+        /*
          *  Setup a reader yevent
          */
-        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+        gbuf = gbuffer_create(1024, 1024);
         yev_client_reader_msg = yev_create_read_event(
             yev_loop,
             yev_client_callback,
@@ -405,12 +412,12 @@ int do_test(void)
         yev_start_event(yev_client_reader_msg);
     }
 
-    /*------------------------------------------------*
-     *  SERVER: On client connect, set ready to read
-     *------------------------------------------------*/
+    /*---------------------------------------*
+     *  SERVER: The server echo the message
+     *---------------------------------------*/
     yev_event_t *yev_server_reader_msg = 0;
     if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
-            yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
+       yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
         ) {
         /*
          *  Server connected: create and setup a read event to receive the messages of client.
@@ -429,77 +436,31 @@ int do_test(void)
         yev_start_event(yev_server_reader_msg);
     }
 
-    /*----------------------------------------------------------*
-     *   CLIENT: Transmit until 3 messages
-     *---------------------------------------------------------*/
-    if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
-        /*
-         *  If connected, create the message to send.
-         *  And set a read event to receive the response.
-         */
-        for(int i= 0; i<4; i++) {
-            if(i == 2) {
-                gobj_info_msg(0, "close client socket");
-                close(yev_event_connect->fd);
-            }
-
-            gobj_info_msg(0, "client: send request %d",i+1);
-            yev_event_t * yev_client_msg = 0;
-            yev_client_msg = yev_create_write_event(
-                yev_loop,
-                yev_client_callback,
-                NULL,   // gobj
-                yev_event_connect->fd,
-                json2gbuf(0, json_sprintf(MESSAGE, i+1), JSON_ENCODE_ANY)
-            );
-            yev_start_event(yev_client_msg);
-
-            /*---------------------------------------------------------*
-             *  The client matchs the received message with the sent.
-             *---------------------------------------------------------*/
-            gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
-            json_t *msg = gbuf2json(gbuffer_incref(gbuf), FALSE);
-            const char *text = json_string_value(msg);
-
-            char MESSAGEx[80];
-            snprintf(MESSAGEx, sizeof(MESSAGEx), MESSAGE, i+1);
-
-            if(!text) {
-                gobj_info_msg(0, "ERROR <-- No message received in loop %d", i+1);
-                json_decref(msg);
-
-            } else if(strcmp(text, MESSAGEx)!=0) {
-                gobj_info_msg(0, "ERROR <-- Messages tx and rx don't match %d", i+1);
-                json_decref(msg);
-            }
-            json_decref(msg);
-
-            /*
-             *  re-arm
-             */
-            gbuffer_clear(gbuf); // Empty the buffer
-            yev_set_gbuffer(yev_client_reader_msg, gbuf);
-            yev_start_event(yev_client_reader_msg);
-
-            /*--------------------------------*
-             *  Process ring queue
-             *--------------------------------*/
-            yev_loop_run(yev_loop, 1);
-        }
-    }
-
+    /*--------------------------------*
+     *  Process ring queue
+     *--------------------------------*/
     yev_loop_run(yev_loop, 1);
+
+    /*---------------------------------------------------------*
+     *  The client matchs the received message with the sent.
+     *---------------------------------------------------------*/
+    gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
+    json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
+    const char *text = json_string_value(msg);
+
+    if(strcmp(text, MESSAGE)!=0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+        print_track_mem();
+        result += -1;
+    }
+    json_decref(msg);
 
     /*--------------------------------*
      *  Stop connect event: disconnected
      *  Stop accept event:
      *--------------------------------*/
-    if(yev_event_is_stoppable(yev_client_reader_msg)) {
-        yev_stop_event(yev_client_reader_msg);
-    }
-    if(yev_event_is_stoppable(yev_server_reader_msg)) {
-        yev_stop_event(yev_server_reader_msg);
-    }
+    yev_stop_event(yev_client_reader_msg);
+    yev_stop_event(yev_server_reader_msg);
     yev_stop_event(yev_event_connect);
     yev_stop_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
@@ -591,35 +552,17 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("["
-       "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
-       "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
-       "{s:s},{s:s}"
-        "]",  // error_list
-        "msg", "addrinfo on listen",
-        "msg", "Client: Connection Accepted",
-        "msg", "Server: Listen Connection Accepted",
-        "msg", "client: send request 1",
-        "msg", "ERROR <-- No message received in loop 1",
-        "msg", "cannot start event: is RUNNING",
-        "msg", "Server: Message from the client",
-        "msg", "Client: Response from the server",
-        "msg", "client: send request 2",
-        "msg", "ERROR <-- Messages tx and rx don't match 2",
-
-        "msg", "Server: Message from the client",
-        "msg", "Client: Response from the server",
-        "msg", "close client socket",
-        "msg", "client: send request 3",
-        "msg", "ERROR <-- Messages tx and rx don't match 3",
-        "msg", "Server: Server's client disconnected reading",
-        "msg", "Client: Client disconnected reading",
-        "msg", "client: send request 4",
-        "msg", "ERROR <-- No message received in loop 4",
-        "msg", "Client: Client disconnected reading",
-
-        "msg", "Client: Connect canceled",
-        "msg", "Server: Listen socket failed or stopped"
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+                                   "msg", "addrinfo on listen",
+                                   "msg", "Client: Connection Accepted",
+                                   "msg", "Server: Listen Connection Accepted",
+                                   "msg", "client: send request",
+                                   "msg", "Server: Message from the client",
+                                   "msg", "Client: Response from the server",
+                                   "msg", "Client: Client disconnected reading",
+                                   "msg", "Server: Server's client disconnected reading",
+                                   "msg", "Client: Connect canceled",
+                                   "msg", "Server: Listen socket failed or stopped"
     );
 
     set_expected_results( // Check that no logs happen
