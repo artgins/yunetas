@@ -542,7 +542,6 @@ PRIVATE hsskt new_secure_filter(
     sskt->on_handshake_done_cb = on_handshake_done_cb;
     sskt->on_clear_data_cb = on_clear_data_cb;
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
-    sskt->user_data = user_data;
 
     sskt->ssl = SSL_new(ytls->ctx);
     if(!sskt->ssl) {

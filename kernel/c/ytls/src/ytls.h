@@ -36,7 +36,10 @@ typedef struct api_tls_s {
     const char * (*version)(hytls ytls);
     hsskt (*new_secure_filter)(
         hytls ytls,
-        int (*on_handshake_done_cb)(void *user_data, int error),
+        int (*on_handshake_done_cb)(
+            void *user_data,
+            int error
+        ),
         int (*on_clear_data_cb)(
             void *user_data,
             gbuffer_t *gbuf  // must be decref
