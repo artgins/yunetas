@@ -13,7 +13,6 @@
  *          CLIENT: Transmit until 4 messages
  *
  *          The server drops the connection on 2th message
- *          The client must re-connect until reach the response of the 3th message.
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
