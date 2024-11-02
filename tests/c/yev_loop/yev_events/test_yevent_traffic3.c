@@ -125,6 +125,11 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     gbuffer_clear(gbuf_rx); // Empty the buffer
                     yev_start_event(yev_event);
 
+                    if(rx_counter == 2) {
+                        gobj_info_msg(0, "close clisrv socket");
+                        close(yev_get_fd(yev_event));
+                    }
+
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
                      *  Bad read
@@ -201,16 +206,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             NULL
         );
         json_decref(jn_flags);
-    }
-
-    /*
-     *  The server drops the connection on 2th message
-     */
-    if(yev_event && yev_event->type == YEV_READ_TYPE && yev_state == YEV_ST_IDLE) {
-        if(rx_counter == 2) {
-            gobj_info_msg(0, "close clisrv socket");
-            close(yev_get_fd(yev_event));
-        }
     }
 
     return ret;
@@ -443,7 +438,7 @@ int do_test(void)
          *  If connected, create the message to send.
          *  And set a read event to receive the response.
          */
-        for(int i= 0; i<5; i++) {
+        for(int i= 0; i<4; i++) {
             gobj_info_msg(0, "client: send request %d",i+1);
             yev_event_t * yev_client_msg = 0;
             yev_client_msg = yev_create_write_event(
@@ -472,24 +467,13 @@ int do_test(void)
 
             if(!text) {
                 gobj_info_msg(0, "ERROR <-- No message received in loop %d", i+1);
-                result += -1;
-
-                if(1) { //yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
-                    yev_setup_connect_event( // create the socket listening in yev_event->fd
-                        yev_event_connect,
-                        server_url, // listen_url,
-                        NULL,   // src_url, only host:port
-                        AF_INET,      // ai_family AF_UNSPEC
-                        AI_ADDRCONFIG       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-                    );
-                    yev_start_event(yev_event_connect);
-                    yev_loop_run(yev_loop, 1);
-                    continue;
-                }
+                json_decref(msg);
+                break;
 
             } else if(strcmp(text, MESSAGEx)!=0) {
                 gobj_info_msg(0, "ERROR <-- Messages tx and rx don't match %d", i+1);
-                result += -1;
+                json_decref(msg);
+                break;
             }
             json_decref(msg);
 
@@ -502,16 +486,18 @@ int do_test(void)
         }
     }
 
-//    yev_loop_run(yev_loop, -1);
-
-    yev_loop_run_once(yev_loop);
+    yev_loop_run(yev_loop, 1);
 
     /*--------------------------------*
      *  Stop connect event: disconnected
      *  Stop accept event:
      *--------------------------------*/
-    yev_stop_event(yev_client_reader_msg);
-    yev_stop_event(yev_server_reader_msg);
+    if(yev_event_is_stoppable(yev_client_reader_msg)) {
+        yev_stop_event(yev_client_reader_msg);
+    }
+    if(yev_event_is_stoppable(yev_server_reader_msg)) {
+        yev_stop_event(yev_server_reader_msg);
+    }
     yev_stop_event(yev_event_connect);
     yev_stop_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
@@ -603,26 +589,29 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-//        "msg", "addrinfo on listen",
-//        "msg", "Client: Connection Accepted",
-//        "msg", "Server: Listen Connection Accepted",
-//        "msg", "client: send request 1",
-//        "msg", "Server: Message from the client",
-//        "msg", "Client: Response from the server",
-//        "msg", "client: send request 2",
-//        "msg", "Server: Message from the client",
-//        "msg", "Client: Response from the server",
-//        "msg", "client: send request 3",
-//        "msg", "Server: Message from the client",
-//        "msg", "Client: Response from the server",
-//        "msg", "Client: Connect canceled",
-//        "msg", "Client: Client disconnected reading"
-//    );
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "addrinfo on listen",
+        "msg", "Client: Connection Accepted",
+        "msg", "Server: Listen Connection Accepted",
+        "msg", "client: send request 1",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "client: send request 2",
+        "msg", "close clisrv socket",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "client: send request 3",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Client disconnected reading",
+        "msg", "ERROR <-- No message received in loop 3",
+        "msg", "Server: Server's client disconnected reading",
+        "msg", "Client: Connect canceled",
+        "msg", "Server: Listen socket failed or stopped"
+    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        0, //error_list,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

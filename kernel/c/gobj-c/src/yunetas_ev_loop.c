@@ -1555,7 +1555,8 @@ PUBLIC yev_event_t *yev_create_connect_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_setup_connect_event(  // create the socket to connect in yev_event->fd
+PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
+                                    // If fd already set, close and set the new
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
