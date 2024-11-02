@@ -85,6 +85,21 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Server: Listen Connection Accepted";
                     ret = 0; // re-arm
+
+                    // Set connected
+                    sskt_server = ytls_new_secure_filter(
+                        ytls_server,
+                        0, // TODO on_handshake_done_cb,
+                        0, // TODO on_clear_data_cb,
+                        0, // TODO on_encrypted_data_cb,
+                        0
+                    );
+                    if(!sskt_server) {
+                        msg = "Server: Bad ytls";
+                        ret = -1; // break the loop
+                    }
+
+
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Server: Listen socket failed or stopped";
                     // Get the error of strerrno(
@@ -272,6 +287,19 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             {
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Client: Connection Accepted";
+                    // Set connected
+                    sskt_client = ytls_new_secure_filter(
+                        ytls_client,
+                        0, // TODO on_handshake_done_cb,
+                        0, // TODO on_clear_data_cb,
+                        0, // TODO on_encrypted_data_cb,
+                        0
+                    );
+                    if(!sskt_client) {
+                        msg = "Client: Bad ytls";
+                        ret = -1; // break the loop
+                    }
+
                 } else if(yev_state == YEV_ST_STOPPED) {
                     if(yev_event->result == -125) {
                         msg = "Client: Connect canceled";
@@ -393,6 +421,23 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
  ***************************************************************************/
 int do_test(void)
 {
+    /*--------------------------------*
+     *  Create ssl SERVER
+     *--------------------------------*/
+    json_t *jn_crypto_s = json_pack("{s:s, s:s, s:s, s:s}",
+        "library", "openssl",
+        "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
+        "ssl_certificate_key", "/yuneta/agent/certs/localhost.key",
+        "trace", false
+    );
+    ytls_server = ytls_init(0, jn_crypto_s, TRUE);
+
+    /*--------------------------------*
+     *  Create ssl CLIENT
+     *--------------------------------*/
+    json_t *jn_crypto_c = json_pack("{}");
+    ytls_server = ytls_init(0, jn_crypto_c, FALSE);
+
     /*--------------------------------*
      *  Create the event loop
      *--------------------------------*/
