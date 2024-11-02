@@ -385,10 +385,15 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *      after receives ECANCELED
              */
             if(cqe->res < 0) {
+                /*
+                 *  HACK this error is information of disconnection cause.
+                 */
                 yev_set_state(yev_event, YEV_ST_STOPPED);
+
             } else if(cqe->res >= 0) {
                 /*
                  *  When canceling it could arrive events type with res >= 0
+                 *  Wait to one negative
                  */
                 /*
                  *  Mark this request as processed
