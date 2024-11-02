@@ -265,7 +265,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             {
                 if(yev_state == YEV_ST_IDLE) {
                     /*
-                     *  Data from the client
+                     *  Data from the server
                      */
                     msg = "Client: Response from the server";
                     gbuffer_t *gbuf = yev_get_gbuf(yev_event);

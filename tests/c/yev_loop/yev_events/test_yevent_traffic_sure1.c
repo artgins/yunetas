@@ -80,6 +80,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     ret = 0; // re-arm
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Server: Listen socket failed or stopped";
+                    // Get the error of strerrno(
                     ret = -1; // break the loop
                 } else {
                     msg = "Server: What?";
@@ -87,6 +88,34 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 }
             }
             break;
+
+        case YEV_WRITE_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  Write going well
+                     *  You can advise to someone, ready to more writes.
+                     */
+                    msg = "Server: Tx ready";
+                } else if(yev_state == YEV_ST_STOPPED) {
+                    /*
+                     *  Cannot send, something went bad
+                     *  Disconnected
+                     */
+                    msg = strerror(yev_get_result(yev_event));
+                    msg = "Server: Server's client disconnected writing";
+                } else {
+                    msg = "Server: What?";
+                }
+
+                /*
+                 *  Destroy the write event
+                 */
+                yev_destroy_event(yev_event);
+                yev_event = NULL;
+            }
+            break;
+
         case YEV_READ_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
@@ -124,6 +153,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      *  Bad read
                      *  Disconnected
                      */
+                    msg = strerror(yev_get_result(yev_event));
                     msg = "Server: Server's client disconnected reading";
                     /*
                      *  Free the message
@@ -138,33 +168,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      */
                     yev_set_gbuffer(yev_event, NULL);
                 }
-            }
-            break;
-
-        case YEV_WRITE_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  Write going well
-                     *  You can advise to someone, ready to more writes.
-                     */
-                    msg = "Server: Tx ready";
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    /*
-                     *  Cannot send, something went bad
-                     *  Disconnected
-                     */
-                    msg = "Server: Server's client disconnected writing";
-                    // TODO
-                } else {
-                    msg = "Server: What?";
-                }
-
-                /*
-                 *  Destroy the write event
-                 */
-                yev_destroy_event(yev_event);
-                yev_event = NULL;
             }
             break;
 
@@ -247,8 +250,9 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  Cannot send, something went bad
                      *  Disconnected
                      */
+                    msg = strerror(yev_get_result(yev_event));
                     msg = "Client: Client disconnected writing";
-                    // TODO
+
                 } else {
                     msg = "Client: What?";
                 }
@@ -265,7 +269,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             {
                 if(yev_state == YEV_ST_IDLE) {
                     /*
-                     *  Data from the client
+                     *  Data from the server
                      */
                     msg = "Client: Response from the server";
                     gbuffer_t *gbuf = yev_get_gbuf(yev_event);
@@ -276,6 +280,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  Bad read
                      *  Disconnected
                      */
+                    msg = strerror(yev_get_result(yev_event));
                     msg = "Client: Client disconnected reading";
                     // TODO
                 } else {

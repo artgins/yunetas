@@ -572,23 +572,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_WRITE_TYPE: // cqe ready
             {
-                if(cqe->res == 0) {
-                    // cqe->res = -EPIPE; // force EPIPE, close by peer
-                    /*
-                     *  Behavior seen in YEV_WRITE_TYPE type when socket has broken:
-                     *
-                     *  First time:
-                     *      - cqe->res = len written
-                     *
-                     *  Next times:
-                     *      - cqe->res = -EPIPE (EPIPE Broken pipe)
-                     */
-                    // TODO check massive writes
-                    // TODO with these errors fd not closed !!!??? errno == EAGAIN || errno == EWOULDBLOCK
-                    //yev_event->fd = -1;
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                }
-
                 if(cqe->res > 0 && yev_event->gbuf) {
                     // Pop the read bytes used to write fd
                     gbuffer_get(yev_event->gbuf, cqe->res);
@@ -608,18 +591,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
         case YEV_READ_TYPE: // cqe ready
             {
-                if(cqe->res == 0) {
-                    // TODO cqe->res = -EPIPE; // force EPIPE, close by peer
-                    /*
-                     *  Behavior seen in YEV_READ_TYPE type when socket has broken:
-                     *      - cqe->res = 0
-                     *
-                     *      Repeated forever
-                     */
-                    //yev_event->fd = -1;
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                }
-
                 if(cqe->res > 0 && yev_event->gbuf) {
                     // Mark the written bytes of reading fd
                     gbuffer_set_wr(yev_event->gbuf, cqe->res);
