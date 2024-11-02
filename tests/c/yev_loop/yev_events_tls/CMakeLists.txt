@@ -20,22 +20,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_yevent_listen1
-    test_yevent_listen2
-    test_yevent_listen3
-    test_yevent_listen4
-    test_yevent_connect1
-    test_yevent_connect2
-    test_yevent_traffic1
-    test_yevent_traffic2
-    test_yevent_traffic3
-    test_yevent_traffic4
-    test_yevent_traffic5
-    test_yevent_traffic6
-
-    test_yevent_timer_once1
-    test_yevent_timer_once2
-    test_yevent_timer_periodic1
+    test_yevent_traffic_sure1
 )
 
 ##############################################
@@ -55,6 +40,10 @@ foreach(test ${SRCS})
         libjansson.a
         liburing.a
         libpcre2-8.a
+
+        libssl.a
+        libcrypto.a
+        pthread dl  # used by openssl
 
         m
         uuid
