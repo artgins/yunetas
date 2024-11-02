@@ -42,7 +42,10 @@ target_link_libraries(${PROJECT_NAME}
     liburing.a
     libjwt.a
     libpcre2-8.a
+    libssl.a
+    libcrypto.a
 
+    pthread dl  # used by openssl
     uuid
     bfd     # to stacktrace
     m
