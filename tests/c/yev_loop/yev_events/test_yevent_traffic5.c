@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_traffic4.c
+ *          test_yevent_traffic5.c
  *
  *          Setup
  *          -----
@@ -17,7 +17,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic4"
+#define APP "test_yevent_traffic5"
 
 #include <string.h>
 #include <signal.h>
@@ -64,6 +64,8 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
  ***************************************************************************/
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
+    static int rx_counter = 0;
+
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -95,6 +97,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  Data from the client
                      */
+                    rx_counter++;
                     msg = "Server: Message from the client";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
                     /*
