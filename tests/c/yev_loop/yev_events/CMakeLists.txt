@@ -32,6 +32,8 @@ set(SRCS
     test_yevent_traffic4
     test_yevent_traffic5
     test_yevent_traffic6
+    test_yevent_traffic_sure1
+
     test_yevent_timer_once1
     test_yevent_timer_once2
     test_yevent_timer_periodic1
