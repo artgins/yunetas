@@ -12,7 +12,7 @@
  *          SERVER: On client connect, set ready to read
  *          CLIENT: Transmit until 4 messages
  *
- *          The client close the clisrv socket on 2th message
+ *          The client close the client socket on 2th message
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.

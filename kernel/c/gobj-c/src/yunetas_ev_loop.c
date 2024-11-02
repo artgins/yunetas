@@ -806,8 +806,8 @@ PUBLIC int yev_start_event(
     if(!(cur_state == YEV_ST_IDLE || cur_state == YEV_ST_STOPPED)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         const char *msg = (cur_state==YEV_ST_RUNNING)?
-            "cannot start timer: is RUNNING":
-            "cannot start timer: is CANCELING";
+            "cannot start event: is RUNNING":
+            "cannot start event: is CANCELING";
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,

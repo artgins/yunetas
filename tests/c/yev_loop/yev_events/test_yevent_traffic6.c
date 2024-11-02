@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_traffic5.c
+ *          test_yevent_traffic6.c
  *
  *          Setup
  *          -----
@@ -12,12 +12,12 @@
  *          SERVER: On client connect, set ready to read
  *          CLIENT: Transmit until 4 messages
  *
- *          The client close the client socket on 2th message on tx_ready
+ *          The server close the client socket on 2th message on tx_ready
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic5"
+#define APP "test_yevent_traffic6"
 
 #include <string.h>
 #include <signal.h>
@@ -154,6 +154,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      *  You can advise to someone, ready to more writes.
                      */
                     msg = "Server: Tx ready";
+
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
                      *  Cannot send, something went bad
@@ -249,7 +250,6 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  You can advise to someone, ready to more writes.
                      */
                     msg = "Client: Tx ready";
-
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
                      *  Cannot send, something went bad
@@ -438,8 +438,8 @@ int do_test(void)
          */
         for(int i= 0; i<4; i++) {
             if(i == 2) {
-                gobj_info_msg(0, "close clisrv socket");
-                close(yev_get_result(yev_event_accept));
+                gobj_info_msg(0, "close client socket");
+                close(yev_event_connect->fd);
             }
 
             gobj_info_msg(0, "client: send request %d",i+1);
@@ -593,7 +593,7 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("["
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
-       "{s:s},{s:s},{s:s}"
+       "{s:s},{s:s}"
         "]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "Client: Connection Accepted",
@@ -608,16 +608,15 @@ int main(int argc, char *argv[])
 
         "msg", "Server: Message from the client",
         "msg", "Client: Response from the server",
-        "msg", "close clisrv socket",
+        "msg", "close client socket",
         "msg", "client: send request 3",
         "msg", "ERROR <-- Messages tx and rx don't match 3",
-        "msg", "Server: Message from the client",
+        "msg", "Server: Server's client disconnected reading",
         "msg", "Client: Client disconnected reading",
         "msg", "client: send request 4",
         "msg", "ERROR <-- No message received in loop 4",
-        "msg", "Server: Server's client disconnected reading",
-
         "msg", "Client: Client disconnected reading",
+
         "msg", "Client: Connect canceled",
         "msg", "Server: Listen socket failed or stopped"
     );
