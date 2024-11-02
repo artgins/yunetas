@@ -552,16 +552,16 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen"
-        "msg", "Client: Connection Accepted"
-        "msg", "Server: Listen Connection Accepted"
-        "msg", "client: send request"
-        "msg", "Server: Message from the client"
-        "msg", "Client: Response from the server"
-        "msg", "Client: Client disconnected reading"
-        "msg", "Server: Server's client disconnected reading"
-        "msg", "Client: Connect canceled"
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "addrinfo on listen",
+        "msg", "Client: Connection Accepted",
+        "msg", "Server: Listen Connection Accepted",
+        "msg", "client: send request",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "Client: Client disconnected reading",
+        "msg", "Server: Server's client disconnected reading",
+        "msg", "Client: Connect canceled",
         "msg", "Server: Listen socket failed or stopped"
     );
 

@@ -8,8 +8,10 @@
  *
  *          Process
  *          -------
- *          On client connected, it transmits a message
- *          The server echo the message
+ *          CLIENT: On client connected, set ready to read
+ *          SERVER: On client connect, set ready to read
+ *          CLIENT: Transmit until 3 messages
+ *
  *          The client matchs the received message with the sent.
  *          The client repeats the message until 3 times.
  *          The server drops the connection on 2th message
@@ -117,10 +119,10 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     yev_start_event(yev_response);
 
                     /*
-                     *  Re-arm the read event
+                     *  re-arm the read event
                      */
-//                    gbuffer_clear(gbuf_rx); // Empty the buffer
-//                    yev_start_event(yev_event);
+                    gbuffer_clear(gbuf_rx); // Empty the buffer
+                    yev_start_event(yev_event);
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -380,31 +382,14 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     /*----------------------------------------------------------*
-     *  CLIENT: On client connected, it transmits a message
+     *  CLIENT: On client connected, set ready to read
      *---------------------------------------------------------*/
     yev_event_t *yev_client_reader_msg = 0;
     if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
         /*
-         *  If connected, create the message to send.
-         *  And set a read event to receive the response.
-         */
-        gobj_info_msg(0, "client: send request");
-        json_t *message = json_string(MESSAGE);
-        yev_event_t * yev_client_msg = 0;
-        gbuffer_t *gbuf = json2gbuf(0, message, JSON_ENCODE_ANY);
-        yev_client_msg = yev_create_write_event(
-            yev_loop,
-            yev_client_callback,
-            NULL,   // gobj
-            yev_event_connect->fd,
-            gbuf
-        );
-        yev_start_event(yev_client_msg);
-
-        /*
          *  Setup a reader yevent
          */
-        gbuf = gbuffer_create(1024, 1024);
+        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
         yev_client_reader_msg = yev_create_read_event(
             yev_loop,
             yev_client_callback,
@@ -415,9 +400,9 @@ int do_test(void)
         yev_start_event(yev_client_reader_msg);
     }
 
-    /*---------------------------------------*
-     *  SERVER: The server echo the message
-     *---------------------------------------*/
+    /*------------------------------------------------*
+     *  SERVER: On client connect, set ready to read
+     *------------------------------------------------*/
     yev_event_t *yev_server_reader_msg = 0;
     if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
             yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
@@ -439,24 +424,55 @@ int do_test(void)
         yev_start_event(yev_server_reader_msg);
     }
 
-    /*--------------------------------*
-     *  Process ring queue
-     *--------------------------------*/
-    yev_loop_run(yev_loop, 1);
-
-    /*---------------------------------------------------------*
-     *  The client matchs the received message with the sent.
+    /*----------------------------------------------------------*
+     *   CLIENT: Transmit until 3 messages
      *---------------------------------------------------------*/
-     gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
-     json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
-     const char *text = json_string_value(msg);
+    if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
+        /*
+         *  If connected, create the message to send.
+         *  And set a read event to receive the response.
+         */
+        for(int i= 0; i<3; i++) {
+            gobj_info_msg(0, "client: send request %d",i+1);
+            yev_event_t * yev_client_msg = 0;
+            yev_client_msg = yev_create_write_event(
+                yev_loop,
+                yev_client_callback,
+                NULL,   // gobj
+                yev_event_connect->fd,
+                json2gbuf(0, json_string(MESSAGE), JSON_ENCODE_ANY)
+            );
+            yev_start_event(yev_client_msg);
 
-     if(strcmp(text, MESSAGE)!=0) {
-         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
-         print_track_mem();
-         result += -1;
-     }
-    json_decref(msg);
+            /*--------------------------------*
+             *  Process ring queue
+             *--------------------------------*/
+            yev_loop_run(yev_loop, 1);
+
+            /*---------------------------------------------------------*
+             *  The client matchs the received message with the sent.
+             *---------------------------------------------------------*/
+            gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
+            json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
+            const char *text = json_string_value(msg);
+
+            if(strcmp(text, MESSAGE)!=0) {
+                printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+                print_track_mem();
+                result += -1;
+            }
+            json_decref(msg);
+
+            /*
+             *  re-arm
+             */
+            gbuffer_clear(gbuf); // Empty the buffer
+            yev_set_gbuffer(yev_client_reader_msg, gbuf);
+            yev_start_event(yev_client_reader_msg);
+        }
+    }
+
+    yev_loop_run_once(yev_loop);
 
     // The client repeats the message until 3 times.
     // The server drops the connection on 2th message
@@ -561,17 +577,26 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-//        "msg", "addrinfo on listen",
-//        "msg", "Connection Accepted",
-//        "msg", "Connect canceled",
-//        "msg", "Listen Connection Accepted",
-//        "msg", "Listen socket failed or stopped"
-//    );
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "addrinfo on listen",
+        "msg", "Client: Connection Accepted",
+        "msg", "Server: Listen Connection Accepted",
+        "msg", "client: send request 1",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "client: send request 2",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "client: send request 3",
+        "msg", "Server: Message from the client",
+        "msg", "Client: Response from the server",
+        "msg", "Client: Connect canceled",
+        "msg", "Client: Client disconnected reading"
+    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        0, //error_list,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
