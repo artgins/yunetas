@@ -36,6 +36,8 @@ const char *server_url = "tcps://localhost:3333";
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
+PRIVATE int yev_client_callback(yev_event_t *yev_event);
+PRIVATE int yev_server_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data
@@ -57,6 +59,7 @@ hsskt sskt_client;
  ***************************************************************************/
 int server_on_handshake_done_cb(void *user_data, int error)
 {
+    yev_event_t *yev_event = user_data;
 //    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
 //
@@ -75,7 +78,8 @@ int server_on_handshake_done_cb(void *user_data, int error)
 
 int client_on_handshake_done_cb(void *user_data, int error)
 {
-//    priv->inform_disconnection = TRUE;
+    yev_event_t *yev_event = user_data;
+    //    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
 //
 //    gobj_change_state(gobj, "ST_CONNECTED");
@@ -99,6 +103,7 @@ int server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
+    gobj_trace_dump_gbuf(0, gbuf, "server clear data");
     return 0;
 }
 
@@ -110,6 +115,16 @@ int server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
 //    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+
+    yev_event_t *yev_tx_msg = yev_create_write_event(
+        yev_loop,
+        yev_client_callback,
+        NULL,   // gobj
+        yev_get_fd(yev_event),
+        gbuf
+    );
+    yev_start_event(yev_tx_msg);
+
     return 0;
 }
 
@@ -121,6 +136,8 @@ int client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
+
+    gobj_trace_dump_gbuf(0, gbuf, "client clear data");
     return 0;
 }
 
@@ -131,6 +148,16 @@ int client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
 //    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+
+    yev_event_t *yev_tx_msg = yev_create_write_event(
+        yev_loop,
+        yev_client_callback,
+        NULL,   // gobj
+        yev_get_fd(yev_event),
+        gbuf
+    );
+    yev_start_event(yev_tx_msg);
+
     return 0;
 }
 
@@ -180,9 +207,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                         server_on_handshake_done_cb,
                         server_on_clear_data_cb,
                         server_on_encrypted_data_cb,
-                        yev_event   // TODO HACK read and write events need to know
-                                    // who is his parent, the  yevent ACCEPT,
-                                    // cause he is the owner of callbacks
+                        yev_event
                     );
                     if(!sskt_server) {
                         msg = "Server: Bad ytls";
@@ -252,11 +277,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                             NULL
                         );
                     }
-
-                    /*
-                     *  Server: Process the message
-                     */
-                    gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Message from the client");
 
                     /*
                      *  Response to the client: Echo the message
@@ -383,9 +403,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                         client_on_handshake_done_cb,
                         client_on_clear_data_cb,
                         client_on_encrypted_data_cb,
-                        yev_event   // TODO HACK read and write events need to know
-                                    // who is his parent, the  yevent CONNECT,
-                                    // cause he is the owner of callbacks
+                        yev_event
                     );
                     if(!sskt_client) {
                         msg = "Client: Bad ytls";
@@ -516,19 +534,22 @@ int do_test(void)
     /*--------------------------------*
      *  Create ssl SERVER
      *--------------------------------*/
-    json_t *jn_crypto_s = json_pack("{s:s, s:s, s:s, s:s}",
+    json_t *jn_crypto_s = json_pack("{s:s, s:s, s:s, s:b}",
         "library", "openssl",
         "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
         "ssl_certificate_key", "/yuneta/agent/certs/localhost.key",
-        "trace", false
+        "trace", 1
     );
     ytls_server = ytls_init(0, jn_crypto_s, TRUE);
 
     /*--------------------------------*
      *  Create ssl CLIENT
      *--------------------------------*/
-    json_t *jn_crypto_c = json_pack("{}");
-    ytls_server = ytls_init(0, jn_crypto_c, FALSE);
+    json_t *jn_crypto_c = json_pack("{s:s, s:b}",
+        "library", "openssl",
+        "trace", 1
+    );
+    ytls_client = ytls_init(0, jn_crypto_c, FALSE);
 
     /*--------------------------------*
      *  Create the event loop
@@ -585,9 +606,53 @@ int do_test(void)
     yev_loop_run(yev_loop, 1);
 
     /*----------------------------------------------------------*
-     *  CLIENT: On client connected, it transmits a message
+     *  CLIENT: setup reader event
      *---------------------------------------------------------*/
     yev_event_t *yev_client_reader_msg = 0;
+    if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
+        /*
+         *  Setup a reader yevent
+         */
+        gbuffer_t *gbuf_rx = gbuffer_create(1024, 1024);
+        yev_client_reader_msg = yev_create_read_event(
+            yev_loop,
+            yev_client_callback,
+            NULL,   // gobj
+            yev_event_connect->fd,
+            gbuf_rx
+        );
+        yev_start_event(yev_client_reader_msg);
+    }
+
+    /*---------------------------------------*
+     *  SERVER: setup read event
+     *---------------------------------------*/
+    yev_event_t *yev_server_reader_msg = 0;
+    if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
+            yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
+        ) {
+        /*
+         *  Server connected: create and setup a read event to receive the messages of client.
+         */
+        /*
+         *  Setup a reader yevent
+         */
+        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
+        yev_server_reader_msg = yev_create_read_event(
+            yev_loop,
+            yev_server_callback,
+            NULL,   // gobj
+            yev_get_result(yev_event_accept), //srv_cli_fd,
+            gbuf
+        );
+        yev_start_event(yev_server_reader_msg);
+    }
+
+    yev_loop_run(yev_loop, -1);
+
+    /*----------------------------------------------------------*
+     *  CLIENT: On client connected, it transmits a message
+     *---------------------------------------------------------*/
     if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
         /*
          *  If connected, create the message to send.
@@ -619,52 +684,6 @@ int do_test(void)
                 NULL
             );
         }
-
-        yev_client_msg = yev_create_write_event(
-            yev_loop,
-            yev_client_callback,
-            NULL,   // gobj
-            yev_event_connect->fd,
-            gbuf_tx
-        );
-        yev_start_event(yev_client_msg);
-
-        /*
-         *  Setup a reader yevent
-         */
-        gbuffer_t *gbuf_rx = gbuffer_create(1024, 1024);
-        yev_client_reader_msg = yev_create_read_event(
-            yev_loop,
-            yev_client_callback,
-            NULL,   // gobj
-            yev_event_connect->fd,
-            gbuf_rx
-        );
-        yev_start_event(yev_client_reader_msg);
-    }
-
-    /*---------------------------------------*
-     *  SERVER: The server echo the message
-     *---------------------------------------*/
-    yev_event_t *yev_server_reader_msg = 0;
-    if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
-            yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
-        ) {
-        /*
-         *  Server connected: create and setup a read event to receive the messages of client.
-         */
-        /*
-         *  Setup a reader yevent
-         */
-        gbuffer_t *gbuf = gbuffer_create(1024, 1024);
-        yev_server_reader_msg = yev_create_read_event(
-            yev_loop,
-            yev_server_callback,
-            NULL,   // gobj
-            yev_get_result(yev_event_accept), //srv_cli_fd,
-            gbuf
-        );
-        yev_start_event(yev_server_reader_msg);
     }
 
     /*--------------------------------*

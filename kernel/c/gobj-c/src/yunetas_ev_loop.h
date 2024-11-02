@@ -196,6 +196,9 @@ PUBLIC int yev_set_user_data(
 static inline int yev_get_fd(
     yev_event_t *yev_event
 ) {
+    if(yev_event->type == YEV_ACCEPT_TYPE) {
+        return yev_event->result;
+    }
     return yev_event->fd;
 }
 
