@@ -450,8 +450,8 @@ int do_test(void)
         server_url,     // server_url,
         0,              // backlog, default 512
         FALSE,          // shared
-        0,      // ai_family AF_UNSPEC
-        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AF_INET,        // ai_family AF_UNSPEC
+        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     if(fd_listen < 0) {
         gobj_trace_msg(0, "Error setup listen on %s", server_url);
@@ -472,8 +472,8 @@ int do_test(void)
         yev_client_connect,
         server_url,     // client_url
         NULL,   // local bind src_url, only host:port
-        0,      // ai_family AF_UNSPEC
-        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AF_INET,        // ai_family AF_UNSPEC
+        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     if(fd_connect < 0) {
         gobj_trace_msg(0, "Error setup connect to %s", server_url);
