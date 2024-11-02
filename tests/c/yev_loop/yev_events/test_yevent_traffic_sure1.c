@@ -20,6 +20,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
+#include <ytls.h>
 #include <testing.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
@@ -43,6 +44,12 @@ yev_loop_t *yev_loop;
 yev_event_t *yev_event_accept;
 yev_event_t *yev_event_connect;
 int result = 0;
+
+hytls ytls_server;
+hsskt sskt_server;
+
+hytls ytls_client;
+hsskt sskt_client;
 
 /***************************************************************************
  *  yev_loop callback
@@ -124,21 +131,63 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      */
                     msg = "Server: Message from the client";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
+
+                    /*
+                     *  Server: Process the message
+                     *  First decrypt if is SSL
+                     */
+                    /*
+                     *      The clear data will be returned in on_clear_data_cb callback!! TODO
+                     */
+                    if(ytls_decrypt_data(ytls_server, sskt_server, gbuf_rx)<0) {
+                        gobj_log_error(0, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                            "msg",          "%s", "ytls_decrypt_data() FAILED",
+                            NULL
+                        );
+                    }
+
                     /*
                      *  Server: Process the message
                      */
                     gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Message from the client");
 
                     /*
-                     *  Response to the client
+                     *  Response to the client: Echo the message
+                     *  First encrypt if is SSL
                      *  Get their callback and fd
                      */
+//                    gbuf_rx = gbuffer_encrypt(0, gbuf_rx, 0);
+
+
+                    /*
+                     *  The encrypted data will be returned in on_encrypted_data_cb callback!! TODO
+                     */
+                    if(ytls_encrypt_data(ytls_server, sskt_server, gbuf_rx)<0) {
+                        gobj_log_error(0, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "ytls_encrypt_data() FAILED",
+                            NULL
+                        );
+                    }
+                    if(gbuffer_leftbytes(gbuf_rx) > 0) {
+                        gobj_log_error(0, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                            "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+                            NULL
+                        );
+                    }
+
+
                     yev_event_t *yev_response = yev_create_write_event(
                         yev_loop,
                         yev_event->callback,
                         NULL,   // gobj
                         yev_get_fd(yev_event),
-                        gbuffer_incref(gbuf_rx)
+                        gbuf_rx
                     );
                     yev_start_event(yev_response);
 
@@ -272,8 +321,25 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  Data from the server
                      */
                     msg = "Client: Response from the server";
-                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
-                    gobj_trace_dump_gbuf(0, gbuf, "Client: Response from the server");
+                    gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
+
+                    /*
+                     *  Client: Process the response
+                     *  First decrypt if is SSL
+                     */
+                    /*
+                     *      The clear data will be returned in on_clear_data_cb callback!! TODO
+                     */
+                    if(ytls_decrypt_data(ytls_client, sskt_client, gbuf_rx)<0) {
+                        gobj_log_error(0, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                            "msg",          "%s", "ytls_decrypt_data() FAILED",
+                            NULL
+                        );
+                    }
+
+                    gobj_trace_dump_gbuf(0, gbuf_rx, "Client: Response from the server");
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -393,26 +459,49 @@ int do_test(void)
         gobj_info_msg(0, "client: send request");
         json_t *message = json_string(MESSAGE);
         yev_event_t * yev_client_msg = 0;
-        gbuffer_t *gbuf = json2gbuf(0, message, JSON_ENCODE_ANY);
+        gbuffer_t *gbuf_tx = json2gbuf(0, message, JSON_ENCODE_ANY);
+
+//        gbuf = gbuffer_encrypt(0, gbuf, 0);
+
+        /*
+         *  The encrypted data will be returned in on_encrypted_data_cb callback!! TODO
+         */
+        if(ytls_encrypt_data(ytls_client, sskt_client, gbuf_tx)<0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ytls_encrypt_data() FAILED",
+                NULL
+            );
+        }
+        if(gbuffer_leftbytes(gbuf_tx) > 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+                NULL
+            );
+        }
+
         yev_client_msg = yev_create_write_event(
             yev_loop,
             yev_client_callback,
             NULL,   // gobj
             yev_event_connect->fd,
-            gbuf
+            gbuf_tx
         );
         yev_start_event(yev_client_msg);
 
         /*
          *  Setup a reader yevent
          */
-        gbuf = gbuffer_create(1024, 1024);
+        gbuffer_t *gbuf_rx = gbuffer_create(1024, 1024);
         yev_client_reader_msg = yev_create_read_event(
             yev_loop,
             yev_client_callback,
             NULL,   // gobj
             yev_event_connect->fd,
-            gbuf
+            gbuf_rx
         );
         yev_start_event(yev_client_reader_msg);
     }
