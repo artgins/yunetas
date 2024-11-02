@@ -118,7 +118,7 @@ int server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 
     yev_event_t *yev_tx_msg = yev_create_write_event(
         yev_loop,
-        yev_client_callback,
+        yev_server_callback,
         NULL,   // gobj
         yev_get_fd(yev_event),
         gbuf
