@@ -236,7 +236,9 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
         if(callback_cqe(yev_loop, cqe)<0) {
-            break;
+            if(yev_loop->stopping) {
+                break;
+            }
         }
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
@@ -258,6 +260,7 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
     if(yev_loop->running) {
         yev_loop->running = FALSE;
+        yev_loop->stopping = TRUE;
         if(gobj_trace_level(0) & TRACE_UV) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -381,7 +384,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *      first receives cqe->res 0
              *      after receives ECANCELED
              */
-            if(cqe->res == -ECANCELED) {
+            if(cqe->res == -ECANCELED || cqe->res == -ENOENT) {
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else if(cqe->res == 0) {
                 /* Mark this request as processed */
@@ -400,6 +403,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     "event_type",   "%s", yev_event_type_name(yev_event),
                     "state",        "%s", yev_get_state_name(yev_event),
                     "p",            "%p", yev_event,
+                    "fd",           "%d", yev_event->fd,
                     "cqe->res",     "%d", (int)cqe->res,
                     "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                     NULL
@@ -408,15 +412,16 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
             } else {
                 /*
-                 *  This is still a valid event, wait for another one with an error ???
+                 *  This is still a valid event, wait for another one with error
                  */
-                gobj_log_error(gobj, 0,
+                gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
                     "msg",          "%s", "Waiting ECANCELED and receive successful response",
                     "event_type",   "%s", yev_event_type_name(yev_event),
                     "state",        "%s", yev_get_state_name(yev_event),
                     "p",            "%p", yev_event,
+                    "fd",           "%d", yev_event->fd,
                     "cqe->res",     "%d", (int)cqe->res,
                     "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                     NULL
@@ -1407,7 +1412,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         );
         json_decref(jn_flags);
 
-        if(!yev_loop->running) {
+        if(yev_loop->stopping) {
             // Don't call callback if stopping loop
             yev_event->callback = NULL;
         }

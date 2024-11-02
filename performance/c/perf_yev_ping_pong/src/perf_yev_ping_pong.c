@@ -67,112 +67,16 @@ uint64_t bytes_per_second = 0;
 int seconds_count;
 
 /***************************************************************************
- *              Test
+ *  yev_loop callback
  ***************************************************************************/
-int do_test(void)
-{
-    int result = 0;
-
-    /*--------------------------------*
-     *  Create the event loop
-     *--------------------------------*/
-    result += yev_loop_create(
-        NULL,
-        2024,
-        10,
-        NULL,
-        &yev_loop
-    );
-
-    /*--------------------------------*
-     *      Setup server
-     *--------------------------------*/
-    yev_event_t *yev_server_accept = yev_create_accept_event(
-        yev_loop,
-        yev_server_callback,
-        NULL
-    );
-    fd_listen = yev_setup_accept_event(
-        yev_server_accept,
-        server_url,     // server_url,
-        0,              // backlog, default 512
-        FALSE,          // shared
-        0,      // ai_family AF_UNSPEC
-        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-    );
-    if(fd_listen < 0) {
-        gobj_trace_msg(0, "Error setup listen on %s", server_url);
-        return -1;
+PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+    if (!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return -1;  // break the loop
     }
-
-    result += yev_start_event(yev_server_accept);
-
-    /*--------------------------------*
-     *      Setup client
-     *--------------------------------*/
-    yev_event_t *yev_client_connect = yev_create_connect_event(
-        yev_loop,
-        yev_client_callback,
-        NULL
-    );
-    fd_connect = yev_setup_connect_event(
-        yev_client_connect,
-        server_url,     // client_url
-        NULL,   // local bind src_url, only host:port
-        0,      // ai_family AF_UNSPEC
-        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-    );
-    if(fd_connect < 0) {
-        gobj_trace_msg(0, "Error setup connect to %s", server_url);
-        return -1;
-    }
-
-    result += yev_start_event(yev_client_connect);
-
-    printf("\n----------------> Quit in %d seconds <-----------------\n\n", time2exit);
-
-    /*--------------------------------*
-     *      Begin run loop
-     *--------------------------------*/
-    t = start_msectimer(1000);
-    result += yev_loop_run(yev_loop, -1);
-
-    /*--------------------------------*
-     *      Stop
-     *--------------------------------*/
-    if(yev_event_is_stoppable(yev_server_tx)) {
-        yev_stop_event(yev_server_tx);
-    }
-    if(yev_event_is_stoppable(yev_server_rx)) {
-        yev_stop_event(yev_server_rx);
-    }
-    if(yev_event_is_stoppable(yev_client_tx)) {
-        yev_stop_event(yev_client_tx);
-    }
-    if(yev_event_is_stoppable(yev_client_rx)) {
-        yev_stop_event(yev_client_rx);
-    }
-
-    if(yev_event_is_stoppable(yev_server_accept)) {
-        yev_stop_event(yev_server_accept);
-    }
-    if(yev_event_is_stoppable(yev_client_connect)) {
-        yev_stop_event(yev_client_connect);
-    }
-
-    result += yev_loop_run_once(yev_loop);
-
-    yev_destroy_event(yev_server_tx);
-    yev_destroy_event(yev_server_rx);
-    yev_destroy_event(yev_client_tx);
-    yev_destroy_event(yev_client_rx);
-    yev_destroy_event(yev_server_accept);
-    yev_destroy_event(yev_client_connect);
-
-    result += yev_loop_stop(yev_loop);
-    yev_loop_destroy(yev_loop);
-
-    return result;
+    return 0;
 }
 
 /***************************************************************************
@@ -181,6 +85,7 @@ int do_test(void)
 PRIVATE int yev_server_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
+    int ret = 0;
 
     if(dump) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -199,18 +104,15 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         json_decref(jn_flags);
     }
 
-    if(!yev_loop->running) {
-        return 0;
-    }
-
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state != YEV_ST_IDLE) {
                     /*
-                     *  Disconnected
+                     *  Disconnected or Disconnecting
                      */
-                    yev_loop_stop(yev_loop);
+                    ret = -1;
                     break;
                 }
 
@@ -282,11 +184,11 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state != YEV_ST_IDLE) {
                     /*
                      *  Disconnected
                      */
-                    yev_loop_stop(yev_loop);
+                    ret = -1;
                     break;
                 }
             }
@@ -294,7 +196,11 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 
         case YEV_ACCEPT_TYPE:
             {
-                // TODO Create a srv_cli structure
+                if(yev_state != YEV_ST_IDLE) {
+                    ret = -1;
+                    break;
+                }
+
                 srv_cli_fd = yev_event->result;
 
                 char sockname[80], peername[80];
@@ -351,7 +257,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
             break;
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -360,6 +266,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 PRIVATE int yev_client_callback(yev_event_t *yev_event)
 {
     hgobj gobj = yev_event->gobj;
+    int ret = 0;
 
     if(dump) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
@@ -378,19 +285,15 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
         json_decref(jn_flags);
     }
 
-    if(!yev_event->yev_loop->running) {
-        yev_loop_stop(yev_event->yev_loop);
-        return 0;
-    }
-
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state != YEV_ST_IDLE) {
                     /*
-                     *  Disconnected
+                     *  Disconnected or Disconnecting
                      */
-                    yev_loop_stop(yev_loop);
+                    ret = -1;
                     break;
                 }
 
@@ -423,11 +326,11 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state != YEV_ST_IDLE) {
                     /*
                      *  Disconnected
                      */
-                    yev_loop_stop(yev_loop);
+                    ret = -1;
                     break;
                 }
                 // Write ended
@@ -436,11 +339,10 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
         case YEV_CONNECT_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state != YEV_ST_IDLE) {
                     /*
                      *  Error on connection
                      */
-                    // TODO
                     break;
                 }
 
@@ -514,7 +416,117 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             break;
     }
 
-    return 0;
+    return ret;
+}
+
+/***************************************************************************
+ *              Test
+ ***************************************************************************/
+int do_test(void)
+{
+    int result = 0;
+
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    result += yev_loop_create(
+        NULL,
+        2024,
+        10,
+        yev_loop_callback,  // process timeouts of loop
+        &yev_loop
+    );
+
+    /*--------------------------------*
+     *      Setup server
+     *--------------------------------*/
+    yev_event_t *yev_server_accept = yev_create_accept_event(
+        yev_loop,
+        yev_server_callback,
+        NULL
+    );
+    fd_listen = yev_setup_accept_event(
+        yev_server_accept,
+        server_url,     // server_url,
+        0,              // backlog, default 512
+        FALSE,          // shared
+        0,      // ai_family AF_UNSPEC
+        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+    );
+    if(fd_listen < 0) {
+        gobj_trace_msg(0, "Error setup listen on %s", server_url);
+        return -1;
+    }
+
+    result += yev_start_event(yev_server_accept);
+
+    /*--------------------------------*
+     *      Setup client
+     *--------------------------------*/
+    yev_event_t *yev_client_connect = yev_create_connect_event(
+        yev_loop,
+        yev_client_callback,
+        NULL
+    );
+    fd_connect = yev_setup_connect_event(
+        yev_client_connect,
+        server_url,     // client_url
+        NULL,   // local bind src_url, only host:port
+        0,      // ai_family AF_UNSPEC
+        0       // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+    );
+    if(fd_connect < 0) {
+        gobj_trace_msg(0, "Error setup connect to %s", server_url);
+        return -1;
+    }
+
+    result += yev_start_event(yev_client_connect);
+
+    printf("\n----------------> Quit in %d seconds <-----------------\n\n", time2exit);
+
+    /*--------------------------------*
+     *      Begin run loop
+     *--------------------------------*/
+    t = start_msectimer(1000);
+    result += yev_loop_run(yev_loop, 10);
+
+    /*--------------------------------*
+     *      Stop
+     *--------------------------------*/
+    if(yev_event_is_stoppable(yev_server_tx)) {
+        yev_stop_event(yev_server_tx);
+    }
+    if(yev_event_is_stoppable(yev_server_rx)) {
+        yev_stop_event(yev_server_rx);
+    }
+    if(yev_event_is_stoppable(yev_client_tx)) {
+        yev_stop_event(yev_client_tx);
+    }
+    if(yev_event_is_stoppable(yev_client_rx)) {
+        yev_stop_event(yev_client_rx);
+    }
+
+    if(yev_event_is_stoppable(yev_server_accept)) {
+        yev_stop_event(yev_server_accept);
+    }
+    if(yev_event_is_stoppable(yev_client_connect)) {
+        yev_stop_event(yev_client_connect);
+    }
+
+    yev_loop_run(yev_loop, 2);
+    yev_loop_run_once(yev_loop);
+
+    yev_destroy_event(yev_server_tx);
+    yev_destroy_event(yev_server_rx);
+    yev_destroy_event(yev_client_tx);
+    yev_destroy_event(yev_client_rx);
+    yev_destroy_event(yev_server_accept);
+    yev_destroy_event(yev_client_connect);
+
+    result += yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    return result;
 }
 
 /***************************************************************************
@@ -571,7 +583,7 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
-    //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -593,11 +605,12 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "yev_ping_pong";
+//    json_t *error_list = json_pack("[{s:s}]",  // error_list
+//        "msg", "addrinfo on listen"
+//    );
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}]",  // error_list
-            "msg", "addrinfo on listen"
-        ),
+        0,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

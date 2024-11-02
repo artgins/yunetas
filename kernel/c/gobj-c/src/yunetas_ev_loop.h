@@ -143,6 +143,7 @@ struct yev_loop_s {
     hgobj yuno;
     int keep_alive;
     volatile int running;
+    volatile int stopping;
     struct io_uring_cqe **cqes;
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
 };
