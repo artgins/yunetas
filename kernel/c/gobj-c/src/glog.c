@@ -721,9 +721,25 @@ PUBLIC void print_backtrace(void)
 PUBLIC void gobj_trace_msg(hgobj gobj, const char *fmt, ... )
 {
     va_list ap;
+    int priority = LOG_DEBUG;
 
     va_start(ap, fmt);
-    trace_vjson(gobj, 0, "trace_msg", fmt, ap);
+
+    trace_vjson(gobj, priority, 0, "trace_msg", fmt, ap);
+    va_end(ap);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void gobj_info_msg(hgobj gobj, const char *fmt, ... )
+{
+    va_list ap;
+    int priority = LOG_INFO;
+
+    va_start(ap, fmt);
+
+    trace_vjson(gobj, priority, 0, "info_msg", fmt, ap);
     va_end(ap);
 }
 
@@ -736,9 +752,10 @@ PUBLIC void gobj_trace_json(
     const char *fmt, ...
 ) {
     va_list ap;
+    int priority = LOG_DEBUG;
 
     va_start(ap, fmt);
-    trace_vjson(gobj, jn, "trace_json", fmt, ap);
+    trace_vjson(gobj, priority, jn, "trace_json", fmt, ap);
     va_end(ap);
 
     if((gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
@@ -759,11 +776,12 @@ PUBLIC void gobj_trace_buffer(
     const char *fmt, ...
 ) {
     va_list ap;
+    int priority = LOG_DEBUG;
 
     json_t *jn_data = json_stringn(bf, len);
 
     va_start(ap, fmt);
-    trace_vjson(gobj, jn_data, "trace_buffer", fmt, ap);
+    trace_vjson(gobj, priority, jn_data, "trace_buffer", fmt, ap);
     va_end(ap);
 
     json_decref(jn_data);
@@ -780,11 +798,12 @@ PUBLIC void gobj_trace_dump(
     ...
 ) {
     va_list ap;
+    int priority = LOG_DEBUG;
 
     json_t *jn_data = tdump2json((uint8_t *)bf, len);
 
     va_start(ap, fmt);
-    trace_vjson(gobj, jn_data, "trace_dump", fmt, ap);
+    trace_vjson(gobj, priority, jn_data, "trace_dump", fmt, ap);
     va_end(ap);
 
     json_decref(jn_data);
@@ -938,12 +957,12 @@ PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
  ***************************************************************************/
 PUBLIC void trace_vjson(
     hgobj gobj,
+    int priority,
     json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,
     va_list ap
 ) {
-    int priority = LOG_DEBUG;
     log_opt_t opt = 0;
     char timestamp[90];
     char msg[256];
@@ -953,6 +972,9 @@ PUBLIC void trace_vjson(
     }
     if(__inside_log__) {
         return;
+    }
+    if(!priority) {
+        priority = LOG_DEBUG;
     }
     __inside_log__ = 1;
 

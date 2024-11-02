@@ -2220,12 +2220,19 @@ PUBLIC void print_backtrace(void);
 
 PUBLIC void trace_vjson(
     hgobj gobj,
+    int priority,
     json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,
     va_list ap
 );
 PUBLIC void gobj_trace_msg(
+    hgobj gobj,
+    const char *fmt,
+    ...
+) JANSSON_ATTRS((format(printf, 2, 3)));
+
+PUBLIC void gobj_info_msg(
     hgobj gobj,
     const char *fmt,
     ...

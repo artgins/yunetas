@@ -227,6 +227,7 @@ PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
 PUBLIC void trace_vjson(
     hgobj gobj,
+    int priority,
     json_t *jn_data,    // not owned
     const char *msgset,
     const char *fmt,

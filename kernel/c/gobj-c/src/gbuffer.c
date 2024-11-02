@@ -1306,7 +1306,7 @@ PUBLIC void gobj_trace_dump_gbuf(
 
     va_list ap;
     va_start(ap, fmt);
-    trace_vjson(gobj, jn_data, "trace_dump_gbuf", fmt, ap);
+    trace_vjson(gobj, 0, jn_data, "trace_dump_gbuf", fmt, ap);
     va_end(ap);
 
     json_decref(jn_data);
@@ -1340,7 +1340,7 @@ PUBLIC void gobj_trace_dump_full_gbuf(
 
     va_list ap;
     va_start(ap, fmt);
-    trace_vjson(gobj, jn_data, "trace_dump_full_gbuf", fmt, ap);
+    trace_vjson(gobj, 0, jn_data, "trace_dump_full_gbuf", fmt, ap);
     va_end(ap);
 
     json_decref(jn_data);

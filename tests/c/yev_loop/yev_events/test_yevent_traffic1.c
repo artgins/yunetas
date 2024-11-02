@@ -419,7 +419,7 @@ int do_test(void)
             yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
         ) {
         /*
-         *  If connected, create and setup a read event to receive the messages of client.
+         *  Server connected: create and setup a read event to receive the messages of client.
          */
         /*
          *  Setup a reader yevent
@@ -435,11 +435,10 @@ int do_test(void)
         yev_start_event(yev_server_msg);
     }
 
-
     /*--------------------------------*
      *  Process ring queue
      *--------------------------------*/
-    yev_loop_run(yev_loop, -1);
+    yev_loop_run(yev_loop, 1);
 
     // The client matchs the received message with the sent.
     // The client repeats the message until 3 times.
