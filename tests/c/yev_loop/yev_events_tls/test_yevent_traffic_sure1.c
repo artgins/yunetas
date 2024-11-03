@@ -58,15 +58,17 @@ hsskt sskt_server;
 hytls ytls_client;
 hsskt sskt_client;
 
+BOOL server_secure_connected = FALSE;
+BOOL client_secure_connected = FALSE;
 
 /***************************************************************************
  *  YTLS callbacks
  ***************************************************************************/
-int server_on_handshake_done_cb(void *user_data, int error)
+int ytls_server_on_handshake_done_cb(void *user_data, int error)
 {
     yev_event_t *yev_event = user_data;
 
-    printf("=========================> SERVER_on_HANDSHAKE_done_cb\n");
+    server_secure_connected = TRUE;
 //    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
 //
@@ -83,11 +85,13 @@ int server_on_handshake_done_cb(void *user_data, int error)
     return 0;
 }
 
-int client_on_handshake_done_cb(void *user_data, int error)
+int ytls_client_on_handshake_done_cb(void *user_data, int error)
 {
     yev_event_t *yev_event = user_data;
-    printf("=========================> CLIENT_on_HANDSHAKE_done_cb\n");
-    //    priv->inform_disconnection = TRUE;
+
+    client_secure_connected = TRUE;
+
+//    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
 //
 //    gobj_change_state(gobj, "ST_CONNECTED");
@@ -103,9 +107,8 @@ int client_on_handshake_done_cb(void *user_data, int error)
     return 0;
 }
 
-int server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 {
-    printf("=========================> SERVER_on_CLEAR_data_cb\n");
     yev_event_t *yev_event = user_data;
 
 //    json_t *kw = json_pack("{s:I}",
@@ -116,10 +119,9 @@ int server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
-    printf("=========================> SERVER_on_ENCRYPTED_data_cb\n");
 
 //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
@@ -138,10 +140,9 @@ int server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
-    printf("=========================> CLIENT_on_CLEAR_data_cb\n");
 
     //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
@@ -152,10 +153,9 @@ int client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
-    printf("=========================> CLIENT_on_ENCRYPTED_data_cb\n");
 
 //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
@@ -173,11 +173,6 @@ int client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
 
     return 0;
 }
-
-
-
-
-
 
 /***************************************************************************
  *  yev_loop callback
@@ -227,12 +222,12 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     );
                     yev_start_event(yev_server_reader_msg);
 
-                    // Set connected, but not secure-connected in server_on_handshake_done_cb
+                    // Set connected, but not secure-connected in ytls_server_on_handshake_done_cb
                     sskt_server = ytls_new_secure_filter(
                         ytls_server,
-                        server_on_handshake_done_cb,
-                        server_on_clear_data_cb,
-                        server_on_encrypted_data_cb,
+                        ytls_server_on_handshake_done_cb,
+                        ytls_server_on_clear_data_cb,
+                        ytls_server_on_encrypted_data_cb,
                         yev_event
                     );
                     if(!sskt_server) {
@@ -414,9 +409,9 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     // Set connected
                     sskt_client = ytls_new_secure_filter(
                         ytls_client,
-                        client_on_handshake_done_cb,
-                        client_on_clear_data_cb,
-                        client_on_encrypted_data_cb,
+                        ytls_client_on_handshake_done_cb,
+                        ytls_client_on_clear_data_cb,
+                        ytls_client_on_encrypted_data_cb,
                         yev_event
                     );
                     if(!sskt_client) {
