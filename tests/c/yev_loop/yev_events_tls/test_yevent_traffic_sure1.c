@@ -19,6 +19,7 @@
 
 #include <string.h>
 #include <signal.h>
+#include <kwid.h>
 #include <gobj.h>
 #include <ytls.h>
 #include <testing.h>
@@ -582,18 +583,28 @@ int do_test(void)
         "library", "openssl",
         "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
         "ssl_certificate_key", "/yuneta/agent/certs/localhost.key",
-        "trace", 1
+        "trace", 0
     );
-    ytls_server = ytls_init(0, jn_crypto_s, TRUE);
+    ytls_server = ytls_init(
+        0,
+        jn_crypto_s, // not owned
+        TRUE
+    );
+    JSON_DECREF(jn_crypto_s)
 
     /*--------------------------------*
      *  Create ssl CLIENT
      *--------------------------------*/
     json_t *jn_crypto_c = json_pack("{s:s, s:b}",
         "library", "openssl",
-        "trace", 1
+        "trace", 0
     );
-    ytls_client = ytls_init(0, jn_crypto_c, FALSE);
+    ytls_client = ytls_init(
+        0,
+        jn_crypto_c, // not owned
+        FALSE
+    );
+    JSON_DECREF(jn_crypto_c)
 
     /*--------------------------------*
      *  Create the event loop
@@ -722,6 +733,13 @@ int do_test(void)
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
+    if(sskt_server) {
+        ytls_free_secure_filter(ytls_server, sskt_server);
+    }
+    if(sskt_client) {
+        ytls_free_secure_filter(ytls_client, sskt_client);
+    }
+
     EXEC_AND_RESET(ytls_cleanup, ytls_server)
     EXEC_AND_RESET(ytls_cleanup, ytls_client)
 
@@ -797,29 +815,29 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {0,0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*--------------------------------*
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen",
-        "msg", "Client: Connection Accepted",
-        "msg", "Server: Listen Connection Accepted",
-        "msg", "client: send request",
-        "msg", "Server: Message from the client",
-        "msg", "Client: Response from the server",
-        "msg", "Client: Client disconnected reading",
-        "msg", "Server: Server's client disconnected reading",
-        "msg", "Client: Connect canceled",
-        "msg", "Server: Listen socket failed or stopped"
-    );
+//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+//        "msg", "addrinfo on listen",
+//        "msg", "Client: Connection Accepted",
+//        "msg", "Server: Listen Connection Accepted",
+//        "msg", "client: send request",
+//        "msg", "Server: Message from the client",
+//        "msg", "Client: Response from the server",
+//        "msg", "Client: Client disconnected reading",
+//        "msg", "Server: Server's client disconnected reading",
+//        "msg", "Client: Connect canceled",
+//        "msg", "Server: Listen socket failed or stopped"
+//    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        error_list,  // error_list
+        0, //error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
