@@ -190,9 +190,11 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
+    SET_PRIV(use_ssl,               gobj_read_bool_attr)
     SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
     SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
     SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+    SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -204,6 +206,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -277,8 +280,9 @@ PRIVATE int mt_start(hgobj gobj)
             );
         }
         if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-            priv->use_ssl = TRUE;
             gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+        } else {
+            gobj_write_bool_attr(gobj, "use_ssl", FALSE);
         }
         gobj_write_str_attr(gobj, "schema", schema);
 
@@ -834,10 +838,60 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         json_decref(jn_flags);
     }
 
+    yev_state_t yev_state = yev_get_state(yev_event);
+
     switch(yev_event->type) {
         case YEV_READ_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  yev_event->gbuf can be null if yev_stop_event() was called
+                     */
+                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                            gobj_short_name(gobj),
+                            gobj_read_str_attr(gobj, "sockname"),
+                            " <- ",
+                            gobj_read_str_attr(gobj, "peername")
+                        );
+                    }
+
+                    priv->rxMsgs++;
+                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
+
+                    if(priv->use_ssl) {
+                        GBUFFER_INCREF(yev_event->gbuf)
+                        if(ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf)<0) {
+                            gobj_log_error(0, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                                "msg",          "%s", "ytls_decrypt_data() FAILED",
+                                NULL
+                            );
+                        }
+
+                    } else {
+                        GBUFFER_INCREF(yev_event->gbuf)
+                        json_t *kw = json_pack("{s:I}",
+                            "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+                        );
+                        if(gobj_is_pure_child(gobj)) {
+                            gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+                        } else {
+                            gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        }
+                    }
+
+                    /*
+                     *  Clear buffer
+                     *  Re-arm read
+                     */
+                    if(gobj_is_running(gobj)) {
+                        gbuffer_clear(yev_event->gbuf);
+                        yev_start_event(yev_event);
+                    }
+
+                } else {
                     /*
                      *  Disconnected
                      */
@@ -862,52 +916,28 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     if(gobj_is_running(gobj)) {
                         try_to_stop_yevents(gobj);
                     }
-
-                } else {
-                    /*
-                     *  yev_event->gbuf can be null if yev_stop_event() was called
-                     */
-                    if(yev_event->gbuf) {
-                        if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-                            gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
-                                gobj_short_name(gobj),
-                                gobj_read_str_attr(gobj, "sockname"),
-                                " <- ",
-                                gobj_read_str_attr(gobj, "peername")
-                            );
-                        }
-
-                        priv->rxMsgs++;
-                        priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
-
-                        GBUFFER_INCREF(yev_event->gbuf)
-                        json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)yev_event->gbuf
-                        );
-                        if(gobj_is_pure_child(gobj)) {
-                            gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-                        } else {
-                            gobj_publish_event(gobj, EV_RX_DATA, kw);
-                        }
-                    }
-
-                    /*
-                     *  Clear buffer
-                     *  Re-arm read
-                     */
-                    if(gobj_is_running(gobj)) {
-                        if(yev_event->gbuf) {
-                            gbuffer_clear(yev_event->gbuf);
-                            yev_start_event(yev_event);
-                        }
-                    }
                 }
             }
             break;
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state == YEV_ST_IDLE) {
+                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                    if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
+                        if(!empty_string(priv->tx_ready_event_name)) {
+                            json_t *kw_tx_ready = json_object();
+                            json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                            if(gobj_is_pure_child(gobj)) {
+                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                            } else {
+                                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                            }
+                        }
+                    }
+                    yev_destroy_event(yev_event);
+
+                } else {
                     /*
                      *  Disconnected
                      */
@@ -934,21 +964,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     if(gobj_is_running(gobj)) {
                         try_to_stop_yevents(gobj);
                     }
-
-                } else {
-                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                    if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                        if(!empty_string(priv->tx_ready_event_name)) {
-                            json_t *kw_tx_ready = json_object();
-                            json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                            if(gobj_is_pure_child(gobj)) {
-                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                            } else {
-                                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                            }
-                        }
-                    }
-                    yev_destroy_event(yev_event);
                 }
 
             }
@@ -956,7 +971,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
         case YEV_CONNECT_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_state == YEV_ST_IDLE) {
+                    set_connected(gobj, yev_event->fd);
+                } else {
                     /*
                      *  Error on connection
                      */
@@ -978,9 +995,6 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     if(gobj_is_running(gobj)) {
                         try_to_stop_yevents(gobj);
                     }
-
-                } else {
-                    set_connected(gobj, yev_event->fd);
                 }
             }
             break;

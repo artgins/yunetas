@@ -52,7 +52,7 @@ SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,          
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,              "Only allowed ips"),
-SDATA (DTP_BOOLEAN,     "trace",                SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
+SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of childs to create on new accept"),
@@ -87,7 +87,7 @@ typedef struct _PRIVATE_DATA {
     BOOL exitOnError;
 
     json_t * clisrv_kw;
-    BOOL trace;
+    BOOL trace_tls;
 
     json_int_t connxs;
     json_int_t tconnxs;
@@ -123,11 +123,11 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(url, gobj_read_str_attr)
-    SET_PRIV(exitOnError, gobj_read_bool_attr)
-    SET_PRIV(trace, gobj_read_bool_attr)
+    SET_PRIV(url,           gobj_read_str_attr)
+    SET_PRIV(exitOnError,   gobj_read_bool_attr)
+    SET_PRIV(trace_tls,     gobj_read_bool_attr)
 
-    SET_PRIV(clisrv_kw, gobj_read_json_attr)
+    SET_PRIV(clisrv_kw,     gobj_read_json_attr)
 
     priv->subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!priv->subscriber)
@@ -143,9 +143,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(url, gobj_read_str_attr)
 
-    ELIF_EQ_SET_PRIV(clisrv_kw, gobj_read_json_attr)
-    ELIF_EQ_SET_PRIV(exitOnError, gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(trace, gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(clisrv_kw,     gobj_read_json_attr)
+    ELIF_EQ_SET_PRIV(exitOnError,   gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(trace_tls,     gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -230,7 +230,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     if(priv->use_ssl) {
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace));
+        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
     }
 
