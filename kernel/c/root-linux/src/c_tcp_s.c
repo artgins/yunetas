@@ -46,7 +46,8 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag----------------default---------description---------- */
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             0,              "Crypto config"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "false",        "True if schema is secure. Set internally"),
-SDATA (DTP_INTEGER,     "connxs",               SDF_RD,             0,              "Current connections"),
+SDATA (DTP_INTEGER,     "connxs",               SDF_RD|SDF_STATS,   0,              "Current connections"),
+SDATA (DTP_INTEGER,     "tconnxs",              SDF_RD|SDF_STATS,   0,              "Total connections"),
 SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
@@ -89,6 +90,7 @@ typedef struct _PRIVATE_DATA {
     BOOL trace;
 
     json_int_t connxs;
+    json_int_t tconnxs;
 
     yev_event_t *yev_server_accept;
     int fd_listen;
@@ -306,6 +308,7 @@ PRIVATE int mt_stop(hgobj gobj)
     } else {
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
     }
+    EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 
     return 0;
 }
@@ -321,49 +324,11 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 /***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE void on_close_cb(uv_handle_t* handle)
-//{
-//    hgobj gobj = handle->data;
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    if(gobj_trace_level(gobj) & TRACE_UV) {
-//        gobj_trace_msg(gobj, "<<< on_close_cb tcp_s0 p=%p",
-//            &priv->yev_server_accept
-//        );
-//    }
-//    gobj_change_state(gobj, ST_STOPPED);
-//
-//    if(gobj_trace_level(gobj) & TRACE_LISTEN) {
-//        gobj_log_info(gobj, 0,
-//            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//            "msg",          "%s", "Unlistening...",
-//            "url",          "%s", priv->url,
-//            "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
-//            "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
-//            NULL
-//        );
-//    }
-//
-//    /*
-//     *  Only NOW you can destroy this gobj,
-//     *  when uv has released the handler.
-//     */
-//        gobj_send_event(
-//            gobj_parent(gobj),
-//            EV_STOPPED ,
-//            0,
-//            gobj
-//        );
-//}
-
-/***************************************************************************
  *  Accept cb
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_t *yev_event)
 {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_get_gobj(yev_event);
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -375,29 +340,20 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev callback",
-            "msg2",         "%s", "🌐💥 yev server callback",
-            "event type",   "%s", yev_event_type_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "flag",         "%j", jn_flags,
-            "p",            "%p", yev_event,
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
-    if(!yev_event->yev_loop->running) {
-        return -1;
-    }
-
     if(yev_event_is_stopped(yev_event)) {
-        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        gobj_change_state(gobj, ST_STOPPED);
+
+//    /* TODO
+//     *  Only NOW you can destroy this gobj,
+//     *  when uv has released the handler.
+//     */
+//        gobj_send_event(
+//            gobj_parent(gobj),
+//            EV_STOPPED ,
+//            0,
+//            gobj
+//        );
+
         return 0;
     }
 
@@ -425,8 +381,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "TCP_S: yev_callback FAILED ",
-            "msg2",         "%s", "🌐TCP_S: yev_callback FAILED ",
+            "msg",          "%s", "TCP_S: yev_callback fd_clisrv FAILED ",
+            "msg2",         "%s", "🌐TCP_S: yev_callback fd_clisrv FAILED ",
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
@@ -457,11 +413,13 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     /*-------------------*
      *  Name of clisrv
      *-------------------*/
-    priv->connxs++;
+    priv->tconnxs++;
     char xname[80];
     snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
-        priv->connxs
+        priv->tconnxs
     );
+
+    priv->connxs++;
 
     /*-----------------------------------------------------------*
      *  Create a filter, if.
@@ -588,7 +546,7 @@ PRIVATE int ac_clisrv_stopped(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
+    priv->connxs--;
 
     JSON_DECREF(kw)
     return 0;

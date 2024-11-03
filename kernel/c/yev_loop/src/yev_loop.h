@@ -231,6 +231,11 @@ static inline int yev_get_result(yev_event_t *yev_event)
     return yev_event->result;
 }
 
+static inline hgobj yev_get_gobj(yev_event_t *yev_event)
+{
+    return yev_event->gobj;
+}
+
 PUBLIC const char *yev_get_state_name(yev_event_t *yev_event);
 
 PUBLIC int yev_start_event(
