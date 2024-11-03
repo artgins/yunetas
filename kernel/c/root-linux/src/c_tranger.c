@@ -366,7 +366,7 @@ PRIVATE int mt_subscription_added(
         return 0;
     }
     hgobj subscriber = (hgobj)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED);
+    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED); // TODO review, is a gobj_event_t?
 
     if(empty_string(event)) {
         gobj_log_warning(gobj, 0,
@@ -1264,12 +1264,49 @@ PRIVATE int load_record_callback(
 )
 {
     hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    //json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
-    // BOOL has_fields = kw_has_key(match_cond, "fields");
+    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
+    BOOL has_fields = kw_has_key(match_cond, "fields");
 
-    gobj_publish_event(gobj, EV_TRANGER_RECORD_ADDED, jn_record);
+    json_t *list_data = kw_get_list(gobj, list, "data", 0, KW_REQUIRED);
 
-    return 0; // HACK let timeranger to add record to list.data TODO true?
+    const char ** keys = 0;
+    if(has_fields) {
+        const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
+        keys = split2(fields, ", ", 0);
+    }
+    if(keys) {
+        json_t *jn_record_with_fields = kw_clone_by_path(
+            gobj,
+            jn_record,   // owned
+            keys
+        );
+        jn_record = jn_record_with_fields;
+        json_array_append(
+            list_data,
+            jn_record
+        );
+        split_free2(keys);
+    } else {
+        json_array_append(
+            list_data,
+            jn_record
+        );
+    }
+
+    system_flag2_t system_flag = get_system_flag(md_record);
+    if(!(system_flag & sf_loading_from_disk)) {
+        json_t *jn_data = json_array();
+
+        json_array_append(jn_data, jn_record);
+
+        hgobj gobj_to = (hgobj)(size_t)kw_get_int(gobj, list, "gobj", 0, KW_REQUIRED);
+        gobj_publish_event(gobj_to, EV_TRANGER_RECORD_ADDED, jn_data);
+    }
+
+    JSON_DECREF(jn_record)
+
+    gobj_info_msg(gobj, "QUEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+    return 0; // HACK lest timeranger to add record to list.data TODO review
 }
 
 
@@ -1286,85 +1323,90 @@ PRIVATE int load_record_callback(
  *
  ***************************************************************************/
 PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{ int x;
-// TODO   PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    /*
-//     *  Get parameters
-//     */
-//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-//    uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
-//    uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-//    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
-//
-//    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
-//    JSON_INCREF(__temp__); // Save to __answer__
-//
-//    int result = 0;
-//    json_t *jn_comment = 0;
-//
-//    do {
-//        /*
-//         *  Check parameters
-//         */
-//        json_t *topic = tranger2_topic(priv->tranger, topic_name);
-//        if(!topic) {
-//           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
-//           result = -1;
-//           break;
-//        }
-//        if(!record) {
-//           jn_comment = json_sprintf("What record?");
-//           result = -1;
-//           break;
-//        }
-//
-//        /*
-//         *  Append record to tranger topic
-//         */
-//        md2_record_t md_record;
-//        result = tranger2_append_record(
-//            priv->tranger,
-//            topic_name,
-//            __t__,                  // if 0 then the time will be set by TimeRanger with now time
-//            user_flag,
-//            &md_record,             // required
-//            json_incref(record)     // owned
-//        );
-//
-//        if(result<0) {
-//            jn_comment = json_string(gobj_log_last_message());
-//            break;
-//        } else {
-//           jn_comment = json_sprintf("Record added");
-//        }
-//    } while(0);
-//
-//    /*
-//     *  Response
-//     */
-//    json_t *iev = iev_create(
-//        event,
-//        msg_iev_build_response(gobj,
-//            result,
-//            jn_comment,
-//            0,
-//            0,  // owned
-//            kw  // owned
-//        )
-//    );
-//    json_object_set_new(iev, "__temp__", __temp__);  // Set the channel
-//
-//    /*
-//     *  Inform
-//     */
-//    return gobj_send_event(
-//        src,
-//        EV_SEND_IEV,
-//        iev,
-//        gobj
-//    );
-    return 0;
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Get parameters
+     */
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
+    uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
+    json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
+
+    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
+    JSON_INCREF(__temp__) // Save to __answer__
+
+    int result = 0;
+    json_t *jn_comment = 0;
+
+    do {
+        /*
+         *  Check parameters
+         */
+        json_t *topic = tranger2_topic(priv->tranger, topic_name);
+        if(!topic) {
+           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
+           result = -1;
+           break;
+        }
+        if(!record) {
+           jn_comment = json_sprintf("What record?");
+           result = -1;
+           break;
+        }
+
+        /*
+         *  Append record to tranger topic
+         */
+        md2_record_t md_record;
+        result = tranger2_append_record(
+            priv->tranger,
+            topic_name,
+            __t__,                  // if 0 then the time will be set by TimeRanger with now time
+            user_flag,
+            &md_record,             // required
+            json_incref(record)     // owned
+        );
+
+        if(result<0) {
+            jn_comment = json_string(gobj_log_last_message());
+            break;
+        } else {
+           jn_comment = json_sprintf("Record added");
+        }
+    } while(0);
+
+    /*
+     *  Response
+     */
+    json_t *kw_response = msg_iev_build_response(
+        gobj,
+        result,
+        jn_comment,
+        0,
+        0,
+        kw
+    );
+
+    json_object_set_new(kw_response, "__temp__", __temp__);  // Set the channel
+    gbuffer_t *gbuf = iev_create_to_gbuffer(
+        gobj,
+        event,
+        kw_response  // owned and serialized
+    );
+    if(!gbuf) {
+        // error already logged
+        return -1;
+    }
+    json_t *kw_send = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(size_t)gbuf
+    );
+    return gobj_send_event(src,
+        EV_SEND_MESSAGE, // original is "EV_SEND_IEV" TODO check
+        kw_send,
+        gobj
+    );
 }
 
 /***************************************************************************

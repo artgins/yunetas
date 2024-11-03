@@ -341,22 +341,37 @@ PUBLIC json_t *msg2db_open_db(
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
-        json_t *jn_filter = json_object();
+        json_t *match_cond = json_object();
+        json_object_set_new(
+            match_cond,
+            "load_record_callback",
+            json_integer((json_int_t)(size_t)load_record_callback)
+        );
 
-        json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:s}",
+        json_t *jn_extra = json_pack("{s:s, s:s, s:s}",
             "id", path,
             "topic_name", topic_name,
-            "match_cond", jn_filter,
-            "load_record_callback", (json_int_t)(size_t)load_record_callback,
             "msg2db_name", msg2db_name
         );
-// TODO       tranger2_open_list(
-//            tranger,
-//            jn_list // owned
-//        );
+        if(tranger2_open_list(
+            tranger,
+            topic_name,
+            match_cond,  // owned
+            jn_extra,    // owned
+            NULL
+        )<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msg",          "%s", "tranger2_open_list() failed",
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+        }
+
     }
 
-    JSON_DECREF(jn_schema);
+    JSON_DECREF(jn_schema)
     return msg2db;
 }
 
@@ -818,6 +833,34 @@ PRIVATE json_t *record2tranger(
 }
 
 /***************************************************************************
+ *  Return json object with record metadata
+ ***************************************************************************/
+PRIVATE json_t *md2json(
+    const char *msg2db_name,
+    const char *topic_name,
+    md2_record_t *md_record
+)
+{
+    json_t *jn_md = json_object();
+    json_object_set_new(
+        jn_md,
+        "msg2db_name",
+        json_string(msg2db_name)
+    );
+    json_object_set_new(
+        jn_md,
+        "topic_name",
+        json_string(topic_name)
+    );
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)get_time_t(md_record)));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
+    json_object_set_new(jn_md, "user_flag", json_integer(get_user_flag(md_record)));
+    json_object_set_new(jn_md, "__pure_node__", json_true());
+
+    return jn_md;
+}
+
+/***************************************************************************
  *  When record is loaded from disk then create the node
  *  when is loaded from memory then notify to subscribers
  ***************************************************************************/
@@ -871,14 +914,14 @@ PRIVATE int load_record_callback(
         /*---------------------------------------------*
          *  Build metadata, loading node from tranger
          *---------------------------------------------*/
+        json_t *jn_record_md = md2json(
+            msg2db_name,
+            topic_name,
+            md_record
+        );
+        json_object_set_new(jn_record, "__md_msg2db__", jn_record_md);
         const char *pkey2_col = kw_get_str(gobj, topic, "pkey2", 0, 0);
-// TODO need it?       json_t *jn_record_md = md2json(
-//            msg2db_name,
-//            topic_name,
-//            md_record
-//        );
-//        json_object_set_new(jn_record, "__md_msg2db__", jn_record_md);
-//        json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
+        json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
 
         const char *pkey2_value = kw_get_str(gobj, jn_record, pkey2_col, 0, 0);
         if(empty_string(pkey2_value)) {
@@ -909,7 +952,7 @@ PRIVATE int load_record_callback(
         /*-------------------------------*
          *  Write node
          *-------------------------------*/
-        JSON_INCREF(jn_record);
+        JSON_INCREF(jn_record)
         kw_set_subdict_value(
             gobj,
             indexx,
@@ -923,7 +966,7 @@ PRIVATE int load_record_callback(
          *---------------------------------*/
     }
 
-    JSON_DECREF(jn_record);
+    JSON_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
 }
 
@@ -1058,13 +1101,13 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*--------------------------------------------*
      *  Build metadata, creating node in memory
      *--------------------------------------------*/
-// TODO need?   json_t *jn_record_md = md2json(
-//        msg2db_name,
-//        topic_name,
-//        &md_record
-//    );
-//    json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
-//    json_object_set_new(record, "__md_msg2db__", jn_record_md);
+    json_t *jn_record_md = md2json(
+        msg2db_name,
+        topic_name,
+        &md_record
+    );
+    json_object_set_new(jn_record_md, "pkey2", json_string(pkey2_col));
+    json_object_set_new(record, "__md_msg2db__", jn_record_md);
 
     /*-------------------------------*
      *  Write node
