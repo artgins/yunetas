@@ -36,6 +36,7 @@ add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 target_link_libraries(${PROJECT_NAME}
     libyunetas-core-linux.a
     libtimeranger2.a
+    libyev_loop.a
     libytls.a
     libyunetas-gobj.a
 
