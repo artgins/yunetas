@@ -124,10 +124,12 @@ SDATA_END()
 enum {
     TRACE_CONNECT_DISCONNECT    = 0x0001,
     TRACE_TRAFFIC               = 0x0002,
+    TRACE_TLS                   = 0x0004,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"connections",         "Trace connections and disconnections"},
 {"traffic",             "Trace dump traffic"},
+{"tls",                 "Trace tls"},
 {0, 0},
 };
 
@@ -490,7 +492,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             return;
         }
 
-        ytls_set_trace(priv->ytls, priv->sskt, gobj_read_bool_attr(gobj, "trace"));
+        ytls_set_trace(priv->ytls, priv->sskt, (gobj_trace_level(gobj) & TRACE_TLS)?TRUE:FALSE);
 
     } else {
         /*---------------------------*
