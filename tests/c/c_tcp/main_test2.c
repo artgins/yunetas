@@ -23,8 +23,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_tcp_tcp_s_" "test2"
-#define APP_DOC         "Test C_TCP_TCP_S"
+#define APP_NAME        "test_tcp_" "test2"
+#define APP_DOC         "Test C_TCP"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -70,7 +70,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcps://0.0.0.0:7778',                 \n\
+            '__input_url__': 'tcp://0.0.0.0:7778',                  \n\
             '__input_host__': '0.0.0.0',                            \n\
             '__input_port__': '7778'                                \n\
         }                                                           \n\
@@ -99,12 +99,6 @@ PRIVATE char variable_config[]= "\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
-                        'crypto': {                                 \n\
-                            'library': 'openssl',                   \n\
-'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
-'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
-                            'trace': false                          \n\
-                        },                                          \n\
                         'url': '(^^__input_url__^^)',               \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\
@@ -156,11 +150,7 @@ PRIVATE char variable_config[]= "\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'tcps://127.0.0.1:7778', \n\
-                                        'crypto': {                 \n\
-                                            'library': 'openssl',   \n\
-                                            'trace': false          \n\
-                                        }                           \n\
+                                        'url':'tcp://127.0.0.1:7778' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\

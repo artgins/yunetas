@@ -21,8 +21,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "test_tcp_tcp_s_" "test3"
-#define APP_DOC         "Test C_TCP_TCP_S"
+#define APP_NAME        "test_tcps_" "test3"
+#define APP_DOC         "Test C_TCPS"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
