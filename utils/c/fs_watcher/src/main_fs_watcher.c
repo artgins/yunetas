@@ -8,7 +8,7 @@
 #include <signal.h>
 #include <gobj.h>
 #include <stacktrace_with_bfd.h>
-#include <yunetas_ev_loop.h>
+#include <yev_loop.h>
 #include <ansi_escape_codes.h>
 #include <fs_watcher.h>
 

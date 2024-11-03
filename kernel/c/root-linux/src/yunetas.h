@@ -53,12 +53,12 @@ extern "C"{
 #include <c_tranger.h>
 #include <c_treedb.h>
 #include <dbsimple.h>
-#include <yunetas_ev_loop.h>
+#include <yev_loop.h>
 #include <entry_point.h>
 #include <rotatory.h>
 #include <ydaemon.h>
 #include <yunetas_environment.h>
-#include <yunetas_ev_loop.h>
+#include <yev_loop.h>
 #include <yunetas_register.h>
 
 #include <fs_watcher.h>

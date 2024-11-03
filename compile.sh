@@ -31,6 +31,14 @@ cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
 make install
 
 ##########################################
+#       yev_loop
+##########################################
+cd "${YUNETAS_BASE_DIR}/kernel/c/yev_loop"
+rm -rf build; mkdir build
+cd build; cmake -DCMAKE_BUILD_TYPE=Debug ..
+make install
+
+##########################################
 #       timeranger2
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/timeranger2"
