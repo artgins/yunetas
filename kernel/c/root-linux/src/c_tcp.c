@@ -68,6 +68,9 @@
 PRIVATE BOOL try_to_stop_yevents(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE int yev_callback(yev_event_t *event);
+PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
+PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
 
 /***************************************************************
  *              Data
@@ -135,7 +138,8 @@ typedef struct _PRIVATE_DATA {
     yev_event_t *yev_client_rx;
     int fd_clisrv;
     int timeout_inactivity;
-    char inform_disconnection;
+    BOOL inform_disconnection;
+    BOOL secure_connected;
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -428,10 +432,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         }
     }
 
-    clear_timeout(priv->gobj_timer);
-    gobj_change_state(gobj, ST_CONNECTED);
-
     priv->connxs++;
+
+    clear_timeout(priv->gobj_timer);
 
     /*
      *  Ready to receive
@@ -459,7 +462,66 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     yev_start_event(priv->yev_client_rx);
 
+    if(priv->use_ssl) {
+        gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
+
+        priv->inform_disconnection = FALSE;
+        priv->secure_connected = FALSE;
+
+        priv->sskt = ytls_new_secure_filter(
+            priv->ytls,
+            ytls_on_handshake_done_callback,
+            ytls_on_clear_data_callback,
+            ytls_on_encrypted_data_callback,
+            gobj
+        );
+        if(!priv->sskt) {
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj); // auto-stop
+            }
+            return;
+        }
+
+        ytls_set_trace(priv->ytls, priv->sskt, gobj_read_bool_attr(gobj, "trace"));
+
+    } else {
+        gobj_change_state(gobj, ST_CONNECTED);
+
+        priv->inform_disconnection = TRUE;
+        priv->secure_connected = FALSE;
+
+        /*
+         *  Publish
+         */
+        json_t *kw_conn = json_pack("{s:s, s:s, s:s}",
+            "url",          gobj_read_str_attr(gobj, "url"),
+            "peername",     gobj_read_str_attr(gobj, "peername"),
+            "sockname",     gobj_read_str_attr(gobj, "sockname")
+        );
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
+        } else {
+            gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+        }
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void set_secure_connected(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     priv->inform_disconnection = TRUE;
+    priv->secure_connected = TRUE;
+
+    if(gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE)) {
+        gobj_change_state(gobj, ST_CONNECTED);
+    }
+
+    priv->inform_disconnection = TRUE;
+    priv->secure_connected = TRUE;
 
     /*
      *  Publish
@@ -474,6 +536,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     } else {
         gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
     }
+
+    ytls_flush(priv->ytls, priv->sskt);
 }
 
 /***************************************************************************
@@ -623,6 +687,119 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         set_disconnected(gobj);
         return TRUE;
     }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+{
+    if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ytls_encrypt_data() FAILED",
+            "error",        "%s", ytls_get_last_error(ytls, sskt),
+            NULL
+        );
+        return -1;
+    }
+    if(gbuffer_leftbytes(gbuf) > 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+            NULL
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  YTLS callbacks, called when handshake is done
+ ***************************************************************************/
+PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
+            "error",        "%d", error,
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+            NULL
+        );
+    }
+
+    if(error < 0) {
+        if(gobj_is_running(gobj)) {
+            gobj_stop(gobj); // auto-stop
+        }
+    } else {
+        set_secure_connected(gobj);
+    }
+
+    ytls_flush(priv->ytls, priv->sskt);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  YTLS callbacks, called when receiving data has been decrypted
+ ***************************************************************************/
+PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
+{
+    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "decrypted data");
+    }
+
+    json_t *kw = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(size_t)gbuf
+    );
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw, gobj);
+    } else {
+        gobj_publish_event(gobj, EV_CONNECTED, kw);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  YTLS callbacks, called when transmitting data has been encrypted
+ ***************************************************************************/
+PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "encrypted data");
+    }
+
+    priv->txMsgs++;
+    priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
+
+    /*
+     *  Transmit
+     */
+    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
+    yev_event_t *yev_write_event = yev_create_write_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        fd,
+        gbuf
+    );
+
+    BOOL want_tx_ready = 0; // TODO sacalo del gbuffer kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
+    yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+    yev_start_event(yev_write_event);
+
+    return 0;
 }
 
 /***************************************************************************
@@ -934,7 +1111,7 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
          *  Transmit
          */
         int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-        yev_event_t *yev_client_tx = yev_create_write_event(
+        yev_event_t *yev_write_event = yev_create_write_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
@@ -943,8 +1120,8 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         );
 
         BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
-        yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
-        yev_start_event(yev_client_tx);
+        yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+        yev_start_event(yev_write_event);
     }
 
     KW_DECREF(kw)
@@ -1016,11 +1193,6 @@ PRIVATE int ac_wait_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             change_to_stopped = FALSE;
         }
     }
-//    if(priv->yev_client_tx) {
-//        if(!yev_event_is_stopped(priv->yev_client_tx)) {
-//            change_to_stopped = FALSE;
-//        }
-//    }
 
     if(change_to_stopped) {
         gobj_change_state(gobj, ST_STOPPED);
