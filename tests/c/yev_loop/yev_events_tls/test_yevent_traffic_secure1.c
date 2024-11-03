@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_traffic_sure1.c
+ *          test_yevent_traffic_secure1.c
  *
  *          Setup
  *          -----
@@ -15,7 +15,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic_sure1";
+#define APP "test_yevent_traffic_secure1";
 
 #include <string.h>
 #include <signal.h>

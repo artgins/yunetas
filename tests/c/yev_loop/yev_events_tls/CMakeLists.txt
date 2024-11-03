@@ -20,7 +20,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 set(SRCS
-    test_yevent_traffic_sure1
+    test_yevent_traffic_secure1
 )
 
 ##############################################
