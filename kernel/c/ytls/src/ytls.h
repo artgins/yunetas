@@ -26,14 +26,17 @@ typedef void * hytls;
 typedef void * hsskt;
 
 /*
- *  Fields of jn_config for "openssl"
- *      - "trace"                       bool
- *      - "ssl_certificate"             str
- *      - "ssl_certificate_key"         str
- *      - "ssl_ciphers"                 str, default "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4"
- *      - "rx_buffer_size"              int, default 32*1024
- *      - "ssl_trusted_certificate"     str
- *      - "ssl_verify_depth"            int, default 1
+ *  Fields of jn_config
+ *      - "library"                     str, default "openssl"
+ *
+ *          Fields for library "openssl"
+ *              - "trace"                       bool
+ *              - "ssl_certificate"             str
+ *              - "ssl_certificate_key"         str
+ *              - "ssl_ciphers"                 str, default "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4"
+ *              - "rx_buffer_size"              int, default 32*1024
+ *              - "ssl_trusted_certificate"     str
+ *              - "ssl_verify_depth"            int, default 1
  */
 
 typedef struct api_tls_s {
