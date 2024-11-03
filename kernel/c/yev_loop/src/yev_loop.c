@@ -16,6 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <kwid.h>
 #include <ytls.h>
 #include "yev_loop.h"
 
@@ -40,7 +41,7 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
  ***************************************************************/
 PRIVATE const char *yev_flag_s[] = {
     "YEV_FLAG_TIMER_PERIODIC",
-    "YEV_FLAG_USE_SSL",
+    "YEV_FLAG_USE_TLS",
     "YEV_FLAG_IS_TCP",
     "YEV_FLAG_CONNECTED",
     "YEV_FLAG_WANT_TX_READY",
@@ -1509,8 +1510,9 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
-    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6 */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
 ) {
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1519,6 +1521,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
             "msg",          "%s", "yev_event NULL",
             NULL
         );
+        JSON_DECREF(crypto)
         return -1;
     }
 
@@ -1563,12 +1566,13 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     );
     if(ret < 0) {
         // Error already logged
+        JSON_DECREF(crypto)
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_FLAG_USE_SSL;
+        yev_event->flag |= YEV_FLAG_USE_TLS;
     } else {
-        yev_event->flag &= ~YEV_FLAG_USE_SSL;
+        yev_event->flag &= ~YEV_FLAG_USE_TLS;
     }
 
     struct addrinfo hints = {
@@ -1631,6 +1635,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
             "strerror",     "%s", strerror(errno),
             NULL
         );
+        JSON_DECREF(crypto)
         return -1;
     }
 
@@ -1684,6 +1689,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
                 if(ret < 0) {
                     close(fd);
                     // Error already logged
+                    JSON_DECREF(crypto)
                     return -1;
                 }
             }
@@ -1708,6 +1714,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
                     NULL
                 );
                 close(fd);
+                JSON_DECREF(crypto)
                 return -1;
             }
 
@@ -1727,6 +1734,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
             freeaddrinfo(res);
             if(ret == -1) {
                 close(fd);
+                JSON_DECREF(crypto)
                 return -1;
             }
         }
@@ -1785,6 +1793,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     freeaddrinfo(results);
 
     if(ret == -1) {
+        JSON_DECREF(crypto)
         return ret;
     }
 
@@ -1812,6 +1821,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         json_decref(jn_flags);
     }
 
+    JSON_DECREF(crypto)
     return fd;
 }
 
@@ -1858,10 +1868,11 @@ PUBLIC yev_event_t *yev_create_accept_event(
 PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
     yev_event_t *yev_event,
     const char *listen_url,
-    int backlog,
-    BOOL shared,
-    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6 */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    int backlog,            /* queue of pending connections for socket listening, default 512 */
+    BOOL shared,            /* open socket as shared */
+    int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
 ) {
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1870,6 +1881,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             "msg",          "%s", "yev_event NULL",
             NULL
         );
+        JSON_DECREF(crypto)
         return -1;
     }
 
@@ -1893,6 +1905,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             "p",            "%p", yev_event,
             NULL
         );
+        JSON_DECREF(crypto)
         return -1;
     };
 
@@ -1913,12 +1926,13 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     );
     if(ret < 0) {
         // Error already logged
+        JSON_DECREF(crypto)
         return -1;
     }
     if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_FLAG_USE_SSL;
+        yev_event->flag |= YEV_FLAG_USE_TLS;
     } else {
-        yev_event->flag &= ~YEV_FLAG_USE_SSL;
+        yev_event->flag &= ~YEV_FLAG_USE_TLS;
     }
 
     if(backlog <= 0) {
@@ -1984,6 +1998,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             "strerror",     "%s", strerror(errno),
             NULL
         );
+        JSON_DECREF(crypto)
         return -1;
     }
 
@@ -2109,6 +2124,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     freeaddrinfo(results);
 
     if(ret == -1) {
+        JSON_DECREF(crypto)
         return ret;
     }
 
@@ -2131,6 +2147,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
         json_decref(jn_flags);
     }
 
+    JSON_DECREF(crypto)
     return fd;
 }
 

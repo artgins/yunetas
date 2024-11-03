@@ -90,7 +90,7 @@ typedef enum  {
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_TIMER_PERIODIC     = 0x01,
-    YEV_FLAG_USE_SSL            = 0x02,
+    YEV_FLAG_USE_TLS            = 0x02,
     YEV_FLAG_IS_TCP             = 0x04,
     YEV_FLAG_CONNECTED          = 0x08,     // user
     YEV_FLAG_WANT_TX_READY      = 0x10,     // user
@@ -286,8 +286,9 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     yev_event_t *yev_event,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
-    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
 );
 
 PUBLIC yev_event_t *yev_create_accept_event(
@@ -298,10 +299,11 @@ PUBLIC yev_event_t *yev_create_accept_event(
 PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
     yev_event_t *yev_event,
     const char *listen_url,
-    int backlog,    /* queue of pending connections for socket listening, default 512 */
-    BOOL shared,
-    int ai_family,          /* default: AF_UNSPEC,  Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    int backlog,            /* queue of pending connections for socket listening, default 512 */
+    BOOL shared,            /* open socket as shared */
+    int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
 );
 
 PUBLIC yev_event_t *yev_create_read_event(
