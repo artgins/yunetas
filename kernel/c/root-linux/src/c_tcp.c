@@ -79,6 +79,7 @@ PRIVATE const sdata_desc_t tattr_desc[] = { // WARNING repeated in c_tcp/c_esp_t
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
+SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_POINTER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 
@@ -86,8 +87,6 @@ SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection 
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
-SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
-SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "SSL server certification, PEM str format"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),

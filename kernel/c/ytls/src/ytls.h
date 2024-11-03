@@ -25,6 +25,17 @@ extern "C"{
 typedef void * hytls;
 typedef void * hsskt;
 
+/*
+ *  Fields of jn_config
+ *      - "trace"                       bool
+ *      - "ssl_certificate"             str
+ *      - "ssl_certificate_key"         str
+ *      - "ssl_ciphers"                 str, default "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4"
+ *      - "rx_buffer_size"              int, default 32*1024
+ *      - "ssl_trusted_certificate"     str
+ *      - "ssl_verify_depth"            int, default 1
+ */
+
 typedef struct api_tls_s {
     const char *name;
     hytls (*init)(
