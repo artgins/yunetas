@@ -392,12 +392,6 @@ PRIVATE hytls init(
     ytls->trace = kw_get_bool(gobj, jn_config, "trace", 0, KW_WILD_NUMBER);
 
     if(ytls->trace) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", ytls->trace?"openssl trace ON":"openssl trace OFF",
-            NULL
-        );
         SSL_CTX_set_msg_callback(ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(ytls->ctx, ytls);
     }
@@ -562,12 +556,6 @@ PRIVATE hsskt new_secure_filter(
     }
 
     if(ytls->trace) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", ytls->trace?"openssl trace ON":"openssl trace OFF",
-            NULL
-        );
         SSL_set_msg_callback(sskt->ssl, ssl_tls_trace);
         SSL_set_msg_callback_arg(sskt->ssl, ytls);
     } else {
@@ -628,12 +616,6 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     sskt->ytls->trace = set?TRUE:FALSE;
 
     if(sskt->ytls->trace) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", set?"SET openssl trace ON":"SET openssl trace OFF",
-            NULL
-        );
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(sskt->ytls->ctx, sskt->ytls);
         if(sskt->ssl) {
