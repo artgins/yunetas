@@ -17,7 +17,6 @@
 #include <arpa/inet.h>
 
 #include <kwid.h>
-#include <ytls.h>
 #include "yev_loop.h"
 
 /***************************************************************
