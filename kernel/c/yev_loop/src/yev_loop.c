@@ -16,6 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <ytls.h>
 #include "yev_loop.h"
 
 /***************************************************************
