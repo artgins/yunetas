@@ -124,7 +124,6 @@ retry:
     yev_loop->yuno = yuno;
     yev_loop->entries = entries;
     yev_loop->keep_alive = keep_alive?keep_alive:60;
-    yev_loop->cqes = GBMEM_MALLOC(entries * sizeof(struct io_uring_cqe *));
     yev_loop->callback = callback;
 
     *yev_loop_ = yev_loop;
@@ -138,7 +137,6 @@ retry:
 PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
 {
     io_uring_queue_exit(&yev_loop->ring);
-    GBMEM_FREE(yev_loop->cqes)
     GBMEM_FREE(yev_loop)
 }
 
