@@ -62,6 +62,8 @@
 #define IS_CLI      (!priv->__clisrv__)
 #define IS_CLISRV   (priv->__clisrv__)
 
+GOBJ_DECLARE_EVENT(EV_SEND_ENCRYPTED_DATA);
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -88,6 +90,7 @@ SDATA (DTP_POINTER, "fd_clisrv",        0,              0,          "socket fd o
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
+SDATA (DTP_BOOLEAN, "secure_connected", SDF_VOLATIL|SDF_STATS, "false", "Connection state"),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
@@ -139,7 +142,6 @@ typedef struct _PRIVATE_DATA {
     int fd_clisrv;
     int timeout_inactivity;
     BOOL inform_disconnection;
-    BOOL secure_connected;
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -364,6 +366,10 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+    if(priv->sskt) {
+        ytls_free_secure_filter(priv->ytls, priv->sskt);
+        priv->sskt = 0;
+    }
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 }
 
@@ -436,9 +442,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     clear_timeout(priv->gobj_timer);
 
-    /*
-     *  Ready to receive
-     */
+    /*-------------------------------*
+     *      Setup reading event
+     *-------------------------------*/
     if(!priv->yev_client_rx) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         priv->yev_client_rx = yev_create_read_event(
@@ -463,10 +469,12 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     yev_start_event(priv->yev_client_rx);
 
     if(priv->use_ssl) {
+        /*---------------------------*
+         *      Secure traffic
+         **---------------------------*/
         gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
 
         priv->inform_disconnection = FALSE;
-        priv->secure_connected = FALSE;
 
         priv->sskt = ytls_new_secure_filter(
             priv->ytls,
@@ -485,10 +493,12 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         ytls_set_trace(priv->ytls, priv->sskt, gobj_read_bool_attr(gobj, "trace"));
 
     } else {
+        /*---------------------------*
+         *      Clear traffic
+         **---------------------------*/
         gobj_change_state(gobj, ST_CONNECTED);
 
         priv->inform_disconnection = TRUE;
-        priv->secure_connected = FALSE;
 
         /*
          *  Publish
@@ -513,15 +523,10 @@ PRIVATE void set_secure_connected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_write_bool_attr(gobj, "secure_connected", TRUE);
     priv->inform_disconnection = TRUE;
-    priv->secure_connected = TRUE;
 
-    if(gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE)) {
-        gobj_change_state(gobj, ST_CONNECTED);
-    }
-
-    priv->inform_disconnection = TRUE;
-    priv->secure_connected = TRUE;
+    gobj_change_state(gobj, ST_CONNECTED);
 
     /*
      *  Publish
@@ -549,6 +554,7 @@ PRIVATE void set_disconnected(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_write_bool_attr(gobj, "connected", FALSE);
+    gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         if(IS_CLI) {
@@ -579,6 +585,7 @@ PRIVATE void set_disconnected(hgobj gobj)
     }
 
     if(priv->yev_client_connect) {
+        // TODO review, no es mejor stop the event?
         if(priv->yev_client_connect->fd > 0) {
             if(gobj_trace_level(gobj) & TRACE_UV) {
                 gobj_log_debug(gobj, 0,
@@ -595,7 +602,11 @@ PRIVATE void set_disconnected(hgobj gobj)
             close(priv->yev_client_connect->fd);
             priv->yev_client_connect->fd = -1;
         }
-        yev_set_flag(priv->yev_client_connect, YEV_FLAG_CONNECTED, FALSE);
+    }
+
+    if(priv->sskt) {
+        ytls_free_secure_filter(priv->ytls, priv->sskt);
+        priv->sskt = 0;
     }
 
     /*
@@ -774,30 +785,16 @@ PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "encrypted data");
     }
 
-    priv->txMsgs++;
-    priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
-
-    /*
-     *  Transmit
-     */
-    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-    yev_event_t *yev_write_event = yev_create_write_event(
-        yuno_event_loop(),
-        yev_callback,
-        gobj,
-        fd,
-        gbuf
+    json_t *kw = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(size_t)gbuf
     );
-
-    BOOL want_tx_ready = 0; // TODO sacalo del gbuffer kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
-    yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
-    yev_start_event(yev_write_event);
+    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 
     return 0;
 }
@@ -1133,30 +1130,27 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
-    gbuffer_incref(gbuf); // Quédate una copia
+    priv->txMsgs++;
+    priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
-//   TODO if(priv->output_priority) {
-//        /*
-//         *  Salida prioritaria.
-//         */
-//        if(priv->gbuf_txing) {
-//            log_error(LOG_OPT_TRACE_STACK,
-//                "gobj",         "%s", gobj_full_name(gobj),
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                "msg",          "%s", "gbuf_txing NOT NULL",
-//                NULL
-//            );
-//            GBUF_DECREF(priv->gbuf_txing)
-//        }
-//        priv->gbuf_txing = gbuf;
-//        try_write_all(gobj, TRUE);
-//    } else {
-//        do_write(gobj, gbuf);
-//    }
+    /*
+     *  Transmit
+     */
+    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
+    yev_event_t *yev_write_event = yev_create_write_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        fd,
+        gbuffer_incref(gbuf)
+    );
+
+    BOOL want_tx_ready = 0; // TODO sacalo del gbuffer kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
+    yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
+    yev_start_event(yev_write_event);
 
     KW_DECREF(kw)
     return 0;
