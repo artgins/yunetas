@@ -92,7 +92,7 @@ int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
  ***************************************************************************/
 int ytls_server_on_handshake_done_callback(void *user_data, int error)
 {
-    yev_event_t *yev_event = user_data;
+//    yev_event_t *yev_event = user_data;
 
     server_secure_connected = TRUE;
     gobj_info_msg(0, "Server: secure connected");
@@ -115,7 +115,7 @@ int ytls_server_on_handshake_done_callback(void *user_data, int error)
 
 int ytls_client_on_handshake_done_callback(void *user_data, int error)
 {
-    yev_event_t *yev_event = user_data;
+//    yev_event_t *yev_event = user_data;
 
     client_secure_connected = TRUE;
     gobj_info_msg(0, "Client: secure connected");
@@ -138,7 +138,7 @@ int ytls_client_on_handshake_done_callback(void *user_data, int error)
 
 int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
-    yev_event_t *yev_event = user_data;
+//    yev_event_t *yev_event = user_data;
 
 //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
@@ -180,7 +180,7 @@ int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 
 int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
-    yev_event_t *yev_event = user_data;
+//    yev_event_t *yev_event = user_data;
 
     //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf

@@ -740,7 +740,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
+        gobj_log_debug(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
             "error",        "%d", error,
@@ -779,9 +779,9 @@ PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw, gobj);
+        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
     } else {
-        gobj_publish_event(gobj, EV_CONNECTED, kw);
+        gobj_publish_event(gobj, EV_RX_DATA, kw);
     }
     return 0;
 }
