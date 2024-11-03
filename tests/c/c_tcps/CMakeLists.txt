@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_c_tcp C)
+project(test_c_tcps C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -35,7 +35,7 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "test_tcp_tcp_s_${test}")
+    set(binary "test_tcps_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
