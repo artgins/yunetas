@@ -1215,7 +1215,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*-----------------------------------*
          *  It's a external subscription
          *-----------------------------------*/
-int x;
+
         /*-------------------------------------------------*
          *  Check AUTHZ
          *-------------------------------------------------*/
@@ -1259,25 +1259,25 @@ int x;
         /*
          *   Protect: only public events
          */
-        // TODO IMPORTANT if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-//            char temp[256];
-//            snprintf(temp, sizeof(temp),
-//                "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
-//                iev_dst_service
-//            );
-//            gobj_log_error(gobj, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//                "msg",          "%s", temp,
-//                "service",      "%s", iev_dst_service,
-//                "gobj_service", "%s", gobj_short_name(gobj_service),
-//                "event",        "%s", iev_event,
-//                NULL
-//            );
-//            KW_DECREF(iev_kw)
-//            KW_DECREF(kw)
-//            return -1;
-//        }
+         if(!gobj_has_output_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+            char temp[256];
+            snprintf(temp, sizeof(temp),
+                "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
+                iev_dst_service
+            );
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", temp,
+                "service",      "%s", iev_dst_service,
+                "gobj_service", "%s", gobj_short_name(gobj_service),
+                "event",        "%s", iev_event,
+                NULL
+            );
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return -1;
+        }
 
         // Set locals to remove on publishing
         kw_set_subdict_value(
@@ -1292,14 +1292,6 @@ int x;
         json_t *__md_iev__ = kw_get_dict(gobj, iev_kw, "__md_iev__", 0, 0);
         if(__md_iev__) {
             KW_INCREF(iev_kw)
-
-//            json_t *kw3 = msg_iev_answer(
-//                gobj,
-//                iev_kw,
-//                0,
-//                "__publishing__" TODO needed?
-//            );
-
             json_t *kw3 = msg_iev_set_back_metadata(
                 gobj,
                 iev_kw,
@@ -1331,22 +1323,22 @@ int x;
         /*
          *   Protect: only public events
          */
-// TODO       if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-//            gobj_log_error(gobj, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//                "msg",          "%s", "UNSUBSCRIBING event ignored, not in output_event_list or not PUBLIC event",
-//                "service",      "%s", iev_dst_service,
-//                "gobj_service", "%s", gobj_short_name(gobj_service),
-//                "event",        "%s", iev_event,
-//                NULL
-//            );
-//            KW_DECREF(iev_kw)
-//            KW_DECREF(kw)
-//            return -1;
-//        }
-//        kw_delete(iev_kw, "__md_iev__");
-//        gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
+        if(!gobj_has_output_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "UNSUBSCRIBING event ignored, not in output_event_list or not PUBLIC event",
+                "service",      "%s", iev_dst_service,
+                "gobj_service", "%s", gobj_short_name(gobj_service),
+                "event",        "%s", iev_event,
+                NULL
+            );
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return -1;
+        }
+        kw_delete(gobj, iev_kw, "__md_iev__");
+        gobj_unsubscribe_event(gobj_service, iev_event, iev_kw, gobj);
 
     } else {
         /*----------------------*
@@ -1389,19 +1381,19 @@ int x;
 //             }
 //         }
 
-// TODO       if(gobj_event_in_input_event_list(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-//            /*
-//            *  It's mine (I manage inter-command and inter-stats)
-//            */
-//            gobj_send_event(
-//                gobj,
-//                iev_event,
-//                iev_kw,
-//                gobj
-//            );
-//            KW_DECREF(kw)
-//            return 0;
-//        }
+        if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+            /*
+            *  It's mine (I manage inter-command and inter-stats)
+            */
+            gobj_send_event(
+                gobj,
+                iev_event,
+                iev_kw,
+                gobj
+            );
+            KW_DECREF(kw)
+            return 0;
+        }
 
         /*
          *   Send inter-event to subscriber
