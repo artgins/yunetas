@@ -62,13 +62,41 @@ BOOL server_secure_connected = FALSE;
 BOOL client_secure_connected = FALSE;
 
 /***************************************************************************
+ *              Test
+ ***************************************************************************/
+int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+{
+    if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ytls_encrypt_data() FAILED",
+            "error",        "%s", ytls_get_last_error(ytls, sskt),
+            NULL
+        );
+        return -1;
+    }
+    if(gbuffer_leftbytes(gbuf) > 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+            NULL
+        );
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  YTLS callbacks
  ***************************************************************************/
-int ytls_server_on_handshake_done_cb(void *user_data, int error)
+int ytls_server_on_handshake_done_callback(void *user_data, int error)
 {
     yev_event_t *yev_event = user_data;
 
     server_secure_connected = TRUE;
+    gobj_info_msg(0, "Server: secure connected");
+
 //    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
 //
@@ -85,11 +113,12 @@ int ytls_server_on_handshake_done_cb(void *user_data, int error)
     return 0;
 }
 
-int ytls_client_on_handshake_done_cb(void *user_data, int error)
+int ytls_client_on_handshake_done_callback(void *user_data, int error)
 {
     yev_event_t *yev_event = user_data;
 
     client_secure_connected = TRUE;
+    gobj_info_msg(0, "Client: secure connected");
 
 //    priv->inform_disconnection = TRUE;
 //    priv->secure_connected = TRUE;
@@ -107,7 +136,7 @@ int ytls_client_on_handshake_done_cb(void *user_data, int error)
     return 0;
 }
 
-int ytls_server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
 
@@ -115,11 +144,20 @@ int ytls_server_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
-    gobj_trace_dump_gbuf(0, gbuf, "SERVER: Query CLEAR from the client");
+    gobj_info_msg(0, "Server: query from the client");
+    gobj_trace_dump_gbuf(0, gbuf, "Server: query from the client");
+    // gbuffer_decref(gbuf); re-use
+
+
+    /*
+     *  Do ECHO
+     */
+    send_clear_data(ytls_server, sskt_server, gbuf);
+
     return 0;
 }
 
-int ytls_server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
 
@@ -133,14 +171,14 @@ int ytls_server_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
         yev_server_callback,
         NULL,   // gobj
         yev_get_fd(yev_event),
-        gbuf
+        gbuf  // owned
     );
     yev_start_event(yev_tx_msg);
 
     return 0;
 }
 
-int ytls_client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
 
@@ -149,11 +187,29 @@ int ytls_client_on_clear_data_cb(void *user_data, gbuffer_t *gbuf)
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
 
-    gobj_trace_dump_gbuf(0, gbuf, "CLIENT: Response CLEAR from the server");
+    gobj_info_msg(0, "Client: response from the server");
+    gobj_trace_dump_gbuf(0, gbuf, "Client: response from the server");
+
+    /*---------------------------------------------------------*
+     *  The client matchs the received message with the sent.
+     *---------------------------------------------------------*/
+    json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
+    const char *text = json_string_value(msg);
+
+    if(strcmp(text, MESSAGE)!=0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+        print_track_mem();
+        result += -1;
+    } else {
+        gobj_info_msg(0, "Client and Server messages MATCH");
+    }
+    json_decref(msg);
+
+    gbuffer_decref(gbuf);
     return 0;
 }
 
-int ytls_client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
+int ytls_client_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     yev_event_t *yev_event = user_data;
 
@@ -167,7 +223,7 @@ int ytls_client_on_encrypted_data_cb(void *user_data, gbuffer_t *gbuf)
         yev_client_callback,
         NULL,   // gobj
         yev_get_fd(yev_event),
-        gbuf
+        gbuf //owned
     );
     yev_start_event(yev_tx_msg);
 
@@ -199,16 +255,12 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
         return -1;  // break the loop
     }
 
-    char *msg = "???";
     int ret = 0;
     yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_ACCEPT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Server: Listen Connection Accepted";
-                    ret = 0; // re-arm
-
                     /*---------------------------------------*
                      *  SERVER: setup read event
                      *---------------------------------------*/
@@ -222,25 +274,22 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     );
                     yev_start_event(yev_server_reader_msg);
 
-                    // Set connected, but not secure-connected in ytls_server_on_handshake_done_cb
+                    // Set connected, but not secure-connected in ytls_server_on_handshake_done_callback
                     sskt_server = ytls_new_secure_filter(
                         ytls_server,
-                        ytls_server_on_handshake_done_cb,
-                        ytls_server_on_clear_data_cb,
-                        ytls_server_on_encrypted_data_cb,
+                        ytls_server_on_handshake_done_callback,
+                        ytls_server_on_clear_data_callback,
+                        ytls_server_on_encrypted_data_callback,
                         yev_event
                     );
                     if(!sskt_server) {
-                        msg = "Server: Bad ytls";
-                        //ret = -1; // break the loop TODO ?
+                        //msg = "Server: Bad ytls";
+                        //log_error()
+                        ret = -1; // break the loop
                     }
 
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Server: Listen socket failed or stopped";
-                    // Get the error of strerrno(
-                    ret = -1; // break the loop
                 } else {
-                    msg = "Server: What?";
+                    // Listening stopped
                     ret = -1; // break the loop
                 }
             }
@@ -253,16 +302,15 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      *  Write going well
                      *  You can advise to someone, ready to more writes.
                      */
-                    msg = "Server: Tx ready";
-                } else if(yev_state == YEV_ST_STOPPED) {
+                    //msg = "Server: Tx ready";
+                } else {
                     /*
                      *  Cannot send, something went bad
                      *  Disconnected
                      */
-                    msg = strerror(yev_get_result(yev_event));
-                    msg = "Server: Server's client disconnected writing";
-                } else {
-                    msg = "Server: What?";
+                    //msg = strerror(yev_get_result(yev_event));
+                    //msg = "Server: Server's client disconnected writing";
+                    ret = -1; // break the loop
                 }
 
                 /*
@@ -279,7 +327,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  Data from the client
                      */
-                    msg = "Server: Message from the client";
+                    //msg = "Server: Message from the client";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
 
                     gobj_trace_dump_gbuf(0, gbuf_rx, "Server: Query encrypted from the client");
@@ -287,7 +335,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     /*
                      *  Server: Process the message
                      *  First decrypt if is SSL
-                     *  The clear data will be returned in on_clear_data_cb callback!! TODO
+                     *  The clear data will be returned in on_clear_data_callback callback!! TODO
                      */
                     if(ytls_decrypt_data(ytls_server, sskt_server, gbuffer_incref(gbuf_rx))<0) {
                         gobj_log_error(0, 0,
@@ -304,36 +352,19 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     gbuffer_clear(gbuf_rx); // Empty the buffer
                     yev_start_event(yev_event);
 
-
-// Do the echo in on_clear_data_cb callback!! TODO
-//                    yev_event_t *yev_response = yev_create_write_event(
-//                        yev_loop,
-//                        yev_event->callback,
-//                        NULL,   // gobj
-//                        yev_get_fd(yev_event),
-//                        gbuf_rx
-//                    );
-//                    yev_start_event(yev_response);
-
-                } else if(yev_state == YEV_ST_STOPPED) {
+                } else {
                     /*
                      *  Bad read
                      *  Disconnected
                      */
-                    msg = strerror(yev_get_result(yev_event));
-                    msg = "Server: Server's client disconnected reading";
+                    //msg = strerror(yev_get_result(yev_event));
+                    //msg = "Server: Server's client disconnected reading";
                     /*
                      *  Free the message
                      */
                     yev_set_gbuffer(yev_event, NULL);
-                    // TODO inform disconnection
 
-                } else {
-                    msg = "Server: What?";
-                    /*
-                     *  Free the message
-                     */
-                    yev_set_gbuffer(yev_event, NULL);
+                    ret = -1; // break the loop
                 }
             }
             break;
@@ -347,26 +378,6 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 NULL
             );
             break;
-    }
-
-    if(yev_event) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", msg,
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "gbuffer",      "%p", yev_event->gbuf,
-            "ret",          "%d", ret,
-            NULL
-        );
-        json_decref(jn_flags);
     }
 
     return ret;
@@ -384,14 +395,12 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
         return -1;  // break the loop
     }
 
-    char *msg = "???";
     int ret = 0;
     yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_event->type) {
         case YEV_CONNECT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-
                     /*----------------------------------------------------------*
                      *  CLIENT: setup reader event
                      *---------------------------------------------------------*/
@@ -405,29 +414,27 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     );
                     yev_start_event(yev_client_reader_msg);
 
-                    msg = "Client: Connection Accepted";
+                    //msg = "Client: Connection Accepted";
                     // Set connected
                     sskt_client = ytls_new_secure_filter(
                         ytls_client,
-                        ytls_client_on_handshake_done_cb,
-                        ytls_client_on_clear_data_cb,
-                        ytls_client_on_encrypted_data_cb,
+                        ytls_client_on_handshake_done_callback,
+                        ytls_client_on_clear_data_callback,
+                        ytls_client_on_encrypted_data_callback,
                         yev_event
                     );
                     if(!sskt_client) {
-                        msg = "Client: Bad ytls";
-                        //ret = -1; // break the loop TODO ?
+                        //msg = "Client: Bad ytls";
+                        //log_error()
+                        ret = -1; // break the loop
                     }
 
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    if(yev_event->result == -125) {
-                        msg = "Client: Connect canceled";
-                    } else {
-                        msg = "Client: Connection Refused";
-                    }
-                    ret = -1; // break the loop
                 } else {
-                    msg = "Client: What?";
+                    if(yev_event->result == -125) {
+                        //msg = "Client: Connect canceled";
+                    } else {
+                        //msg = "Client: Connection Refused";
+                    }
                     ret = -1; // break the loop
                 }
             }
@@ -440,17 +447,15 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                      *  Write going well
                      *  You can advise to someone, ready to more writes.
                      */
-                    msg = "Client: Tx ready";
-                } else if(yev_state == YEV_ST_STOPPED) {
+                    //msg = "Client: Tx ready";
+                } else {
                     /*
                      *  Cannot send, something went bad
                      *  Disconnected
                      */
-                    msg = strerror(yev_get_result(yev_event));
-                    msg = "Client: Client disconnected writing";
-
-                } else {
-                    msg = "Client: What?";
+                    //msg = strerror(yev_get_result(yev_event));
+                    //msg = "Client: Client disconnected writing";
+                    ret = -1; // break the loop
                 }
 
                 /*
@@ -467,7 +472,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     /*
                      *  Data from the server
                      */
-                    msg = "Client: Response from the server";
+                    //msg = "Client: Response from the server";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
 
                     gobj_trace_dump_gbuf(0, gbuf_rx, "Client: Response encrypted from the server");
@@ -475,7 +480,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     /*
                      *  Client: Process the response
                      *  First decrypt if is SSL
-                     *  The clear data will be returned in on_clear_data_cb callback!! TODO
+                     *  The clear data will be returned in on_clear_data_callback callback!! TODO
                      */
                     if(ytls_decrypt_data(ytls_client, sskt_client, gbuffer_incref(gbuf_rx))<0) {
                         gobj_log_error(0, 0,
@@ -492,16 +497,19 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                     gbuffer_clear(gbuf_rx); // Empty the buffer
                     yev_start_event(yev_event);
 
-                } else if(yev_state == YEV_ST_STOPPED) {
+                } else {
                     /*
                      *  Bad read
                      *  Disconnected
                      */
-                    msg = strerror(yev_get_result(yev_event));
-                    msg = "Client: Client disconnected reading";
-                    // TODO
-                } else {
-                    msg = "Server: What?";
+                    //msg = strerror(yev_get_result(yev_event));
+                    //msg = "Client: Client disconnected reading";
+                    /*
+                     *  Free the message
+                     */
+                    yev_set_gbuffer(yev_event, NULL);
+
+                    ret = -1; // break the loop
                 }
             }
             break;
@@ -517,53 +525,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
             break;
     }
 
-    if(yev_event) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", msg,
-            "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            "gbuffer",      "%p", yev_event->gbuf,
-            "ret",          "%d", ret,
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
     return ret;
-}
-
-/***************************************************************************
- *              Test
- ***************************************************************************/
-int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
-{
-    if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ytls_encrypt_data() FAILED",
-            "error",        "%s", ytls_get_last_error(ytls, sskt),
-            NULL
-        );
-        return -1;
-    }
-    if(gbuffer_leftbytes(gbuf) > 0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
-            NULL
-        );
-    }
-    return 0;
 }
 
 /***************************************************************************
@@ -650,68 +612,29 @@ int do_test(void)
 
     /*--------------------------------*
      *  Process ring queue
-     *  Server accept the connection - re-arm
-     *  Client connected, break the loop
      *--------------------------------*/
-    yev_loop_run(yev_loop, 2);
+    yev_loop_run(yev_loop, 1);
 
-//    /*----------------------------------------------------------*
-//     *  CLIENT: On client connected, it transmits a message
-//     *---------------------------------------------------------*/
-//    if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
-//        /*
-//         *  If connected, create the message to send.
-//         *  And set a read event to receive the response.
-//         */
-//        gobj_info_msg(0, "client: send request");
-//        json_t *message = json_string(MESSAGE);
-//        yev_event_t * yev_client_msg = 0;
-//        gbuffer_t *gbuf_tx = json2gbuf(0, message, JSON_ENCODE_ANY);
-//
-////        gbuf = gbuffer_encrypt(0, gbuf, 0);
-//
-//        /*
-//         *  The encrypted data will be returned in on_encrypted_data_cb callback!! TODO
-//         */
-//        if(ytls_encrypt_data(ytls_client, sskt_client, gbuf_tx)<0) {
-//            gobj_log_error(0, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                "msg",          "%s", "ytls_encrypt_data() FAILED",
-//                NULL
-//            );
-//        }
-//        if(gbuffer_leftbytes(gbuf_tx) > 0) {
-//            gobj_log_error(0, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
-//                NULL
-//            );
-//        }
-//    }
+    /*----------------------------------------------------------*
+     *  CLIENT: On client connected, it transmits a message
+     *---------------------------------------------------------*/
+    if(server_secure_connected && client_secure_connected) {
+        /*
+         *  If both secure connected, send the message
+         */
+        gobj_info_msg(0, "client: send request");
+        json_t *message = json_string(MESSAGE);
+        gbuffer_t *gbuf_tx = json2gbuf(0, message, JSON_ENCODE_ANY);
+        send_clear_data(ytls_client, sskt_client, gbuf_tx);
 
-//    /*--------------------------------*
-//     *  Process ring queue
-//     *--------------------------------*/
-//    yev_loop_run(yev_loop, 1);
-
-//    /*---------------------------------------------------------*
-//     *  The client matchs the received message with the sent.
-//     *---------------------------------------------------------*/
-//     gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
-//     json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
-//     const char *text = json_string_value(msg);
-//
-//     if(strcmp(text, MESSAGE)!=0) {
-//         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
-//         print_track_mem();
-//         result += -1;
-//     }
-//    json_decref(msg);
+        /*--------------------------------*
+         *  Process ring queue
+         *--------------------------------*/
+        yev_loop_run(yev_loop, 1);
+    }
 
     /*--------------------------------*
-     *  Stop connect event: disconnected
+     *  Stop connect event:
      *  Stop accept event:
      *--------------------------------*/
     yev_stop_event(yev_client_reader_msg);
@@ -817,22 +740,19 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-//    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-//        "msg", "addrinfo on listen",
-//        "msg", "Client: Connection Accepted",
-//        "msg", "Server: Listen Connection Accepted",
-//        "msg", "client: send request",
-//        "msg", "Server: Message from the client",
-//        "msg", "Client: Response from the server",
-//        "msg", "Client: Client disconnected reading",
-//        "msg", "Server: Server's client disconnected reading",
-//        "msg", "Client: Connect canceled",
-//        "msg", "Server: Listen socket failed or stopped"
-//    );
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+          "msg", "addrinfo on listen",
+          "msg", "Client: secure connected",
+          "msg", "Server: secure connected",
+          "msg", "client: send request",
+          "msg", "Server: query from the client",
+          "msg", "Client: response from the server",
+          "msg", "Client and Server messages MATCH"
+    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        0, //error_list,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose
