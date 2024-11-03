@@ -26,7 +26,7 @@ typedef void * hytls;
 typedef void * hsskt;
 
 /*
- *  Fields of jn_config
+ *  Fields of jn_config for "openssl"
  *      - "trace"                       bool
  *      - "ssl_certificate"             str
  *      - "ssl_certificate_key"         str
