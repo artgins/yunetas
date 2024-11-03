@@ -485,14 +485,14 @@ PRIVATE void cleanup(hytls ytls_)
 {
     ytls_t *ytls = ytls_;
 
-    // TODO manten una lista de sskt y cierralos
-
-    SSL_CTX_free(ytls->ctx);
+    if(ytls && ytls->ctx) {
+        SSL_CTX_free(ytls->ctx);
+    }
 
     /* Removes all digests and ciphers */
     EVP_cleanup();
 
-    GBMEM_FREE(ytls);
+    GBMEM_FREE(ytls)
 }
 
 /***************************************************************************
@@ -612,7 +612,6 @@ PRIVATE void free_secure_filter(hsskt sskt_)
 PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = sskt_;
-    hgobj gobj = sskt->ytls->gobj;
     sskt->ytls->trace = set?TRUE:FALSE;
 
     if(sskt->ytls->trace) {
