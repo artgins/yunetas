@@ -287,8 +287,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
-    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );
 
 PUBLIC yev_event_t *yev_create_accept_event(
@@ -302,8 +301,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     int backlog,            /* queue of pending connections for socket listening, default 512 */
     BOOL shared,            /* open socket as shared */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
-    json_t *crypto          /* owned, required if YEV_FLAG_USE_TLS */
+    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 );
 
 PUBLIC yev_event_t *yev_create_read_event(
