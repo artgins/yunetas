@@ -160,6 +160,24 @@ PRIVATE int mt_stop(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    }
+    return v;
+}
+
 
 
 
@@ -469,6 +487,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop = mt_stop,
     .mt_enable = mt_enable,
     .mt_disable = mt_disable,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*

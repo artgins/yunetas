@@ -2890,35 +2890,30 @@ PUBLIC int gobj_reset_rstats_attrs(hgobj gobj)
 
 /***************************************************************************
  *  ATTR: read str
- *  Return is NOT yours! New api (May/2019), js style
- *  Inherit from js-core
  ***************************************************************************/
 PUBLIC json_t *gobj_read_attr(
     hgobj gobj_,
-    const char *path, // If it has ` then segments are gobj and leaf is the attribute (+bottom)
+    const char *name,
     hgobj src
 ) {
     gobj_t *gobj = gobj_;
 
-    // TODO use ` segments
-    if(!gobj_has_attr(gobj, path)) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Attribute not found",
-            "path",         "%s", path,
-            NULL
-        );
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    if(hs) {
+        json_t *jn_value = json_object_get(hs, name);
+        return jn_value;
     }
-    json_t *hs = gobj_hsdata(gobj);
 
-//    if(gobj->gclass->gmt->mt_reading) { TODO como hago el reading de todo el record???
-//        if(!(gobj->obflag & obflag_destroyed)) {
-//            gobj->gclass->gmt->mt_reading(gobj, name);
-//        }
-//    }
+    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "GClass Attribute NOT FOUND",
+        "gclass",       "%s", gobj_gclass_name(gobj),
+        "attr",         "%s", name,
+        NULL
+    );
 
-    return json_object_get(hs, path);
+    return NULL;
 }
 
 /***************************************************************************
@@ -3124,7 +3119,10 @@ PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.s;
+                }
             }
         }
         const json_t *jn_value = json_object_get(hs, name);
@@ -3153,7 +3151,10 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.b;
+                }
             }
         }
         const json_t *jn_value = json_object_get(hs, name);
@@ -3182,7 +3183,10 @@ PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj_, const char *name)
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.i;
+                }
             }
         }
         const json_t *jn_value = json_object_get(hs, name);
@@ -3211,7 +3215,10 @@ PUBLIC double gobj_read_real_attr(hgobj gobj_, const char *name)
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.f;
+                }
             }
         }
         const json_t *jn_value = json_object_get(hs, name);
@@ -3240,7 +3247,10 @@ PUBLIC json_t *gobj_read_json_attr(hgobj gobj_, const char *name) // WARNING ret
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.j;
+                }
             }
         }
         json_t *jn_value = json_object_get(hs, name);
@@ -3269,7 +3279,10 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj_, const char *name)
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
-                gobj->gclass->gmt->mt_reading(gobj, name);
+                SData_Value_t v = gobj->gclass->gmt->mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.p;
+                }
             }
         }
         const json_t *jn_value = json_object_get(hs, name);

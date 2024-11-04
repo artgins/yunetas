@@ -609,6 +609,21 @@ typedef struct event_type_s {
     event_flag_t event_flag;
 } event_type_t;
 
+/*
+ *  Cell functions
+ */
+typedef struct {
+    char found;
+    union {
+        char *s;          // string
+        BOOL b;           // bool
+        json_int_t i;     // integer
+        double f;         // float
+        json_t *j;        // json_t
+        void *p;          // pointer
+    } v;
+} SData_Value_t;
+
 /*-------------------------------------------------------*
  *                  GClass Methods
  *-------------------------------------------------------*/
@@ -626,7 +641,7 @@ typedef void (*mt_writing_fn)(
     hgobj gobj,
     const char *name
 );
-typedef int (*mt_reading_fn)(
+typedef SData_Value_t (*mt_reading_fn)(
     hgobj gobj,
     const char *name
 );

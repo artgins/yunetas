@@ -379,6 +379,30 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 }
 
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->txBytes;
+    } else if(strcmp(name, "rxBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->rxBytes;
+    } else if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    }
+    return v;
+}
+
 
 
 
@@ -1225,6 +1249,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*
