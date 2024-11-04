@@ -705,6 +705,22 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         );
     }
 
+    if(priv->fd_clisrv > 0) {
+        if(gobj_trace_level(gobj) & TRACE_UV) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket fd_clisrv",
+                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                "fd",           "%d", priv->fd_clisrv ,
+                NULL
+            );
+        }
+
+        close(priv->fd_clisrv);
+        priv->fd_clisrv = -1;
+    }
+
     gobj_change_state(gobj, ST_WAIT_STOPPED);
 
     if(priv->yev_client_connect) {

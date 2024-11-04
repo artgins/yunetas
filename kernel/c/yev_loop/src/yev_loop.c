@@ -255,7 +255,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop ONCE running",
-        "msg2",         "%s", "🟩💥 yev loop ONCE running",
+        "msg2",         "%s", "💥🟩 yev loop ONCE running",
         NULL
     );
 
@@ -439,7 +439,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "receive event in stopped state, check if running double loop",
+                "msg",          "%s", "receive event in stopped state",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "state",        "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
