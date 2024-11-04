@@ -1531,7 +1531,7 @@ PUBLIC json_t *load_persistent_json(
             gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot open json file",
+                "msg",          "%s", exclusive? "Cannot open an exclusive json file":"Cannot open a json file",
                 "msg2",         "%s", exclusive? "Check if someone has opened the file":"Check permissions",
                 "exclusive",    "%d", exclusive,
                 "path",         "%s", full_path,
@@ -4439,107 +4439,6 @@ PUBLIC uint64_t time_in_seconds(void)
     time_t __t__;
     time(&__t__);
     return (uint64_t) __t__;
-}
-
-/***************************************************************************
- * Read memory statistics from /proc/meminfo.
- *
- * IN:
- * @st_memory   Structure where stats will be saved.
- *
- * OUT:
- * @st_memory   Structure with statistics.
- ***************************************************************************/
-void read_meminfo(struct stats_memory *st_memory)
-{
-    FILE *fp;
-    char line[128];
-
-    if ((fp = fopen(MEMINFO, "r")) == NULL)
-        return;
-
-    while (fgets(line, sizeof(line), fp) != NULL) {
-
-        if (!strncmp(line, "MemTotal:", 9)) {
-            /* Read the total amount of memory in kB */
-            sscanf(line + 9, "%lu", &st_memory->tlmkb);
-        }
-        else if (!strncmp(line, "MemFree:", 8)) {
-            /* Read the amount of free memory in kB */
-            sscanf(line + 8, "%lu", &st_memory->frmkb);
-        }
-        else if (!strncmp(line, "Buffers:", 8)) {
-            /* Read the amount of buffered memory in kB */
-            sscanf(line + 8, "%lu", &st_memory->bufkb);
-        }
-        else if (!strncmp(line, "Cached:", 7)) {
-            /* Read the amount of cached memory in kB */
-            sscanf(line + 7, "%lu", &st_memory->camkb);
-        }
-        else if (!strncmp(line, "SwapCached:", 11)) {
-            /* Read the amount of cached swap in kB */
-            sscanf(line + 11, "%lu", &st_memory->caskb);
-        }
-        else if (!strncmp(line, "Active:", 7)) {
-            /* Read the amount of active memory in kB */
-            sscanf(line + 7, "%lu", &st_memory->activekb);
-        }
-        else if (!strncmp(line, "Inactive:", 9)) {
-            /* Read the amount of inactive memory in kB */
-            sscanf(line + 9, "%lu", &st_memory->inactkb);
-        }
-        else if (!strncmp(line, "SwapTotal:", 10)) {
-            /* Read the total amount of swap memory in kB */
-            sscanf(line + 10, "%lu", &st_memory->tlskb);
-        }
-        else if (!strncmp(line, "SwapFree:", 9)) {
-            /* Read the amount of free swap memory in kB */
-            sscanf(line + 9, "%lu", &st_memory->frskb);
-        }
-        else if (!strncmp(line, "Dirty:", 6)) {
-            /* Read the amount of dirty memory in kB */
-            sscanf(line + 6, "%lu", &st_memory->dirtykb);
-        }
-        else if (!strncmp(line, "Committed_AS:", 13)) {
-            /* Read the amount of commited memory in kB */
-            sscanf(line + 13, "%lu", &st_memory->comkb);
-        }
-        else if (!strncmp(line, "AnonPages:", 10)) {
-            /* Read the amount of pages mapped into userspace page tables in kB */
-            sscanf(line + 10, "%lu", &st_memory->anonpgkb);
-        }
-        else if (!strncmp(line, "Slab:", 5)) {
-            /* Read the amount of in-kernel data structures cache in kB */
-            sscanf(line + 5, "%lu", &st_memory->slabkb);
-        }
-        else if (!strncmp(line, "KernelStack:", 12)) {
-            /* Read the kernel stack utilization in kB */
-            sscanf(line + 12, "%lu", &st_memory->kstackkb);
-        }
-        else if (!strncmp(line, "PageTables:", 11)) {
-            /* Read the amount of memory dedicated to the lowest level of page tables in kB */
-            sscanf(line + 11, "%lu", &st_memory->pgtblkb);
-        }
-        else if (!strncmp(line, "VmallocUsed:", 12)) {
-            /* Read the amount of vmalloc area which is used in kB */
-            sscanf(line + 12, "%lu", &st_memory->vmusedkb);
-        }
-    }
-
-    fclose(fp);
-}
-
-/***************************************************************************
- *  Free memory in kB
- ***************************************************************************/
-PUBLIC unsigned long free_ram_in_kb(void)
-{
-    struct stats_memory st_mem;
-
-    memset(&st_mem, 0, STATS_MEMORY_SIZE);
-    read_meminfo(&st_mem);
-
-    return st_mem.frmkb + st_mem.camkb; // Include cache memory too
 }
 
 /***************************************************************************

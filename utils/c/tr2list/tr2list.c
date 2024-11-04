@@ -21,6 +21,7 @@
 #include <kwid.h>
 #include <timeranger2.h>
 #include <stacktrace_with_bfd.h>
+#include <cpu.h>
 #include <yev_loop.h>
 
 /***************************************************************************

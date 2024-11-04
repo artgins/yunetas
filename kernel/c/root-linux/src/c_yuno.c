@@ -17,6 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <sys/statvfs.h>
+#include <sys/utsname.h>
+#include <sys/resource.h>
 
 #include <gobj_environment.h>
 #include <kwid.h>
@@ -24,8 +27,10 @@
 #include <log_udp_handler.h>
 #include <yuneta_version.h>
 #include <yev_loop.h>
+#include <rotatory.h>
 #include "yunetas_environment.h"
 #include "c_timer0.h"
+#include "cpu.h"
 #include "c_yuno.h"
 
 /***************************************************************
@@ -33,6 +38,10 @@
  ***************************************************************/
 #define KW_GET(__name__, __default__, __func__) \
     __name__ = __func__(gobj, kw, #__name__, __default__, 0);
+
+/***************************************************************
+ *              Structures
+ ***************************************************************/
 
 /***************************************************************
  *              Prototypes
@@ -398,6 +407,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     yev_loop_t *yev_loop;
 
+    uint64_t last_cpu_ticks;
+    uint64_t last_ms;
+
     time_t t_flush;
     time_t t_stats;
     time_t t_restart;
@@ -670,6 +682,7 @@ PRIVATE int mt_play(hgobj gobj)
     );
 
     yev_loop_run(priv->yev_loop, -1);   // Infinite loop while some handler is active
+    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
 
     return 0;
 }
@@ -2695,7 +2708,7 @@ PRIVATE json_t* cmd_set_autokill(hgobj gobj, const char* cmd, json_t* kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    // TODO rotatory_trunk(0); // WARNING trunk all files
+    rotatory_trunk(0); // WARNING trunk all files
     json_t *kw_response = build_command_response(
         gobj,
         0,
@@ -3288,6 +3301,223 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void load_stats(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*---------------------------------------*
+     *      cpu
+     *---------------------------------------*/
+    {
+        unsigned int pid = getpid();
+        uint64_t cpu_ticks;
+        cpu_usage(pid, 0, &cpu_ticks);
+        //uint64_t ms = time_in_miliseconds();
+        time_t ms;  // Usando segundos no se pierde el uso de cpu
+        time(&ms);
+        if(!priv->last_ms) {
+            priv->last_ms = ms;
+        }
+        uint32_t cpu_delta = 0;
+        uint64_t t = (ms - priv->last_ms);
+        if(t>0) {
+            cpu_delta = cpu_ticks - priv->last_cpu_ticks;
+            //cpu_delta *= 1000;
+            cpu_delta /= t;
+            priv->last_ms = ms;
+            priv->last_cpu_ticks = cpu_ticks;
+            gobj_write_integer_attr(gobj, "cpu", cpu_delta);
+            gobj_write_integer_attr(gobj, "cpu_ticks", (json_int_t)cpu_ticks);
+        }
+    }
+
+    /*---------------------------------------*
+     *      uptime
+     *---------------------------------------*/
+    {
+        unsigned long long uptime;
+        read_uptime(&uptime);
+        gobj_write_integer_attr(
+            gobj,
+            "uptime",
+            (json_int_t)uptime
+        );
+    }
+
+    /*---------------------------------------*
+     *      rusage (See man getrusage)
+     *---------------------------------------*/
+    {
+        // TODO use this
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+
+//        uv_rusage_t rusage;
+//        uv_getrusage(&rusage);
+//
+//    /*
+//        ru_utime:       user CPU time used
+//        ru_stime:       system CPU time used
+//        ru_maxrss:      maximum resident set size
+//        ru_ixrss:       integral shared memory size         // No used in linux
+//        ru_idrss:       integral unshared data size         // No used in linux
+//        ru_isrss:       integral unshared stack size        // No used in linux
+//        ru_minflt:      page reclaims (soft page faults)
+//        ru_majflt:      page faults (hard page faults)
+//        ru_nswap:       swaps                               // No used in linux
+//        ru_inblock:     block input operations
+//        ru_oublock:     block output operations
+//        ru_msgsnd:      IPC messages sent                   // No used in linux
+//        ru_msgrcv:      IPC messages received               // No used in linux
+//        ru_nsignals:    signals received                    // No used in linux
+//        ru_nvcsw:       voluntary context switches
+//        ru_nivcsw:      involuntary context switches
+//    */
+//
+//        uint64_t time_user = rusage.ru_utime.tv_sec*1000000LL + rusage.ru_utime.tv_usec;
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_utime_us", // in microseconds!!
+//            time_user
+//        );
+//        uint64_t time_system = rusage.ru_stime.tv_sec*1000000LL + rusage.ru_stime.tv_usec;
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_stime_us", // in microseconds!!
+//            time_system
+//        );
+//
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_maxrss",
+//            rusage.ru_maxrss
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_minflt",
+//            rusage.ru_minflt
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_majflt",
+//            rusage.ru_majflt
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_inblock",
+//            rusage.ru_inblock
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_oublock",
+//            rusage.ru_oublock
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_nvcsw",
+//            rusage.ru_nvcsw
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "rusage_ru_nivcsw",
+//            rusage.ru_nivcsw
+//        );
+    }
+
+    /*---------------------------------------*
+     *      Mem
+     *---------------------------------------*/
+    {
+        // TODO use this ???
+//        struct stats_memory st_memory;
+//        read_meminfo(&st_memory);
+
+//        size_t free_superblock_mem;
+//        size_t free_segmented_mem;
+//        size_t total_free_mem;
+//        size_t allocated_system_mem;
+//        size_t mem_in_use;
+//        size_t memory_yuno_cur_sm;
+//        size_t memory_yuno_max_sm;
+//
+//        gbmem_stats(
+//            &free_superblock_mem,
+//            &free_segmented_mem,
+//            &total_free_mem,
+//            &allocated_system_mem,
+//            &mem_in_use,
+//            &memory_yuno_cur_sm,
+//            &memory_yuno_max_sm
+//        );
+//
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_memory_node_total_in_kb",
+//            uv_get_total_memory()/1024
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_memory_node_free_in_kb",
+//            free_ram_in_kb()
+//        );
+//        size_t rss;
+//        uv_resident_set_memory(&rss);
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_memory_rss_in_kb",
+//            rss/1024
+//        );
+//
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_gbmem_total_in_kb",
+//            allocated_system_mem/1024
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_gbmem_using_in_kb",
+//            mem_in_use/1024
+//        );
+//
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_gbmem_max_sm_in_kb",
+//            memory_yuno_max_sm/1024
+//        );
+//        gobj_write_integer_attr(
+//            gobj,
+//            "mem_gbmem_cur_sm_in_kb",
+//            memory_yuno_cur_sm/1024
+//        );
+    }
+
+    /*---------------------------------------*
+     *      Mem
+     *---------------------------------------*/
+    {
+        struct statvfs64 st;
+
+        if(statvfs64("/yuneta", &st)==0) {
+            int free_percent = (int)((st.f_bavail * 100)/st.f_blocks);
+            uint64_t total_size = (uint64_t)st.f_frsize * st.f_blocks;
+            total_size = total_size/(1024LL*1024LL*1024LL);
+            gobj_write_integer_attr(
+                gobj,
+                "disk_size_in_gigas",
+                (json_int_t)total_size
+            );
+            gobj_write_integer_attr(
+                gobj,
+                "disk_free_percent",
+                free_percent
+            );
+        }
+    }
+}
+
 
 
 
@@ -3307,7 +3537,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     if(priv->timeout_flush > 0 && test_sectimer(priv->t_flush)) {
         priv->t_flush = start_sectimer(priv->timeout_flush);
-        // TODO rotatory_flush(0);
+        rotatory_flush(0);
     }
     if(gobj_get_yuno_must_die()) {
         JSON_DECREF(kw)
@@ -3329,7 +3559,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(priv->timeout_stats > 0 && test_sectimer(priv->t_stats)) {
         priv->t_stats = start_sectimer(priv->timeout_stats);
         priv->autokill_init++;
-        // TODO load_stats(gobj);
+        load_stats(gobj);
     }
 
     // Let others uses the periodic timer, save resources
