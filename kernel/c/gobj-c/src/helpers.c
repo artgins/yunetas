@@ -1502,7 +1502,7 @@ PUBLIC json_t *load_persistent_json(
     char full_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
-    if(access(full_path, 0)!=0) {
+    if(!is_regular_file(full_path)) {
         if(!(silence && on_critical_error == LOG_NONE)) {
             gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
@@ -1519,7 +1519,9 @@ PUBLIC json_t *load_persistent_json(
     if(exclusive) {
         fd = open_exclusive(full_path, O_RDONLY|O_NOFOLLOW, 0);
 #ifdef __linux__
-        fcntl(fd, F_SETFD, FD_CLOEXEC); // Que no vaya a los child
+        if(fd>0) {
+            fcntl(fd, F_SETFD, FD_CLOEXEC); // Que no vaya a los child
+        }
 #endif
     } else {
         fd = open(full_path, O_RDONLY|O_NOFOLLOW);
@@ -1530,6 +1532,8 @@ PUBLIC json_t *load_persistent_json(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open json file",
+                "msg2",         "%s", exclusive? "Check if someone has opened the file":"Check permissions",
+                "exclusive",    "%d", exclusive,
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
