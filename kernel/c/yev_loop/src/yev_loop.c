@@ -435,8 +435,16 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             /*
              *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
              *  and it can receive cqe->res = -2 (No such file or directory)
+             *
+             *  Cases seen:
+             *      - Cancel the read event (previously the socket was closed for testing)
+             *      - receive a read  "errno": -104, "strerror": "Connection reset by peer"
+             *          causing to set the read event in STOPPED state.
+             *      - receive another read event with "errno": -2, "No such file or directory"
+             *          this cause a log_warning "receive event in stopped state"
+             *          the event is ignored
              */
-            gobj_log_error(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "receive event in stopped state",
