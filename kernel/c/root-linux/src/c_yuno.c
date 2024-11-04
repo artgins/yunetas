@@ -686,7 +686,6 @@ PRIVATE int mt_play(hgobj gobj)
     );
 
     yev_loop_run(priv->yev_loop, -1);   // Infinite loop while some handler is active
-    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
 
     return 0;
 }
@@ -709,6 +708,7 @@ PRIVATE int mt_pause(hgobj gobj)
         NULL
     );
     gobj_pause(gobj_default_service());
+
     return 0;
 }
 

@@ -20,6 +20,7 @@
 #include <json_config.h>
 #include <helpers.h>
 #include <kwid.h>
+#include <yev_loop.h>
 #include <log_udp_handler.h>
 #include <gobj_environment.h>
 #include <stacktrace_with_bfd.h>
@@ -947,6 +948,7 @@ PRIVATE void process(
      *      Run main event loop
      *-----------------------------------*/
     gobj_play(yuno);    // It will play default_service ==> WARNING: infinite loop
+    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
 
     /*---------------------------*
      *      Destroy all

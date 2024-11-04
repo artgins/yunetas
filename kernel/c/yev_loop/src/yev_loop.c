@@ -47,6 +47,8 @@ PRIVATE const char *yev_flag_s[] = {
     0
 };
 
+PRIVATE volatile char __inside_loop__ = FALSE;
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -145,6 +147,17 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
 {
+    if(__inside_loop__) {
+        gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "ALREADY running a event loop",
+            NULL
+        );
+        return -1;
+    }
+    __inside_loop__ = TRUE;
+
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
@@ -210,10 +223,12 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop exited",
-        "msg2",         "%s", "💥🟩🟩 yev loop exited",
+        "msg2",         "%s", "💥🟩 yev loop exited",
         "timeout",      "%d", timeout_in_seconds,
         NULL
     );
+
+    __inside_loop__ = FALSE;
 
     return 0;
 }
@@ -225,11 +240,22 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
 {
     struct io_uring_cqe *cqe;
 
+    if(__inside_loop__) {
+        gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msg",          "%s", "ALREADY running a event loop",
+            NULL
+        );
+        return -1;
+    }
+    __inside_loop__ = TRUE;
+
     gobj_log_debug(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop ONCE running",
-        "msg2",         "%s", "💥🟩 yev loop ONCE running",
+        "msg2",         "%s", "🟩💥 yev loop ONCE running",
         NULL
     );
 
@@ -247,9 +273,12 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
         "msg",          "%s", "yev loop ONCE exited",
-        "msg2",         "%s", "💥🟩🟩 yev loop ONCE exited",
+        "msg2",         "%s", "💥🟩 yev loop ONCE exited",
         NULL
     );
+
+    __inside_loop__ = FALSE;
+
     return 0;
 }
 
@@ -403,23 +432,22 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_ST_STOPPED: // cqe ready
-            if(yev_loop->running) {
-                /*
-                 *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
-                 *  and it can receive cqe->res = -2 (No such file or directory)
-                 */
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "receive event in stopped state",
-                    "event_type",   "%s", yev_event_type_name(yev_event),
-                    "state",        "%s", yev_get_state_name(yev_event),
-                    "p",            "%p", yev_event,
-                    "cqe->res",     "%d", (int)cqe->res,
-                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                    NULL
-                );
-            }
+            /*
+             *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
+             *  and it can receive cqe->res = -2 (No such file or directory)
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "receive event in stopped state, check if running double loop",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "state",        "%s", yev_get_state_name(yev_event),
+                "p",            "%p", yev_event,
+                "cqe->res",     "%d", (int)cqe->res,
+                "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                NULL
+            );
+
             /*
              *  Don't call callback again
              *  if the state is STOPPED the callback was already done,
