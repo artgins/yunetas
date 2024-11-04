@@ -78,19 +78,20 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,              "legacy, TODO remove"),
-SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,              "Send type: 0 one dst, 1 all destinations"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,             0,              "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,             0,              "Messages received"),
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD,             0,              "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD,             0,              "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR,             0,              "Max Messages by second"),
-SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+/*-ATTR-type------------name----------------flag----------------default-----description---------- */
+SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,          "legacy, TODO remove"),
+SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,          "Send type: 0 one dst, 1 all destinations"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
+
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
