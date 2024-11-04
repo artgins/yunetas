@@ -296,7 +296,9 @@ PUBLIC int gobj_log_add_handler(
     }
 
     if(gobj_log_exist_handler(handler_name)) {
-        print_error(0, "gobj_log_add_handler(): handler name already exists");
+        print_error(0, "gobj_log_add_handler(): handler name already exists, name '%s' type '%s'",
+            handler_name, handler_type
+        );
         return -1;
     }
 
@@ -310,7 +312,9 @@ PUBLIC int gobj_log_add_handler(
         }
     }
     if(type == max_log_register) {
-        print_error(0, "gobj_log_add_handler(): handler type not found");
+        print_error(0, "gobj_log_add_handler(): handler type not found, name '%s' type '%s'",
+            handler_name, handler_type
+        );
         return -1;
     }
 
