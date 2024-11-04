@@ -495,6 +495,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *      WARNING now all json is gbmem allocated
      *---------------------------------------------------*/
     glog_init();
+    rotatory_start_up();
 
     /*-------------------------------*
      *      Re-alloc with gbmem
@@ -952,6 +953,7 @@ PRIVATE void process(
      *---------------------------*/
     gobj_shutdown();
     gobj_end();
+    rotatory_end();
     json_decref(__jn_config__);
     if(cleaning_fn) {
         cleaning_fn();
