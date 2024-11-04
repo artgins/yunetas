@@ -347,6 +347,8 @@ PUBLIC json_t *msg2db_open_db(
             "load_record_callback",
             json_integer((json_int_t)(size_t)load_record_callback)
         );
+//            "rkey", "", TODO ???
+//            "rt_by_mem", 1,
 
         json_t *jn_extra = json_pack("{s:s, s:s, s:s}",
             "id", path,

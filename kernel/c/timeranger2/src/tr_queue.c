@@ -34,6 +34,8 @@ typedef struct {
     time_t timeout_ack;
     int retries;
     json_t *jn_record;
+    json_int_t rowid;
+    const char *key;
 } q_msg_t;
 
 /***************************************************************
@@ -276,15 +278,50 @@ PUBLIC int trq_load(tr_queue trq_)
         }
     }
 
+    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
+
     first_rowid = 0;
 
-    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:I}",
+// TODO must add some of this fields to match_cond? review another tranger2_open_list
+//    json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+//        "id", path,
+//        "backward", 1,
+//        "rkey", "",
+//        "rt_by_mem", 1,
+//        "load_record_callback", (json_int_t)(size_t)load_id_callback
+//    );
+    json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
-        "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
         "trq", (json_int_t)(size_t)trq
     );
-// TODO   json_t *tr_list = tranger2_open_list(
+
+    //    tranger2_close_list(trq->tranger, tr_list);
+    json_t *tr_list;
+    if(tranger2_open_list(
+        trq->tranger,
+        trq->topic_name,
+        match_cond,  // owned
+        jn_extra,    // owned
+        &tr_list
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "tranger2_open_list() failed",
+            "topic_name",   "%s", trq->topic_name,
+            NULL
+        );
+    }
+    tranger2_close_list(trq->tranger, tr_list);
+
+// original
+//    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:I}",
+//        "topic_name", trq->topic_name,
+//        "match_cond", match_cond,
+//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
+//        "trq", (json_int_t)(size_t)trq
+//    );
+//    json_t *tr_list = tranger2_open_list(
 //        trq->tranger,
 //        jn_list
 //    );
@@ -322,18 +359,21 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
             json_string(key)
         );
     }
+    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
 
-    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:I}",
+    json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
-        "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
         "trq", (json_int_t)(size_t)trq
     );
-//  TODO  json_t *tr_list = tranger_open_list(
-//        trq->tranger,
-//        jn_list
-//    );
-//    tranger_close_list(trq->tranger, tr_list);
+    json_t *tr_list;
+    tranger2_open_list(
+        trq->tranger,
+        trq->topic_name,
+        match_cond,  // owned
+        jn_extra,    // owned
+        &tr_list
+    );
+    tranger2_close_list(trq->tranger, tr_list);
 
     return 0;
 }
@@ -385,11 +425,11 @@ PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)
 {
     register q_msg_t *msg;
 
-//TODO    qmsg_foreach_forward(trq, msg) {
-//        if(msg->md_record.__rowid__ == rowid) {
-//            return msg;
-//        }
-//    }
+    qmsg_foreach_forward(trq, msg) {
+        if(msg->rowid == rowid) {
+            return msg;
+        }
+    }
 
     return 0;
 }
@@ -401,11 +441,11 @@ PUBLIC q_msg trq_get_by_key(tr_queue trq, const char *key)
 {
     register q_msg_t *msg;
 
-// TODO   qmsg_foreach_forward(trq, msg) {
-//        if(strcmp(msg->md_record.key.s, key)==0) {
-//            return msg;
-//        }
-//    }
+    qmsg_foreach_forward(trq, msg) {
+        if(strcmp(msg->key, key)==0) {
+            return msg;
+        }
+    }
 
     return 0;
 }
@@ -417,11 +457,11 @@ PUBLIC int trq_size_by_key(tr_queue trq, const char *key)
 {
     register q_msg_t *msg;
     int n = 0;
-// TODO   qmsg_foreach_forward(trq, msg) {
-//        if(strcmp(msg->md_record.key.s, key)==0) {
-//            n++;
-//        }
-//    }
+    qmsg_foreach_forward(trq, msg) {
+        if(strcmp(msg->key, key)==0) {
+            n++;
+        }
+    }
 
     return n;
 }
@@ -433,11 +473,11 @@ PUBLIC int trq_check_pending_rowid(tr_queue trq_, uint64_t rowid)
 {
     register tr_queue_t *trq = trq_;
 
-    uint32_t __user_flag__ = 0; // TODO tranger_read_user_flag(
-//        trq->tranger,
-//        trq->topic_name,
-//        rowid
-//    );
+    uint32_t __user_flag__ = tranger2_read_user_flag(
+        trq->tranger,
+        trq->topic_name,
+        rowid
+    );
     if(__user_flag__ & TRQ_MSG_PENDING) {
         return 1;
     } else {
@@ -452,7 +492,6 @@ PUBLIC void trq_unload_msg(q_msg msg_, int32_t result)
 {
     q_msg_t *msg = msg_;
 
-    // TODO guarda result
     trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0);
 
     dl_delete(&msg->trq->dl_q_msg, msg, free_msg);
@@ -466,13 +505,13 @@ PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
 {
     register q_msg_t *msg = msg_;
 
-// TODO   return tranger_set_user_flag(
-//        msg->trq->tranger,
-//        tranger_topic_name(msg->trq->topic),
-//        msg->md_record.__rowid__,
-//        hard_mark,
-//        set
-//    );
+    return tranger2_set_user_flag(
+        msg->trq->tranger,
+        tranger2_topic_name(msg->trq->topic),
+        msg->rowid,
+        hard_mark,
+        set
+    );
 }
 
 /***************************************************************************
@@ -605,33 +644,25 @@ PUBLIC uint64_t trq_msg_rowid(q_msg msg_)
     if(!msg) {
         return 0;
     }
-// TODO   return msg->md_record.__rowid__;
+    return msg->rowid;
 }
 PUBLIC json_t *trq_msg_json(q_msg msg_) // Return json is NOT YOURS!!
 {
     register q_msg_t *msg = msg_;
-
-// TODO   if(!msg->jn_record) {
-//        msg->jn_record = tranger_read_record_content(
-//            msg->trq->tranger,
-//            msg->trq->topic,
-//            &msg->md_record
-//        );
-//    }
-//    return msg->jn_record;
+    return msg->jn_record;
 }
 PUBLIC uint64_t trq_msg_time(q_msg msg)
 {
     return ((q_msg_t *)msg)->md_record.__t__;
 }
-PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
-{
-    // TODO return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?TRUE:FALSE;
-}
-PUBLIC BOOL trq_msg_is_tm_ms(q_msg msg)
-{
-    // TODO return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?TRUE:FALSE;
-}
+//PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
+//{
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?TRUE:FALSE;
+//}
+//PUBLIC BOOL trq_msg_is_tm_ms(q_msg msg)
+//{
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?TRUE:FALSE;
+//}
 
 
 /***************************************************************************
@@ -709,7 +740,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
                     0
                 );
                 trq_set_first_rowid(trq, 0);
-                GBMEM_FREE(topic_name);
+                GBMEM_FREE(topic_name)
             }
         }
     }

@@ -292,6 +292,8 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
+//            "rkey", "", TODO ???
+//            "rt_by_mem", 1,
 
     json_t *rt;
     if(tranger2_open_list(
