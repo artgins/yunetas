@@ -235,6 +235,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_t *jn_stats = json_object();
 
+    /*
+     *  Get stats of channels too like __reset__ TODO ???
+     */
+
     json_int_t txMsgsec = gobj_read_integer_attr(gobj, "txMsgsec");
     json_int_t rxMsgsec = gobj_read_integer_attr(gobj, "rxMsgsec");
     json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
