@@ -403,7 +403,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_ST_STOPPED: // cqe ready
-            //if(yev_loop->running) {
+            if(yev_loop->running) {
                 /*
                  *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
                  *  and it can receive cqe->res = -2 (No such file or directory)
@@ -419,7 +419,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
                     NULL
                 );
-            //}
+            }
             /*
              *  Don't call callback again
              *  if the state is STOPPED the callback was already done,
