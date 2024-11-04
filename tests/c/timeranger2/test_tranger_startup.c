@@ -350,7 +350,7 @@ int do_test(void)
         set_expected_results(
             "check_tranger_reopen_as_master",      // test name
             json_pack("[{s:s},{s:s}]", // error's list
-                "msg", "Cannot open json file",
+                "msg", "Cannot open an exclusive json file",
                 "msg", "Open as not master, __timeranger2__.json locked"
             ),
             expected_,
