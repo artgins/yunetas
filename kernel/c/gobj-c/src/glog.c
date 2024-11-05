@@ -659,6 +659,10 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
     int length;
     char *buf;
 
+    if(!fmt) {
+        fmt = "";
+    }
+
     va_start(ap, fmt);
     va_copy(aq, ap);
 
@@ -727,8 +731,10 @@ PUBLIC void gobj_trace_msg(hgobj gobj, const char *fmt, ... )
     va_list ap;
     int priority = LOG_DEBUG;
 
+    if(!fmt) {
+        fmt = "";
+    }
     va_start(ap, fmt);
-
     trace_vjson(gobj, priority, 0, "trace_msg", fmt, ap);
     va_end(ap);
 }
@@ -741,8 +747,10 @@ PUBLIC void gobj_info_msg(hgobj gobj, const char *fmt, ... )
     va_list ap;
     int priority = LOG_INFO;
 
+    if(!fmt) {
+        fmt = "";
+    }
     va_start(ap, fmt);
-
     trace_vjson(gobj, priority, 0, "info_msg", fmt, ap);
     va_end(ap);
 }
@@ -758,6 +766,9 @@ PUBLIC void gobj_trace_json(
     va_list ap;
     int priority = LOG_DEBUG;
 
+    if(!fmt) {
+        fmt = "";
+    }
     va_start(ap, fmt);
     trace_vjson(gobj, priority, jn, "trace_json", fmt, ap);
     va_end(ap);
@@ -784,6 +795,10 @@ PUBLIC void gobj_trace_buffer(
 
     json_t *jn_data = json_stringn(bf, len);
 
+    if(!fmt) {
+        fmt = "";
+    }
+
     va_start(ap, fmt);
     trace_vjson(gobj, priority, jn_data, "trace_buffer", fmt, ap);
     va_end(ap);
@@ -806,6 +821,10 @@ PUBLIC void gobj_trace_dump(
 
     json_t *jn_data = tdump2json((uint8_t *)bf, len);
 
+    if(!fmt) {
+        fmt = "";
+    }
+
     va_start(ap, fmt);
     trace_vjson(gobj, priority, jn_data, "trace_dump", fmt, ap);
     va_end(ap);
@@ -823,6 +842,10 @@ PUBLIC void print_error(
 )
 {
     va_list ap;
+
+    if(!fmt) {
+        fmt = "";
+    }
 
     va_start(ap, fmt);
     int length = vsnprintf(NULL, 0, fmt, ap);
@@ -982,6 +1005,10 @@ PUBLIC void trace_vjson(
     }
     __inside_log__ = 1;
 
+    if(!fmt) {
+        fmt = "";
+    }
+
     current_timestamp(timestamp, sizeof(timestamp));
     json_t *jn_log = json_object();
     json_object_set_new(jn_log, "timestamp", json_string(timestamp));
@@ -1056,6 +1083,10 @@ PUBLIC void trace_machine(const char *fmt, ...)
         return;
     }
     __inside_log__ = 1;
+
+    if(!fmt) {
+        fmt = "";
+    }
 
     tab(temp1, sizeof(temp1));
     current_timestamp(dtemp, sizeof(dtemp));

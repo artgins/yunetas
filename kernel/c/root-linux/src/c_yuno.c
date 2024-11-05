@@ -643,6 +643,8 @@ PRIVATE int mt_stop(hgobj gobj)
      */
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
+    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
+    yev_loop_stop(priv->yev_loop);
 
     return 0;
 }
@@ -654,7 +656,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    yev_loop_stop(priv->yev_loop);
     yev_loop_destroy(priv->yev_loop);
 }
 
