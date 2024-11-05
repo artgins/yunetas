@@ -590,7 +590,7 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("["
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
-       "{s:s},{s:s},{s:s},{s:s}"
+       "{s:s},{s:s}"
         "]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "Client: Connection Accepted",
@@ -615,8 +615,6 @@ int main(int argc, char *argv[])
         "msg", "Server: Server's client disconnected reading",
 
         "msg", "Client: Response from the server",
-        "msg", "Client: Client disconnected reading",
-        "msg", "Client: Connect canceled",
         "msg", "Server: Listen socket failed or stopped"
     );
 

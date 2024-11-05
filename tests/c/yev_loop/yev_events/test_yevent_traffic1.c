@@ -444,15 +444,15 @@ int do_test(void)
     /*---------------------------------------------------------*
      *  The client matchs the received message with the sent.
      *---------------------------------------------------------*/
-     gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
-     json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
-     const char *text = json_string_value(msg);
+    gbuffer_t *gbuf = yev_get_gbuf(yev_client_reader_msg);
+    json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
+    const char *text = json_string_value(msg);
 
-     if(strcmp(text, MESSAGE)!=0) {
-         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
-         print_track_mem();
-         result += -1;
-     }
+    if(strcmp(text, MESSAGE)!=0) {
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+        print_track_mem();
+        result += -1;
+    }
     json_decref(msg);
 
     /*--------------------------------*
@@ -552,16 +552,13 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "Client: Connection Accepted",
         "msg", "Server: Listen Connection Accepted",
         "msg", "client: send request",
         "msg", "Server: Message from the client",
         "msg", "Client: Response from the server",
-        "msg", "Client: Client disconnected reading",
-        "msg", "Server: Server's client disconnected reading",
-        "msg", "Client: Connect canceled",
         "msg", "Server: Listen socket failed or stopped"
     );
 
