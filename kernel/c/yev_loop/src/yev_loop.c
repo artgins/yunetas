@@ -521,7 +521,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                     if(yev_event->fd > 0) {
                         if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-                            gobj_log_debug(0, 0,
+                            gobj_log_debug(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_YEV_LOOP,
                                 "msg",          "%s", "close socket",
@@ -1218,13 +1218,14 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
 
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     /*------------------------*
      *      Trace
      *------------------------*/
     if(gobj_trace_level(0) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(0, 0,
+        gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev_stop_event",
@@ -1261,7 +1262,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
             // The timer (once) if it's in idle can be reused, if stopped you must create one new.
             if(yev_event->fd > 0) {
                 if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-                    gobj_log_debug(0, 0,
+                    gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
                         "msg",          "%s", "close socket",
@@ -1349,13 +1350,14 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         );
         return;
     }
+    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
 
     /*------------------------*
      *      Trace
      *------------------------*/
     if(gobj_trace_level(0) & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(0, 0,
+        gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev_destroy_event",
@@ -1416,7 +1418,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
         case YEV_TIMER_TYPE:
             if(yev_event->fd > 0) {
                 if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-                    gobj_log_debug(0, 0,
+                    gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
                         "msg",          "%s", "close socket",
