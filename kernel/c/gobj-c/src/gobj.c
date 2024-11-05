@@ -661,6 +661,7 @@ PUBLIC void gobj_shutdown(void)
         if(gobj_is_playing(__yuno__)) {
             gobj_pause(__yuno__); // It will pause default_service
         }
+        gobj_stop_services();
         if(gobj_is_running(__yuno__)) {
             gobj_stop(__yuno__);
         }
@@ -4211,7 +4212,7 @@ PUBLIC int gobj_stop_services(void)
         gobj_log_debug(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_STARTUP,
-            "msg",          "%s", "STOP service",
+            "msg",          "%s", "PAUSE/STOP service",
             "service",      "%s", gobj_short_name(gobj),
             NULL
         );

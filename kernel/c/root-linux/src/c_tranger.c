@@ -332,7 +332,6 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
-    gobj_write_pointer_attr(gobj, "tranger", 0);
 }
 
 /***************************************************************************
