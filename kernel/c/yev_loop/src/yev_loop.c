@@ -382,7 +382,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             "msg",          "%s", "callback_cqe",
             "msg2",         "%s", "💥💥💥💥⏪ callback_cqe",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "loop_running", "%d", yev_loop->running?1:0,
             "p",            "%p", yev_event,
             "fd",           "%d", yev_event->fd,
@@ -448,7 +448,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "receive event in stopped state",
                 "event_type",   "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
                 "cqe->res",     "%d", (int)cqe->res,
                 "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
@@ -471,7 +471,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Wrong STATE receiving cqe",
                 "event_type",   "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
                 "cqe->res",     "%d", (int)cqe->res,
                 "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
@@ -493,7 +493,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "callback_cqe NEW STATE",
                 "msg2",         "%s", "💥💥💥💥⏪ callback_cqe NEW STATE",
                 "type",         "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
@@ -591,7 +591,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                                 "msg",          "%s", "re-arming accept event",
                                 "msg2",         "%s", "💥💥⏩ re-arming accept event",
                                 "type",         "%s", yev_event_type_name(yev_event),
-                                "state",        "%s", yev_get_state_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
                                 "fd",           "%d", yev_event->fd,
                                 "p",            "%p", yev_event,
                                 "gbuffer",      "%p", yev_event->gbuf,
@@ -681,7 +681,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                                 "msg",          "%s", "re-arming timer event",
                                 "msg2",         "%s", "💥💥⏩ re-arming timer event",
                                 "type",         "%s", yev_event_type_name(yev_event),
-                                "state",        "%s", yev_get_state_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
                                 "fd",           "%d", yev_event->fd,
                                 "p",            "%p", yev_event,
                                 "gbuffer",      "%p", yev_event->gbuf,
@@ -773,7 +773,7 @@ PUBLIC int yev_start_event(
             "msg",          "%s", "yev_start_event",
             "msg2",         "%s", "💥💥⏩ yev_start_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "gbuffer",      "%p", yev_event->gbuf,
@@ -796,9 +796,9 @@ PUBLIC int yev_start_event(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", msg,
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -820,7 +820,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: connect addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -852,7 +852,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: accept addr NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -895,7 +895,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -907,7 +907,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -919,7 +919,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
@@ -945,7 +945,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "io_uring_get_sqe() FAILED",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -961,7 +961,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: fd negative",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -973,7 +973,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer NULL",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         NULL
                     );
@@ -985,7 +985,7 @@ PUBLIC int yev_start_event(
                         "msgset",       "%s", MSGSET_LIBUV_ERROR,
                         "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
                         "event_type",   "%s", yev_event_type_name(yev_event),
-                        "state",        "%s", yev_get_state_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
                         "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
                         NULL
@@ -1012,7 +1012,7 @@ PUBLIC int yev_start_event(
                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
                 "msg",          "%s", "Cannot start event: use yev_start_timer_event() to start timer event",
                 "event_type",   "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
                 NULL
             );
@@ -1029,7 +1029,7 @@ PUBLIC int yev_start_event(
                 "msg",          "%s", "yev_start_event NEW STATE",
                 "msg2",         "%s", "💥💥⏩ yev_start_event NEW STATE",
                 "type",         "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
@@ -1120,7 +1120,7 @@ PUBLIC int yev_start_timer_event(
             "msg",          "%s", "yev_start_timer_event",
             "msg2",         "%s", "💥💥⏩ ⏰⏰ yev_start_timer_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "timeout_ms",   "%d", (int)timeout_ms,
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
@@ -1151,7 +1151,7 @@ PUBLIC int yev_start_timer_event(
                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
                     "msg",          "%s", "cannot start timer: is CANCELING",
                     "type",         "%s", yev_event_type_name(yev_event),
-                    "state",        "%s", yev_get_state_name(yev_event),
+                    "yev_state",    "%s", yev_get_state_name(yev_event),
                     "timeout_ms",   "%d", (int)timeout_ms,
                     "fd",           "%d", yev_event->fd,
                     "p",            "%p", yev_event,
@@ -1184,7 +1184,7 @@ PUBLIC int yev_start_timer_event(
                 "msg",          "%s", "yev_start_event NEW STATE",
                 "msg2",         "%s", "💥💥⏩ yev_start_event NEW STATE",
                 "type",         "%s", yev_event_type_name(yev_event),
-                "state",        "%s", yev_get_state_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
                 "timeout_ms",   "%d", (int)timeout_ms,
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_event->fd,
@@ -1233,7 +1233,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
                                     "💥🟥⏰⏰ yev_stop_event":
                                     "💥🟥 yev_stop_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "gbuffer",      "%p", yev_event->gbuf,
@@ -1310,15 +1310,16 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
 
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
-            yev_event->result = -ECANCELED; // In idle state simulate canceled error
-            if (yev_event->callback) {
-                int ret = yev_event->callback(
-                    yev_event
-                );
-                if(ret < 0) {
-                    yev_loop->running = 0;
-                }
-            }
+// This provoke double stop events
+//            yev_event->result = -ECANCELED; // In idle state simulate canceled error
+//            if (yev_event->callback) {
+//                int ret = yev_event->callback(
+//                    yev_event
+//                );
+//                if(ret < 0) {
+//                    yev_loop->running = 0;
+//                }
+//            }
             break;
 
         case YEV_ST_STOPPED:
@@ -1363,7 +1364,7 @@ PUBLIC void yev_destroy_event(yev_event_t *yev_event)
             "msg",          "%s", "yev_destroy_event",
             "msg2",         "%s", "💥🟥🟥 yev_destroy_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "gbuffer",      "%p", yev_event->gbuf,
@@ -1489,7 +1490,7 @@ PUBLIC yev_event_t *yev_create_timer_event(
             "msg",          "%s", "yev_create_timer_event",
             "msg2",         "%s", "💥🟦 ⏰⏰ yev_create_timer_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -1526,7 +1527,7 @@ PUBLIC yev_event_t *yev_create_connect_event(
             "msg",          "%s", "yev_create_connect_event",
             "msg2",         "%s", "💥🟦 yev_create_connect_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -1840,7 +1841,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
             "msg",          "%s", "yev_setup_connect_event",
             "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -1877,7 +1878,7 @@ PUBLIC yev_event_t *yev_create_accept_event(
             "msg",          "%s", "yev_create_accept_event",
             "msg2",         "%s", "💥🟦 yev_create_accept_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_event->fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -2159,7 +2160,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
             "msg",          "%s", "yev_setup_accept_event",
             "msg2",         "%s", "💥🟦🟦 yev_setup_accept_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
@@ -2198,7 +2199,7 @@ PUBLIC yev_event_t *yev_create_read_event(
             "msg",          "%s", "yev_create_read_event",
             "msg2",         "%s", "💥🟦 yev_create_read_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
             "p",            "%p", yev_event,
             "gbuffer",      "%p", gbuf,
@@ -2238,7 +2239,7 @@ PUBLIC yev_event_t *yev_create_write_event(
             "msg",          "%s", "yev_create_write_event",
             "msg2",         "%s", "💥🟦 yev_create_write_event",
             "type",         "%s", yev_event_type_name(yev_event),
-            "state",        "%s", yev_get_state_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
             "p",            "%p", yev_event,
             "gbuffer",      "%p", gbuf,
