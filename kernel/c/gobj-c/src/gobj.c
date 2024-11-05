@@ -648,7 +648,7 @@ PUBLIC int gobj_start_up(
 }
 
 /***************************************************************************
- *  Order for shutdown the yuno
+ *  shutdown the yuno
  ***************************************************************************/
 PUBLIC void gobj_shutdown(void)
 {

@@ -3546,7 +3546,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
     if(gobj_get_yuno_must_die()) {
         JSON_DECREF(kw)
-        gobj_shutdown(); // provoca gobj_pause y gobj_stop del gobj yuno
+        priv->yev_loop->running = FALSE;
         return 0;
     }
     if(priv->timeout_restart > 0 && test_sectimer(priv->t_restart)) {
@@ -3557,7 +3557,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         );
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
-        gobj_shutdown(); // provoca gobj_pause y gobj_stop del gobj yuno
+        priv->yev_loop->running = FALSE;
         return 0;
     }
 
@@ -3574,7 +3574,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         if(priv->autokill_init >= priv->autokill) {
             priv->autokill = 0;
             gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
-            gobj_shutdown();
+            priv->yev_loop->running = FALSE;
             JSON_DECREF(kw)
             return -1;
         }

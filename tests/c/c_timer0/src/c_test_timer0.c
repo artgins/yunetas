@@ -283,7 +283,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     process_msg(gobj, kw, src);
     if(priv->rxMsgs == 3) {
-        gobj_shutdown();
+        gobj_set_yuno_must_die();
     }
 
     KW_DECREF(kw)

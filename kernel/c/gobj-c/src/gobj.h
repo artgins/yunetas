@@ -1144,7 +1144,13 @@ PUBLIC int gobj_start_up(                   /* Initialize the yuno */
     size_t max_block,                       /* largest memory block */
     size_t max_system_memory                /* maximum system memory */
 );
-PUBLIC void gobj_shutdown(void);            /* Order for shutdown the yuno */
+
+/*
+ *  HACK using C_YUNO:
+ *      you MUST use gobj_set_yuno_must_die() to stop the yuno, don't use gobj_shutdown()
+ */
+PUBLIC void gobj_shutdown(void);            /* Shutdown the yuno */
+
 PUBLIC BOOL gobj_is_shutdowning(void);      /* Check if yuno is shutdowning */
 PUBLIC void gobj_end(void);                 /* De-initialize the yuno */
 
