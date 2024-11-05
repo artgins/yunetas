@@ -1315,11 +1315,23 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // IDEMPOTENT close fd (timer,
             if(yev_event->type == YEV_CONNECT_TYPE) {
                 yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
             }
+
+            if(yev_event->type == YEV_TIMER_TYPE) {
+                yev_event->result = -ECANCELED; // For timer In idle state simulate canceled error
+                if (yev_event->callback) {
+                    int ret = yev_event->callback(
+                        yev_event
+                    );
+                    if(ret < 0) {
+                        yev_loop->running = 0;
+                    }
+                }
+            }
             break;
 
         case YEV_ST_STOPPED:
             // "yev_event already stopped" Silence please
-            break;
+            return -1;
     }
 
     if(cur_state != yev_get_state(yev_event)) {

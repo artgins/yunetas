@@ -192,12 +192,11 @@ int main(int argc, char *argv[])
     const char *test = "test_timer_periodic";
     set_expected_results( // Check that no logs happen
         test,   // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
             "msg", "timeout got 1",
             "msg", "timeout got 2",
             "msg", "timeout got 3",
-            "msg", "Operation canceled",
-            "msg", "yev_event already stopped"
+            "msg", "Operation canceled"
         ),
         NULL,  // expected
         NULL,   // ignore_keys

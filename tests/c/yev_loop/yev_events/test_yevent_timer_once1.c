@@ -224,10 +224,9 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = "test_timer1";
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}]",  // error_list
         "msg", "timeout got 1",
-        "msg", "timeout stopped",
-        "msg", "yev_event already stopped"
+        "msg", "timeout stopped"
     );
 
     set_expected_results( // Check that no logs happen
