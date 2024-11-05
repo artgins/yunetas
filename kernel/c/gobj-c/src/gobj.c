@@ -8899,7 +8899,10 @@ PUBLIC uint32_t gobj_trace_level(hgobj gobj_)
         return (uint32_t)-1;
     }
     uint32_t bitmask = __global_trace_level__;
-    if(!__yuno_must_die__ && gobj) {
+//    if(__yuno_must_die__) {
+//        return bitmask;
+//    }
+    if(gobj && gobj->gclass) {
         if(!gobj->gclass->jn_trace_filter || !gobj->jn_attrs) {
             bitmask |= gobj->trace_level;
             if(gobj->gclass) {

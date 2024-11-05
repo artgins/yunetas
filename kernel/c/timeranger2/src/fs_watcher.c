@@ -29,6 +29,9 @@
 /***************************************************************************
  *  Prototypes
  ***************************************************************************/
+PRIVATE void fs_destroy_watcher_event(
+    fs_event_t *fs_event
+);
 PRIVATE int yev_callback(
     yev_event_t *event
 );
@@ -212,13 +215,18 @@ PUBLIC int fs_stop_watcher_event(
     if(!fs_event) {
         return -1;
     }
-    return yev_stop_event(fs_event->yev_event);
+    if(yev_event_is_running(fs_event->yev_event)) {
+        return yev_stop_event(fs_event->yev_event);
+    } else {
+        fs_destroy_watcher_event(fs_event);
+    }
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void fs_destroy_watcher_event(
+PRIVATE void fs_destroy_watcher_event(
     fs_event_t *fs_event
 )
 {
@@ -326,6 +334,7 @@ PRIVATE int yev_callback(
                             );
                         }
                     }
+                    fs_destroy_watcher_event(fs_event);
 
                 } else {
                     size_t len = gbuffer_leftbytes(yev_event->gbuf);

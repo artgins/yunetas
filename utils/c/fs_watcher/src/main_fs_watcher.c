@@ -63,8 +63,6 @@ int do_test(char *path)
     fs_stop_watcher_event(fs_event_h);
     yev_loop_run_once(yev_loop);
 
-    fs_destroy_watcher_event(fs_event_h);
-
     yev_loop_destroy(yev_loop);
 
     return 0;

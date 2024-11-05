@@ -83,10 +83,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
 PUBLIC int fs_start_watcher_event(
     fs_event_t *fs_event
 );
-PUBLIC int fs_stop_watcher_event(
-    fs_event_t *fs_event
-);
-PUBLIC void fs_destroy_watcher_event(
+PUBLIC int fs_stop_watcher_event( // When the event is stopped the fs_event will be destroyed
     fs_event_t *fs_event
 );
 

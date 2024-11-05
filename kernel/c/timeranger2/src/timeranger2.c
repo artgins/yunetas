@@ -1391,7 +1391,6 @@ PUBLIC int tranger2_close_topic(
         );
         if(fs_event_master) {
             fs_stop_watcher_event(fs_event_master);
-            fs_destroy_watcher_event(fs_event_master);
         }
     }
 
@@ -3743,7 +3742,6 @@ PUBLIC int tranger2_close_rt_disk(
         );
         if(fs_event_client) {
             fs_stop_watcher_event(fs_event_client);
-            fs_destroy_watcher_event(fs_event_client);
         }
 
         // MONITOR (D) /disks/rt_id/
