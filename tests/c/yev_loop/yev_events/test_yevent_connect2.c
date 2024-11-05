@@ -280,13 +280,12 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "Connection Refused",
         "msg", "Connection Accepted",
         "msg", "Listen Connection Accepted",
-        "msg", "Listen socket failed or stopped",
-        "msg", "Connect canceled"
+        "msg", "Listen socket failed or stopped"
     );
 
     set_expected_results( // Check that no logs happen
