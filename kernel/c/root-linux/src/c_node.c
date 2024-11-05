@@ -477,6 +477,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+
     treedb_close_db(priv->tranger, priv->treedb_name);
 
     return 0;

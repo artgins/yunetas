@@ -1213,9 +1213,9 @@ PUBLIC int treedb_close_db(
      *  Delete treedb
      *------------------------------*/
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
-    JSON_DECREF(treedb)
+    json_decref(treedb);  // Don't use JSON_DECREF
 
-    JSON_DECREF(topic_cols_desc)
+    json_decref(topic_cols_desc);
     return ret;
 }
 
