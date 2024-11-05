@@ -445,7 +445,7 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
         /*
          *  It's the timeout
          */
-        return 0;  // don't break the loop, here don't use yev_loop_run with timeout, by now
+        return 0;  // don't break the loop, c_yuno is not using yev_loop_run with timeout, by now
     }
     return 0;
 }
@@ -643,9 +643,6 @@ PRIVATE int mt_stop(hgobj gobj)
      */
     gobj_stop(priv->gobj_timer);
     gobj_stop_childs(gobj);
-    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
-    yev_loop_stop(priv->yev_loop);
-
     return 0;
 }
 
@@ -664,8 +661,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  This play order can come from yuneta_agent or autoplay config option or programmatic sentence
      */
@@ -673,9 +668,6 @@ PRIVATE int mt_play(hgobj gobj)
         gobj_play(gobj_default_service());
     }
 
-    /*
-     *  Run event loop
-     */
     gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_STARTUP,
@@ -685,8 +677,6 @@ PRIVATE int mt_play(hgobj gobj)
         "yuno_role",        "%s", gobj_read_str_attr(gobj, "yuno_role"),
         NULL
     );
-
-    yev_loop_run(priv->yev_loop, -1);   // Infinite loop while some handler is active
 
     return 0;
 }
@@ -3711,15 +3701,10 @@ PUBLIC int register_c_yuno(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void *yuno_event_loop(void)
+PUBLIC yev_loop_t *yuno_event_loop(void)
 {
-    PRIVATE_DATA *priv;
-    hgobj yuno = gobj_yuno();
-    if(!yuno) {
-        return 0;
-    }
-    priv = gobj_priv_data(yuno);
-
+    hgobj gobj = gobj_yuno();
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     return priv->yev_loop;
 }
 

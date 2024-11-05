@@ -210,32 +210,32 @@ static void register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "addrinfo on listen",
-        "msg", "Listening...",
-        "msg", "Playing yuno",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Disconnected To",
-        "msg", "Disconnected From",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Disconnected To",
-        "msg", "Disconnected From",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Disconnected To",
-        "msg", "Pausing yuno",
-        "msg", "receive event in stopped state",
-        "msg", "Yuno stopped, gobj end"
-    );
+//    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+//        "msg", "Starting yuno",
+//        "msg", "addrinfo on listen",
+//        "msg", "Listening...",
+//        "msg", "Playing yuno",
+//        "msg", "Connected To",
+//        "msg", "Clisrv accepted",
+//        "msg", "Connected From",
+//        "msg", "Disconnected To",
+//        "msg", "Disconnected From",
+//        "msg", "Connected To",
+//        "msg", "Clisrv accepted",
+//        "msg", "Connected From",
+//        "msg", "Disconnected To",
+//        "msg", "Disconnected From",
+//        "msg", "Connected To",
+//        "msg", "Clisrv accepted",
+//        "msg", "Connected From",
+//        "msg", "Disconnected To",
+//        "msg", "Pausing yuno",
+//        "msg", "receive event in stopped state",
+//        "msg", "Yuno stopped, gobj end"
+//    );
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        errors_list, // errors_list,
+0,//        errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose

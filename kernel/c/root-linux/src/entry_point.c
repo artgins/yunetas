@@ -947,13 +947,24 @@ PRIVATE void process(
     /*-----------------------------------*
      *      Run main event loop
      *-----------------------------------*/
-    gobj_play(yuno);    // It will play default_service ==> WARNING: infinite loop
+    /*
+     *  Forever loop. Returning is because someone order to stop with gobj_set_yuno_must_die()
+     */
+    yev_loop_run(yuno_event_loop(), -1);
+
+    /*
+     *  Shutdown
+     */
+    gobj_shutdown();
+
+    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+    yev_loop_stop(yuno_event_loop());
+    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
 
     /*---------------------------*
-     *      Destroy all
+     *      End
      *---------------------------*/
-    gobj_shutdown();
-    gobj_end();
+    gobj_end(); // This destroy yuno
     rotatory_end();
     json_decref(__jn_config__);
     if(cleaning_fn) {

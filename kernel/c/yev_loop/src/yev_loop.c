@@ -287,8 +287,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
  ***************************************************************************/
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
 {
-    if(yev_loop->running) {
-        yev_loop->running = FALSE;
+    if(!yev_loop->stopping) {
         yev_loop->stopping = TRUE;
         if(gobj_trace_level(0) & TRACE_UV) {
             gobj_log_debug(0, 0,
