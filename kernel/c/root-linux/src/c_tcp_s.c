@@ -302,12 +302,13 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(yev_event_is_stoppable(priv->yev_server_accept)) {
-        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    if(priv->yev_server_accept) {
         yev_stop_event(priv->yev_server_accept);
-    } else {
-        EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
+        if(yev_event_is_stopping(priv->yev_server_accept)) {
+            gobj_change_state(gobj, ST_WAIT_STOPPED);
+        }
     }
+
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 
     return 0;

@@ -1219,11 +1219,12 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    uint32_t trace_level = gobj_trace_level(gobj);
 
     /*------------------------*
      *      Trace
      *------------------------*/
-    if(gobj_trace_level(0) & TRACE_UV) {
+    if(trace_level & TRACE_UV) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1261,7 +1262,7 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
             // Each connection needs a new socket fd, i.e., after each disconnection.
             // The timer (once) if it's in idle can be reused, if stopped you must create one new.
             if(yev_event->fd > 0) {
-                if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+                if(trace_level & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
                     gobj_log_debug(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1310,26 +1311,32 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept 
 
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
-// This provoke double stop events
-//            yev_event->result = -ECANCELED; // In idle state simulate canceled error
-//            if (yev_event->callback) {
-//                int ret = yev_event->callback(
-//                    yev_event
-//                );
-//                if(ret < 0) {
-//                    yev_loop->running = 0;
-//                }
-//            }
             break;
 
         case YEV_ST_STOPPED:
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            // "yev_event already stopped" Silence please
+            break;
+    }
+
+    if(cur_state != yev_get_state(yev_event)) {
+        // State has changed
+        if(trace_level & TRACE_UV) {
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+            gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "yev_event already stopped",
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "yev_stop_event NEW STATE",
+                "msg2",         "%s", "💥🟥 yev_stop_event NEW STATE",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
+                "loop_running", "%d", yev_loop->running?1:0,
+                "p",            "%p", yev_event,
+                "fd",           "%d", yev_event->fd,
+                "flag",         "%j", jn_flags,
                 NULL
             );
-            return -1;
+            json_decref(jn_flags);
+        }
     }
     return 0;
 }

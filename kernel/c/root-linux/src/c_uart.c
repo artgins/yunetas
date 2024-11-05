@@ -192,10 +192,10 @@ PRIVATE int mt_stop(hgobj gobj)
     BOOL change_to_wait_stopped = FALSE;
 
     if(priv->yev_client_rx) {
-    if(yev_event_is_stoppable(priv->yev_client_rx)) {
+        yev_stop_event(priv->yev_client_rx);
+        if(yev_event_is_stopping(priv->yev_client_rx)) {
             change_to_wait_stopped = TRUE;
         }
-        yev_stop_event(priv->yev_client_rx);
     }
 
     if(change_to_wait_stopped) {

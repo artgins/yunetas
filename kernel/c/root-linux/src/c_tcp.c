@@ -724,16 +724,16 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
     gobj_change_state(gobj, ST_WAIT_STOPPED);
 
     if(priv->yev_client_connect) {
-        if(yev_event_is_stoppable(priv->yev_client_connect)) {
+        yev_stop_event(priv->yev_client_connect);
+        if(yev_event_is_stopping(priv->yev_client_connect)) {
             to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_connect);
         }
     }
 
     if(priv->yev_client_rx) {
-        if(yev_event_is_stoppable(priv->yev_client_rx)) {
+        yev_stop_event(priv->yev_client_rx);
+        if(yev_event_is_stopping(priv->yev_client_rx)) {
             to_wait_stopped = TRUE;
-            yev_stop_event(priv->yev_client_rx);
         }
     }
 

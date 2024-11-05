@@ -257,9 +257,14 @@ static inline BOOL yev_event_is_stopped(yev_event_t *yev_event)
     return (yev_event->state==YEV_ST_STOPPED)?TRUE:FALSE;
 }
 
-static inline BOOL yev_event_is_stoppable(yev_event_t *yev_event)
+static inline BOOL yev_event_is_stopping(yev_event_t *yev_event)
 {
-    return (yev_event->state!=YEV_ST_STOPPED && yev_event->state!=YEV_ST_CANCELING)?TRUE:FALSE;
+    return (yev_event->state==YEV_ST_CANCELING)?TRUE:FALSE;
+}
+
+static inline BOOL yev_event_is_running(yev_event_t *yev_event)
+{
+    return (yev_event->state==YEV_ST_RUNNING)?TRUE:FALSE;
 }
 
 /*

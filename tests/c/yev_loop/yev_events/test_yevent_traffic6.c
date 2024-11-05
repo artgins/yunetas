@@ -494,12 +494,8 @@ int do_test(void)
      *  Stop connect event: disconnected
      *  Stop accept event:
      *--------------------------------*/
-    if(yev_event_is_stoppable(yev_client_reader_msg)) {
-        yev_stop_event(yev_client_reader_msg);
-    }
-    if(yev_event_is_stoppable(yev_server_reader_msg)) {
-        yev_stop_event(yev_server_reader_msg);
-    }
+    yev_stop_event(yev_client_reader_msg);
+    yev_stop_event(yev_server_reader_msg);
     yev_stop_event(yev_event_connect);
     yev_stop_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
