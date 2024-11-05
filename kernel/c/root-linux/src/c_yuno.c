@@ -374,6 +374,7 @@ SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
+SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring"),
 SDATA_END()

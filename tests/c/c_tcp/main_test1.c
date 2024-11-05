@@ -53,6 +53,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
+        'autoplay': true,                                           \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
