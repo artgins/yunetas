@@ -957,9 +957,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         );
                     }
 
-                    if(gobj_is_running(gobj)) {
-                        try_to_stop_yevents(gobj);
-                    }
+                    try_to_stop_yevents(gobj);
                 }
             }
             break;
@@ -1005,9 +1003,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
                     yev_destroy_event(yev_event);
 
-                    if(gobj_is_running(gobj)) {
-                        try_to_stop_yevents(gobj);
-                    }
+                    try_to_stop_yevents(gobj);
                 }
 
             }
@@ -1036,9 +1032,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             NULL
                         );
                     }
-                    if(gobj_is_running(gobj)) {
-                        try_to_stop_yevents(gobj);
-                    }
+                    try_to_stop_yevents(gobj);
                 }
             }
             break;

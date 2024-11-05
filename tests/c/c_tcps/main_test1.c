@@ -240,8 +240,8 @@ static void register_yuno_and_more(void)
         "msg", "Clisrv accepted",
         "msg", "Connected From",
         "msg", "Disconnected To",
+        "msg", "Disconnected From",
         "msg", "Pausing yuno",
-        "msg", "receive event in stopped state",
         "msg", "Yuno stopped, gobj end"
     );
     set_expected_results( // Check that no logs happen

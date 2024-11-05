@@ -443,18 +443,19 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *          this cause a log_warning "receive event in stopped state"
              *          the event is ignored
              */
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "receive event in stopped state",
-                "event_type",   "%s", yev_event_type_name(yev_event),
-                "yev_state",    "%s", yev_get_state_name(yev_event),
-                "p",            "%p", yev_event,
-                "cqe->res",     "%d", (int)cqe->res,
-                "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
-                NULL
-            );
-
+            if(cqe->res != -2) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                    "msg",          "%s", "receive event in stopped state",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "yev_state",    "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe->res",     "%d", (int)cqe->res,
+                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    NULL
+                );
+            }
             /*
              *  Don't call callback again
              *  if the state is STOPPED the callback was already done,
@@ -1311,6 +1312,9 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // IDEMPOTENT close fd (timer,
 
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
+            if(yev_event->type == YEV_CONNECT_TYPE) {
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+            }
             break;
 
         case YEV_ST_STOPPED:

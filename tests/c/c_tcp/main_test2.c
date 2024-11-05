@@ -235,8 +235,8 @@ static void register_yuno_and_more(void)
         "msg", "Clisrv accepted",
         "msg", "Connected From",
         "msg", "Disconnected From",
+        "msg", "Disconnected To",
         "msg", "Pausing yuno",
-        "msg", "receive event in stopped state",
         "msg", "Yuno stopped, gobj end"
     );
 
