@@ -1201,7 +1201,7 @@ PUBLIC int yev_start_timer_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_t *yev_event) // close fd (of timer, accept and connect)
+PUBLIC int yev_stop_event(yev_event_t *yev_event) // IDEMPOTENT close fd (timer,accept,connect)
 {
     /*------------------------*
      *  Check parameters

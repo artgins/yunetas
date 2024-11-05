@@ -67,7 +67,7 @@ GOBJ_DECLARE_EVENT(EV_SEND_ENCRYPTED_DATA);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE BOOL try_to_stop_yevents(hgobj gobj);
+PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE int yev_callback(yev_event_t *event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
@@ -340,9 +340,7 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_timer);
     }
 
-    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
-        try_to_stop_yevents(gobj);
-    }
+    try_to_stop_yevents(gobj);
 
     return 0;
 }
@@ -353,22 +351,6 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->fd_clisrv > 0) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_log_debug(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "close socket fd_clisrv",
-                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
-                "fd",           "%d", priv->fd_clisrv ,
-                NULL
-            );
-        }
-
-        close(priv->fd_clisrv);
-        priv->fd_clisrv = -1;
-    }
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
@@ -615,7 +597,6 @@ PRIVATE void set_disconnected(hgobj gobj)
     }
 
     if(priv->yev_client_connect) {
-        // TODO review, no es mejor stop the event?
         if(priv->yev_client_connect->fd > 0) {
             if(gobj_trace_level(gobj) & TRACE_UV) {
                 gobj_log_debug(gobj, 0,
@@ -631,6 +612,22 @@ PRIVATE void set_disconnected(hgobj gobj)
 
             close(priv->yev_client_connect->fd);
             priv->yev_client_connect->fd = -1;
+        }
+    } else {
+        if(priv->fd_clisrv > 0) {
+            if(gobj_trace_level(gobj) & TRACE_UV) {
+                gobj_log_debug(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "close socket fd_clisrv",
+                    "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                    "fd",           "%d", priv->fd_clisrv ,
+                    NULL
+                );
+            }
+
+            close(priv->fd_clisrv);
+            priv->fd_clisrv = -1;
         }
     }
 
@@ -687,13 +684,23 @@ PRIVATE void set_disconnected(hgobj gobj)
 }
 
 /***************************************************************************
- *  Return TRUE if all yevents stopped and destroyed
- *  if TRUE change to STOPPED state, else wait in WAIT_STOPPED
+ *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
-PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
+    if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+        gobj_change_state(gobj, ST_STOPPED);
+        return;
+    }
+
+    gobj_change_state(gobj, ST_WAIT_STOPPED);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
         gobj_log_debug(gobj, 0,
@@ -721,8 +728,6 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         priv->fd_clisrv = -1;
     }
 
-    gobj_change_state(gobj, ST_WAIT_STOPPED);
-
     if(priv->yev_client_connect) {
         yev_stop_event(priv->yev_client_connect);
         if(yev_event_is_stopping(priv->yev_client_connect)) {
@@ -737,12 +742,9 @@ PRIVATE BOOL try_to_stop_yevents(hgobj gobj)
         }
     }
 
-    if(to_wait_stopped) {
-        return FALSE;
-    } else {
+    if(!to_wait_stopped) {
         gobj_change_state(gobj, ST_STOPPED);
         set_disconnected(gobj);
-        return TRUE;
     }
 }
 
