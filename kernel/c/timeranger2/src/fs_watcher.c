@@ -53,8 +53,8 @@ PRIVATE bits_table_t bits_table[] = {
 {IN_ACCESS,         "IN_ACCESS",        "File was accessed"},
 {IN_MODIFY,         "IN_MODIFY",        "File was modified"},
 {IN_ATTRIB,         "IN_ATTRIB",        "Metadata changed"},
-{IN_CLOSE_WRITE,    "IN_CLOSE_WRITE",   "Writtable file was closed"},
-{IN_CLOSE_NOWRITE,  "IN_CLOSE_NOWRITE", "Unwrittable file closed"},
+{IN_CLOSE_WRITE,    "IN_CLOSE_WRITE",   "Writable file was closed"},
+{IN_CLOSE_NOWRITE,  "IN_CLOSE_NOWRITE", "Unwritable file closed"},
 {IN_OPEN,           "IN_OPEN",          "File was opened"},
 {IN_MOVED_FROM,     "IN_MOVED_FROM",    "File was moved from X"},
 {IN_MOVED_TO,       "IN_MOVED_TO",      "File was moved to Y"},
@@ -138,6 +138,19 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
 
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "fs_create_watcher_event",
+            "msg2",         "%s", "💾🟦 fs_create_watcher_event",
+            "path",         "%s", path,
+            "fd",           "%d", fd,
+            "p",            "%p", fs_event,
+            NULL
+        );
+    }
+
     /*
      *  Alloc buffer to read
      */
@@ -212,12 +225,37 @@ PUBLIC void fs_destroy_watcher_event(
     if(!fs_event) {
         return;
     }
-    yev_set_fd(fs_event->yev_event, -1);
-    EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
+
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        gobj_log_debug(fs_event->gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "fs_destroy_watcher_event",
+            "msg2",         "%s", "💾🟥🟥 fs_destroy_watcher_event",
+            "path",         "%s", fs_event->path,
+            "fd",           "%d", fs_event->fd,
+            "p",            "%p", fs_event,
+            NULL
+        );
+    }
+
     if(fs_event->fd != -1) {
+        if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+            gobj_log_debug(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket",
+                "msg2",         "%s", "💾🟥 close socket",
+                "fd",           "%d", fs_event->fd ,
+                "p",            "%p", fs_event,
+                NULL
+            );
+        }
         close(fs_event->fd);
         fs_event->fd = -1;
     }
+    yev_set_fd(fs_event->yev_event, -1);
+    EXEC_AND_RESET(yev_destroy_event, fs_event->yev_event)
     GBMEM_FREE(fs_event->path)
     JSON_DECREF(fs_event->jn_tracked_paths)
     GBMEM_FREE(fs_event)
@@ -252,13 +290,15 @@ PRIVATE int yev_callback(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
-            "msg2",         "%s", "💥 yev callback",
+            "msg2",         "%s", "💾💾💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
             "fd",           "%d", yev_event->fd,
+            "gbuffer",      "%p", yev_event->gbuf,
             NULL
         );
         json_decref(jn_flags);

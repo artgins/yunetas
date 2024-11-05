@@ -868,11 +868,13 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "msg",          "%s", "yev callback",
             "msg2",         "%s", "🌐🌐💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
             "fd",           "%d", yev_event->fd,
+            "gbuffer",      "%p", yev_event->gbuf,
             NULL
         );
         json_decref(jn_flags);
