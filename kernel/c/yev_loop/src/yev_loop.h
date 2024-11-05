@@ -262,11 +262,6 @@ static inline BOOL yev_event_is_stopping(yev_event_t *yev_event)
     return (yev_event->state==YEV_ST_CANCELING)?TRUE:FALSE;
 }
 
-static inline BOOL yev_event_is_running(yev_event_t *yev_event)
-{
-    return (yev_event->state==YEV_ST_RUNNING)?TRUE:FALSE;
-}
-
 /*
  *  In `connect`, `timer` and `accept` events, the socket will be closed.
  */
