@@ -4209,13 +4209,15 @@ PUBLIC int gobj_stop_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
-        gobj_log_debug(0,0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_STARTUP,
-            "msg",          "%s", "PAUSE/STOP service",
-            "service",      "%s", gobj_short_name(gobj),
-            NULL
-        );
+        if(is_level_tracing(0, TRACE_START_STOP)) {
+            gobj_log_debug(0,0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_STARTUP,
+                "msg",          "%s", "PAUSE/STOP service",
+                "service",      "%s", gobj_short_name(gobj),
+                NULL
+            );
+        }
         if(gobj_is_playing(gobj)) {
             gobj_pause(gobj);
         }
