@@ -53,6 +53,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
+        'autoplay': true,                                           \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
@@ -262,12 +263,6 @@ static void cleaning(void)
 {
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, APP_NAME)
-
-//    double tm = mt_get_time(&time_measure);
-//    if(!(tm >= 3 && tm < 3.1)) {
-//        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.1)\n", On_Red BWhite, Color_Off, tm);
-//        result += -1;
-//    }
 
     result += test_json(NULL, result);  // NULL: we want to check only the logs
 }
