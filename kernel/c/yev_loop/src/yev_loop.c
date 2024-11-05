@@ -161,14 +161,16 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    gobj_log_debug(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", "yev loop running",
-        "msg2",         "%s", "💥🟩 yev loop running",
-        "timeout",      "%d", timeout_in_seconds,
-        NULL
-    );
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev loop running",
+            "msg2",         "%s", "💥🟩 yev loop running",
+            "timeout",      "%d", timeout_in_seconds,
+            NULL
+        );
+    }
 
     struct io_uring_cqe *cqe;
 
@@ -219,14 +221,16 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    gobj_log_debug(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", "yev loop exited",
-        "msg2",         "%s", "💥🟩 yev loop exited",
-        "timeout",      "%d", timeout_in_seconds,
-        NULL
-    );
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev loop exited",
+            "msg2",         "%s", "💥🟩 yev loop exited",
+            "timeout",      "%d", timeout_in_seconds,
+            NULL
+        );
+    }
 
     __inside_loop__ = FALSE;
 
@@ -251,13 +255,15 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     }
     __inside_loop__ = TRUE;
 
-    gobj_log_debug(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", "yev loop ONCE running",
-        "msg2",         "%s", "💥🟩 yev loop ONCE running",
-        NULL
-    );
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev loop ONCE running",
+            "msg2",         "%s", "💥🟩 yev loop ONCE running",
+            NULL
+        );
+    }
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
@@ -269,13 +275,15 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    gobj_log_debug(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_YEV_LOOP,
-        "msg",          "%s", "yev loop ONCE exited",
-        "msg2",         "%s", "💥🟩 yev loop ONCE exited",
-        NULL
-    );
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev loop ONCE exited",
+            "msg2",         "%s", "💥🟩 yev loop ONCE exited",
+            NULL
+        );
+    }
 
     __inside_loop__ = FALSE;
 
@@ -1698,18 +1706,20 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
     int fd = -1;
     for (rp = results; rp; rp = rp->ai_next) {
         print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "addrinfo found, to connect",
-            "addrinfo",     "%s", saddr,
-            "ai_flags",     "%d", rp->ai_flags,
-            "ai_family",    "%d", rp->ai_family,
-            "ai_socktype",  "%d", rp->ai_socktype,
-            "ai_protocol",  "%d", rp->ai_protocol,
-            "ai_canonname", "%s", rp->ai_canonname,
-            NULL
-        );
+        if(is_level_tracing(0, TRACE_UV)) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "addrinfo found, to connect",
+                "addrinfo",     "%s", saddr,
+                "ai_flags",     "%d", rp->ai_flags,
+                "ai_family",    "%d", rp->ai_family,
+                "ai_socktype",  "%d", rp->ai_socktype,
+                "ai_protocol",  "%d", rp->ai_protocol,
+                "ai_canonname", "%s", rp->ai_canonname,
+                NULL
+            );
+        }
         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

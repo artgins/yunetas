@@ -9533,7 +9533,7 @@ PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
     }
     gobj_t * gobj = gobj_;
     if(!gobj) {
-        return FALSE;
+        return (__global_trace_level__ & level)? TRUE:FALSE;
     }
     uint32_t trace = __global_trace_level__ & level ||
         gobj->trace_level & level ||
@@ -9552,7 +9552,7 @@ PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
     }
     gobj_t * gobj = gobj_;
     if(!gobj) {
-        return TRUE;
+        return (__global_trace_no_level__ & level)? TRUE:FALSE;
     }
     uint32_t no_trace = gobj->no_trace_level & level ||
         gobj->gclass->no_trace_level & level;
