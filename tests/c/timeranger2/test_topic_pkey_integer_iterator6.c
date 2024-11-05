@@ -49,9 +49,6 @@ PRIVATE uint64_t last_t_by_disk = 0;
 PRIVATE uint64_t last_tm_by_disk = 0;
 PRIVATE json_t *callback_data_by_disk = 0;
 
-PRIVATE yev_event_t *yev_timer_finish_error = 0;
-PRIVATE yev_event_t *yev_timer_finish_ok = 0;
-
 PRIVATE int rt_disk_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -97,15 +94,6 @@ PRIVATE int rt_disk_record_callback(
     json_array_append_new(callback_data_by_disk, md);
 
     JSON_DECREF(record)
-    return 0;
-}
-
-/***************************************************************************
- *  Here do all test
- ***************************************************************************/
-PRIVATE int yev_timer_finish_ok_callback(yev_event_t *yev_event)
-{
-    yev_loop->running = 0;
     return 0;
 }
 
@@ -214,16 +202,6 @@ PRIVATE int do_test(json_t *tranger)
         }
 
         result += test_json(NULL, result);  // NULL: we want to check only the logs
-
-        if(yev_timer_finish_error) {
-            yev_stop_event(yev_timer_finish_error);
-            yev_destroy_event(yev_timer_finish_error);
-            yev_timer_finish_error = 0;
-        }
-        yev_timer_finish_ok = yev_create_timer_event(
-            yev_loop, yev_timer_finish_ok_callback, tranger
-        );
-        yev_start_timer_event(yev_timer_finish_ok, 100, FALSE);
     }
 
     /*-------------------------------------*
@@ -346,33 +324,6 @@ PRIVATE int close_all(json_t *tranger)
 }
 
 /***************************************************************************
- *  Finish by timeout if test don't end in time
- ***************************************************************************/
-PRIVATE int yev_timer_do_finish_error_callback(yev_event_t *yev_event)
-{
-    global_result += -1;
-    printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "finish by timeout");
-    yev_loop->running = 0;
-    return 0;
-}
-
-/***************************************************************************
- *  Here do all test
- ***************************************************************************/
-PRIVATE int yev_timer_do_test_callback(yev_event_t *yev_event)
-{
-    json_t *tranger = yev_event->gobj;
-
-    yev_timer_finish_error = yev_create_timer_event(
-        yev_loop, yev_timer_do_finish_error_callback, tranger
-    );
-    yev_start_timer_event(yev_timer_finish_error, 10*1000, FALSE);
-
-    global_result += do_test(tranger);
-    return 0;
-}
-
-/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -463,30 +414,17 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     json_t *tranger = open_all();
 
-    yev_event_t *yev_timer_test = yev_create_timer_event(
-        yev_loop,
-        yev_timer_do_test_callback,
-        tranger
-    );
-    yev_start_timer_event(yev_timer_test, 100, FALSE);
+    global_result += do_test(tranger);
 
     yev_loop_run_once(yev_loop);
 
     int result = close_all(tranger);
 
+    yev_loop_run_once(yev_loop);
+
     /*--------------------------------*
      *  Stop the event loop
      *--------------------------------*/
-    if(yev_timer_finish_error) {
-        yev_stop_event(yev_timer_finish_error);
-        yev_destroy_event(yev_timer_finish_error);
-    }
-
-    if(yev_timer_finish_ok) {
-        yev_stop_event(yev_timer_finish_ok);
-        yev_destroy_event(yev_timer_finish_ok);
-    }
-    yev_destroy_event(yev_timer_test);
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
