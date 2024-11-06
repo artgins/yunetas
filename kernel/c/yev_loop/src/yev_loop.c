@@ -161,7 +161,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -221,7 +221,7 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -255,7 +255,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
     }
     __inside_loop__ = TRUE;
 
-    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -275,7 +275,7 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
-    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV)) {
+    if(is_level_tracing(0, TRACE_START_STOP|TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
