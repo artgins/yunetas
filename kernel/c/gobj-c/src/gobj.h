@@ -1431,7 +1431,8 @@ PUBLIC int gobj_get_exit_code(void);
 
 PUBLIC int gobj_autostart_services(void);
 PUBLIC int gobj_autoplay_services(void);
-PUBLIC int gobj_stop_services(void);
+PUBLIC int gobj_stop_autostart_services(void);
+PUBLIC int gobj_pause_autoplay_services(void);
 
 /*
  *  mt_command must return a webix json or 0 on asynchronous responses.

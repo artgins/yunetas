@@ -6727,6 +6727,8 @@ PUBLIC json_t *tranger2_get_list_by_id(
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    print_json2("TODO", tranger);
+
     json_t *rt;
     rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
     if(rt) {
@@ -6737,7 +6739,7 @@ PUBLIC json_t *tranger2_get_list_by_id(
         tranger2_close_rt_disk(tranger, rt);
         return rt;
     }
-    gobj_log_error(gobj, 0,
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
         "msg",          "%s", "tranger2_close_list(), list not found",
@@ -6745,6 +6747,7 @@ PUBLIC json_t *tranger2_get_list_by_id(
         "id",           "%s", id,
         NULL
     );
+    print_json2("TODO", tranger);
     return NULL;
 }
 

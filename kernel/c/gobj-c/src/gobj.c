@@ -661,7 +661,10 @@ PUBLIC void gobj_shutdown(void)
         if(gobj_is_playing(__yuno__)) {
             gobj_pause(__yuno__); // It will pause default_service
         }
-        gobj_stop_services();
+
+        gobj_pause_autoplay_services();
+        gobj_stop_autostart_services();
+
         if(gobj_is_running(__yuno__)) {
             gobj_stop(__yuno__);
         }
@@ -4201,7 +4204,7 @@ PUBLIC int gobj_autoplay_services(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_stop_services(void)
+PUBLIC int gobj_pause_autoplay_services(void)
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
@@ -4209,19 +4212,49 @@ PUBLIC int gobj_stop_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
-        if(is_level_tracing(0, TRACE_START_STOP)) {
-            gobj_log_debug(0,0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_STARTUP,
-                "msg",          "%s", "PAUSE/STOP service",
-                "service",      "%s", gobj_short_name(gobj),
-                NULL
-            );
-        }
+
         if(gobj_is_playing(gobj)) {
+            if(is_level_tracing(0, TRACE_START_STOP)) {
+                gobj_log_debug(0,0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_STARTUP,
+                    "msg",          "%s", "PAUSE service",
+                    "service",      "%s", gobj_short_name(gobj),
+                    NULL
+                );
+            }
             gobj_pause(gobj);
         }
-        gobj_stop_tree(gobj);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_stop_autostart_services(void)
+{
+    const char *key; json_t *jn_service;
+    json_object_foreach(__jn_services__, key, jn_service) {
+        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        if(gobj->gobj_flag & gobj_flag_yuno) {
+            continue;
+        }
+
+        if(gobj_is_running(gobj)) {
+            if(is_level_tracing(0, TRACE_START_STOP)) {
+                gobj_log_debug(0,0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_STARTUP,
+                    "msg",          "%s", "STOP service",
+                    "service",      "%s", gobj_short_name(gobj),
+                    NULL
+                );
+            }
+            // gobj_stop_tree(gobj);
+            gobj_stop(gobj);
+        }
     }
 
     return 0;
