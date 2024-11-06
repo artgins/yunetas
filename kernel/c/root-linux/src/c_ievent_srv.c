@@ -449,7 +449,12 @@ PRIVATE int send_static_iev(
             trace_inter_event(gobj, prefix, event, kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
             if(event == EV_IDENTITY_CARD ||
-               event == EV_IDENTITY_CARD_ACK) {
+                event == EV_IDENTITY_CARD_ACK ||
+                event == EV_PLAY_YUNO ||
+                event == EV_PLAY_YUNO_ACK ||
+                event == EV_PAUSE_YUNO ||
+                event == EV_PAUSE_YUNO_ACK
+               ) {
                 trace_inter_event2(gobj, prefix, event, kw);
             }
         }
@@ -1100,7 +1105,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             trace_inter_event(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
             if(iev_event == EV_IDENTITY_CARD ||
-                    iev_event == EV_IDENTITY_CARD_ACK) {
+                iev_event == EV_IDENTITY_CARD_ACK ||
+                iev_event == EV_PLAY_YUNO ||
+                iev_event == EV_PLAY_YUNO_ACK ||
+                iev_event == EV_PAUSE_YUNO ||
+                iev_event == EV_PAUSE_YUNO_ACK
+               ) {
                 trace_inter_event2(gobj, prefix, iev_event, iev_kw);
             }
         }
