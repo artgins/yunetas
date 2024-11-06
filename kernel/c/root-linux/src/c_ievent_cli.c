@@ -1049,7 +1049,7 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         kw,             // owned, kw request, used to extract ONLY __md_iev__
         jn_result,      // like owned, is returned!, created if null, the body of answer message
-        FALSE            // no_reverse_dst
+        TRUE            // reverse_dst
     );
 
     return send_static_iev(gobj,
@@ -1069,7 +1069,12 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "result",
         ret
     );
-    json_t *kw2resp = msg_iev_set_back_metadata(gobj, kw, jn_result, FALSE);
+    json_t *kw2resp = msg_iev_set_back_metadata(
+        gobj,
+        kw,
+        jn_result,
+        TRUE            // reverse_dst
+    );
 
     return send_static_iev(gobj,
         EV_PAUSE_YUNO_ACK,
