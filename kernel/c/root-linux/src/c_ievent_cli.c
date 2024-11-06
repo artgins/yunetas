@@ -790,7 +790,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         resend_subscriptions(gobj);
     }
 
-    JSON_DECREF(jn_ievent_id);
+    JSON_DECREF(jn_ievent_id)
     KW_DECREF(kw)
     return 0;
 }
