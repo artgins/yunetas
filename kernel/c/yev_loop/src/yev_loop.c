@@ -472,10 +472,18 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
         case YEV_ST_RUNNING:  // cqe ready
-            if(cqe->res < 0) {
-                yev_set_state(yev_event, YEV_ST_STOPPED);
-            } else {
+            if(cqe->res > 0) {
                 yev_set_state(yev_event, YEV_ST_IDLE);
+            } else if(cqe->res < 0) {
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else { // cqe->res == 0
+                // In READ events when the peer has closed the socket the reads return 0
+                if(yev_event->type == YEV_READ_TYPE) {
+                    cqe->res = -EPIPE;
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                } else {
+                    yev_set_state(yev_event, YEV_ST_IDLE);
+                }
             }
             break;
         case YEV_ST_CANCELING: // cqe ready

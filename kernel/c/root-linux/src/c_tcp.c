@@ -965,6 +965,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         case YEV_WRITE_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  TODO in cqe->res come the written bytes,
+                     *   pop these byes of gbuf and if is not empty then write the remain
+                     */
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
                     if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
                         if(!empty_string(priv->tx_ready_event_name)) {

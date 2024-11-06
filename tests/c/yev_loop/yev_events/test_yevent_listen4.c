@@ -71,7 +71,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Listen socket failed or stopped";
                 } else {
-                    msg ="What?";
+                    msg ="What accept state?";
                 }
                 ret = -1; // break the loop
             }
