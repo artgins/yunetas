@@ -38,6 +38,7 @@ set (SRCS
     src/json_config.c
     src/replace_string.c
     src/launch_daemon.c
+    src/rotatory.c
 
     src/stacktrace_with_bfd.c
 )
@@ -60,6 +61,7 @@ set (HDRS
     src/json_config.h
     src/replace_string.h
     src/launch_daemon.h
+    src/rotatory.h
 
     src/stacktrace_with_bfd.h
 )

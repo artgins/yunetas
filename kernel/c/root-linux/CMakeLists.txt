@@ -50,7 +50,6 @@ set (SRCS
     src/msg_ievent.c
     src/yunetas_register.c
     src/ydaemon.c
-    src/rotatory.c
 )
 
 set (HDRS
@@ -83,7 +82,6 @@ set (HDRS
     src/msg_ievent.h
     src/yunetas_register.h
     src/ydaemon.h
-    src/rotatory.h
 
     src/yunetas.h  # TODO tiene que ser generado por menuconfig
 )

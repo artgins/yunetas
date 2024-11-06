@@ -6,7 +6,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
+#include "gobj.h"
 
 /*
  *  Dependencies
