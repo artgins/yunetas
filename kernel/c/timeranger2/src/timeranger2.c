@@ -458,7 +458,7 @@ PUBLIC json_t *tranger2_startup(
  *  Close TimeRanger database
  *  Close topics without remove memory to give time to close yev_events
  ***************************************************************************/
-PUBLIC int tranger2_close(json_t *tranger)
+PUBLIC int tranger2_stop(json_t *tranger)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
@@ -477,6 +477,7 @@ PUBLIC int tranger2_close(json_t *tranger)
             close(fd);
         }
     }
+    json_object_set_new(tranger, "__closed__", json_true());
 
     return 0;
 }
@@ -486,6 +487,12 @@ PUBLIC int tranger2_close(json_t *tranger)
  ***************************************************************************/
 PUBLIC int tranger2_shutdown(json_t *tranger)
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    BOOL __closed__ = kw_get_bool(gobj, tranger, "__closed__", 0, 0);
+    if(!__closed__) {
+        tranger2_stop(tranger);
+    }
     JSON_DECREF(tranger)
     return 0;
 }

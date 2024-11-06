@@ -350,7 +350,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    tranger2_close(priv->tranger);
+    tranger2_stop(priv->tranger);
     return 0;
 }
 

@@ -236,7 +236,7 @@ PUBLIC json_t *tranger2_startup(
    Close TimeRanger database
    Close topics and file's fd
 **rst**/
-PUBLIC int tranger2_close(json_t *tranger);
+PUBLIC int tranger2_stop(json_t *tranger);
 
 /**rst**
    Shutdown TimeRanger database
