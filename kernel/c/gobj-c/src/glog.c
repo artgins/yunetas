@@ -24,6 +24,7 @@
 #include "ansi_escape_codes.h"
 #include "stacktrace_with_bfd.h"
 #include "rotatory.h"
+#include "log_udp_handler.h"
 #include "helpers.h"
 
 extern void jsonp_free(void *ptr);
@@ -209,12 +210,12 @@ PUBLIC void glog_init(void)
         rotatory_write,     // write_fn
         rotatory_fwrite     // fwrite_fn
     );
-//    gobj_log_register_handler(
-//        "udp",              // handler_name
-//        udpc_close,         // close_fn
-//        udpc_write,         // write_fn
-//        udpc_fwrite         // fwrite_fn
-//    );
+    gobj_log_register_handler(
+        "udp",              // handler_name
+        udpc_close,         // close_fn
+        udpc_write,         // write_fn
+        udpc_fwrite         // fwrite_fn
+    );
 
 }
 

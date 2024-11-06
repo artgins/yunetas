@@ -25,12 +25,12 @@
 #include <gobj_environment.h>
 #include <stacktrace_with_bfd.h>
 #include <yuneta_version.h>
+#include <rotatory.h>
 
 #include "yunetas_register.h"
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "ydaemon.h"
-#include "rotatory.h"
 #include "yunetas_register.h"
 #include "c_authz.h"         // the grandmother
 #include "c_yuno.h"         // the grandmother
