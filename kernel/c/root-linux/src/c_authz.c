@@ -411,6 +411,9 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!gobj_is_running(priv->gobj_tranger)) {
+        gobj_start(priv->gobj_tranger);
+    }
     if(!gobj_is_running(priv->gobj_treedb)) {
         gobj_start(priv->gobj_treedb);
     }
@@ -478,6 +481,15 @@ PRIVATE int mt_stop(hgobj gobj)
         trmsg_close_list(priv->tranger, priv->users_accesses);
         priv->users_accesses = NULL;
     }
+
+    /*---------------------------*
+     *  Close topics as messages
+     *---------------------------*/
+    trmsg_close_topics(
+        priv->tranger,
+        db_messages_desc
+    );
+
     gobj_stop(priv->gobj_treedb);
     gobj_stop(priv->gobj_tranger);
 

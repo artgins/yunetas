@@ -93,52 +93,52 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
 SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_jtree[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
-SDATAPM (DTP_STRING, "hook",         0,              0,          "Hook to build the tree"),
-SDATAPM (DTP_STRING, "rename_hook",  0,              0,          "Rename the hook field in the response"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING,    "hook",         0,              0,          "Hook to build the tree"),
+SDATAPM (DTP_STRING,    "rename_hook",  0,              0,          "Rename the hook field in the response"),
 SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_create_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "content64",    0,              0,          "Node content in base64"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "Node content in base64"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_update_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "content64",    0,              0,          "Node content in base64"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "  content64",    0,              0,          "Node content in base64"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_node[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'force'"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_link_nodes[] = {
-SDATAPM (DTP_STRING, "parent_ref",   0,              0,          "Parent node ref (parent_topic_name^parent_id^hook_name)"),
-SDATAPM (DTP_STRING, "child_ref",    0,              0,          "Child node ref (child_topic_name^child_id)"),
+SDATAPM (DTP_STRING,    "parent_ref",   0,              0,          "Parent node ref (parent_topic_name^parent_id^hook_name)"),
+SDATAPM (DTP_STRING,    "child_ref",    0,              0,          "Child node ref (child_topic_name^child_id)"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
@@ -149,91 +149,91 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_topics[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: 'dict'"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_desc[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_hooks[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_links[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_parents[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
-SDATAPM (DTP_STRING, "link",         0,              0,          "Link port (fkey) to parents"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING,    "link",         0,              0,          "Link port (fkey) to parents"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, fkey_refs, only_id, fkey_only_id, list_dict, fkey_list_dict"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_childs[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
-SDATAPM (DTP_STRING, "hook",         0,              0,          "Hook port to childs"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING,    "hook",         0,              0,          "Hook port to childs"),
 SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: recursive, refs, hook_refs, only_id, hook_only_id, list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_JSON,      "filter",       0,              0,          "Search filter"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_get_node[] = {
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_node_instances[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING, "node_id",      0,              0,          "Node id"),
-SDATAPM (DTP_STRING, "pkey2",        0,              0,          "PKey2 field"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
+SDATAPM (DTP_STRING,    "pkey2",        0,              0,          "PKey2 field"),
 SDATAPM (DTP_JSON,      "filter",       0,              0,          "Search filter"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: only_id, list_dict, size"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_node_pkey2s[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_snap_content[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "snap_id",      0,              0,          "Snap id"),
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "name",         0,              0,          "Snap name"),
-SDATAPM (DTP_STRING, "description",  0,              0,          "Snap description"),
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
+SDATAPM (DTP_STRING,    "description",  0,              0,          "Snap description"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_activate_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "name",         0,              0,          "Snap name"),
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_import_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "content64",    0,              0,          "Content in base64"),
-SDATAPM (DTP_STRING, "if-resource-exists", 0,        0,          "abort, skip, overwrite"),
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content in base64"),
+SDATAPM (DTP_STRING,    "if-resource-exists", 0,        0,          "abort, skip, overwrite"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_export_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "filename",     0,              0,          "Filename to save db"),
+SDATAPM (DTP_STRING,    "filename",     0,              0,          "Filename to save db"),
 SDATAPM (DTP_BOOLEAN,   "overwrite",    0,              0,          "Overwrite the file if it exits"),
 SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "Write metadata"),
 SDATAPM (DTP_BOOLEAN,   "without_rowid",0,              "0",        "Without id in records with rowid id"),
@@ -290,7 +290,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"),
+SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler, externally set, important!"),
 SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
@@ -405,6 +405,9 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    IF_EQ_SET_PRIV(tranger,     gobj_read_pointer_attr)
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -476,7 +479,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
 
     treedb_close_db(priv->tranger, priv->treedb_name);
 

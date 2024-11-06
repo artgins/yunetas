@@ -218,7 +218,7 @@ SDATA_END()
 
 /*---------------------------------------------*
  *      GClass trace levels
- *  HACK strict ascendent value!
+ *  HACK strict ascendant value!
  *  required paired correlative strings
  *  in s_user_trace_level
  *---------------------------------------------*/
@@ -331,7 +331,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(tranger2_shutdown, priv->tranger);
+    EXEC_AND_RESET(tranger2_shutdown, priv->tranger)
+    priv->tranger = 0;
 }
 
 /***************************************************************************
@@ -347,6 +348,9 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    tranger2_close(priv->tranger);
     return 0;
 }
 
@@ -1324,6 +1328,16 @@ PRIVATE int load_record_callback(
 PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->tranger) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger NULL",
+            NULL
+        );
+        return -1;
+    }
 
     /*
      *  Get parameters

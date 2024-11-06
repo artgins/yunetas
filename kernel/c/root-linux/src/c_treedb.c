@@ -60,53 +60,53 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
 SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_open_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "filename_mask",0,              "%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
+SDATAPM (DTP_STRING,    "filename_mask",0,              "%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 SDATAPM (DTP_INTEGER,   "exit_on_error",0,              0,          "exit on error"),
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_JSON,      "treedb_schema",0,              0,          "Initial treedb schema"),
 SDATAPM (DTP_BOOLEAN,   "use_internal_schema",0,        0,          "Use internal (hardcoded in source code) schema"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_treedb[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete treedb"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 
 SDATAPM (DTP_INTEGER,   "topic_version",0,              "1",        "topic version"),
-SDATAPM (DTP_STRING, "topic_tkey",   0,              "",         "Time key"),
+SDATAPM (DTP_STRING,    "topic_tkey",   0,              "",         "Time key"),
 SDATAPM (DTP_JSON,      "pkey2s",       0,              0,          "Secondary keys: string or dict of string or [strings]"),
 SDATAPM (DTP_JSON,      "cols",         0,              0,          "Columns"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "treedb_name",  0,              0,          "Treedb name"),
-SDATAPM (DTP_STRING, "topic_name",   0,              0,          "Topic name"),
+SDATAPM (DTP_STRING,    "treedb_name",  0,              0,          "Treedb name"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATA_END()
 };
 
@@ -132,7 +132,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler"), // TODO borra, no se usa
 SDATA (DTP_STRING,      "path",             SDF_RD|SDF_REQUIRED,"",             "Path of treedbs"),
 SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m",        "System organization of tables (file name format, see strftime())"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,          "the master is the only that can write"),
@@ -168,17 +167,17 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_create[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,       "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_write[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,       "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
-SDATAPM0 (DTP_STRING,    "treedb_name",      0,          "",             "Treedb name"),
+SDATAPM0 (DTP_STRING,       "treedb_name",      0,          "",             "Treedb name"),
 SDATA_END()
 };
 
@@ -334,7 +333,13 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!gobj_is_running(priv->gobj_tranger_system)) {
+        gobj_start(priv->gobj_tranger_system);
+    }
+    if(!gobj_is_running(priv->gobj_node_system)) {
+        gobj_start(priv->gobj_node_system);
+    }
 
     return 0;
 }
@@ -344,8 +349,10 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_stop(priv->gobj_node_system);
+    gobj_stop(priv->gobj_tranger_system);
     return 0;
 }
 

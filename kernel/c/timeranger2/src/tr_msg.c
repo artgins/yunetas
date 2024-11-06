@@ -68,6 +68,27 @@ PUBLIC int trmsg_open_topics(
 }
 
 /***************************************************************************
+    Close topics for messages
+ ***************************************************************************/
+PUBLIC int trmsg_close_topics(
+    json_t *tranger,
+    const topic_desc_t *descs
+)
+{
+    int ret = 0;
+    for(int i=0; descs[i].topic_name!=0; i++) {
+        const topic_desc_t *topic_desc = descs + i;
+
+        ret += tranger2_close_topic(
+            tranger,
+            topic_desc->topic_name
+        );
+    }
+
+    return ret;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int trmsg_add_instance(

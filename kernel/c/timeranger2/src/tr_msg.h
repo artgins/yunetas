@@ -141,6 +141,10 @@ PUBLIC int trmsg_open_topics(
     json_t *tranger,
     const topic_desc_t *descs
 );
+PUBLIC int trmsg_close_topics(
+    json_t *tranger,
+    const topic_desc_t *descs
+);
 
 PUBLIC int trmsg_add_instance(
     json_t *tranger,

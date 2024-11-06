@@ -455,14 +455,21 @@ PUBLIC json_t *tranger2_startup(
 }
 
 /***************************************************************************
- *  Shutdown TimeRanger database
+ *  Close TimeRanger database
+ *  Close topics without remove memory to give time to close yev_events
  ***************************************************************************/
-PUBLIC int tranger2_shutdown(json_t *tranger)
+PUBLIC int tranger2_close(json_t *tranger)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     const char *key;
     json_t *jn_value;
+    void *temp;
+    json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
+    json_object_foreach_safe(jn_topics, temp, key, jn_value) {
+        tranger2_close_topic(tranger, key);
+    }
+
     json_t *opened_files = kw_get_dict(gobj, tranger, "fd_opened_files", 0, KW_REQUIRED);
     json_object_foreach(opened_files, key, jn_value) {
         int fd = (int)kw_get_int(gobj, opened_files, key, 0, KW_REQUIRED);
@@ -471,11 +478,14 @@ PUBLIC int tranger2_shutdown(json_t *tranger)
         }
     }
 
-    void *temp;
-    json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
-    json_object_foreach_safe(jn_topics, temp, key, jn_value) {
-        tranger2_close_topic(tranger, key);
-    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Shutdown TimeRanger database
+ ***************************************************************************/
+PUBLIC int tranger2_shutdown(json_t *tranger)
+{
     JSON_DECREF(tranger)
     return 0;
 }

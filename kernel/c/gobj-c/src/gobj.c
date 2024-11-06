@@ -3799,7 +3799,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
     }
     if(gobj->playing) {
         // It's auto-stopping but display error (magic but warn!).
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
