@@ -41,13 +41,19 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
 PRIVATE const char *yev_flag_s[] = {
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_TLS",
-    "YEV_FLAG_IS_TCP",
     "YEV_FLAG_CONNECTED",
     "YEV_FLAG_WANT_TX_READY",
     0
 };
 
 PRIVATE volatile char __inside_loop__ = FALSE;
+
+PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
+    const char *schema,
+    struct addrinfo *hints,
+    int *secure // fill true if needs TLS
+);
+PRIVATE yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn = _yev_protocol_fill_hints;
 
 /***************************************************************************
  *
@@ -313,6 +319,64 @@ PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
         io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
     }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_protocol_set_protocol_fill_hints_fn(
+    yev_protocol_fill_hints_fn_t yev_protocol_fill_hints
+)
+{
+    yev_protocol_fill_hints_fn = yev_protocol_fill_hints;
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
+    const char *schema,
+    struct addrinfo *hints,
+    int *secure // fill true if needs TLS
+)
+{
+    SWITCHS(schema) { // WARNING Repeated
+        ICASES("tcps")
+        ICASES("tcp")
+        ICASES("tcp4hs")
+        ICASES("tcp4h")
+        ICASES("http")
+        ICASES("https")
+        ICASES("wss")
+        ICASES("ws")
+            hints->ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints->ai_protocol = IPPROTO_TCP;
+            *secure = TRUE;
+            break;
+
+        ICASES("udps")
+        ICASES("udp")
+            hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
+            hints->ai_protocol = IPPROTO_UDP;
+            *secure = FALSE;
+            break;
+
+        DEFAULTS
+            gobj_log_warning(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msg",          "%s", "schema NOT supported, using tcp",
+                "schema",       "%s", schema,
+                NULL
+            );
+            hints->ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints->ai_protocol = IPPROTO_TCP;
+            *secure = FALSE;
+            return -1;
+    } SWITCHS_END
 
     return 0;
 }
@@ -1645,40 +1709,17 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         .ai_flags = ai_flags,
     };
 
-    SWITCHS(schema) { // WARNING Repeated
-        ICASES("tcps")
-        ICASES("tcp")
-        ICASES("tcp4hs")
-        ICASES("tcp4h")
-        ICASES("http")
-        ICASES("https")
-        ICASES("wss")
-        ICASES("ws")
-            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
-            hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_FLAG_IS_TCP;
-            break;
-
-        ICASES("udps")
-        ICASES("udp")
-            hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
-            hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_FLAG_IS_TCP;
-            break;
-
-        DEFAULTS
-            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "schema NOT supported, using tcp",
-                "url",          "%s", dst_url,
-                "schema",       "%s", schema,
-                NULL
-            );
-            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
-            hints.ai_protocol = IPPROTO_TCP;
-            break;
-    } SWITCHS_END
+    int secure;
+    yev_protocol_fill_hints_fn(
+        schema,
+        &hints,
+        &secure
+    );
+    if(secure) {
+        yev_event->flag |= YEV_FLAG_USE_TLS;
+    } else {
+        yev_event->flag &= ~YEV_FLAG_USE_TLS;
+    }
 
     struct addrinfo *results;
     struct addrinfo *rp;
@@ -1859,7 +1900,6 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         return ret;
     }
 
-    //if(hints.ai_protocol == IPPROTO_TCP) {
     if (is_tcp_socket(fd)) {
         set_tcp_socket_options(fd, yev_event->yev_loop->keep_alive);
     }
@@ -2000,40 +2040,17 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
         .ai_flags = ai_flags,
     };
 
-    SWITCHS(schema) { // WARNING Repeated
-        ICASES("tcps")
-        ICASES("tcp")
-        ICASES("tcp4hs")
-        ICASES("tcp4h")
-        ICASES("http")
-        ICASES("https")
-        ICASES("wss")
-        ICASES("ws")
-            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
-            hints.ai_protocol = IPPROTO_TCP;
-            yev_event->flag |= YEV_FLAG_IS_TCP;
-            break;
-
-        ICASES("udps")
-        ICASES("udp")
-            hints.ai_socktype = SOCK_DGRAM; /* UDP socket */
-            hints.ai_protocol = IPPROTO_UDP;
-            yev_event->flag &= ~YEV_FLAG_IS_TCP;
-            break;
-
-        DEFAULTS
-            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "schema NOT supported, using tcp",
-                "url",          "%s", listen_url,
-                "schema",       "%s", schema,
-                NULL
-            );
-            hints.ai_socktype = SOCK_STREAM; /* TCP socket */
-            hints.ai_protocol = IPPROTO_TCP;
-            break;
-    } SWITCHS_END
+    int secure;
+    yev_protocol_fill_hints_fn(
+        schema,
+        &hints,
+        &secure
+    );
+    if(secure) {
+        yev_event->flag |= YEV_FLAG_USE_TLS;
+    } else {
+        yev_event->flag &= ~YEV_FLAG_USE_TLS;
+    }
 
     struct addrinfo *results;
     struct addrinfo *rp;

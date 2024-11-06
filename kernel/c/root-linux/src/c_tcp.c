@@ -279,11 +279,6 @@ PRIVATE int mt_start(hgobj gobj)
                 NULL
             );
         }
-        if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-            gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-        } else {
-            gobj_write_bool_attr(gobj, "use_ssl", FALSE);
-        }
         gobj_write_str_attr(gobj, "schema", schema);
 
         priv->yev_client_connect = yev_create_connect_event(
@@ -291,6 +286,11 @@ PRIVATE int mt_start(hgobj gobj)
             yev_callback,
             gobj
         );
+        if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
+            gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+        } else {
+            gobj_write_bool_attr(gobj, "use_ssl", FALSE);
+        }
     }
 
     if(priv->use_ssl) {

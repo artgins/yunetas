@@ -208,10 +208,6 @@ PRIVATE int mt_start(hgobj gobj)
             return -1;
         }
     }
-    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-    }
 
     if(atoi(port) == 0) {
         gobj_log_error(gobj, 0,
@@ -228,12 +224,6 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    if(priv->use_ssl) {
-        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
-        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
-    }
-
     /*--------------------------------*
      *      Setup server
      *--------------------------------*/
@@ -242,6 +232,14 @@ PRIVATE int mt_start(hgobj gobj)
         yev_callback,
         gobj
     );
+    if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
+        priv->use_ssl = TRUE;
+        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+
+        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
+        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+    }
 
     priv->fd_listen = yev_setup_accept_event(
         priv->yev_server_accept,

@@ -91,9 +91,8 @@ typedef enum  {
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_TIMER_PERIODIC     = 0x01,
     YEV_FLAG_USE_TLS            = 0x02,
-    YEV_FLAG_IS_TCP             = 0x04,
-    YEV_FLAG_CONNECTED          = 0x08,     // user
-    YEV_FLAG_WANT_TX_READY      = 0x10,     // user
+    YEV_FLAG_CONNECTED          = 0x04,     // user
+    YEV_FLAG_WANT_TX_READY      = 0x08,     // user
 } yev_flag_t;
 
 typedef enum  {
@@ -148,6 +147,11 @@ struct yev_loop_s {
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
 };
 
+typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
+    const char *schema,
+    struct addrinfo *hints,
+    int *secure // fill true if needs TLS
+);
 
 /***************************************************************
  *              Prototypes
@@ -165,6 +169,11 @@ PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop);
 PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds);
 PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop);
 PUBLIC int yev_loop_stop(yev_loop_t *yev_loop);
+
+PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of protocols
+    yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn
+);
+
 
 /*
  *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
@@ -219,6 +228,11 @@ static inline void yev_set_flag(
     } else {
         yev_event->flag &= ~flag;
     }
+}
+
+static inline yev_state_t yev_get_flag(yev_event_t *yev_event)
+{
+    return yev_event->flag;
 }
 
 static inline yev_state_t yev_get_state(yev_event_t *yev_event)
