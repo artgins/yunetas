@@ -6750,37 +6750,6 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *tranger2_get_list_by_id(
-    json_t *tranger,
-    const char *topic_name,
-    const char *id
-) {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    json_t *rt;
-    rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
-    if(rt) {
-        return rt;
-    }
-    rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
-    if(rt) {
-        tranger2_close_rt_disk(tranger, rt);
-        return rt;
-    }
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        "msg",          "%s", "tranger2_get_list_by_id(), list not found",
-        "topic",        "%s", topic_name,
-        "id",           "%s", id,
-        NULL
-    );
-    return NULL;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC int tranger2_close_list(
     json_t *tranger,
     json_t *list

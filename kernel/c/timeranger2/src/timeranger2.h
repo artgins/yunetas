@@ -648,15 +648,6 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 );
 
 /**rst**
-    Get list by id
-**rst**/
-PUBLIC json_t *tranger2_get_list_by_id(
-    json_t *tranger,
-    const char *topic_name,
-    const char *id
-);
-
-/**rst**
     Close list (rt_mem or rt_disk)
 **rst**/
 PUBLIC int tranger2_close_list(
