@@ -72,6 +72,9 @@
  *                      {format-file}.json  (hard link)     C master, D non-m (when read)
  *                      {format-file}.md2   (hard link)     C master, D non-m (when read)
  *
+ *
+ *  The non-master is the agent creating the /disks/{rt_id} that the master is monitoring
+ *
  ****************************************************************************/
 
 #pragma once
@@ -597,7 +600,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *rt_id,      // disk id, optional
+    const char *rt_id,      // disk id, REQUIRED
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 

@@ -3204,7 +3204,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         mem
     );
 
-printf("OPEN LIST mem ===================> %p, id %s\n", mem, id); // TODO
+//printf("OPEN LIST mem ===================> %p, id %s\n", mem, id); // TODO
     return mem;
 }
 
@@ -3228,8 +3228,8 @@ PUBLIC int tranger2_close_rt_mem(
         return -1;
     }
 
-const char *id = kw_get_str(gobj, mem, "id", "", 0);
-printf("CLOSE LIST mem ===================> %p, id %s\n", mem, id); // TODO
+//const char *id = kw_get_str(gobj, mem, "id", "", 0);
+//printf("CLOSE LIST mem ===================> %p, id %s\n", mem, id); // TODO
 
     const char *topic_name = kw_get_str(gobj, mem, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
@@ -3422,7 +3422,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         }
     }
 
-printf("OPEN LIST disk ===================> %p, id %s\n", disk, id); // TODO
+//printf("OPEN LIST disk ===================> %p, id %s\n", disk, id); // TODO
     return disk;
 }
 
@@ -3768,8 +3768,8 @@ PUBLIC int tranger2_close_rt_disk(
         return -1;
     }
 
-const char *id = kw_get_str(gobj, disk, "id", "", 0);
-printf("CLOSE LIST disk ===================> %p, id %s\n", disk, id); // TODO
+//const char *id = kw_get_str(gobj, disk, "id", "", 0);
+//printf("CLOSE LIST disk ===================> %p, id %s\n", disk, id); // TODO
 
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
