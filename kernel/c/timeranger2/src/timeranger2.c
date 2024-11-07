@@ -3202,6 +3202,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         mem
     );
 
+printf("OPEN LIST mem ===================> %p, id %s\n", mem, id); // TODO
     return mem;
 }
 
@@ -3213,6 +3214,7 @@ PUBLIC int tranger2_close_rt_mem(
     json_t *mem
 )
 {
+
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!mem) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -3223,6 +3225,9 @@ PUBLIC int tranger2_close_rt_mem(
         );
         return -1;
     }
+
+const char *id = kw_get_str(gobj, mem, "id", "", 0);
+printf("CLOSE LIST mem ===================> %p, id %s\n", mem, id); // TODO
 
     const char *topic_name = kw_get_str(gobj, mem, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
@@ -3415,6 +3420,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         }
     }
 
+printf("OPEN LIST disk ===================> %p, id %s\n", disk, id); // TODO
     return disk;
 }
 
@@ -3759,6 +3765,9 @@ PUBLIC int tranger2_close_rt_disk(
         );
         return -1;
     }
+
+const char *id = kw_get_str(gobj, disk, "id", "", 0);
+printf("CLOSE LIST disk ===================> %p, id %s\n", disk, id); // TODO
 
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
@@ -6700,7 +6709,6 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 id,
                 json_incref(extra)    // extra, owned
             );
-printf("OPEN LIST mem ===================> %p %s\n", rt, id); // TODO
         } else {
             rt = tranger2_open_rt_disk(
                 tranger,
@@ -6711,7 +6719,6 @@ printf("OPEN LIST mem ===================> %p %s\n", rt, id); // TODO
                 id,
                 json_incref(extra)    // extra, owned
             );
-printf("OPEN LIST disk ===================> %p %s\n", rt, id); // TODO
         }
 
         if(!rt) {
@@ -6727,10 +6734,6 @@ printf("OPEN LIST disk ===================> %p %s\n", rt, id); // TODO
             return -1;
         }
     }
-
-if(!rt) {
-    printf("OPEN LIST ??? ===================> %p %s\n", rt, id); // TODO
-}
 
     if(prt) {
         *prt = rt;
@@ -6783,13 +6786,9 @@ PUBLIC int tranger2_close_list(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
 
-    const char *id = kw_get_str(gobj, list, "id", "", 0);
-
     if(strcmp(list_type, "rt_mem")==0) {
-printf("CLOSE LIST mem ===================> %p, id %s\n", list, id); // TODO
         return tranger2_close_rt_mem(tranger, list);
     } else if(strcmp(list_type, "rt_disk")==0) {
-printf("CLOSE LIST disk ===================> %p, id %s\n", list, id); // TODO
         return tranger2_close_rt_disk(tranger, list);
     }
     return -1;
