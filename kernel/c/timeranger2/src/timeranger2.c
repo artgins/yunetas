@@ -960,7 +960,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
             // Master to monitor the (topic) directory where clients will mark their rt disks.
 
             /*
-             *  WARNING this function will open mem lists for directories found in /disk
+             *  HACK this function will open mem lists for directories found in /disk
              */
             fs_event_t *fs_event_master = monitor_disks_directory_by_master(
                 gobj,
@@ -4518,8 +4518,18 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         if(realtime) {
             BOOL master = json_boolean_value(json_object_get(tranger, "master"));
             BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-            if(!master) {
-                rt_by_mem = FALSE;
+            if(rt_by_mem && !master) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "tranger2_open_iterator(): rt_by_mem only to master",
+                    "topic_name",   "%s", topic_name,
+                    "id",           "%s", iterator_id,
+                    NULL
+                );
+                JSON_DECREF(iterator)
+                JSON_DECREF(extra)
+                return NULL;
             }
             json_t *rt;
             if(rt_by_mem) {
@@ -6698,8 +6708,18 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-        if(!master) {
-            rt_by_mem = FALSE;
+        if(rt_by_mem && !master) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "tranger2_open_list(): rt_by_mem only to master",
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+            JSON_DECREF(match_cond)
+            JSON_DECREF(extra)
+            return -1;
         }
 
         if(rt_by_mem) {
