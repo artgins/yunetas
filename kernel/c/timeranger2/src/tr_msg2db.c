@@ -337,6 +337,10 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(topic_name)) {
             continue;
         }
+
+        /*
+         *  id is required to close the list
+         */
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
@@ -409,7 +413,7 @@ PUBLIC int msg2db_close_db(
             continue;
         }
         build_msg2db_index_path(list_id, sizeof(list_id), msg2db_name, topic_name, "id");
-        json_t *list = 0; // TODO tranger2_get_list(tranger, list_id);
+        json_t *list = tranger2_get_list_by_id(tranger, topic_name, list_id);
         if(!list) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -424,8 +428,8 @@ PUBLIC int msg2db_close_db(
         tranger2_close_list(tranger, list);
     }
 
-    JSON_DECREF(msg2db);
-    JSON_DECREF(topic_cols_desc);
+    JSON_DECREF(msg2db)
+    JSON_DECREF(topic_cols_desc)
     return 0;
 }
 

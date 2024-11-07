@@ -279,10 +279,24 @@ PRIVATE int load_record_callback(
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC char *build_msg_index_path(
+    char *bf,
+    int bfsize,
+    const char *topic_name,
+    const char *key
+)
+{
+    snprintf(bf, bfsize, "msgs`%s`%s", topic_name, key);
+    return bf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *match_cond,  // owned
+    json_t *match_cond, // owned
     json_t *extra       // owned
 )
 {
@@ -305,14 +319,24 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         match_cond = json_object();
     }
 
-    json_t *jn_extra = json_pack("{s:o}",
+    /*
+     *  id is required to close the list
+     */
+    char path[NAME_MAX];
+    build_msg_index_path(path, sizeof(path), topic_name, "id");
+
+    json_t *jn_extra = json_pack("{s:s, s:o}",
+        "id", path,
         "messages", json_object()
     );
+    json_object_update_missing_new(jn_extra, extra);
+
     json_object_set_new(
         match_cond,
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
+
 //            "rkey", "", TODO ???
 //            "rt_by_mem", 1,
 

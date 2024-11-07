@@ -3269,6 +3269,12 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(empty_string(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_get_rt_mem_by_id: what id?",
+            NULL
+        );
         return 0;
     }
 
@@ -3339,13 +3345,19 @@ PUBLIC json_t *tranger2_open_rt_disk(
         return NULL;
     }
 
+    if(empty_string(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_open_rt_disk: what id?",
+            NULL
+        );
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
 
     json_t *disk = json_object();
-    char id_[64];
-    if(empty_string(id)) {
-        snprintf(id_, sizeof(id_), "%"PRIu64, (uint64_t )(size_t)disk);
-        id = id_;
-    }
 
     if(tranger2_get_rt_disk_by_id(tranger, topic_name, id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -3813,6 +3825,12 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     if(empty_string(id)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "tranger2_get_rt_disk_by_id: what id?",
+            NULL
+        );
         return 0;
     }
     json_t *topic = tranger2_topic(tranger, topic_name);
@@ -6663,11 +6681,11 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     }
 
     json_t *rt = NULL;
+    const char *id = json_string_value(json_object_get(match_cond, "id"));
 
     if(realtime) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-        const char *id = json_string_value(json_object_get(match_cond, "id"));
         if(!master) {
             rt_by_mem = FALSE;
         }
@@ -6708,6 +6726,10 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         }
     }
 
+if(!rt) {
+    printf("OPEN LIST ??? ===================> %p %s\n", rt, id); // TODO
+}
+
     if(prt) {
         *prt = rt;
     }
@@ -6727,27 +6749,26 @@ PUBLIC json_t *tranger2_get_list_by_id(
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    print_json2("TODO", tranger);
-
     json_t *rt;
     rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
     if(rt) {
+        printf("CLOSE LIST mem ===================> %p, id %s\n", rt, id); // TODO
         return rt;
     }
     rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
     if(rt) {
+        printf("CLOSE LIST disk ===================> %p, id %s\n", rt, id); // TODO
         tranger2_close_rt_disk(tranger, rt);
         return rt;
     }
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        "msg",          "%s", "tranger2_close_list(), list not found",
+        "msg",          "%s", "tranger2_get_list_by_id(), list not found",
         "topic",        "%s", topic_name,
         "id",           "%s", id,
         NULL
     );
-    print_json2("TODO", tranger);
     return NULL;
 }
 

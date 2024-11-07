@@ -170,7 +170,7 @@ PUBLIC int trmsg_add_instance(
 
         match_fields        (dict or list of dicts) Load instances that matches fields
 
-    For the first level see:
+    for the first level see:
 
         `Iterator match_cond` in timeranger2.h
 
@@ -189,6 +189,9 @@ typedef int (*trmsg_instance_callback_t)(
     json_t *instance    // not yours
 );
 
+/*
+ *  trmsg_open_list() use tranger2_open_list(), see doc
+ */
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,

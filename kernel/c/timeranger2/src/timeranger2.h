@@ -621,8 +621,8 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
 /**rst**
     Open list, load records in memory
 
-    jn_filter (match_cond) of second level:
-        id                  (str) id
+    match_cond of second level:
+        id                  (str) id    REQUIRED for lists by disk rt_by_mem==0
         key                 (str) key (if not exists then rkey is used)
         rkey                (str) regular expression of key (empty "" is equivalent to ".*"
                             WARNING: loading form disk keys matched in rkey)
@@ -639,20 +639,10 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         -1 break the load
 
 **rst**/
-static const json_desc_t list_filter_desc[] = {
-// Name                         Type        Default     Fillspace
-    {"id",                      "str",      "",         ""},
-    {"key",                     "str",      "",         ""},
-    {"rkey",                    "str",      "",         ""},
-    {"match_cond",              "dict",     "{}",       ""},
-    {"load_record_callback",    "int",      "",         ""},
-    // And all of `Iterator match_cond` in timeranger2.h
-    {0}
-};
 PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *jn_filter,  // owned
+    json_t *match_cond, // owned
     json_t *extra,      // owned
     json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
 );

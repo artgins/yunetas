@@ -642,13 +642,10 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     hgobj gobj_client_tranger = gobj_bottom_gobj(gobj_client_node);
-    if(gobj_is_running(gobj_client_tranger)) {
-        gobj_stop(gobj_client_tranger);
-    }
 
-    if(gobj_is_running(gobj_client_node)) {
-        gobj_stop(gobj_client_node);
-    }
+    gobj_stop(gobj_client_node);
+    gobj_stop(gobj_client_tranger);
+
     gobj_destroy(gobj_client_tranger);
     gobj_destroy(gobj_client_node);
 
