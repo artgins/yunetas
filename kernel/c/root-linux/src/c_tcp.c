@@ -969,6 +969,16 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      *  TODO in cqe->res come the written bytes,
                      *   pop these byes of gbuf and if is not empty then write the remain
                      */
+                    priv->txBytes += (json_int_t)yev_event->result;
+                    if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                            "msg",          "%s", "NEED retransmit, NOT ALL DATA being sent",
+                            NULL
+                        );
+                    }
+
                     json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
                     if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
                         if(!empty_string(priv->tx_ready_event_name)) {
@@ -981,6 +991,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             }
                         }
                     }
+
+
                     yev_destroy_event(yev_event);
 
                 } else {
@@ -1160,7 +1172,6 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         }
     } else {
         priv->txMsgs++;
-        priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
         /*
          *  Transmit
@@ -1190,9 +1201,6 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    priv->txMsgs++;
-    priv->txBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
     /*
      *  Transmit
