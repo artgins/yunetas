@@ -4252,8 +4252,7 @@ PUBLIC int gobj_stop_autostart_services(void)
                     NULL
                 );
             }
-            // gobj_stop_tree(gobj);
-            gobj_stop(gobj);
+            gobj_stop_tree(gobj);
         }
     }
 
