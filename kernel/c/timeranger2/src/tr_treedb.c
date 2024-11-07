@@ -975,8 +975,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
+        char rt_id[NAME_MAX];
+
         json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", path,
+            "id", rt_id,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,
@@ -1013,8 +1015,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
+        char rt_id[NAME_MAX];
+
         json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", path,
+            "id", rt_id,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,
@@ -1379,8 +1383,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
+    char rt_id[NAME_MAX];
+
     json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-        "id", path,
+        "id", rt_id,
         "backward", 1,
         "rkey", "",
         "rt_by_mem", master,
@@ -1435,8 +1441,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
+        char rt_id[NAME_MAX];
+
         json_t *match_cond2 = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", path,
+            "id", rt_id,
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,

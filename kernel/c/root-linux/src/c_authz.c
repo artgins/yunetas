@@ -458,11 +458,12 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  To open users' accesses
      */
+    char rt_id[NAME_MAX];  // =    gobj_name(gobj)
     priv->users_accesses = trmsg_open_list(
         priv->tranger,
         "users_accesses",   // topic
         json_pack("{s:s, s:b, s:i}",  // filter
-            "id", gobj_name(gobj),
+            "id", rt_id,
             "rt_by_mem", priv->master,
             "max_key_instances", 1
         ),
