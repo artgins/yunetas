@@ -1205,7 +1205,6 @@ PRIVATE int mater_to_update_client_load_record_callback(
     char full_path_orig[PATH_MAX];
 
     // (4) MONITOR update directory /disks/rt_id/ on new records
-    // TODO perhaps /rt_id/ is not necessary ?
     // Create a hard link of md2 file
     json_t *rt = list;
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
@@ -3291,8 +3290,8 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
         json_t *lists = kw_get_list(gobj, topic, "lists", 0, KW_REQUIRED);
         int idx; json_t *list;
         json_array_foreach(lists, idx, list) {
-            const char *list_id = kw_get_str(gobj, list, "id", "", 0);
-            if(strcmp(id, list_id)==0) {
+            const char *rt_id = kw_get_str(gobj, list, "id", "", 0);
+            if(strcmp(id, rt_id)==0) {
                 return list;
             }
         }
@@ -3850,8 +3849,8 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         json_t *disks = kw_get_list(gobj, topic, "disks", 0, KW_REQUIRED);
         int idx; json_t *disk;
         json_array_foreach(disks, idx, disk) {
-            const char *disk_id = kw_get_str(gobj, disk, "id", "", 0);
-            if(strcmp(id, disk_id)==0) {
+            const char *rt_id = kw_get_str(gobj, disk, "id", "", 0);
+            if(strcmp(id, rt_id)==0) {
                 return disk;
             }
         }
@@ -6702,10 +6701,10 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         json_decref(jn_keys);
     }
 
-    json_t *rt = NULL;
-    const char *id = json_string_value(json_object_get(match_cond, "id"));
-
     if(realtime) {
+        json_t *rt = NULL;
+        const char *rt_id = json_string_value(json_object_get(match_cond, "id"));
+
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
         if(rt_by_mem && !master) {
@@ -6714,7 +6713,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "tranger2_open_list(): rt_by_mem only to master",
                 "topic_name",   "%s", topic_name,
-                "id",           "%s", id,
+                "rt_id",        "%s", rt_id,
                 NULL
             );
             JSON_DECREF(match_cond)
@@ -6729,7 +6728,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 key,                    // if empty receives all keys, else only this key
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
-                id,
+                rt_id,
                 json_incref(extra)    // extra, owned
             );
         } else {
@@ -6739,7 +6738,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 key,                    // if empty receives all keys, else only this key
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
-                id,
+                rt_id,
                 json_incref(extra)    // extra, owned
             );
         }
@@ -6756,10 +6755,9 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             JSON_DECREF(extra)
             return -1;
         }
-    }
-
-    if(prt) {
-        *prt = rt;
+        if(prt) {
+            *prt = rt;
+        }
     }
 
     JSON_DECREF(match_cond)
