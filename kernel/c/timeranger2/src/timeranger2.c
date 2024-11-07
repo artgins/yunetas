@@ -6796,6 +6796,18 @@ printf("CLOSE LIST disk ===================> %p, id %s\n", list, id); // TODO
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int tranger2_close_lists_by_id( // to close disk and mem with the same name
+    json_t *tranger,
+    const char *topic_name,
+    const char *id
+)
+{
+
+}
+
+/***************************************************************************
  *  Print rowid, t, tm, key
  ***************************************************************************/
 PUBLIC void tranger2_print_md0_record(

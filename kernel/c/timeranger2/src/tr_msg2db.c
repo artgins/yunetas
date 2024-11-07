@@ -411,6 +411,7 @@ PUBLIC int msg2db_close_db(
         if(strcmp(topic_name, "__schema_version__")==0) {
             continue;
         }
+        int x;
         build_msg2db_index_path(list_id, sizeof(list_id), msg2db_name, topic_name, "id");
         json_t *list = tranger2_get_list_by_id(tranger, topic_name, list_id);
         if(!list) {

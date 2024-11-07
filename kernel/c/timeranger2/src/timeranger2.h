@@ -664,6 +664,12 @@ PUBLIC int tranger2_close_list(
     json_t *list
 );
 
+PUBLIC int tranger2_close_lists_by_id( // to close disk and mem with the same name
+    json_t *tranger,
+    const char *topic_name,
+    const char *id
+);
+
 /*
  *  print_md0_record: Print rowid, t, tm, key
  *  print_md1_record: Print rowid, uflag, sflag, t, tm, key

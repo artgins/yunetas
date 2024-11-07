@@ -1507,6 +1507,7 @@ PUBLIC int treedb_close_topic(
 
     char path[NAME_MAX];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
+    int x;
     tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
 
     /*------------------------------*
@@ -1520,6 +1521,7 @@ PUBLIC int treedb_close_topic(
             continue;
         }
         build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
+        int x;
         tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
     }
     JSON_DECREF(iter_pkey2s)
