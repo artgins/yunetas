@@ -352,7 +352,7 @@ PUBLIC json_t *msg2db_open_db(
 //            "rkey", "", TODO ???
         );
 
-        char rt_id[NAME_MAX];
+        char rt_id[NAME_MAX]; int x;
 
         json_t *jn_extra = json_pack("{s:s, s:s, s:s}",
             "id", rt_id,

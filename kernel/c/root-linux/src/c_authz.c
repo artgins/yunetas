@@ -458,7 +458,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  To open users' accesses
      */
-    char rt_id[NAME_MAX];  // =    gobj_name(gobj)
+    char rt_id[NAME_MAX]; int x;  // =    gobj_name(gobj)
     priv->users_accesses = trmsg_open_list(
         priv->tranger,
         "users_accesses",   // topic

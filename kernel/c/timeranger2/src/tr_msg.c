@@ -330,7 +330,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    char rt_id[NAME_MAX];
+    char rt_id[NAME_MAX]; int x;
 
     /*
      *  id is required to close the list
