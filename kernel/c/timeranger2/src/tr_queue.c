@@ -304,7 +304,7 @@ PUBLIC int trq_load(tr_queue trq_)
         jn_extra,    // owned
         &tr_list
     )<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "tranger2_open_list() failed",

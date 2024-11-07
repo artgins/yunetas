@@ -3141,7 +3141,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
      */
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_rt_mem: what topic?",
@@ -3153,7 +3153,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     }
 
     if(!load_record_callback) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_rt_mem: what load_record_callback?",
@@ -3330,7 +3330,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
      */
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_rt_disk: what topic?",
@@ -3342,7 +3342,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     }
 
     if(!load_record_callback) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_rt_disk: what load_record_callback?",
@@ -6616,7 +6616,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "topic not found",
@@ -6633,7 +6633,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             json_object_get(match_cond, "load_record_callback")
         );
     if(!load_record_callback) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "load_record_callback is required to tranger2_open_list",
@@ -6725,7 +6725,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         }
 
         if(!rt) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",

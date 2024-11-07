@@ -364,7 +364,7 @@ PUBLIC json_t *msg2db_open_db(
             jn_extra,    // owned
             NULL
         )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "tranger2_open_list() failed",

@@ -993,7 +993,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             jn_extra,    // owned
             NULL
         )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "tranger2_open_list() failed",
@@ -1031,7 +1031,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             jn_extra,    // owned
             NULL
         )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "tranger2_open_list() failed",
@@ -1408,7 +1408,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         jn_extra,    // owned
         &rt // TODO NULL
     )<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "tranger2_open_list() failed",
@@ -1465,7 +1465,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             jn_extra_,    // owned
             NULL
         )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "tranger2_open_list() failed",

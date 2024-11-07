@@ -358,7 +358,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         jn_extra,    // owned
         &rt
     )<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "tranger2_open_list() failed",
