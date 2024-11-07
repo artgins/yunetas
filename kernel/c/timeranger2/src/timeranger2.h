@@ -584,7 +584,7 @@ PUBLIC int tranger2_close_rt_mem(
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *mem_id
+    const char *rt_id
 );
 
 /**rst**
@@ -597,7 +597,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *disk_id,    // disk id, optional
+    const char *rt_id,      // disk id, optional
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
@@ -615,7 +615,7 @@ PUBLIC int tranger2_close_rt_disk(
 PUBLIC json_t *tranger2_get_rt_disk_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *disk_id
+    const char *rt_id
 );
 
 /**rst**

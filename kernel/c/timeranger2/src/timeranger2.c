@@ -3270,7 +3270,7 @@ printf("CLOSE LIST mem ===================> %p, id %s\n", mem, id); // TODO
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *id
+    const char *id  // rt_id
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3830,7 +3830,7 @@ printf("CLOSE LIST disk ===================> %p, id %s\n", disk, id); // TODO
 PUBLIC json_t *tranger2_get_rt_disk_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *id
+    const char *id  // rt_id
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
