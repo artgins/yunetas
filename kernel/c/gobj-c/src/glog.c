@@ -713,7 +713,6 @@ PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
     for (int i = 0; i < frames; i++) {
         fwrite_fn(h, LOG_DEBUG, "%s", symbols[i]);
     }
-    fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
     free(symbols);
 #endif
 }

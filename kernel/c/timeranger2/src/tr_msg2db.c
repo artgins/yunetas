@@ -345,11 +345,9 @@ PUBLIC json_t *msg2db_open_db(
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
-        json_t *match_cond = json_object();
-        json_object_set_new(
-            match_cond,
-            "load_record_callback",
-            json_integer((json_int_t)(size_t)load_record_callback)
+        json_t *match_cond = json_pack("{s:s, s:I}",
+            "id", path,
+            "load_record_callback", (json_int_t)(size_t)load_record_callback
         );
 //            "rkey", "", TODO ???
 //            "rt_by_mem", 1,
@@ -394,6 +392,7 @@ PUBLIC int msg2db_close_db(
      *  Close msg2db lists
      *------------------------------*/
     json_t *msg2db = kw_get_subdict_value(gobj, tranger, "msg2dbs", msg2db_name, 0, KW_EXTRACT);
+
     if(!msg2db) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

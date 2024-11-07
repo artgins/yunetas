@@ -1832,7 +1832,7 @@ PUBLIC json_t *kw_get_dict_value(
         }
         return default_value;
     }
-    JSON_DECREF(default_value);
+    JSON_DECREF(default_value)
 
     if(flag & KW_EXTRACT) {
         json_incref(jn_value);
@@ -1849,13 +1849,30 @@ PUBLIC json_t *kw_get_subdict_value(
     json_t *kw,
     const char *path,
     const char *key,
-    json_t *jn_default_value,  // owned
+    json_t *default_value,  // owned
     kw_flag_t flag)
 {
     json_t *jn_subdict = kw_find_path(gobj, kw, path, FALSE);
     if(!jn_subdict) {
-        return jn_default_value;
+        if((flag & KW_CREATE) && kw) {
+            jn_subdict = json_object();
+            kw_set_dict_value(gobj, kw, path, jn_subdict);
+        } else {
+            if(flag & KW_REQUIRED) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "path NOT FOUND, default value returned",
+                    "path",         "%s", path,
+                    NULL
+                    );
+                gobj_trace_json(gobj, kw, "path NOT FOUND, default value returned '%s'", path);
+            }
+            JSON_DECREF(default_value)
+            return NULL;
+        }
     }
+
     if(empty_string(key)) {
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1866,9 +1883,10 @@ PUBLIC json_t *kw_get_subdict_value(
                 NULL
             );
         }
-        return jn_default_value;
+        JSON_DECREF(default_value)
+        return NULL;
     }
-    return kw_get_dict_value(gobj, jn_subdict, key, jn_default_value, flag);
+    return kw_get_dict_value(gobj, jn_subdict, key, default_value, flag);
 }
 
 /***************************************************************************

@@ -241,8 +241,6 @@ PUBLIC void show_backtrace_with_bfd(loghandler_fwrite_fn_t fwrite_fn, void *h) {
     }
 
     bfd_close (abfd);
-
-    fwrite_fn(h, LOG_DEBUG, "===============> end stack trace <==================\n");
 }
 
 /***************************************************************************

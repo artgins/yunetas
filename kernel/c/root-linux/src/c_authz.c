@@ -461,7 +461,9 @@ PRIVATE int mt_start(hgobj gobj)
     priv->users_accesses = trmsg_open_list(
         priv->tranger,
         "users_accesses",   // topic
-        json_pack("{s:i}",  // filter
+        json_pack("{s:s, s:b, s:i}",  // filter
+            "id", gobj_name(gobj),
+            "rt_by_mem", priv->master,
             "max_key_instances", 1
         ),
         NULL

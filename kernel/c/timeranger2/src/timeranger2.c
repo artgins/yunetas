@@ -6700,6 +6700,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 id,
                 json_incref(extra)    // extra, owned
             );
+printf("OPEN LIST mem ===================> %p %s\n", rt, id); // TODO
         } else {
             rt = tranger2_open_rt_disk(
                 tranger,
@@ -6710,6 +6711,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 id,
                 json_incref(extra)    // extra, owned
             );
+printf("OPEN LIST disk ===================> %p %s\n", rt, id); // TODO
         }
 
         if(!rt) {
@@ -6752,12 +6754,10 @@ PUBLIC json_t *tranger2_get_list_by_id(
     json_t *rt;
     rt = tranger2_get_rt_mem_by_id(tranger, topic_name, id);
     if(rt) {
-        printf("CLOSE LIST mem ===================> %p, id %s\n", rt, id); // TODO
         return rt;
     }
     rt = tranger2_get_rt_disk_by_id(tranger, topic_name, id);
     if(rt) {
-        printf("CLOSE LIST disk ===================> %p, id %s\n", rt, id); // TODO
         tranger2_close_rt_disk(tranger, rt);
         return rt;
     }
@@ -6783,9 +6783,13 @@ PUBLIC int tranger2_close_list(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
 
+    const char *id = kw_get_str(gobj, list, "id", "", 0);
+
     if(strcmp(list_type, "rt_mem")==0) {
+printf("CLOSE LIST mem ===================> %p, id %s\n", list, id); // TODO
         return tranger2_close_rt_mem(tranger, list);
     } else if(strcmp(list_type, "rt_disk")==0) {
+printf("CLOSE LIST disk ===================> %p, id %s\n", list, id); // TODO
         return tranger2_close_rt_disk(tranger, list);
     }
     return -1;
