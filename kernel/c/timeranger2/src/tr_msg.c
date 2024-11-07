@@ -347,9 +347,6 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         }
     }
 
-    json_object_set_new(match_cond, "rt_by_mem", master?json_true():json_false());
-//            "rkey", "", TODO ???
-
     json_t *rt;
     if(tranger2_open_list(
         tranger,

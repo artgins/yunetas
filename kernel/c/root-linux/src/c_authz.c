@@ -456,7 +456,7 @@ PRIVATE int mt_start(hgobj gobj)
     );
 
     /*
-     *  To open users accesses
+     *  To open users' accesses
      */
     priv->users_accesses = trmsg_open_list(
         priv->tranger,
