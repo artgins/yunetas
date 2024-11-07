@@ -253,7 +253,6 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *new_cache_file
 );
 
-
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -959,6 +958,10 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         if(master) {
             // (1) MONITOR (MI) /disks/
             // Master to monitor the (topic) directory where clients will mark their rt disks.
+
+            /*
+             *  WARNING this function will open mem lists for directories found in /disk
+             */
             fs_event_t *fs_event_master = monitor_disks_directory_by_master(
                 gobj,
                 yev_loop,
@@ -6792,18 +6795,6 @@ PUBLIC int tranger2_close_list(
         return tranger2_close_rt_disk(tranger, list);
     }
     return -1;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int tranger2_close_lists_by_id( // to close disk and mem with the same name
-    json_t *tranger,
-    const char *topic_name,
-    const char *id
-)
-{
-
 }
 
 /***************************************************************************

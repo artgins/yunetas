@@ -111,7 +111,7 @@ PUBLIC json_t *msg2db_open_db(
             "msg",          "%s", "msg2db_name NULL",
             NULL
         );
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema)
         return 0;
     }
 
@@ -146,7 +146,7 @@ PUBLIC json_t *msg2db_open_db(
                     kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED)
                 );
                 if(!master) {
-                    JSON_DECREF(jn_schema);
+                    JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     break; // Nothing to do
                 }
@@ -157,7 +157,7 @@ PUBLIC json_t *msg2db_open_db(
                     KW_WILD_NUMBER
                 );
                 if(schema_new_version <= schema_old_version) {
-                    JSON_DECREF(jn_schema);
+                    JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     schema_version = schema_old_version;
                     break; // Nothing to do
@@ -176,7 +176,7 @@ PUBLIC json_t *msg2db_open_db(
                 "schema_file",      "%s", schema_full_path,
                 NULL
             );
-            JSON_INCREF(jn_schema);
+            JSON_INCREF(jn_schema)
             save_json_to_file(
                 gobj,
                 kw_get_str(gobj, tranger, "directory", 0, KW_REQUIRED),
@@ -219,7 +219,7 @@ PUBLIC json_t *msg2db_open_db(
     if(!topic_cols_desc) {
         topic_cols_desc = _treedb_create_topic_cols_desc();
     } else {
-        JSON_INCREF(topic_cols_desc);
+        JSON_INCREF(topic_cols_desc)
     }
 
     /*
@@ -234,7 +234,7 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema)
         return 0;
     }
 
@@ -250,7 +250,7 @@ PUBLIC json_t *msg2db_open_db(
             "msg2db_name",  "%s", msg2db_name,
             NULL
         );
-        JSON_DECREF(jn_schema);
+        JSON_DECREF(jn_schema)
         return 0;
     }
 
@@ -345,12 +345,12 @@ PUBLIC json_t *msg2db_open_db(
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
-        json_t *match_cond = json_pack("{s:s, s:I}",
+        json_t *match_cond = json_pack("{s:s, s:b, s:I}",
             "id", path,
+            "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_record_callback
-        );
 //            "rkey", "", TODO ???
-//            "rt_by_mem", 1,
+        );
 
         json_t *jn_extra = json_pack("{s:s, s:s, s:s}",
             "id", path,
@@ -388,6 +388,8 @@ PUBLIC int msg2db_close_db(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
+
     /*------------------------------*
      *  Close msg2db lists
      *------------------------------*/
@@ -411,11 +413,18 @@ PUBLIC int msg2db_close_db(
         if(strcmp(topic_name, "__schema_version__")==0) {
             continue;
         }
-        int x;
+
         build_msg2db_index_path(list_id, sizeof(list_id), msg2db_name, topic_name, "id");
-        json_t *list = tranger2_get_list_by_id(tranger, topic_name, list_id);
+
+        json_t *list = 0;
+        if(master) {
+            list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
+        } else {
+            list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
+        }
+
         if(!list) {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "List not found.",

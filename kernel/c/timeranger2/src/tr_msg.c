@@ -301,6 +301,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
@@ -346,8 +347,8 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         }
     }
 
+    json_object_set_new(match_cond, "rt_by_mem", master?json_true():json_false());
 //            "rkey", "", TODO ???
-//            "rt_by_mem", 1,
 
     json_t *rt;
     if(tranger2_open_list(

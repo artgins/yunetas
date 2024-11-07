@@ -970,7 +970,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __snaps__
      *------------------------------*/
-    if(1) {
+    if(master) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -979,7 +979,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "id", path,
             "backward", 1,
             "rkey", "",
-            "rt_by_mem", 1,
+            "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
@@ -1008,7 +1008,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __graphs__
      *------------------------------*/
-    if(1) {
+    if(master) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -1017,7 +1017,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "id", path,
             "backward", 1,
             "rkey", "",
-            "rt_by_mem", 1,
+            "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
@@ -1237,6 +1237,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     if(empty_string(treedb_name)) {
         gobj_log_error(gobj, 0,
@@ -1382,7 +1383,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "id", path,
         "backward", 1,
         "rkey", "",
-        "rt_by_mem", 1,
+        "rt_by_mem", master,
         "load_record_callback", (json_int_t)(size_t)load_id_callback
     );
 
@@ -1438,7 +1439,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             "id", path,
             "backward", 1,
             "rkey", "",
-            "rt_by_mem", 1,
+            "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_pkey2_callback
         );
 
@@ -1489,6 +1490,7 @@ PUBLIC int treedb_close_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*------------------------------*
      *  Close id list
@@ -1505,10 +1507,27 @@ PUBLIC int treedb_close_topic(
         return -1;
     }
 
-    char path[NAME_MAX];
-    build_id_index_path(path, sizeof(path), treedb_name, topic_name);
-    int x;
-    tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
+    char list_id[NAME_MAX];
+    build_id_index_path(list_id, sizeof(list_id), treedb_name, topic_name);
+
+    json_t *list = 0;
+    if(master) {
+        list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
+    } else {
+        list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
+    }
+
+    if(list) {
+        tranger2_close_list(tranger, list);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msg",          "%s", "List not found.",
+            "list",         "%s", list_id,
+            NULL
+        );
+    }
 
     /*------------------------------*
      *  Close pkey2 lists
@@ -1520,15 +1539,32 @@ PUBLIC int treedb_close_topic(
         if(empty_string(pkey2_name)) {
             continue;
         }
-        build_pkey_index_path(path, sizeof(path), treedb_name, topic_name, pkey2_name);
-        int x;
-        tranger2_close_list(tranger, tranger2_get_list_by_id(tranger, topic_name, path));
+        build_pkey_index_path(list_id, sizeof(list_id), treedb_name, topic_name, pkey2_name);
+
+        if(master) {
+            list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
+        } else {
+            list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
+        }
+
+        if(list) {
+            tranger2_close_list(tranger, list);
+        } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msg",          "%s", "List not found.",
+                "list",         "%s", list_id,
+                NULL
+            );
+        }
     }
     JSON_DECREF(iter_pkey2s)
 
     /*----------------------*
      *  Remove topic data
      *----------------------*/
+    char path[NAME_MAX];
     snprintf(path, sizeof(path), "treedbs`%s`%s", treedb_name, topic_name);
     json_t *data = kw_get_dict(
         gobj,
