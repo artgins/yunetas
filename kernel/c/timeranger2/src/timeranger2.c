@@ -6781,6 +6781,13 @@ PUBLIC int tranger2_close_list(
     } else if(strcmp(list_type, "rt_disk")==0) {
         return tranger2_close_rt_disk(tranger, list);
     }
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "tranger2_close_list(): list not found",
+        NULL
+    );
+    gobj_trace_json(gobj, list, "tranger2_close_list(): list not found");
     return -1;
 }
 
