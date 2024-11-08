@@ -6693,8 +6693,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned
-    const char *creator,
     const char *rt_id,
+    const char *creator,
     json_t **prt         // pointer to realtime list, optional
 )
 {

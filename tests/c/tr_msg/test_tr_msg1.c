@@ -270,7 +270,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 test_name, // test name
                 json_pack("[{s:s},{s:s},{s:s}]", // error's list
                     "msg", "tranger2_open_rt_disk: what id?",
-                    "msg", "tranger2_open_iterator(): Cannot open rt",
+                    "msg", "tranger2_open_list(): Cannot open rt",
                     "msg", "tranger2_open_list() failed"
                 ),
                 NULL,   // expected, NULL: we want to check only the logs
@@ -338,9 +338,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {2,4,3,6,5,7,8,9,10,1};
@@ -394,9 +394,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {2,4,3,6,5,8,7,10,9,1};
@@ -450,9 +450,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {1,2,3,4,5,6,7,8,9,10};
@@ -505,9 +505,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {10,9,8,7,6,5,4,3,2,1};
@@ -547,9 +547,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {10,1};
@@ -588,9 +588,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {9,1};
@@ -630,9 +630,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {9,10};
@@ -671,9 +671,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {2,1};
@@ -713,9 +713,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {10}; // WARNING debería ser el 1. No uses tm con inst 1!!
@@ -754,9 +754,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 1
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {1};
@@ -796,9 +796,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 0,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {10};
@@ -837,9 +837,9 @@ static int test(json_t *tranger, int caso, int cnt)
                     "backward", 1,
                     "order_by_tm", 0
                 ),
-                NULL,   // extra
-                NULL,   // rt_id
-                NULL    // creator
+                NULL,       // extra
+                "rt_id",    // rt_id
+                NULL        // creator
             );
 
             uint64_t expected[] = {1};
