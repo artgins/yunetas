@@ -23,6 +23,8 @@
 #include <stacktrace_with_bfd.h>
 #include <yev_loop.h>
 
+#define APP "test_yevent_timer_once1"
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -260,7 +262,10 @@ int main(int argc, char *argv[])
         result += -1;
     }
 
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

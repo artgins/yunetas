@@ -338,5 +338,8 @@ int main(int argc, char *argv[])
         result += -1;
     }
 
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP_NAME);
+    }
+    return result<0?-1:0;
 }

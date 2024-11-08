@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_create_topic.c
+ *          test_tranger_startup.c
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -11,6 +11,8 @@
 #include <stacktrace_with_bfd.h>
 #include <yev_loop.h>
 #include <testing.h>
+
+#define APP "test_tranger_startup"
 
 /***************************************************************
  *              Constants
@@ -493,7 +495,10 @@ int main(int argc, char *argv[])
         printf("system memory not free\n");
         result += -1;
     }
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

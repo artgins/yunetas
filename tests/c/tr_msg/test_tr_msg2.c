@@ -13,6 +13,8 @@
 #include <time.h>
 #include <yunetas.h>
 
+#define APP "test_rt_msg2"
+
 /***************************************************************************
  *      Constants
  ***************************************************************************/
@@ -37,8 +39,9 @@ PRIVATE json_t *hrc2_topic_iter2 = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-static int test(json_t *tranger, int caso, const char *desc, int result)
+static int test(json_t *tranger, int caso, const char *desc)
 {
+    int result = 0;
     uint64_t cnt = 1;
 
     /*-------------------------------------*
@@ -484,15 +487,15 @@ int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
-    result += test(tranger, 2, "LOAD FORWARD", result);
-    result += test(tranger, 3, "LOAD BACKWARD/TM", result);
-    result += test(tranger, 1, "ADD RECORDS", result);
-    result += test(tranger, 4, "FIND fore first", result);
-    result += test(tranger, 5, "FIND fore medium", result);
-    result += test(tranger, 6, "FIND fore last", result);
-    result += test(tranger, 7, "FIND back first", result);
-    result += test(tranger, 8, "FIND back medium", result);
-    result += test(tranger, 9, "FIND back last", result);
+    result += test(tranger, 2, "LOAD FORWARD");
+    result += test(tranger, 3, "LOAD BACKWARD/TM");
+    result += test(tranger, 1, "ADD RECORDS");
+    result += test(tranger, 4, "FIND fore first");
+    result += test(tranger, 5, "FIND fore medium");
+    result += test(tranger, 6, "FIND fore last");
+    result += test(tranger, 7, "FIND back first");
+    result += test(tranger, 8, "FIND back medium");
+    result += test(tranger, 9, "FIND back last");
 
     trmsg_close_list(tranger, hrc2_topic_iter1);
     trmsg_close_list(tranger, hrc2_topic_iter2);
@@ -614,8 +617,10 @@ int main(int argc, char *argv[])
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         result += -1;
     }
-
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

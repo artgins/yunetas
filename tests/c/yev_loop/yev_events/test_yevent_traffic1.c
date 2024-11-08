@@ -15,7 +15,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic1";
+#define APP "test_yevent_traffic1"
 
 #include <string.h>
 #include <signal.h>
@@ -588,7 +588,10 @@ int main(int argc, char *argv[])
         result += -1;
     }
 
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

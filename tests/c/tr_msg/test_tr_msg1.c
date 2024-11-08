@@ -100,8 +100,9 @@ static int print_key_iter(json_t * list, const char *key, uint64_t *expected, in
 /***************************************************************************
  *
  ***************************************************************************/
-static int test(json_t *tranger, int caso, int cnt, int result)
+static int test(json_t *tranger, int caso, int cnt)
 {
+    int result = 0;
     /*-------------------------------------*
      *  Loop
      *-------------------------------------*/
@@ -905,22 +906,22 @@ int do_test(void)
      *  Ejecuta los tests
      *------------------------------*/
     // Ejecuta todos los casos
-    result += test(tranger, 1, repeat, result);
-    result += test(tranger, 2, repeat, result);
-    result += test(tranger, 10, 10, result);
-    result += test(tranger, 11, 10, result);
-    result += test(tranger, 12, 10, result);
-    result += test(tranger, 13, 10, result);
+    result += test(tranger, 1, repeat);
+    result += test(tranger, 2, repeat);
+    result += test(tranger, 10, 10);
+    result += test(tranger, 11, 10);
+    result += test(tranger, 12, 10);
+    result += test(tranger, 13, 10);
 
-    result += test(tranger, 20, 10, result);
-    result += test(tranger, 21, 10, result);
-    result += test(tranger, 22, 10, result);
-    result += test(tranger, 23, 10, result);
+    result += test(tranger, 20, 10);
+    result += test(tranger, 21, 10);
+    result += test(tranger, 22, 10);
+    result += test(tranger, 23, 10);
 
-    result += test(tranger, 30, 1, result);
-    result += test(tranger, 31, 1, result);
-    result += test(tranger, 32, 1, result);
-    result += test(tranger, 33, 1, result);
+    result += test(tranger, 30, 1);
+    result += test(tranger, 31, 1);
+    result += test(tranger, 32, 1);
+    result += test(tranger, 33, 1);
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -1039,8 +1040,11 @@ int main(int argc, char *argv[])
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         result += -1;
     }
-
-    return result;
+#define APP "test_rt_msg1"
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

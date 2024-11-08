@@ -17,6 +17,8 @@
 #include <kwid.h>
 #include <testing.h>
 
+#define APP "test_topic_pkey_integer_iterator2"
+
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer"
 #define MAX_KEYS    2
@@ -609,8 +611,10 @@ int main(int argc, char *argv[])
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "system memory not free");
         result += -1;
     }
-
-    return result;
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************

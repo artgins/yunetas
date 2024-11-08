@@ -535,8 +535,11 @@ int main(int argc, char *argv[])
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         result += -1;
     }
-
-    return result;
+#define APP "test_topic_pkey_integer_iterator5"
+    if(result<0) {
+        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+    }
+    return result<0?-1:0;
 }
 
 /***************************************************************************
