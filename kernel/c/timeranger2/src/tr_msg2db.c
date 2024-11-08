@@ -380,7 +380,7 @@ PUBLIC json_t *msg2db_open_db(
         )<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
                 "msg",          "%s", "tranger2_open_list() failed",
                 "topic_name",   "%s", topic_name,
                 NULL

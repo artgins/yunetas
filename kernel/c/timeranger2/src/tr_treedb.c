@@ -1580,7 +1580,7 @@ PUBLIC int treedb_close_topic(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "List not found.",
             "list",         "%s", list_id,
             NULL
@@ -1610,7 +1610,7 @@ PUBLIC int treedb_close_topic(
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "List not found.",
                 "list",         "%s", list_id,
                 NULL
