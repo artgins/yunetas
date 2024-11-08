@@ -531,7 +531,7 @@ PUBLIC int tranger2_close_iterator(
 /**rst**
     Get iterator by his id
 **rst**/
-PUBLIC json_t *tranger2_get_iterator_by_id(
+PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
     const char *iterator_id,
@@ -587,7 +587,7 @@ PUBLIC int tranger2_close_rt_mem(
 /**rst**
     Get mem by his id
 **rst**/
-PUBLIC json_t *tranger2_get_rt_mem_by_id(
+PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
     const char *rt_id,
@@ -620,7 +620,7 @@ PUBLIC int tranger2_close_rt_disk(
 /**rst**
     Get disk by his id
 **rst**/
-PUBLIC json_t *tranger2_get_rt_disk_by_id(
+PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
     const char *rt_id,

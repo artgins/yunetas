@@ -3321,12 +3321,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
         }
     }
 
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "tranger2_get_rt_mem_by_id: rt not found",
-        NULL
-    );
+    // Be silence, check at top.
     return 0;
 }
 
@@ -3905,12 +3900,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         }
     }
 
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "tranger2_get_rt_disk_by_id: rt not found",
-        NULL
-    );
+    // Be silence, check at top.
     return 0;
 }
 
@@ -4748,13 +4738,7 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
         }
     }
 
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "tranger2_get_iterator_by_id: rt not found",
-        NULL
-    );
-
+    // Be silence, check at top.
     return 0;
 }
 

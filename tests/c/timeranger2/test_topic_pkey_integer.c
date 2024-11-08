@@ -539,6 +539,7 @@ int do_test(void)
                     'lists': [ \
                         { \
                             'id': 'list1', \
+                            'creator': '', \
                             'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
@@ -547,6 +548,7 @@ int do_test(void)
                         }, \
                         { \
                             'id': 'list2', \
+                            'creator': '', \
                             'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
@@ -666,6 +668,7 @@ int do_test(void)
                     'lists': [ \
                         { \
                             'id': 'list1', \
+                            'creator': '', \
                             'topic_name': '%s', \
                             'key': '', \
                             'match_cond': {}, \
@@ -674,6 +677,7 @@ int do_test(void)
                         }, \
                         { \
                             'id': 'list2', \
+                            'creator': '', \
                             'topic_name': '%s', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
