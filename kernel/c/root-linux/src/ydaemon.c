@@ -21,7 +21,7 @@
  *      Data
  ******************************************************/
 PRIVATE volatile int relaunch_times = 0;
-PRIVATE volatile int debug = 0;
+PRIVATE volatile int debug = 1;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
@@ -45,6 +45,7 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 
     /* Fork off the parent process */
     pid = fork();
+
     if (pid < 0) {
         print_error(PEF_EXIT, "fork() FAILED, errno %d %s", errno, strerror(errno));
     }
@@ -52,6 +53,8 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
     if (pid > 0) {
         _exit(EXIT_SUCCESS);
     }
+
+    watcher_pid = getpid();
 
     /* Create a new SID for the child process */
     sid = setsid();
@@ -240,8 +243,6 @@ PUBLIC int daemon_run(
 )
 {
     int ret;
-
-    watcher_pid = getpid();
 
     continue_as_daemon(work_dir, process_name);
     while((ret=relauncher(process, process_name, work_dir, domain_dir, catch_signals, cleaning_fn))<0) {
