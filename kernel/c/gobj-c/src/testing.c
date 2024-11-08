@@ -110,9 +110,9 @@ PRIVATE BOOL check_log_result(int current_result)
 
     if(verbose) {
         if(current_result < 0) {
-            printf("<-- %sERROR---%s   '%s'\n\n", On_Red BWhite, Color_Off, test_name);
+            printf("<-- %sERROR---%s   \"%s\"\n\n", On_Red BWhite, Color_Off, test_name);
         } else {
-            printf("<-- %sOK%s   '%s'\n\n", On_Green BWhite, Color_Off, test_name);
+            printf("<-- %sOK%s   \"%s\"\n\n", On_Green BWhite, Color_Off, test_name);
         }
     }
     return TRUE;
@@ -135,7 +135,7 @@ PRIVATE BOOL match_record(
     if(!record) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(gobj, "match_record('%s'): record NULL", p);
+            gobj_trace_msg(gobj, "match_record(\"%s\"): record NULL", p);
         }
         JSON_DECREF(record)
         JSON_DECREF(expected)
@@ -144,7 +144,7 @@ PRIVATE BOOL match_record(
     if(!expected) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(gobj, "match_record('%s'): expected NULL", p);
+            gobj_trace_msg(gobj, "match_record(\"%s\"): expected NULL", p);
         }
         JSON_DECREF(record)
         JSON_DECREF(expected)
@@ -178,7 +178,7 @@ PRIVATE BOOL match_record(
                         if(!kw_has_key(expected, key)) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                gobj_trace_msg(gobj, "match_record('%s': object key '%s' not found",
+                                gobj_trace_msg(gobj, "match_record(\"%s\": object key \"%s\" not found",
                                     p,
                                     key
                                 );
@@ -203,7 +203,7 @@ PRIVATE BOOL match_record(
                                 )) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                    gobj_trace_msg(gobj, "match_record('%s'): object not match key '%s'",
+                                    gobj_trace_msg(gobj, "match_record(\"%s\"): object not match key \"%s\"",
                                         p,
                                         key
                                     );
@@ -239,7 +239,7 @@ PRIVATE BOOL match_record(
                                 )) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                    gobj_trace_msg(gobj, "match_record('%s'): object array not match key '%s'",
+                                    gobj_trace_msg(gobj, "match_record(\"%s\"): object array not match key \"%s\"",
                                         p,
                                         key
                                     );
@@ -265,7 +265,7 @@ PRIVATE BOOL match_record(
                             } else if(!json_is_identical(value, value2)) {
                                 if(verbose) {
                                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                    gobj_trace_msg(gobj, "match_record('%s'): no identical '%s'",
+                                    gobj_trace_msg(gobj, "match_record(\"%s\"): no identical \"%s\"",
                                         p,
                                         key
                                     );
@@ -290,7 +290,7 @@ PRIVATE BOOL match_record(
                         if(json_object_size(expected)>0) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                gobj_trace_msg(gobj, "match_record('%s'): remain expected items", p);
+                                gobj_trace_msg(gobj, "match_record(\"%s\"): remain expected items", p);
                                 gobj_trace_json(gobj, expected, "match_record: remain expected items");
                             }
                             ret = FALSE;
@@ -301,7 +301,7 @@ PRIVATE BOOL match_record(
             default:
                 if(verbose) {
                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                    gobj_trace_msg(gobj, "match_record('%s'): default", p);
+                    gobj_trace_msg(gobj, "match_record(\"%s\"): default", p);
                 }
                 ret = FALSE;
                 break;
@@ -331,7 +331,7 @@ PRIVATE BOOL match_list(
     if(!list) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(gobj, "match_list('%s'): list NULL", p);
+            gobj_trace_msg(gobj, "match_list(\"%s\"): list NULL", p);
         }
         JSON_DECREF(list);
         JSON_DECREF(expected);
@@ -340,7 +340,7 @@ PRIVATE BOOL match_list(
     if(!expected) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(gobj, "match_list('%s'): expected NULL", p);
+            gobj_trace_msg(gobj, "match_list(\"%s\"): expected NULL", p);
         }
         JSON_DECREF(list);
         JSON_DECREF(expected);
@@ -350,7 +350,7 @@ PRIVATE BOOL match_list(
     if(json_typeof(list) != json_typeof(expected)) { // json_typeof CONTROLADO
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-            gobj_trace_msg(gobj, "match_list('%s'): diferent json type", p);
+            gobj_trace_msg(gobj, "match_list(\"%s\"): diferent json type", p);
         }
         ret = FALSE;
     } else {
@@ -368,7 +368,7 @@ PRIVATE BOOL match_list(
                         if(idx2 < 0) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                gobj_trace_msg(gobj, "match_list('%s'): record not found in expected list", p);
+                                gobj_trace_msg(gobj, "match_list(\"%s\"): record not found in expected list", p);
                                 //gobj_trace_json(gobj, r1, "record");
                                 //gobj_trace_json(gobj, expected, "expected");
                             }
@@ -405,7 +405,7 @@ PRIVATE BOOL match_list(
                         if(idx2 < 0) {
                             if(verbose) {
                                 char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                                gobj_trace_msg(gobj, "match_list('%s'): item not found in expected list", p);
+                                gobj_trace_msg(gobj, "match_list(\"%s\"): item not found in expected list", p);
                                 //gobj_trace_json(gobj, item, "item");
                                 //gobj_trace_json(gobj, expected, "expected");
                             }
@@ -423,7 +423,7 @@ PRIVATE BOOL match_list(
                     if(json_array_size(list)>0) {
                         if(verbose) {
                             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                            gobj_trace_msg(gobj, "match_list('%s'): remain list items", p);
+                            gobj_trace_msg(gobj, "match_list(\"%s\"): remain list items", p);
                             gobj_trace_json(gobj, list, "match_list: remain list items");
                         }
                         ret = FALSE;
@@ -431,7 +431,7 @@ PRIVATE BOOL match_list(
                     if(json_array_size(expected)>0) {
                         if(verbose) {
                             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                            gobj_trace_msg(gobj, "match_list('%s': remain expected items", p);
+                            gobj_trace_msg(gobj, "match_list(\"%s\": remain expected items", p);
                             gobj_trace_json(gobj, expected, "match_list: remain expected items");
                         }
                         ret = FALSE;
@@ -445,7 +445,7 @@ PRIVATE BOOL match_list(
                 if(!match_record(list, expected, verbose, gbuf_path)) {
                     if(verbose) {
                         char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                        gobj_trace_msg(gobj, "match_list('%s'): match_record not match", p);
+                        gobj_trace_msg(gobj, "match_list(\"%s\"): match_record not match", p);
                     }
                     ret = FALSE;
                 }
@@ -455,7 +455,7 @@ PRIVATE BOOL match_list(
             {
                 if(verbose) {
                     char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
-                    gobj_trace_msg(gobj, "match_list('%s'): default", p);
+                    gobj_trace_msg(gobj, "match_list(\"%s\"): default", p);
                 }
                 ret = FALSE;
             }
@@ -482,7 +482,7 @@ PUBLIC void set_expected_results(
     test_name = name_;
     verbose = verbose_;
     if(verbose) {
-        printf("--> Test '%s'\n", test_name?test_name:"");
+        printf("--> Test \"%s\"\n", test_name?test_name:"");
     }
     JSON_DECREF(expected_log_messages)
     JSON_DECREF(unexpected_log_messages)
@@ -508,7 +508,7 @@ PUBLIC int test_json_file(const char *file)
         if(verbose) {
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
-            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
+            printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
@@ -546,7 +546,7 @@ PUBLIC int test_json(
         if(verbose) {
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
-            printf("  <-- %sERROR%s in test: '%s'\n", On_Red BWhite, Color_Off, test_name);
+            printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
         } else {
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
@@ -614,7 +614,7 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
     va_end(ap);
 
     if(json_array_size(list_found) != json_array_size(list_expected)) {
-        printf("  <-- %sERROR%s in test: '%s', sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
+        printf("  <-- %sERROR%s in test: \"%s\", sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
                message,
                (int)json_array_size(list_found),
                (int)json_array_size(list_expected)
@@ -642,7 +642,7 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
                 char *expected_ = json2uglystr(expected_value);
                 char *found_ = json2uglystr(found_value);
                 // Error already logged with sizes don't object_expected
-                printf("  <-- %sERROR%s in test: '%s', %s don't object_expected, idx %d, expected %s, found %s\n",
+                printf("  <-- %sERROR%s in test: \"%s\", %s don't object_expected, idx %d, expected %s, found %s\n",
                     On_Red BWhite, Color_Off, message, key, idx, expected_, found_
                 );
                 ret += -1;
