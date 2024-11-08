@@ -301,11 +301,11 @@ PUBLIC json_t *msg2db_open_db(
         json_object_set_new(jn_topic_var, "pkey2", json_string(pkey2_col));
         json_object_set_new(jn_topic_var, "topic_version", json_string(topic_version));
         json_t *topic = tranger2_create_topic(
-            tranger,    // If topic exists then only needs (tranger,name) parameters
+            tranger,    // If the topic exists, then only needs (tranger,name) parameters
             topic_name,
             pkey,
             kw_get_str(gobj, schema_topic, "tkey", "", 0),
-            NULL,
+            NULL, // jn_topic_ext
             tranger2_str2system_flag(kw_get_str(gobj, schema_topic, "system_flag", "", 0)),
             kwid_new_dict(gobj, schema_topic, 0, "cols"),
             jn_topic_var
@@ -360,8 +360,7 @@ PUBLIC json_t *msg2db_open_db(
                 topic_name
             );
         }
-        json_t *match_cond = json_pack("{s:s, s:b, s:I}",
-            "id", rt_id,
+        json_t *match_cond = json_pack("{s:b, s:I}",
             "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_record_callback
         );
@@ -374,10 +373,10 @@ PUBLIC json_t *msg2db_open_db(
         if(tranger2_open_list(
             tranger,
             topic_name,
-            match_cond,  // owned
-            jn_extra,    // owned
-            NULL,   // rt_id    TODO
-            NULL,   // creator TODO
+            match_cond,     // owned
+            jn_extra,       // owned
+            rt_id,          // rt_id
+            msg2db_name,    // creator
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -404,7 +403,6 @@ PUBLIC int msg2db_close_db(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*------------------------------*
      *  Close msg2db lists
@@ -423,34 +421,18 @@ PUBLIC int msg2db_close_db(
         return -1;
     }
 
-    char list_id[NAME_MAX];
     const char *topic_name; json_t *topic_records;
     json_object_foreach(msg2db, topic_name, topic_records) {
         if(strcmp(topic_name, "__schema_version__")==0) {
             continue;
         }
 
-        build_msg2db_index_path(list_id, sizeof(list_id), msg2db_name, topic_name, "id");
-
-        json_t *list = 0;
-        if(master) {
-            list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
-        } else {
-            list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
-        }
-
-        if(!list) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
-                "msg",          "%s", "List not found.",
-                "msg2db_name",  "%s", msg2db_name,
-                "list",         "%s", list_id,
-                NULL
-            );
-            continue;
-        }
-        tranger2_close_list(tranger, list);
+        tranger2_close_all_lists(
+            tranger,
+            topic_name,
+            msg2db_name,    // creator
+            ""              // rt_id
+        );
     }
 
     JSON_DECREF(msg2db)

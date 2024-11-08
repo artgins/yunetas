@@ -195,8 +195,10 @@ typedef int (*trmsg_instance_callback_t)(
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
-    json_t *match_cond,  // owned
-    json_t *extra       // owned
+    json_t *match_cond, // owned
+    json_t *extra,      // owned
+    const char *rt_id,
+    const char *creator
 );
 
 PUBLIC int trmsg_close_list(

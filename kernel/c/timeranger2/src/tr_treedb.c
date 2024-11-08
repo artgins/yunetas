@@ -990,8 +990,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         }
 
-        json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", rt_id,
+        json_t *match_cond = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,
@@ -1004,10 +1003,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         if(tranger2_open_list(
             tranger,
             snaps_topic_name,
-            match_cond,  // owned
-            jn_extra,    // owned
-            NULL,   // rt_id    TODO
-            NULL,   // creator TODO
+            match_cond,     // owned
+            jn_extra,       // owned
+            rt_id,          // rt_id
+            treedb_name,    // creator
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -1044,8 +1043,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         }
 
-        json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", rt_id,
+        json_t *match_cond = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,
@@ -1058,10 +1056,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         if(tranger2_open_list(
             tranger,
             graphs_topic_name,
-            match_cond,  // owned
-            jn_extra,    // owned
-            NULL,   // rt_id    TODO
-            NULL,   // creator TODO
+            match_cond,     // owned
+            jn_extra,       // owned
+            rt_id,          // rt_id
+            treedb_name,    // creator
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -1352,7 +1350,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         topic_name,
         "id",       // HACK pkey fixed
         topic_tkey, // tkey
-        NULL,
+        NULL,       // jn_topic_ext
         tranger2_str2system_flag("sf_string_key"), // HACK system_flag fixed
         cols,           // owned below
         jn_topic_var    // owned below
@@ -1414,16 +1412,18 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 
     char rt_id[NAME_MAX];
     if(gobj) {
-        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s",
+        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s-%s",
             gobj_gclass_name(gobj),
             gobj_name(gobj),
             treedb_name,
-            topic_name
+            topic_name,
+            topic_tkey
         );
     } else {
-        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s",
+        snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s",
             treedb_name,
-            topic_name
+            topic_name,
+            topic_tkey
         );
     }
 
@@ -1452,10 +1452,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     if(tranger2_open_list(
         tranger,
         topic_name,
-        match_cond,  // owned
-        jn_extra,    // owned
-        NULL,   // rt_id    TODO
-        NULL,   // creator TODO
+        match_cond,     // owned
+        jn_extra,       // owned
+        rt_id,          // rt_id
+        treedb_name,    // creator
         &rt // TODO NULL
     )<0) {
         gobj_log_error(gobj, 0,
@@ -1486,21 +1486,22 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
         if(gobj) {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s",
+            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s-%s-%s",
                 gobj_gclass_name(gobj),
                 gobj_name(gobj),
                 treedb_name,
-                topic_name
+                topic_name,
+                pkey2_name
             );
         } else {
-            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s",
+            snprintf(rt_id, sizeof(rt_id), "treedb-%s-%s-%s",
                 treedb_name,
-                topic_name
+                topic_name,
+                pkey2_name
             );
         }
 
-        json_t *match_cond2 = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-            "id", rt_id,
+        json_t *match_cond2 = json_pack("{s:b, s:s, s:b, s:I}",
             "backward", 1,
             "rkey", "",
             "rt_by_mem", master,
@@ -1525,10 +1526,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         if(tranger2_open_list(
             tranger,
             topic_name,
-            match_cond2,  // owned
-            jn_extra_,    // owned
-            NULL,   // rt_id    TODO
-            NULL,   // creator TODO
+            match_cond2,    // owned
+            jn_extra_,      // owned
+            rt_id,          // rt_id
+            treedb_name,    // creator
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -1556,10 +1557,9 @@ PUBLIC int treedb_close_topic(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    BOOL master = kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED);
 
     /*------------------------------*
-     *  Close id list
+     *  Close lists
      *------------------------------*/
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, 0);
     if(!treedb) {
@@ -1573,59 +1573,12 @@ PUBLIC int treedb_close_topic(
         return -1;
     }
 
-    char list_id[NAME_MAX];
-    build_id_index_path(list_id, sizeof(list_id), treedb_name, topic_name);
-
-    json_t *list = 0;
-    if(master) {
-        list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
-    } else {
-        list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
-    }
-
-    if(list) {
-        tranger2_close_list(tranger, list);
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "List not found.",
-            "list",         "%s", list_id,
-            NULL
-        );
-    }
-
-    /*------------------------------*
-     *  Close pkey2 lists
-     *------------------------------*/
-    json_t *iter_pkey2s = treedb_topic_pkey2s(tranger, topic_name);
-    int idx; json_t *jn_pkey2_name;
-    json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
-        const char *pkey2_name = json_string_value(jn_pkey2_name);
-        if(empty_string(pkey2_name)) {
-            continue;
-        }
-        build_pkey_index_path(list_id, sizeof(list_id), treedb_name, topic_name, pkey2_name);
-
-        if(master) {
-            list = tranger2_get_rt_mem_by_id(tranger, topic_name, list_id);
-        } else {
-            list = tranger2_get_rt_disk_by_id(tranger, topic_name, list_id);
-        }
-
-        if(list) {
-            tranger2_close_list(tranger, list);
-        } else {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                "msg",          "%s", "List not found.",
-                "list",         "%s", list_id,
-                NULL
-            );
-        }
-    }
-    JSON_DECREF(iter_pkey2s)
+    tranger2_close_all_lists(
+        tranger,
+        topic_name,
+        treedb_name,    // creator
+        ""              // rt_id
+    );
 
     /*----------------------*
      *  Remove topic data

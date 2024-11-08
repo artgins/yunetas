@@ -534,7 +534,8 @@ PUBLIC int tranger2_close_iterator(
 PUBLIC json_t *tranger2_get_iterator_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *iterator_id
+    const char *iterator_id,
+    const char *creator
 );
 
 /**rst**
@@ -589,7 +590,8 @@ PUBLIC int tranger2_close_rt_mem(
 PUBLIC json_t *tranger2_get_rt_mem_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *rt_id
+    const char *rt_id,
+    const char *creator
 );
 
 /**rst**
@@ -621,7 +623,8 @@ PUBLIC int tranger2_close_rt_disk(
 PUBLIC json_t *tranger2_get_rt_disk_by_id(
     json_t *tranger,
     const char *topic_name,
-    const char *rt_id
+    const char *rt_id,
+    const char *creator
 );
 
 /**rst**
@@ -649,8 +652,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned, will be added to the returned rt
-    const char *creator,
     const char *rt_id,
+    const char *creator,
     json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
 );
 
@@ -663,13 +666,13 @@ PUBLIC int tranger2_close_list(
 );
 
 /**rst**
-    Close all or rt_id lists belongs to creator (rt_mem or rt_disk)
+    Close all, iterators, disk or mem lists belongs to creator
 **rst**/
-PUBLIC int tranger2_close_lists_by_creator(
+PUBLIC int tranger2_close_all_lists(
     json_t *tranger,
     const char *topic_name,
-    const char *creator,
-    const char *rt_id   // if empty will remove all lists of creator
+    const char *rt_id,      // if empty, remove all lists of creator
+    const char *creator     // if empty, remove all
 );
 
 /*

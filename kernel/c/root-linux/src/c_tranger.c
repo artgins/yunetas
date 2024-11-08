@@ -361,96 +361,104 @@ PRIVATE int mt_subscription_added(
     hgobj gobj,
     json_t *subs)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
+//    BOOL first_shot = kw_get_bool(gobj, __config__, "__first_shot__", FALSE, 0);
+//    if(!first_shot) {
+//        return 0;
+//    }
+//    hgobj subscriber = (hgobj)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+//    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED); // TODO review, is a gobj_event_t?
+//
+//    if(empty_string(event)) {
+//        gobj_log_warning(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_INFO,
+//            "msg",          "%s", "tranger subscription must be with explicit event",
+//            "subscriber",   "%s", gobj_full_name(subscriber),
+//            NULL
+//        );
+//        return 0; // return -1 unsubscribe this subs
+//    }
+//
+//    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
+//    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, 0);
+//
+//    const char *event_name = kw_get_str(gobj, subs, "renamed_event", 0, 0);
+//    const char *topic_name = kw_get_str(gobj, subs, "topic_name", "", KW_REQUIRED);
+//
+//    const char *__list_id__ = kw_get_str(gobj, __config__, "__list_id__", "", 0);
+//    if(empty_string(__list_id__)) {
+//        return gobj_send_event(
+//            subscriber,
+//            (!empty_string(event_name))?event_name:event,
+//            msg_iev_build_response_without_reverse_dst(gobj,
+//                -1,
+//                json_sprintf("__list_id__ required"),
+//                0,
+//                0, // owned
+//                __global__?kw_duplicate(gobj, __global__):0  // owned
+//            ),
+//            gobj
+//        );
+//    }
+//
+//    // TODO review, old tranger_get_list
+//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
+//    if(!list) {
+//        return gobj_send_event(
+//            subscriber,
+//            (!empty_string(event_name))?event_name:event,
+//            msg_iev_build_response_without_reverse_dst(gobj,
+//                -1,
+//                json_sprintf("tranger list not found: '%s'", __list_id__),
+//                0,
+//                0, // owned
+//                __global__?kw_duplicate(gobj, __global__):0  // owned
+//            ),
+//            gobj
+//        );
+//    }
+//
+//    //if(strcasecmp(event, EV_TRANGER_RECORD_ADDED)==0) { // TODO check the change strcasecmp -> ==
+//    if(event==EV_TRANGER_RECORD_ADDED) {
+//        json_t *jn_data = json_array();
+//        size_t idx;
+//        json_t *jn_record;
+//        json_array_foreach(kw_get_list(gobj, list, "data", 0, KW_REQUIRED), idx, jn_record) {
+//            JSON_INCREF(__filter__)
+//            if(!kw_match_simple(jn_record, __filter__)) {
+//                continue;
+//            }
+//            json_array_append(jn_data, jn_record);
+//        }
+//
+//        /*
+//         *  Inform
+//         */
+//        return gobj_send_event(
+//            subscriber,
+//            (!empty_string(event_name))?event_name:event,
+//            msg_iev_build_response_without_reverse_dst(gobj,
+//                0,
+//                0,
+//                0,
+//                jn_data, // owned
+//                __global__?kw_duplicate(gobj, __global__):0  // owned
+//            ),
+//            gobj
+//        );
+//
+//    }
 
-    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
-    BOOL first_shot = kw_get_bool(gobj, __config__, "__first_shot__", FALSE, 0);
-    if(!first_shot) {
-        return 0;
-    }
-    hgobj subscriber = (hgobj)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED); // TODO review, is a gobj_event_t?
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "TODO pending to review",
+        NULL
+    );
 
-    if(empty_string(event)) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "tranger subscription must be with explicit event",
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-        return 0; // return -1 unsubscribe this subs
-    }
-
-    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
-    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, 0);
-
-    const char *event_name = kw_get_str(gobj, subs, "renamed_event", 0, 0);
-    const char *topic_name = kw_get_str(gobj, subs, "topic_name", "", KW_REQUIRED);
-
-    const char *__list_id__ = kw_get_str(gobj, __config__, "__list_id__", "", 0);
-    if(empty_string(__list_id__)) {
-        return gobj_send_event(
-            subscriber,
-            (!empty_string(event_name))?event_name:event,
-            msg_iev_build_response_without_reverse_dst(gobj,
-                -1,
-                json_sprintf("__list_id__ required"),
-                0,
-                0, // owned
-                __global__?kw_duplicate(gobj, __global__):0  // owned
-            ),
-            gobj
-        );
-    }
-
-    // TODO review, old tranger_get_list
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
-    if(!list) {
-        return gobj_send_event(
-            subscriber,
-            (!empty_string(event_name))?event_name:event,
-            msg_iev_build_response_without_reverse_dst(gobj,
-                -1,
-                json_sprintf("tranger list not found: '%s'", __list_id__),
-                0,
-                0, // owned
-                __global__?kw_duplicate(gobj, __global__):0  // owned
-            ),
-            gobj
-        );
-    }
-
-    //if(strcasecmp(event, EV_TRANGER_RECORD_ADDED)==0) { // TODO check the change strcasecmp -> ==
-    if(event==EV_TRANGER_RECORD_ADDED) {
-        json_t *jn_data = json_array();
-        size_t idx;
-        json_t *jn_record;
-        json_array_foreach(kw_get_list(gobj, list, "data", 0, KW_REQUIRED), idx, jn_record) {
-            JSON_INCREF(__filter__)
-            if(!kw_match_simple(jn_record, __filter__)) {
-                continue;
-            }
-            json_array_append(jn_data, jn_record);
-        }
-
-        /*
-         *  Inform
-         */
-        return gobj_send_event(
-            subscriber,
-            (!empty_string(event_name))?event_name:event,
-            msg_iev_build_response_without_reverse_dst(gobj,
-                0,
-                0,
-                0,
-                jn_data, // owned
-                __global__?kw_duplicate(gobj, __global__):0  // owned
-            ),
-            gobj
-        );
-
-    }
 
     return 0; // return -1 unsubscribe this subs
 }
@@ -840,168 +848,185 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "read";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s'", permission),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-    BOOL return_data = kw_get_bool(gobj, kw, "return_data", 0, 0);
-
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-
-    if(empty_string(list_id)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What list_id?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    if(empty_string(topic_name)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What topic_name?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-    json_t *topic = tranger2_topic(priv->tranger, topic_name);
-    if(!topic) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-    if(list) {
-        return msg_iev_build_response(
-            gobj,
-            0,
-            json_sprintf("List is already open: '%s'", list_id),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    BOOL  backward = kw_get_bool(gobj, kw, "backward", 0, 0);
-    BOOL  only_md = kw_get_bool(gobj, kw, "only_md", 0, 0);
-    int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, 0);
-    int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, 0);
-    uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, 0);
-    uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, 0);
-    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
-    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
-    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
-    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
-    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
-    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
-    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
-    const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
-
-    json_t *match_cond = json_pack("{s:b, s:b}",
-        "backward", backward,
-        "only_md", only_md
-    );
-    if(from_rowid) {
-        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
-    }
-    if(to_rowid) {
-        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
-    }
-    if(user_flag) {
-        json_object_set_new(match_cond, "user_flag", json_integer(user_flag));
-    }
-    if(not_user_flag) {
-        json_object_set_new(match_cond, "not_user_flag", json_integer(not_user_flag));
-    }
-    if(user_flag_mask_set) {
-        json_object_set_new(match_cond, "user_flag_mask_set", json_integer(user_flag_mask_set));
-    }
-    if(user_flag_mask_notset) {
-        json_object_set_new(match_cond, "user_flag_mask_notset", json_integer(user_flag_mask_notset));
-    }
-    if(key) {
-        json_object_set_new(match_cond, "key", json_string(key));
-    }
-    if(rkey) {
-        json_object_set_new(match_cond, "rkey", json_string(rkey));
-    }
-    if(from_t) {
-        json_object_set_new(match_cond, "from_t", json_string(from_t));
-    }
-    if(to_t) {
-        json_object_set_new(match_cond, "to_t", json_string(to_t));
-    }
-    if(from_tm) {
-        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
-    }
-    if(to_tm) {
-        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
-    }
-    if(!empty_string(fields)) {
-        json_object_set_new(
-            match_cond,
-            "fields",
-            json_string(fields)
-        );
-    }
-
-//    json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:I}",
-//        "id", list_id,
-//        "topic_name", topic_name,
-//        "match_cond", match_cond,
-//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-//        "gobj", (json_int_t)(size_t)gobj
-//    );
-//
-//    list = tranger_open_list(priv->tranger, jn_list);
-int x;
-    list = tranger2_open_iterator(
-        priv->tranger,
-        topic_name,
-        key,
-        match_cond,  // owned
-        load_record_callback, // called on LOADING and APPENDING
-        list_id,    // iterator id, optional, if empty will be the key
-        NULL,   // creator TODO
-        NULL,       // data
-        NULL        // options
-
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "TODO pending to review",
+        NULL
     );
     return msg_iev_build_response(
         gobj,
-        list?0:-1,
-        list?json_sprintf("List opened: '%s'", list_id):json_string(gobj_log_last_message()),
+        -1,
+        json_sprintf("Pending to review"),
         0,
-        return_data?json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)):0,
+        0,
         kw  // owned
     );
+
+
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    /*----------------------------------------*
+//     *  Check AUTHZS
+//     *----------------------------------------*/
+//    const char *permission = "read";
+//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+//        KW_DECREF(kw)
+//        return msg_iev_build_response(
+//            gobj,
+//            -403,
+//            json_sprintf("No permission to '%s'", permission),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//
+//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+//    BOOL return_data = kw_get_bool(gobj, kw, "return_data", 0, 0);
+//
+//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//
+//    if(empty_string(list_id)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What list_id?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    if(empty_string(topic_name)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What topic_name?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+//    if(!topic) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("Topic not found: '%s'", topic_name),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
+//    if(list) {
+//        return msg_iev_build_response(
+//            gobj,
+//            0,
+//            json_sprintf("List is already open: '%s'", list_id),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    BOOL  backward = kw_get_bool(gobj, kw, "backward", 0, 0);
+//    BOOL  only_md = kw_get_bool(gobj, kw, "only_md", 0, 0);
+//    int64_t from_rowid = (int64_t)kw_get_int(gobj, kw, "from_rowid", 0, 0);
+//    int64_t to_rowid = (int64_t)kw_get_int(gobj, kw, "to_rowid", 0, 0);
+//    uint32_t user_flag = (uint32_t)kw_get_int(gobj, kw, "user_flag", 0, 0);
+//    uint32_t not_user_flag = (uint32_t)kw_get_int(gobj, kw, "not_user_flag", 0, 0);
+//    uint32_t user_flag_mask_set = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_set", 0, 0);
+//    uint32_t user_flag_mask_notset = (uint32_t)kw_get_int(gobj, kw, "user_flag_mask_notset", 0, 0);
+//    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
+//    const char *rkey = kw_get_str(gobj, kw, "rkey", 0, 0);
+//    const char *from_t = kw_get_str(gobj, kw, "from_t", 0, 0);
+//    const char *to_t = kw_get_str(gobj, kw, "to_t", 0, 0);
+//    const char *from_tm = kw_get_str(gobj, kw, "from_tm", 0, 0);
+//    const char *to_tm = kw_get_str(gobj, kw, "to_tm", 0, 0);
+//    const char *fields = kw_get_str(gobj, kw, "fields", 0, 0);
+//
+//    json_t *match_cond = json_pack("{s:b, s:b}",
+//        "backward", backward,
+//        "only_md", only_md
+//    );
+//    if(from_rowid) {
+//        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+//    }
+//    if(to_rowid) {
+//        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+//    }
+//    if(user_flag) {
+//        json_object_set_new(match_cond, "user_flag", json_integer(user_flag));
+//    }
+//    if(not_user_flag) {
+//        json_object_set_new(match_cond, "not_user_flag", json_integer(not_user_flag));
+//    }
+//    if(user_flag_mask_set) {
+//        json_object_set_new(match_cond, "user_flag_mask_set", json_integer(user_flag_mask_set));
+//    }
+//    if(user_flag_mask_notset) {
+//        json_object_set_new(match_cond, "user_flag_mask_notset", json_integer(user_flag_mask_notset));
+//    }
+//    if(key) {
+//        json_object_set_new(match_cond, "key", json_string(key));
+//    }
+//    if(rkey) {
+//        json_object_set_new(match_cond, "rkey", json_string(rkey));
+//    }
+//    if(from_t) {
+//        json_object_set_new(match_cond, "from_t", json_string(from_t));
+//    }
+//    if(to_t) {
+//        json_object_set_new(match_cond, "to_t", json_string(to_t));
+//    }
+//    if(from_tm) {
+//        json_object_set_new(match_cond, "from_tm", json_string(from_tm));
+//    }
+//    if(to_tm) {
+//        json_object_set_new(match_cond, "to_tm", json_string(to_tm));
+//    }
+//    if(!empty_string(fields)) {
+//        json_object_set_new(
+//            match_cond,
+//            "fields",
+//            json_string(fields)
+//        );
+//    }
+//
+////    json_t *jn_list = json_pack("{s:s, s:s, s:o, s:I, s:I}",
+////        "id", list_id,
+////        "topic_name", topic_name,
+////        "match_cond", match_cond,
+////        "load_record_callback", (json_int_t)(size_t)load_record_callback,
+////        "gobj", (json_int_t)(size_t)gobj
+////    );
+////
+////    list = tranger_open_list(priv->tranger, jn_list);
+//int x;
+//    list = tranger2_open_iterator(
+//        priv->tranger,
+//        topic_name,
+//        key,
+//        match_cond,  // owned
+//        load_record_callback, // called on LOADING and APPENDING
+//        list_id,    // iterator id, optional, if empty will be the key
+//        NULL,   // creator TODO
+//        NULL,       // data
+//        NULL        // options
+//
+//    );
+//    return msg_iev_build_response(
+//        gobj,
+//        list?0:-1,
+//        list?json_sprintf("List opened: '%s'", list_id):json_string(gobj_log_last_message()),
+//        0,
+//        return_data?json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)):0,
+//        kw  // owned
+//    );
 }
 
 /***************************************************************************
@@ -1009,72 +1034,87 @@ int x;
  ***************************************************************************/
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "read";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s'", permission),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-
-    if(empty_string(list_id)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What list_id?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-
-    if(empty_string(topic_name)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What topic_name?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-    if(!list) {
-        return msg_iev_build_response(
-            gobj,
-            0,
-            json_sprintf("List not found: '%s'", list_id),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    int result = tranger2_close_iterator(priv->tranger, list);
-
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "TODO pending to review",
+        NULL
+    );
     return msg_iev_build_response(
         gobj,
-        result,
-        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
+        -1,
+        json_sprintf("Pending to review"),
         0,
         0,
         kw  // owned
     );
+
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    /*----------------------------------------*
+//     *  Check AUTHZS
+//     *----------------------------------------*/
+//    const char *permission = "read";
+//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+//        KW_DECREF(kw);
+//        return msg_iev_build_response(
+//            gobj,
+//            -403,
+//            json_sprintf("No permission to '%s'", permission),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+//
+//    if(empty_string(list_id)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What list_id?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//
+//    if(empty_string(topic_name)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What topic_name?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
+//    if(!list) {
+//        return msg_iev_build_response(
+//            gobj,
+//            0,
+//            json_sprintf("List not found: '%s'", list_id),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    int result = tranger2_close_iterator(priv->tranger, list);
+//
+//    return msg_iev_build_response(
+//        gobj,
+//        result,
+//        result>=0?json_sprintf("List closed: '%s'", list_id):json_string(gobj_log_last_message()),
+//        0,
+//        0,
+//        kw  // owned
+//    );
 }
 
 /***************************************************************************
@@ -1082,88 +1122,103 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "write";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s'", permission),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    int result = 0;
-    json_t *jn_comment = 0;
-
-    do {
-        /*
-         *  Get parameters
-         */
-        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-        uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
-        uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
-        json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
-
-        /*
-         *  Check parameters
-         */
-        if(empty_string(topic_name)) {
-           jn_comment = json_sprintf("What topic_name?");
-           result = -1;
-           break;
-        }
-        json_t *topic = tranger2_topic(priv->tranger, topic_name);
-        if(!topic) {
-           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
-           result = -1;
-           break;
-        }
-        if(!record) {
-           jn_comment = json_sprintf("What record?");
-           result = -1;
-           break;
-        }
-
-        /*
-         *  Append record to tranger topic
-         */
-        md2_record_t md_record;
-        result = tranger2_append_record(
-            priv->tranger,
-            topic_name,
-            __t__,                  // if 0 then the time will be set by TimeRanger with now time
-            user_flag,
-            &md_record,             // required
-            json_incref(record)     // owned
-        );
-
-        if(result<0) {
-            jn_comment = json_string(gobj_log_last_message());
-            break;
-        } else {
-           jn_comment = json_sprintf("Record added");
-        }
-    } while(0);
-
-    /*
-     *  Response
-     */
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "TODO pending to review",
+        NULL
+    );
     return msg_iev_build_response(
         gobj,
-        result,
-        jn_comment,
+        -1,
+        json_sprintf("Pending to review"),
         0,
         0,
         kw  // owned
     );
+
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    /*----------------------------------------*
+//     *  Check AUTHZS
+//     *----------------------------------------*/
+//    const char *permission = "write";
+//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+//        KW_DECREF(kw);
+//        return msg_iev_build_response(
+//            gobj,
+//            -403,
+//            json_sprintf("No permission to '%s'", permission),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    int result = 0;
+//    json_t *jn_comment = 0;
+//
+//    do {
+//        /*
+//         *  Get parameters
+//         */
+//        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//        uint64_t __t__ = kw_get_int(gobj, kw, "__t__", 0, 0);
+//        uint32_t user_flag = kw_get_int(gobj, kw, "user_flag", 0, 0);
+//        json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
+//
+//        /*
+//         *  Check parameters
+//         */
+//        if(empty_string(topic_name)) {
+//           jn_comment = json_sprintf("What topic_name?");
+//           result = -1;
+//           break;
+//        }
+//        json_t *topic = tranger2_topic(priv->tranger, topic_name);
+//        if(!topic) {
+//           jn_comment = json_sprintf("Topic not found: '%s'", topic_name);
+//           result = -1;
+//           break;
+//        }
+//        if(!record) {
+//           jn_comment = json_sprintf("What record?");
+//           result = -1;
+//           break;
+//        }
+//
+//        /*
+//         *  Append record to tranger topic
+//         */
+//        md2_record_t md_record;
+//        result = tranger2_append_record(
+//            priv->tranger,
+//            topic_name,
+//            __t__,                  // if 0 then the time will be set by TimeRanger with now time
+//            user_flag,
+//            &md_record,             // required
+//            json_incref(record)     // owned
+//        );
+//
+//        if(result<0) {
+//            jn_comment = json_string(gobj_log_last_message());
+//            break;
+//        } else {
+//           jn_comment = json_sprintf("Record added");
+//        }
+//    } while(0);
+//
+//    /*
+//     *  Response
+//     */
+//    return msg_iev_build_response(
+//        gobj,
+//        result,
+//        jn_comment,
+//        0,
+//        0,
+//        kw  // owned
+//    );
 }
 
 /***************************************************************************
@@ -1171,70 +1226,85 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *  Check AUTHZS
-     *----------------------------------------*/
-    const char *permission = "read";
-    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
-        return msg_iev_build_response(
-            gobj,
-            -403,
-            json_sprintf("No permission to '%s'", permission),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
-
-    if(empty_string(list_id)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What list_id?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-
-    if(empty_string(topic_name)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What topic_name?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
-    if(!list) {
-        return msg_iev_build_response(
-            gobj,
-            0,
-            json_sprintf("List not found: '%s'", list_id),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "TODO pending to review",
+        NULL
+    );
     return msg_iev_build_response(
         gobj,
+        -1,
+        json_sprintf("Pending to review"),
         0,
         0,
-        0,
-        json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
         kw  // owned
     );
+
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    /*----------------------------------------*
+//     *  Check AUTHZS
+//     *----------------------------------------*/
+//    const char *permission = "read";
+//    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+//        KW_DECREF(kw);
+//        return msg_iev_build_response(
+//            gobj,
+//            -403,
+//            json_sprintf("No permission to '%s'", permission),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    const char *list_id = kw_get_str(gobj, kw, "list_id", "", 0);
+//
+//    if(empty_string(list_id)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What list_id?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//
+//    if(empty_string(topic_name)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What topic_name?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, list_id);
+//    if(!list) {
+//        return msg_iev_build_response(
+//            gobj,
+//            0,
+//            json_sprintf("List not found: '%s'", list_id),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    return msg_iev_build_response(
+//        gobj,
+//        0,
+//        0,
+//        0,
+//        json_incref(kw_get_list(gobj, list, "data", 0, KW_REQUIRED)),
+//        kw  // owned
+//    );
 }
 
 

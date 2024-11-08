@@ -279,25 +279,13 @@ PRIVATE int load_record_callback(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC char *build_msg_index_path(
-    char *bf,
-    int bfsize,
-    const char *topic_name,
-    const char *key
-)
-{
-    snprintf(bf, bfsize, "msgs`%s`%s", topic_name, key);
-    return bf;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond, // owned
-    json_t *extra       // owned
+    json_t *extra,      // owned
+    const char *rt_id,
+    const char *creator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -330,28 +318,14 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    /*
-     *  id is required to close the list
-     */
-    if(!kw_has_key(match_cond, "id")) {
-        const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
-        if(!empty_string(key)) {
-            json_object_set_new(
-                match_cond,
-                "id",
-                json_string(key)
-            );
-        }
-    }
-
     json_t *rt;
     if(tranger2_open_list(
         tranger,
         topic_name,
-        match_cond,  // owned
-        jn_extra,    // owned
-        NULL,   // rt_id    TODO
-        NULL,   // creator TODO
+        match_cond,     // owned
+        jn_extra,       // owned
+        rt_id,          // rt_id
+        creator,        // creator
         &rt
     )<0) {
         gobj_log_error(gobj, 0,
