@@ -336,13 +336,21 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     if(!kw_has_key(match_cond, "id")) {
         const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
         char rt_id[NAME_MAX];
-        snprintf(rt_id, sizeof(rt_id), "%s-%s-msgs-%s%s%s",
-            gobj_gclass_name(gobj),
-            gobj_name(gobj),
-            topic_name,
-            key?"-":"",
-            key?key:""
-        );
+        if(gobj) {
+            snprintf(rt_id, sizeof(rt_id), "msg-%s-%s-%s%s%s",
+                gobj_gclass_name(gobj),
+                gobj_name(gobj),
+                topic_name,
+                key?"-":"",
+                key?key:""
+            );
+        } else {
+            snprintf(rt_id, sizeof(rt_id), "msg-%s%s%s",
+                topic_name,
+                key?"-":"",
+                key?key:""
+            );
+        }
         json_object_set_new(
             match_cond,
             "id",
