@@ -115,7 +115,9 @@ static int test(json_t *tranger, int caso, const char *desc)
                     "rkey", "",
                     "rt_by_mem", 1
                 ),
-                NULL
+                NULL,
+                "",     // rt_id
+                ""      // creator
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -148,7 +150,9 @@ static int test(json_t *tranger, int caso, const char *desc)
                     "backward", 1,
                     "order_by_tm", 1
                 ),
-                NULL
+                NULL,
+                "",     // rt_id
+                ""      // creator
             );
 
             MT_INCREMENT_COUNT(time_measure, cnt)

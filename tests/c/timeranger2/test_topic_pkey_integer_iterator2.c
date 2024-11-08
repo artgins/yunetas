@@ -146,7 +146,7 @@ PRIVATE int do_test(void)
         NULL
     );
 
-    json_t *iterator1 = tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it1");
+    json_t *iterator1 = tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it1", "");
 
     if(tm != 946774799) {
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");

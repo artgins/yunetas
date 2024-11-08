@@ -725,10 +725,11 @@ int do_test(void)
         tr_list
     );
 
-    json_t *list2 =tranger2_get_rt_mem_by_id(
+    json_t *list2 = tranger2_get_rt_mem_by_id(
         tranger,
         TOPIC_NAME,
-        "list2"
+        "list2",
+        ""
     );
     tranger2_close_rt_mem(
         tranger,

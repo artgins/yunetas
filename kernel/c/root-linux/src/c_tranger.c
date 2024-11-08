@@ -53,15 +53,15 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int load_record_callback(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *list, // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
-    json_t *jn_record  // must be owned
-);
+//PRIVATE int load_record_callback(
+//    json_t *tranger,
+//    json_t *topic,
+//    const char *key,
+//    json_t *list, // iterator or rt_list/rt_disk id, don't own
+//    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+//    md2_record_t *md_record,
+//    json_t *jn_record  // must be owned
+//);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1327,61 +1327,61 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int load_record_callback(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *list, // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
-    json_t *jn_record  // must be owned
-)
-{
-    hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
-    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
-    BOOL has_fields = kw_has_key(match_cond, "fields");
-
-    json_t *list_data = kw_get_list(gobj, list, "data", 0, KW_REQUIRED);
-
-    const char ** keys = 0;
-    if(has_fields) {
-        const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
-        keys = split2(fields, ", ", 0);
-    }
-    if(keys) {
-        json_t *jn_record_with_fields = kw_clone_by_path(
-            gobj,
-            jn_record,   // owned
-            keys
-        );
-        jn_record = jn_record_with_fields;
-        json_array_append(
-            list_data,
-            jn_record
-        );
-        split_free2(keys);
-    } else {
-        json_array_append(
-            list_data,
-            jn_record
-        );
-    }
-
-    system_flag2_t system_flag = get_system_flag(md_record);
-    if(!(system_flag & sf_loading_from_disk)) {
-        json_t *jn_data = json_array();
-
-        json_array_append(jn_data, jn_record);
-
-        hgobj gobj_to = (hgobj)(size_t)kw_get_int(gobj, list, "gobj", 0, KW_REQUIRED);
-        gobj_publish_event(gobj_to, EV_TRANGER_RECORD_ADDED, jn_data);
-    }
-
-    JSON_DECREF(jn_record)
-
-    gobj_info_msg(gobj, "QUEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
-    return 0; // HACK lest timeranger to add record to list.data TODO review
-}
+//PRIVATE int load_record_callback(
+//    json_t *tranger,
+//    json_t *topic,
+//    const char *key,
+//    json_t *list, // iterator or rt_list/rt_disk id, don't own
+//    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+//    md2_record_t *md_record,
+//    json_t *jn_record  // must be owned
+//)
+//{
+//    hgobj gobj = (hgobj)(size_t)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+//    json_t *match_cond = kw_get_dict(0, list, "match_cond", 0, KW_REQUIRED);
+//    BOOL has_fields = kw_has_key(match_cond, "fields");
+//
+//    json_t *list_data = kw_get_list(gobj, list, "data", 0, KW_REQUIRED);
+//
+//    const char ** keys = 0;
+//    if(has_fields) {
+//        const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
+//        keys = split2(fields, ", ", 0);
+//    }
+//    if(keys) {
+//        json_t *jn_record_with_fields = kw_clone_by_path(
+//            gobj,
+//            jn_record,   // owned
+//            keys
+//        );
+//        jn_record = jn_record_with_fields;
+//        json_array_append(
+//            list_data,
+//            jn_record
+//        );
+//        split_free2(keys);
+//    } else {
+//        json_array_append(
+//            list_data,
+//            jn_record
+//        );
+//    }
+//
+//    system_flag2_t system_flag = get_system_flag(md_record);
+//    if(!(system_flag & sf_loading_from_disk)) {
+//        json_t *jn_data = json_array();
+//
+//        json_array_append(jn_data, jn_record);
+//
+//        hgobj gobj_to = (hgobj)(size_t)kw_get_int(gobj, list, "gobj", 0, KW_REQUIRED);
+//        gobj_publish_event(gobj_to, EV_TRANGER_RECORD_ADDED, jn_data);
+//    }
+//
+//    JSON_DECREF(jn_record)
+//
+//    gobj_info_msg(gobj, "QUEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+//    return 0; // HACK lest timeranger to add record to list.data TODO review
+//}
 
 
 

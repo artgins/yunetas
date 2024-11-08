@@ -3004,7 +3004,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         "user_flag", snap_id
     );
 
-int x;
+
     json_t *list = tranger2_open_iterator(
         priv->tranger,
         topic_name,
