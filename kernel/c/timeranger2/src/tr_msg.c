@@ -330,22 +330,24 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    char rt_id[NAME_MAX]; int x;
-
     /*
      *  id is required to close the list
      */
     if(!kw_has_key(match_cond, "id")) {
-        const char *key = kw_get_str(gobj, match_cond, "key", 0, 0);
-        if(!empty_string(key)) {
-            char path[NAME_MAX];
-            build_msg_index_path(path, sizeof(path), topic_name, key);
-            json_object_set_new(
-                match_cond,
-                "id",
-                json_string(path)
-            );
-        }
+        const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
+        char rt_id[NAME_MAX];
+        snprintf(rt_id, sizeof(rt_id), "%s-%s-msgs-%s%s%s",
+            gobj_gclass_name(gobj),
+            gobj_name(gobj),
+            topic_name,
+            key?"-":"",
+            key?key:""
+        );
+        json_object_set_new(
+            match_cond,
+            "id",
+            json_string(rt_id)
+        );
     }
 
     json_t *rt;

@@ -345,17 +345,21 @@ PUBLIC json_t *msg2db_open_db(
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
+        char rt_id[NAME_MAX];
+        snprintf(rt_id, sizeof(rt_id), "%s-%s-%s-%s",
+            gobj_gclass_name(gobj),
+            gobj_name(gobj),
+            msg2db_name,
+            topic_name
+        );
         json_t *match_cond = json_pack("{s:s, s:b, s:I}",
-            "id", path,
+            "id", rt_id,
             "rt_by_mem", master,
             "load_record_callback", (json_int_t)(size_t)load_record_callback
-//            "rkey", "", TODO ???
         );
 
-        char rt_id[NAME_MAX]; int x;
-
         json_t *jn_extra = json_pack("{s:s, s:s, s:s}",
-            "id", rt_id,
+            "id", path,
             "topic_name", topic_name,
             "msg2db_name", msg2db_name
         );
