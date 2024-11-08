@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
         result += -1;
     }
 
-    result += test_json(NULL, result);
+    result += test_json(NULL);
 
     gobj_end();
 

@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, test)
 
-    result += test_json(NULL, result);
+    result += test_json(NULL);
 
     gobj_end();
 

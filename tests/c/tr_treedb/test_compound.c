@@ -88,7 +88,7 @@ PUBLIC int test_compound(
         );
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(json_incref(mainop), result);
+        result += test_json(json_incref(mainop));
     }
 
     /*-----------------------------------*
@@ -134,7 +134,7 @@ PUBLIC int test_compound(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);
+        result += test_json(NULL);
     }
 
     /*-----------------------------------*
@@ -178,7 +178,7 @@ PUBLIC int test_compound(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-        result += test_json(json_incref(found), result);
+        result += test_json(json_incref(found));
     }
 
     /*-----------------------------------*
@@ -248,7 +248,7 @@ PUBLIC int test_compound(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-        result += test_json(json_incref(found), result);
+        result += test_json(json_incref(found));
     }
 
     /*-----------------------------------*
@@ -287,7 +287,7 @@ PUBLIC int test_compound(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-        result += test_json(json_incref(found), result);
+        result += test_json(json_incref(found));
     }
 
     result += debug_json("tranger", tranger, result<0? TRUE:FALSE);

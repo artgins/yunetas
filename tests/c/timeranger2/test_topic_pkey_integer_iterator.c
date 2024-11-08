@@ -69,7 +69,7 @@ PRIVATE int do_test(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, 0);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------------------------*
      *      Open the topic
@@ -87,7 +87,7 @@ PRIVATE int do_test(void)
         TOPIC_NAME,     // topic name
         TRUE
     );
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
     if(!topic) {
         tranger2_shutdown(tranger);
         return -1;
@@ -120,7 +120,7 @@ PRIVATE int do_test(void)
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "open iterator without callback neither data")
 
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
     if(!iterator) {
         tranger2_shutdown(tranger);
         return -1;
@@ -288,7 +288,7 @@ PRIVATE int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger), result);
+        result += test_json(json_incref(tranger));
     }
 
     /*-------------------------------*
@@ -302,7 +302,7 @@ PRIVATE int do_test(void)
         TRUE    // verbose
     );
     result += tranger2_close_iterator(tranger, iterator);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -318,7 +318,7 @@ PRIVATE int do_test(void)
     json_check_refcounts(tranger, 1000, &result);
 
     tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     result += global_result;
 

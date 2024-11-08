@@ -356,7 +356,7 @@ PUBLIC int test_users(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(json_incref(users), result);
+        result += test_json(json_incref(users));
 
         json_check_refcounts(jn_treedbs, 1000, &result);
         JSON_DECREF(jn_treedbs)

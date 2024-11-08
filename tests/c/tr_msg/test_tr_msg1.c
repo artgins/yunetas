@@ -256,7 +256,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -291,7 +291,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -346,7 +346,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 11:
@@ -400,7 +400,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -454,7 +454,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 13:
@@ -507,7 +507,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -547,7 +547,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 21:
@@ -586,7 +586,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -626,7 +626,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 23:
@@ -665,7 +665,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -705,7 +705,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 31:
@@ -744,7 +744,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -784,7 +784,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
     case 33:
@@ -823,7 +823,7 @@ static int test(json_t *tranger, int caso, int cnt, int result)
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
 
-            result += test_json(NULL, result);  // NULL: we want to check only the logs
+            result += test_json(NULL);  // NULL: we want to check only the logs
         }
         break;
 
@@ -933,7 +933,7 @@ int do_test(void)
         TRUE    // verbose
     );
     tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     return result;
 }

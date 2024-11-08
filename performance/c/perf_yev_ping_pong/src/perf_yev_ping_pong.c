@@ -608,7 +608,7 @@ int main(int argc, char *argv[])
     result += do_test();
     printf(Cursor_Down "\n", 4);
 
-    result += test_json(NULL, result);
+    result += test_json(NULL);
 
     gobj_end();
 

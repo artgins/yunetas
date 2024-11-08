@@ -111,7 +111,7 @@ PRIVATE int do_test(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, 0);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*--------------------------------------------------------------------*
      *  Open an iterator, no callback, match_cond NULL (use defaults)
@@ -193,7 +193,7 @@ PRIVATE int do_test(void)
 
     MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
     MT_PRINT_TIME(time_measure, "open two iterators (2 keys) with callback (old=98.000 op/sec)")
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*---------------------------------------------*
      *  Repeat Open iterator to key2
@@ -221,7 +221,7 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Repeat iterator must be null");
         result += -1;
     }
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*---------------------------------------------*
      *  Check iterator mem
@@ -473,7 +473,7 @@ PRIVATE int do_test(void)
             ignore_keys,
             TRUE
         );
-        result += test_json(json_incref(tranger), result);
+        result += test_json(json_incref(tranger));
     }
 
     /*-------------------------------*
@@ -490,7 +490,7 @@ PRIVATE int do_test(void)
     result += debug_json("tranger", tranger, FALSE);
     result += tranger2_close_iterator(tranger, iterator1);
     result += tranger2_close_iterator(tranger, iterator2);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -504,7 +504,7 @@ PRIVATE int do_test(void)
     );
     result += debug_json("tranger", tranger, FALSE);
     tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     result += global_result;
 

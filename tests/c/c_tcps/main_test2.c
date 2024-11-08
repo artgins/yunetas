@@ -270,7 +270,7 @@ static void cleaning(void)
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 }
 
 /***************************************************************************

@@ -144,7 +144,7 @@ PRIVATE int do_test(json_t *tranger)
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator by disk")
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         yev_loop_run_once(yev_loop);
 
@@ -201,7 +201,7 @@ PRIVATE int do_test(json_t *tranger)
             printf("%sOK%s --> %s\n", On_Green BWhite, Color_Off, "times by disk");
         }
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*-------------------------------------*
@@ -220,7 +220,7 @@ PRIVATE int do_test(json_t *tranger)
             tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk")
         );
     }
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *  tranger_backup_topic
@@ -267,7 +267,7 @@ PRIVATE json_t *open_all(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, yev_loop);
-    global_result += test_json(NULL, result);  // NULL: we want to check only the logs
+    global_result += test_json(NULL);  // NULL: we want to check only the logs
 
     return tranger;
 }
@@ -302,7 +302,7 @@ PRIVATE int close_all(json_t *tranger)
         );
         yev_loop_run_once(yev_loop);
     }
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
      *      Shutdown timeranger
@@ -318,7 +318,7 @@ PRIVATE int close_all(json_t *tranger)
     result += debug_json("tranger", tranger, FALSE);
 
     tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     return result;
 }

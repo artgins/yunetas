@@ -497,7 +497,7 @@ PUBLIC void set_expected_results(
 /***************************************************************************
  *  Return 0 if ok, -1 if error
  ***************************************************************************/
-PUBLIC int test_json_file(const char *file, int current_result)
+PUBLIC int test_json_file(const char *file)
 {
     int result = 0;
     json_t *jn_found = load_json_from_file(0, file, "", 0);
@@ -513,7 +513,7 @@ PUBLIC int test_json_file(const char *file, int current_result)
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
-        if(!check_log_result(current_result)) {
+        if(!check_log_result(result)) {
             result = -1;
         }
     }
@@ -532,8 +532,7 @@ PUBLIC int test_json_file(const char *file, int current_result)
  *  Return 0 if ok, -1 if error
  ***************************************************************************/
 PUBLIC int test_json(
-    json_t *jn_found,   // owned
-    int current_result
+    json_t *jn_found   // owned
 )
 {
     int result = 0;
@@ -552,7 +551,7 @@ PUBLIC int test_json(
             printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
-        if(!check_log_result(current_result)) {
+        if(!check_log_result(result)) {
             result = -1;
         }
     }

@@ -98,7 +98,7 @@ PRIVATE int test_treedb_schema(
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
     }
 
@@ -141,7 +141,7 @@ PRIVATE int test_treedb_schema(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         tranger2_delete_topic(tranger, test);
     }
@@ -186,7 +186,7 @@ PRIVATE int test_treedb_schema(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         tranger2_delete_topic(tranger, test);
     }
@@ -237,7 +237,7 @@ PRIVATE int test_treedb_schema(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         tranger2_delete_topic(tranger, test);
     }
@@ -289,7 +289,7 @@ PRIVATE int test_treedb_schema(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         tranger2_delete_topic(tranger, test);
     }
@@ -331,7 +331,7 @@ PRIVATE int test_schema(
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     return result;
@@ -387,7 +387,7 @@ PRIVATE int do_test(void)
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*------------------------------*
@@ -464,7 +464,7 @@ PRIVATE int do_test(void)
 
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*------------------------------*
@@ -638,7 +638,7 @@ PRIVATE int do_test(void)
         MT_PRINT_TIME(time_measure, test)
 
         json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
-        result += test_json(json_incref(found), result);
+        result += test_json(json_incref(found));
     }
 
     /*---------------------------------------*
@@ -717,7 +717,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(department_record, result);
+        result += test_json(department_record);
         json_decref(data);
     }
 
@@ -795,7 +795,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     if(1) {
@@ -829,7 +829,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*
@@ -871,7 +871,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, 1)
         MT_PRINT_TIME(time_measure, test)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     JSON_DECREF(topic_cols_desc)

@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
         printf("%sERROR --> %s time %f (must be tm >= 1 && tm < 1.1)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
-    result += test_json(NULL, result);
+    result += test_json(NULL);
 
     gobj_end();
 

@@ -180,7 +180,7 @@ PRIVATE int do_test(void)
         "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, 0);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     BOOL test_forward = 1;
     BOOL test_backward = 1;
@@ -216,7 +216,7 @@ PRIVATE int do_test(void)
         );
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         /*-------------------------*
          *
@@ -282,7 +282,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, TEST_NAME)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         /*-------------------------*
          *  close
@@ -295,7 +295,7 @@ PRIVATE int do_test(void)
             TRUE    // verbose
         );
         result += tranger2_close_iterator(tranger, iterator);
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*-------------------------------------*
@@ -329,7 +329,7 @@ PRIVATE int do_test(void)
         );
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "tranger2_open_iterator")
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         /*-------------------------*
          *
@@ -395,7 +395,7 @@ PRIVATE int do_test(void)
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
         MT_PRINT_TIME(time_measure, TEST_NAME)
 
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
 
         /*-------------------------*
          *  close
@@ -408,7 +408,7 @@ PRIVATE int do_test(void)
             TRUE    // verbose
         );
         result += tranger2_close_iterator(tranger, iterator);
-        result += test_json(NULL, result);  // NULL: we want to check only the logs
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
     /*-------------------------------*
@@ -430,7 +430,7 @@ PRIVATE int do_test(void)
     result += debug_json("tranger", tranger, FALSE);
 
     tranger2_shutdown(tranger);
-    result += test_json(NULL, result);  // NULL: we want to check only the logs
+    result += test_json(NULL);  // NULL: we want to check only the logs
 
     result += global_result;
 

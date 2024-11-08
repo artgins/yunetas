@@ -35,12 +35,10 @@ PUBLIC void set_expected_results(
  *  These functions free JSONs set by set_expected_results()
  */
 PUBLIC int test_json_file( // Compare JSON of the file with JSON in expected
-    const char *file,
-    int current_result
+    const char *file
 );
 PUBLIC int test_json( // Compare JSON in jn_found with JSON in expected
-    json_t *jn_found,  // owned
-    int current_result
+    json_t *jn_found  // owned
 );
 
 /*
