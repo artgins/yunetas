@@ -345,7 +345,7 @@ PUBLIC json_t *msg2db_open_db(
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
 
-        char rt_id[NAME_MAX];
+        char rt_id[2*NAME_MAX];
         snprintf(rt_id, sizeof(rt_id), "%s-%s-%s-%s",
             gobj_gclass_name(gobj),
             gobj_name(gobj),

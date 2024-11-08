@@ -970,12 +970,12 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __snaps__
      *------------------------------*/
+    char rt_id[2*NAME_MAX];
     if(master) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        char rt_id[NAME_MAX];
         snprintf(rt_id, sizeof(rt_id), "%s-%s-%s-%s",
             gobj_gclass_name(gobj),
             gobj_name(gobj),
@@ -1021,7 +1021,6 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        char rt_id[NAME_MAX];
         snprintf(rt_id, sizeof(rt_id), "%s-%s-%s-%s",
             gobj_gclass_name(gobj),
             gobj_name(gobj),
