@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
 //    gobj_set_deep_tracing(2);           // TODO TEST
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
-    unsigned long memory_check_list[] = {1627, 1628, 1769, 0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {1377, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
@@ -492,9 +492,11 @@ int main(int argc, char *argv[])
     gobj_end();
 
     if(get_cur_system_memory()!=0) {
-        printf("system memory not free\n");
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
         result += -1;
     }
+
     if(result<0) {
         printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
     }

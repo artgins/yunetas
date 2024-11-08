@@ -614,6 +614,7 @@ int main(int argc, char *argv[])
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
+        print_track_mem();
         result += -1;
     }
 

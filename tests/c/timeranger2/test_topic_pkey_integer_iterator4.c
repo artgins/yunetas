@@ -670,6 +670,7 @@ int main(int argc, char *argv[])
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
         result += -1;
     }
     if(result<0) {

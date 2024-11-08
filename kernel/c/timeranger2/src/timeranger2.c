@@ -7018,6 +7018,7 @@ PUBLIC int tranger2_close_all_lists(
      */
     json_array_clear(list_to_remove);
 
+    json_decref(list_to_remove);
     return 0;
 }
 

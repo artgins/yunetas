@@ -7,6 +7,8 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#define APP "test_topic_pkey_integer_iterator5"
+
 #include <string.h>
 #include <signal.h>
 
@@ -535,9 +537,9 @@ int main(int argc, char *argv[])
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
+        print_track_mem();
         result += -1;
     }
-#define APP "test_topic_pkey_integer_iterator5"
     if(result<0) {
         printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
     }
