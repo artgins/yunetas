@@ -34,6 +34,8 @@ rowid   tm
 #include <time.h>
 #include <yunetas.h>
 
+#define APP "test_rt_msg1"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -1036,7 +1038,6 @@ int main(int argc, char *argv[])
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
         result += -1;
     }
-#define APP "test_rt_msg1"
     if(result<0) {
         printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
     }
