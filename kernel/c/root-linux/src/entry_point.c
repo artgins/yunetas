@@ -838,8 +838,9 @@ PRIVATE void process(
      *          Create main process yuno
      *------------------------------------------------*/
     json_t *kw_yuno = json_pack(
-        "{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "pid",          getpid(),
+        "watcher_pid",  get_watcher_pid(),
         "process",      get_process_name(),
         "hostname",     get_hostname(),
         "node_uuid",    node_uuid(),
