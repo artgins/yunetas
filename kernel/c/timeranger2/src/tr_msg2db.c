@@ -376,6 +376,8 @@ PUBLIC json_t *msg2db_open_db(
             topic_name,
             match_cond,  // owned
             jn_extra,    // owned
+            NULL,   // rt_id    TODO
+            NULL,   // creator TODO
             NULL
         )<0) {
             gobj_log_error(gobj, 0,

@@ -302,6 +302,8 @@ PUBLIC int trq_load(tr_queue trq_)
         trq->topic_name,
         match_cond,  // owned
         jn_extra,    // owned
+        NULL,   // rt_id    TODO
+        NULL,   // creator TODO
         &tr_list
     )<0) {
         gobj_log_error(gobj, 0,
@@ -371,6 +373,8 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         trq->topic_name,
         match_cond,  // owned
         jn_extra,    // owned
+        NULL,   // rt_id    TODO
+        NULL,   // creator TODO
         &tr_list
     );
     tranger2_close_list(trq->tranger, tr_list);

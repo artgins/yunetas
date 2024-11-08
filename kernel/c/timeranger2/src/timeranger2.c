@@ -1019,6 +1019,7 @@ PRIVATE BOOL find_rt_disk_cb(
             "only_md", 1
         ),
         mater_to_update_client_load_record_callback,   // called on append new record
+        "", // creator TODO ???
         rt_id,
         NULL
     );
@@ -1121,6 +1122,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     ),
                     mater_to_update_client_load_record_callback,   // called on append new record
                     rt_id,
+                    "", // creator TODO ???
                     NULL
                 );
 
@@ -3124,6 +3126,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
     const char *id,         // list id, optional
+    const char *creator,
     json_t *extra           // owned, user data, this json will be added to the return iterator
 )
 {
@@ -3313,6 +3316,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
     const char *id,         // disk id, optional
+    const char *creator,
     json_t *extra           // owned, user data, this json will be added to the return iterator
 )
 {
@@ -4318,6 +4322,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_t *match_cond, // owned
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
     const char *iterator_id,     // iterator id, optional, if empty will be the key
+    const char *creator,
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
     json_t *extra       // owned, user data, this json will be added to the return iterator
 )
@@ -4539,6 +4544,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
                     iterator_id,
+                    creator,
                     NULL
                 );
                 json_object_set(iterator, "rt_mem", rt);
@@ -4550,6 +4556,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     json_incref(match_cond),
                     load_record_callback,   // called on append new record
                     iterator_id,
+                    creator,
                     NULL
                 );
                 json_object_set(iterator, "rt_disk", rt);
@@ -6614,6 +6621,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned
+    const char *creator,
+    const char *rt_id,
     json_t **prt         // pointer to realtime list, optional
 )
 {
@@ -6667,7 +6676,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             key,
             json_incref(match_cond),  // match_cond, owned
             load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id, optional, if empty will be the key
+            "",     // iterator id
+            "",     // creator
             NULL,   // to store LOADING data, not owned
             json_incref(extra) // extra, owned
         );
@@ -6690,7 +6700,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                     key_,
                     json_incref(match_cond),  // match_cond, owned
                     load_record_callback, // called on LOADING and APPENDING
-                    "",     // iterator id, optional, if empty will be the key
+                    "",     // iterator id
+                    "",     // creator
                     NULL,   // to store LOADING data, not owned
                     json_incref(extra) // extra, owned
                 );
@@ -6703,7 +6714,6 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 
     if(realtime) {
         json_t *rt = NULL;
-        const char *rt_id = json_string_value(json_object_get(match_cond, "id"));
 
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
@@ -6729,6 +6739,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 rt_id,
+                creator,
                 json_incref(extra)    // extra, owned
             );
         } else {
@@ -6739,6 +6750,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 json_incref(match_cond),
                 load_record_callback,   // called on append new record
                 rt_id,
+                creator,
                 json_incref(extra)    // extra, owned
             );
         }
@@ -6787,7 +6799,33 @@ PUBLIC int tranger2_close_list(
         "msg",          "%s", "tranger2_close_list(): list not found",
         NULL
     );
-    gobj_trace_json(gobj, list, "tranger2_close_list(): list not found");
+    return -1;
+}
+
+/***************************************************************************
+ *  Close all or rt_id lists belongs to creator (rt_mem or rt_disk)
+ ***************************************************************************/
+PUBLIC int tranger2_close_lists_by_creator(
+    json_t *tranger,
+    const char *topic_name,
+    const char *creator,
+    const char *rt_id   // if empty will remove all lists of creator
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+//    const char *list_type = kw_get_str(gobj, list, "list_type", "", KW_REQUIRED);
+//
+//    if(strcmp(list_type, "rt_mem")==0) {
+//        return tranger2_close_rt_mem(tranger, list);
+//    } else if(strcmp(list_type, "rt_disk")==0) {
+//        return tranger2_close_rt_disk(tranger, list);
+//    }
+//    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//        "function",     "%s", __FUNCTION__,
+//        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//        "msg",          "%s", "tranger2_close_list(): list not found",
+//        NULL
+//    );
     return -1;
 }
 

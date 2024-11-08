@@ -350,6 +350,8 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         topic_name,
         match_cond,  // owned
         jn_extra,    // owned
+        NULL,   // rt_id    TODO
+        NULL,   // creator TODO
         &rt
     )<0) {
         gobj_log_error(gobj, 0,

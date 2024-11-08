@@ -515,6 +515,7 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *match_cond,  // owned
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
+    const char *creator,     // creator
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
     json_t *extra       // owned, user data, this json will be added to the return iterator
 );
@@ -569,7 +570,8 @@ PUBLIC json_t *tranger2_open_rt_mem(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on mem
-    const char *list_id,    // list id, optional
+    const char *list_id,    // rt list id, optional (internally will use the pointer of rt)
+    const char *creator,
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
@@ -600,7 +602,8 @@ PUBLIC json_t *tranger2_open_rt_disk(
     const char *key,        // if empty receives all keys, else only this key
     json_t *match_cond,     // owned
     tranger2_load_record_callback_t load_record_callback,   // called on append new record on disk
-    const char *rt_id,      // disk id, REQUIRED
+    const char *rt_id,      // rt disk id, REQUIRED
+    const char *creator,
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
@@ -625,7 +628,6 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     Open list, load records in memory
 
     match_cond of second level:
-        id                  (str) id    REQUIRED for lists by disk rt_by_mem==0
         key                 (str) key (if not exists then rkey is used)
         rkey                (str) regular expression of key (empty "" is equivalent to ".*"
                             WARNING: loading form disk keys matched in rkey)
@@ -646,7 +648,9 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond, // owned
-    json_t *extra,      // owned
+    json_t *extra,      // owned, will be added to the returned rt
+    const char *creator,
+    const char *rt_id,
     json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
 );
 
@@ -656,6 +660,16 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 PUBLIC int tranger2_close_list(
     json_t *tranger,
     json_t *list
+);
+
+/**rst**
+    Close all or rt_id lists belongs to creator (rt_mem or rt_disk)
+**rst**/
+PUBLIC int tranger2_close_lists_by_creator(
+    json_t *tranger,
+    const char *topic_name,
+    const char *creator,
+    const char *rt_id   // if empty will remove all lists of creator
 );
 
 /*

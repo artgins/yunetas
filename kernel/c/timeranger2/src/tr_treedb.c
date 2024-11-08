@@ -1006,6 +1006,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             snaps_topic_name,
             match_cond,  // owned
             jn_extra,    // owned
+            NULL,   // rt_id    TODO
+            NULL,   // creator TODO
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -1058,6 +1060,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             graphs_topic_name,
             match_cond,  // owned
             jn_extra,    // owned
+            NULL,   // rt_id    TODO
+            NULL,   // creator TODO
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
@@ -1450,6 +1454,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         topic_name,
         match_cond,  // owned
         jn_extra,    // owned
+        NULL,   // rt_id    TODO
+        NULL,   // creator TODO
         &rt // TODO NULL
     )<0) {
         gobj_log_error(gobj, 0,
@@ -1521,6 +1527,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             topic_name,
             match_cond2,  // owned
             jn_extra_,    // owned
+            NULL,   // rt_id    TODO
+            NULL,   // creator TODO
             NULL
         )<0) {
             gobj_log_error(gobj, 0,
