@@ -703,7 +703,8 @@ print_json2("XXXXX", tranger);
             "administration",
             match_cond,
             NULL,   // load_record_callback, // called on LOADING and APPENDING
-            NULL,   // iterator id, optional, if empty will be the key
+            NULL,   // iterator id
+            NULL,   // creator
             data,   // JSON array, if not empty, fills it with the LOADING data, not owned
             NULL    // owned, user data, this json will be added to the return iterator
         );

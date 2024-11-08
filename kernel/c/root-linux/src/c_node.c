@@ -3004,6 +3004,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         "user_flag", snap_id
     );
 
+int x;
     json_t *list = tranger2_open_iterator(
         priv->tranger,
         topic_name,
@@ -3011,6 +3012,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         jn_filter,  //match_cond,  // owned
         NULL,       //load_record_callback, // called on LOADING and APPENDING
         "",         // iterator_id,     // iterator id, optional, if empty will be the key
+        NULL, // creator TODO
         jn_data,    // JSON array, if not empty, fills it with the LOADING data, not owned
         NULL
     );

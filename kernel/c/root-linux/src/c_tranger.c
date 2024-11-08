@@ -981,7 +981,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //    );
 //
 //    list = tranger_open_list(priv->tranger, jn_list);
-
+int x;
     list = tranger2_open_iterator(
         priv->tranger,
         topic_name,
@@ -989,6 +989,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         match_cond,  // owned
         load_record_callback, // called on LOADING and APPENDING
         list_id,    // iterator id, optional, if empty will be the key
+        NULL,   // creator TODO
         NULL,       // data
         NULL        // options
 

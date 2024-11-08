@@ -115,6 +115,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // iterator id
+        NULL,   // creator
         NULL,   // data
         NULL    // options
     );

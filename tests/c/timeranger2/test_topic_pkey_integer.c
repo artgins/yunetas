@@ -480,7 +480,8 @@ int do_test(void)
         "",             // key
         NULL,           // match_cond,
         all_load_record_callback,
-        "list1",
+        "list1",    // rt id
+        "",         // creator
         NULL
     );
 
@@ -490,7 +491,8 @@ int do_test(void)
         "0000000000000000001",       // key
         NULL,   // match_cond
         one_load_record_callback,
-        "list2",
+        "list2",    // rt id
+        "",         // creator
         NULL
     );
 

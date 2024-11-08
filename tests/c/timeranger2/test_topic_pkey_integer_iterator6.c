@@ -140,6 +140,7 @@ PRIVATE int do_test(json_t *tranger)
             match_cond,             // match_cond, owned
             rt_disk_record_callback, // load_record_callback
             "it_by_disk",           // id
+            NULL,                   // creator
             NULL,                   // data
             NULL                    // options
         );

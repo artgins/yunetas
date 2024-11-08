@@ -130,7 +130,8 @@ PRIVATE int search_data(
         key,                    // key
         match_cond,             // match_cond, owned
         load_rango_callback,    // load_record_callback
-        NULL,                   // id
+        NULL,                   // rt id
+        NULL,                   // creator
         data,                   // data
         NULL                    // options
     );

@@ -140,7 +140,8 @@ PRIVATE int do_test(void)
         "0000000000000000001",     // key,
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
-        "it1",
+        "it1",  // rt id
+        NULL,   // creator
         NULL,
         NULL
     );
@@ -168,7 +169,8 @@ PRIVATE int do_test(void)
         "0000000000000000002",     // key,
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
-        NULL,   // id
+        NULL,   // rt id
+        NULL,   // creator
         NULL,   // data
         NULL    // options
     );
@@ -216,6 +218,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // id
+        NULL,   // creator
         NULL,   // data
         NULL    // options
     );

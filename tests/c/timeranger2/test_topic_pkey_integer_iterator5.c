@@ -211,6 +211,7 @@ PRIVATE int do_test(void)
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
             NULL,                   // id
+            NULL,                   // creator
             NULL,                   // data
             NULL                    // options
         );
@@ -324,6 +325,7 @@ PRIVATE int do_test(void)
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
             NULL,                   // id
+            NULL,                   // creator
             NULL,                   // data
             NULL                    // options
         );
