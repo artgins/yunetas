@@ -231,9 +231,10 @@ PRIVATE int do_test(void)
                     }, \
                     'lists': [], \
                     'disks': [], \
-                    'iterators': [\
+                    'iterators': [ \
                         { \
                             'id': '0000000000000000001', \
+                            'creator': '', \
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': {}, \

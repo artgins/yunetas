@@ -345,6 +345,7 @@ PRIVATE int do_test(void)
                     'disks': [ \
                         { \
                             'id': 'it1', \
+                            'creator': '', \
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
@@ -353,6 +354,7 @@ PRIVATE int do_test(void)
                         }, \
                         { \
                             'id': '0000000000000000002', \
+                            'creator': '', \
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000002', \
                             'match_cond': {}, \
@@ -360,9 +362,10 @@ PRIVATE int do_test(void)
                             'list_type': 'rt_disk'\
                         } \
                     ], \
-                    'iterators': [\
+                    'iterators': [ \
                         { \
                             'id': 'it1', \
+                            'creator': '', \
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': {}, \
@@ -399,6 +402,7 @@ PRIVATE int do_test(void)
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': 'it1', \
+                                'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000001', \
                                 'match_cond': {}, \
@@ -408,6 +412,7 @@ PRIVATE int do_test(void)
                         }, \
                         { \
                             'id': '0000000000000000002', \
+                            'creator': '', \
                             'key': '0000000000000000002', \
                             'topic_name': '%s', \
                             'match_cond': {}, \
@@ -444,6 +449,7 @@ PRIVATE int do_test(void)
                             'load_record_callback': 9999, \
                             'rt_disk': { \
                                 'id': '0000000000000000002', \
+                                'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000002', \
                                 'match_cond': {}, \
