@@ -7172,18 +7172,23 @@ PUBLIC void tranger2_print_md2_record(
     uint64_t offset = md_record->__offset__;
     uint64_t size = md_record->__size__;
 
-    char path[PATH_MAX];
+    char filename[NAME_MAX];
     get_t_filename(
-        bf,
-        bfsize,
+        filename,
+        sizeof(filename),
         tranger,
         topic,
         TRUE,   // TRUE for data, FALSE for md2
         (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
     );
 
+    const char *topic_dir = kw_get_str(0, topic, "directory", "", KW_REQUIRED);
+
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/keys/%s/%s", topic_dir, key, filename);
+
     snprintf(bf, bfsize,
-        "rowid:%"PRIu64", ofs:%"PRIu64", sz:%-5"PRIu64", "
+        "rowid:%7"PRIu64", ofs:%7"PRIu64", sz:%7"PRIu64", "
         "t:%"PRIu64", "
         "f:%s",
         (uint64_t)rowid,
