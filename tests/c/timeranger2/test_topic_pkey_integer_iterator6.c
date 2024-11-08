@@ -236,7 +236,6 @@ PRIVATE int do_test(json_t *tranger)
 PRIVATE json_t *open_all(void)
 {
     global_result = 0;
-    int result = 0;
 
     /*
      *  Write the tests in ~/tests_yuneta/
