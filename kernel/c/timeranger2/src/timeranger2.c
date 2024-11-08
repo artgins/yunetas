@@ -1019,8 +1019,8 @@ PRIVATE BOOL find_rt_disk_cb(
             "only_md", 1
         ),
         mater_to_update_client_load_record_callback,   // called on append new record
-        "__fs_client__", // creator
         rt_id,
+        "", // creator
         NULL
     );
 
@@ -1122,7 +1122,7 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                     ),
                     mater_to_update_client_load_record_callback, // called on append new record
                     rt_id,
-                    "__fs_client__", // creator
+                    "", // creator
                     NULL
                 );
 
@@ -1155,7 +1155,10 @@ PRIVATE int fs_master_callback(fs_event_t *fs_event)
                 }
 
                 json_t *rt = tranger2_get_rt_mem_by_id(
-                    tranger, topic_name, rt_id, "__fs_client__"
+                    tranger,
+                    topic_name,
+                    rt_id,
+                    ""
                 );
                 tranger2_close_rt_mem(tranger, rt);
             }
@@ -3304,19 +3307,17 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
         json_array_foreach(lists, idx, list) {
             const char *rt_id = kw_get_str(gobj, list, "id", "", 0);
             if(strcmp(id, rt_id)==0) {
-
-                if(!empty_string(creator)) {
-                    const char *creator_ = json_string_value(
-                        json_object_get(list, "creator")
-                    );
-                    if(creator_ && strcmp(creator, creator_)==0) {
-                        return list;
-                    } else {
-                        continue;
-                    }
+                const char *creator_ = json_string_value(
+                    json_object_get(list, "creator")
+                );
+                if(empty_string(creator) && empty_string(creator)) {
+                    return list;
                 }
-
-                return list;
+                if(strcmp(creator, creator_)==0) {
+                    return list;
+                } else {
+                    continue;
+                }
             }
         }
     }
@@ -3583,7 +3584,10 @@ PRIVATE int fs_client_callback(fs_event_t *fs_event)
                     break;
                 }
                 json_t *iterator = tranger2_get_iterator_by_id(
-                    tranger, topic_name, rt_id, "__fs_client__"
+                    tranger,
+                    topic_name,
+                    rt_id,
+                    ""
                 );
                 if(!iterator) {
                     gobj_log_error(gobj, 0,
@@ -3885,17 +3889,17 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
         json_array_foreach(disks, idx, disk) {
             const char *rt_id = kw_get_str(gobj, disk, "id", "", 0);
             if(strcmp(id, rt_id)==0) {
-                if(!empty_string(creator)) {
-                    const char *creator_ = json_string_value(
-                        json_object_get(disk, "creator")
-                    );
-                    if(creator_ && strcmp(creator, creator_)==0) {
-                        return disk;
-                    } else {
-                        continue;
-                    }
+                const char *creator_ = json_string_value(
+                    json_object_get(disk, "creator")
+                );
+                if(empty_string(creator) && empty_string(creator)) {
+                    return disk;
                 }
-                return disk;
+                if(strcmp(creator, creator_)==0) {
+                    return disk;
+                } else {
+                    continue;
+                }
             }
         }
     }
@@ -4724,17 +4728,17 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
     json_array_foreach(iterators, idx, iterator) {
         const char *iterator_id = json_string_value(json_object_get(iterator, "id"));
         if(strcmp(id, iterator_id)==0) {
-            if(!empty_string(creator)) {
-                const char *creator_ = json_string_value(
-                    json_object_get(iterator, "creator")
-                );
-                if(creator_ && strcmp(creator, creator_)==0) {
-                    return iterator;
-                } else {
-                    continue;
-                }
+            const char *creator_ = json_string_value(
+                json_object_get(iterator, "creator")
+            );
+            if(empty_string(creator) && empty_string(creator)) {
+                return iterator;
             }
-            return iterator;
+            if(strcmp(creator, creator_)==0) {
+                return iterator;
+            } else {
+                continue;
+            }
         }
     }
 
