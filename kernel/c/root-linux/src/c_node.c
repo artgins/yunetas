@@ -290,7 +290,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler, externally set, important!"),
+SDATA (DTP_POINTER,     "tranger",          0,                  0,              "Tranger handler, EXTERNALLY set, IMPORTANT!"),
 SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
