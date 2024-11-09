@@ -207,7 +207,13 @@ SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",          "M
 SDATA (DTP_STRING,      "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
 SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
-// HACK WARNING 2024-Jul-30, now if tranger_path is set then it's a client (not master)
+/*
+ *  HACK WARNING 2024-Jul-30: use of "tranger_path" to determine if this instance is master or not.
+ *  If tranger_path is empty then:
+ *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master
+ *  if it's not empty:
+ *      set then it's a client (not master) using this path to setup tranger
+ */
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, internal value"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
@@ -313,8 +319,29 @@ PRIVATE void mt_create(hgobj gobj)
      *  Create Timeranger
      *---------------------------*/
     const char *path = gobj_read_str_attr(gobj, "tranger_path");
-    BOOL master = FALSE;
+    BOOL master = gobj_read_bool_attr(gobj, "master");
+
     if(empty_string(path)) {
+        /*------------------------------------*
+         *  Without path, it must be master
+         *------------------------------------*/
+        /*
+         *  Warning about bad Authz configuration
+         */
+        if(!master) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Authz WITHOUT path must be configured as master",
+                NULL
+            );
+        }
+        master = TRUE;
+        gobj_write_bool_attr(gobj, "master", master);
+
+        /*
+         *  Set the path
+         */
         char path_[PATH_MAX];
         yuneta_realm_store_dir(
             path_,
@@ -327,7 +354,25 @@ PRIVATE void mt_create(hgobj gobj)
         );
         gobj_write_str_attr(gobj, "tranger_path", path_);
         path = gobj_read_str_attr(gobj, "tranger_path");
-        master = TRUE;
+
+    } else {
+        /*------------------------------------*
+         *  With path, it must be non-master
+         *------------------------------------*/
+        /*
+         *  Warning about bad Authz configuration
+         */
+        if(master) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Authz WITH path must be configured as non-master",
+                NULL
+            );
+        }
+
+        master = FALSE;
+        gobj_write_bool_attr(gobj, "master", master);
     }
 
     json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:i}",
@@ -343,7 +388,6 @@ PRIVATE void mt_create(hgobj gobj)
         gobj
     );
     priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger, "tranger");
-    gobj_write_bool_attr(gobj, "master", master);
 
     /*----------------------*
      *  Create Treedb
