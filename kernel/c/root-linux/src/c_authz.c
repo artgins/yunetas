@@ -116,23 +116,23 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_add_iss[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "iss",          0,              0,          "Issuer"),
-SDATAPM (DTP_STRING, "description",  0,              0,          "Description"),
+SDATAPM (DTP_STRING,    "iss",          0,              0,          "Issuer"),
+SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
 SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
-SDATAPM (DTP_STRING, "algorithm",    0,              0,          "Algorithm"),
-SDATAPM (DTP_STRING, "pkey",         0,              0,          "Public key"),
+SDATAPM (DTP_STRING,    "algorithm",    0,              0,          "Algorithm"),
+SDATAPM (DTP_STRING,    "pkey",         0,              0,          "Public key"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_rm_iss[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "iss",          0,              0,          "Issuer"),
+SDATAPM (DTP_STRING,    "iss",          0,              0,          "Issuer"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_users[] = {
@@ -143,19 +143,19 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_create_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
-SDATAPM (DTP_STRING, "role",         0,              0,          "Role, format: roles^ROLE^users"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING,    "role",         0,              0,          "Role, format: roles^ROLE^users"),
 SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_enable_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_disable_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
 SDATA_END()
 };
 
@@ -166,12 +166,12 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_roles[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "username",     0,              0,          "Username"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
 SDATA_END()
 };
 
@@ -209,7 +209,7 @@ SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
 // HACK WARNING 2024-Jul-30, now if tranger_path is set then it's a client (not master)
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
-SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             FALSE,      "the master is the only that can write, internal value"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, internal value"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
