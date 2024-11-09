@@ -28,6 +28,7 @@
 #include <yuneta_version.h>
 #include <yev_loop.h>
 #include <rotatory.h>
+#include <tr_treedb.h>
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "cpu.h"
@@ -102,6 +103,18 @@ PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, h
 PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+
+PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t* cmd_list_allowed_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_denied_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -225,6 +238,30 @@ SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission 
 SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
+
+PRIVATE sdata_desc_t pm_add_allowed_ip[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
+SDATAPM (DTP_BOOLEAN,   "allowed",      0,              0,          "TRUE allowed, FALSE denied"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_remove_allowed_ip[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_add_denied_ip[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
+SDATAPM (DTP_BOOLEAN,   "denied",       0,              0,          "TRUE denied, FALSE denied"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_remove_denied_ip[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
+SDATA_END()
+};
+
 PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -239,24 +276,23 @@ PRIVATE const char *a_read_attrs2[] = {"read-attrs2", 0};
 PRIVATE const char *a_pers_attrs[] = {"persistent-attrs", 0};
 
 PRIVATE const sdata_desc_t command_table[] = {
-/*-CMD---type-----------name------------------------alias---items-------json_fn---------description*/
-SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,       "Command's help"),
+/*-CMD---type-----------name------------------------alias---items-------json_fn---------------------description*/
+SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,                   "Command's help"),
 
-#ifdef __linux__
-// TODO implement in linux yuno
-//SDATACM (DTP_SCHEMA,    "info-cpus",                0,      0,              cmd_info_cpus,              "Info of cpus"),
-//SDATACM (DTP_SCHEMA,    "info-ifs",                 0,      0,              cmd_info_ifs,               "Info of ifs"),
-//SDATACM (DTP_SCHEMA,    "info-os",                  0,      0,              cmd_info_os,                "Info os"),
-//SDATACM (DTP_SCHEMA,    "list-allowed-ips",         0,      0,              cmd_list_allowed_ips,          "List allowed ips"),
-//SDATACM (DTP_SCHEMA,    "add-allowed-ip",           0,      pm_add_allowed_ip,  cmd_add_allowed_ip,          "Add a ip to allowed list"),
-//SDATACM (DTP_SCHEMA,    "remove-allowed-ip",        0,      pm_remove_allowed_ip, cmd_remove_allowed_ip,          "Add a ip to allowed list"),
-//SDATACM (DTP_SCHEMA,    "list-denied-ips",          0,      0,              cmd_list_denied_ips,          "List denied ips"),
-//SDATACM (DTP_SCHEMA,    "add-denied-ip",            0,      pm_add_denied_ip,  cmd_add_denied_ip,          "Add a ip to denied list"),
-//SDATACM (DTP_SCHEMA,    "remove-denied-ip",         0,      pm_remove_denied_ip, cmd_remove_denied_ip,          "Add a ip to denied list"),
+SDATACM (DTP_SCHEMA,    "info-cpus",                0,      0,          cmd_info_cpus,              "Info of cpus"),
+SDATACM (DTP_SCHEMA,    "info-ifs",                 0,      0,          cmd_info_ifs,               "Info of ifs"),
+SDATACM (DTP_SCHEMA,    "info-os",                  0,      0,          cmd_info_os,                "Info os"),
+SDATACM (DTP_SCHEMA,    "list-allowed-ips",         0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
+SDATACM (DTP_SCHEMA,    "add-allowed-ip",           0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
+SDATACM (DTP_SCHEMA,    "remove-allowed-ip",        0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
+SDATACM (DTP_SCHEMA,    "list-denied-ips",          0,      0,          cmd_list_denied_ips,        "List denied ips"),
+SDATACM (DTP_SCHEMA,    "add-denied-ip",            0,      pm_add_denied_ip, cmd_add_denied_ip,    "Add a ip to denied list"),
+SDATACM (DTP_SCHEMA,    "remove-denied-ip",         0,      pm_remove_denied_ip, cmd_remove_denied_ip, "Add a ip to denied list"),
+SDATACM (DTP_SCHEMA,    "system-schema",            0,      0, cmd_system_topic_schema,             "Get system topic schema"),
+SDATACM (DTP_SCHEMA,    "global-variables",         0,      0, cmd_global_variables,                "Get global variables"),
+
 SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,                 "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,          cmd_trunk_rotatory_file,    "Trunk rotatory files"),
-#endif
-
 SDATACM (DTP_SCHEMA,    "set-autokill",             0,      pm_set_autokill,cmd_set_autokill,       "Set time to autokill, in seconds"),
 SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,          cmd_reset_log_counters,     "Reset log counters"),
 SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,          cmd_view_log_counters,      "View log counters"),
@@ -265,7 +301,7 @@ SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,c
 SDATACM (DTP_SCHEMA,    "list-log-handlers",        0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
 SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,   "View gclass's register"),
-SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,0,cmd_view_service_register,"View service's register"),
+SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,0,cmd_view_service_register,         "View service's register"),
 
 SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
 SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
@@ -276,7 +312,7 @@ SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,          cmd_view
 SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
 SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
 
-SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_tree,cmd_view_gobj_tree,   "View gobj tree"),
+SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_tree,cmd_view_gobj_tree,        "View gobj tree"),
 
 SDATACM (DTP_SCHEMA,    "enable-gobj",              0,      pm_gobj_def_name,cmd_enable_gobj,       "Enable named-gobj, exec own mt_enable() or gobj_start_tree()"),
 SDATACM (DTP_SCHEMA,    "disable-gobj",             0,      pm_gobj_def_name,cmd_disable_gobj,      "Disable named-gobj, exec own mt_disable() or gobj_stop_tree()"),
@@ -2931,6 +2967,441 @@ PRIVATE json_t *cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
         0,
         0,
         gobj_log_list_handlers() // owned
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Cpu's info
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+//    int count;
+//    uv_cpu_info_t *cpu_infos;
+//    uv_cpu_info(&cpu_infos, &count);
+//
+//    json_t *jn_stats = json_array();
+//    uv_cpu_info_t *pcpu = cpu_infos;
+//    for(int i = 0; i<count; i++, pcpu++) {
+//        json_t *jn_cpu = json_object();
+//        json_array_append_new(
+//            jn_stats,
+//            jn_cpu
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "model",
+//            json_string(pcpu->model)
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "speed",
+//            json_integer(pcpu->speed)
+//        );
+//        /*
+//         *  This times are multiply of Clock system
+//         */
+//        json_object_set_new(
+//            jn_cpu,
+//            "time_user",
+//            json_integer(pcpu->cpu_times.user)
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "time_nice",
+//            json_integer(pcpu->cpu_times.nice)
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "time_sys",
+//            json_integer(pcpu->cpu_times.sys)
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "time_idle",
+//            json_integer(pcpu->cpu_times.idle)
+//        );
+//        json_object_set_new(
+//            jn_cpu,
+//            "time_irq",
+//            json_integer(pcpu->cpu_times.irq)
+//        );
+//    }
+//    uv_free_cpu_info(cpu_infos, count);
+//
+//    return msg_iev_build_webix(
+//        gobj,
+//        0,
+//        json_sprintf("Number of cpus: %d", count),
+//        0,
+//        jn_stats, // owned
+//        kw  // owned
+//    );
+    json_t *kw_response = build_command_response(
+        gobj,
+        -1,
+        json_sprintf("Not implemented"),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Ifs's info
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+//    int count;
+//    uv_interface_address_t *addresses;
+//    uv_interface_addresses(&addresses, &count);
+//
+//    json_t *jn_data = json_array();
+//    uv_interface_address_t *pif = addresses;
+//    for(int i = 0; i<count; i++, pif++) {
+//        json_t *jn_if = json_object();
+//        json_array_append_new(
+//            jn_data,
+//            jn_if
+//        );
+//        json_object_set_new(
+//            jn_if,
+//            "name",
+//            json_string(pif->name)
+//        );
+//        json_object_set_new(
+//            jn_if,
+//            "is_internal",
+//            pif->is_internal?json_true():json_false()
+//        );
+//
+//        char temp[64];
+//
+//        bin2hex(temp, sizeof(temp), (uint8_t *)pif->phys_addr, sizeof(pif->phys_addr));
+//        json_object_set_new(
+//            jn_if,
+//            "phys_addr",
+//            json_string(temp)
+//        );
+//
+//        // TODO how check if it's a ipv4 or ipv6?
+//        if(1 || !all_00(pif->address.address4.sin_zero, sizeof(pif->address.address4.sin_zero))) {
+//            uv_ip4_name(&pif->address.address4, temp, sizeof(temp));
+//            json_object_set_new(
+//                jn_if,
+//                "ip-v4",
+//                json_string(temp)
+//            );
+//        }
+//        if(1 || !all_00(pif->address.address6.sin6_addr.s6_addr, sizeof(pif->address.address6.sin6_addr.s6_addr))) {
+//            uv_ip6_name(&pif->address.address6, temp, sizeof(temp));
+//            json_object_set_new(
+//                jn_if,
+//                "ip-v6",
+//                json_string(temp)
+//            );
+//        }
+//        if(1 || !all_ff(pif->netmask.netmask4.sin_zero, sizeof(pif->netmask.netmask4.sin_zero))) {
+//            uv_ip4_name(&pif->netmask.netmask4, temp, sizeof(temp));
+//            json_object_set_new(
+//                jn_if,
+//                "mask-v4",
+//                json_string(temp)
+//            );
+//        }
+//        if(1 || !all_ff(pif->netmask.netmask6.sin6_addr.s6_addr, sizeof(pif->netmask.netmask6.sin6_addr.s6_addr))) {
+//            uv_ip6_name(&pif->netmask.netmask6, temp, sizeof(temp));
+//            json_object_set_new(
+//                jn_if,
+//                "mask-v6",
+//                json_string(temp)
+//            );
+//        }
+//    }
+//    uv_free_interface_addresses(addresses, count);
+//
+//    return msg_iev_build_webix(
+//        gobj,
+//        0,
+//        json_sprintf("Number of ifs: %d", count),
+//        0,
+//        jn_data, // owned
+//        kw  // owned
+//    );
+    json_t *kw_response = build_command_response(
+        gobj,
+        -1,
+        json_sprintf("Not implemented"),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  OS's info
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+//    uv_utsname_t uname;
+//    uv_os_uname(&uname);
+//
+//    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
+//        "sysname", uname.sysname,
+//        "release", uname.release,
+//        "version", uname.version,
+//        "machine", uname.machine
+//    );
+//
+//    return msg_iev_build_webix(
+//        gobj,
+//        0,
+//        0,
+//        0,
+//        jn_data, // owned
+//        kw  // owned
+//    );
+    json_t *kw_response = build_command_response(
+        gobj,
+        -1,
+        json_sprintf("Not implemented"),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_list_allowed_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "allowed_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *ip = kw_get_str(gobj, kw, "ip", "", 0);
+    BOOL allowed = kw_get_bool(gobj, kw, "allowed", 0, KW_WILD_NUMBER);
+
+    if(empty_string(ip)) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("What ip?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+    if(!kw_has_key(kw, "allowed")) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Allowed, true or false?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+
+    add_allowed_ip(ip, allowed);
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "allowed_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *ip = kw_get_str(gobj, kw, "ip", "", 0);
+    if(empty_string(ip)) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("What ip?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+
+    remove_allowed_ip(ip);
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "allowed_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_list_denied_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "denied_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *ip = kw_get_str(gobj, kw, "ip", "", 0);
+    BOOL denied = kw_get_bool(gobj, kw, "denied", 0, KW_WILD_NUMBER);
+
+    if(empty_string(ip)) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("What ip?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+    if(!kw_has_key(kw, "denied")) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Denied, true or false?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+
+    add_denied_ip(ip, denied);
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "denied_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *ip = kw_get_str(gobj, kw, "ip", "", 0);
+    if(empty_string(ip)) {
+        JSON_DECREF(kw)
+        return build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("What ip?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+
+    remove_denied_ip(ip);
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        json_incref(gobj_read_json_attr(gobj_yuno(), "denied_ips"))
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        _treedb_create_topic_cols_desc()
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        0,
+        gobj_global_variables()
     );
     JSON_DECREF(kw)
     return kw_response;
