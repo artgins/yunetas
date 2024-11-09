@@ -21,7 +21,7 @@
  *      Data
  ******************************************************/
 PRIVATE volatile int relaunch_times = 0;
-PRIVATE volatile int debug = 1;
+PRIVATE volatile int debug = 0;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
