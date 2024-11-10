@@ -6944,7 +6944,7 @@ PUBLIC int gobj_unsubscribe_event(
     /*-----------------------------*
      *      Find subscription
      *-----------------------------*/
-    KW_INCREF(kw);
+    KW_INCREF(kw)
     json_t *dl_subs = _find_subscription(
         publisher->dl_subscriptions,
         publisher,
