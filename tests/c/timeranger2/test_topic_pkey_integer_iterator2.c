@@ -138,7 +138,7 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000001",     // key,
-        NULL,   // match_cond, owned
+        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
         iterator_callback1,    // load_record_callback
         "it1",  // rt id
         NULL,   // creator
@@ -167,7 +167,7 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000002",     // key,
-        NULL,   // match_cond, owned
+        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
         iterator_callback2,    // load_record_callback
         NULL,   // rt id
         NULL,   // creator
@@ -215,7 +215,7 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000002",     // key,
-        NULL,   // match_cond, owned
+        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // id
         NULL,   // creator
@@ -348,7 +348,9 @@ PRIVATE int do_test(void)
                             'creator': '', \
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000001', \
-                            'match_cond': {}, \
+                            'match_cond': { \
+                                'rt_by_disk': true \
+                            }, \
                             'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
                         }, \
@@ -357,7 +359,9 @@ PRIVATE int do_test(void)
                             'creator': '', \
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000002', \
-                            'match_cond': {}, \
+                            'match_cond': { \
+                                'rt_by_disk': true \
+                            }, \
                             'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
                         } \
@@ -368,7 +372,9 @@ PRIVATE int do_test(void)
                             'creator': '', \
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
-                            'match_cond': {}, \
+                            'match_cond': { \
+                                'rt_by_disk': true \
+                            }, \
                             'segments': [ \
                                 { \
                                     'id': '2000-01-01', \
@@ -405,7 +411,9 @@ PRIVATE int do_test(void)
                                 'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000001', \
-                                'match_cond': {}, \
+                                'match_cond': { \
+                                    'rt_by_disk': true \
+                                }, \
                                 'load_record_callback': 99999, \
                                 'list_type': 'rt_disk'\
                             } \
@@ -415,7 +423,9 @@ PRIVATE int do_test(void)
                             'creator': '', \
                             'key': '0000000000000000002', \
                             'topic_name': '%s', \
-                            'match_cond': {}, \
+                            'match_cond': { \
+                                'rt_by_disk': true \
+                            }, \
                             'segments': [ \
                                 { \
                                     'id': '2000-01-01', \
@@ -452,7 +462,9 @@ PRIVATE int do_test(void)
                                 'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000002', \
-                                'match_cond': {}, \
+                                'match_cond': { \
+                                    'rt_by_disk': true \
+                                }, \
                                 'load_record_callback': 99999, \
                                 'list_type': 'rt_disk'\
                             } \

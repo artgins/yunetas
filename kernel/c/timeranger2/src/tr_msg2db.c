@@ -361,7 +361,7 @@ PUBLIC json_t *msg2db_open_db(
             );
         }
         json_t *match_cond = json_pack("{s:b, s:I}",
-            "rt_by_mem", master,
+            "rt_by_disk", !master,
             "load_record_callback", (json_int_t)(size_t)load_record_callback
         );
 

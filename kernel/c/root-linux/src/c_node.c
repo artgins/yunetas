@@ -2959,73 +2959,80 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
-    if(empty_string(topic_name)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What topic_name?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    int snap_id = kw_get_int(gobj, kw, "snap_id", 0, KW_WILD_NUMBER);
-    if(!snap_id) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What snap_id?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *topic = tranger2_topic(priv->tranger, topic_name);
-    if(!topic) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("Topic not found: '%s'", topic_name),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *jn_data = json_array();
-
-    json_t *jn_filter = json_pack("{s:b, s:i}",
-        "backward", 1,
-        "user_flag", snap_id
-    );
-
-
-    json_t *list = tranger2_open_iterator(
-        priv->tranger,
-        topic_name,
-        "key", // TODO
-        jn_filter,  //match_cond,  // owned
-        NULL,       //load_record_callback, // called on LOADING and APPENDING
-        "",         // iterator_id,     // iterator id, optional, if empty will be the key
-        NULL, // creator TODO
-        jn_data,    // JSON array, if not empty, fills it with the LOADING data, not owned
-        NULL
-    );
-    tranger2_close_iterator(priv->tranger, list);
-
     return msg_iev_build_response(
         gobj,
+        -1,
+        json_sprintf("TODO"),
         0,
         0,
-        tranger2_topic_desc(priv->tranger, topic_name),
-        jn_data,
         kw  // owned
     );
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+//    if(empty_string(topic_name)) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What topic_name?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    int snap_id = kw_get_int(gobj, kw, "snap_id", 0, KW_WILD_NUMBER);
+//    if(!snap_id) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("What snap_id?"),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+//    if(!topic) {
+//        return msg_iev_build_response(
+//            gobj,
+//            -1,
+//            json_sprintf("Topic not found: '%s'", topic_name),
+//            0,
+//            0,
+//            kw  // owned
+//        );
+//    }
+//
+//    json_t *jn_data = json_array();
+//
+//    json_t *jn_filter = json_pack("{s:b, s:i}",
+//        "backward", 1,
+//        "user_flag", snap_id
+//    );
+//
+//
+//    json_t *list = tranger2_open_iterator( TODO no será open_list ?
+//        topic_name,
+//        "key", // TODO
+//        jn_filter,  //match_cond,  // owned
+//        NULL,       //load_record_callback, // called on LOADING and APPENDING
+//        "",         // iterator_id,     // iterator id, optional, if empty will be the key
+//        NULL, // creator TODO
+//        jn_data,    // JSON array, if not empty, fills it with the LOADING data, not owned
+//        NULL
+//    );
+//    tranger2_close_iterator(priv->tranger, list);
+//
+//    return msg_iev_build_response(
+//        gobj,
+//        0,
+//        0,
+//        tranger2_topic_desc(priv->tranger, topic_name),
+//        jn_data,
+//        kw  // owned
+//    );
 }
 
 /***************************************************************************

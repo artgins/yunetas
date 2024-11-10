@@ -1007,7 +1007,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 ////
 ////    list = tranger_open_list(priv->tranger, jn_list);
 //int x;
-//    list = tranger2_open_iterator(
+//    list = tranger2_open_iterator( // No será open_list?
 //        priv->tranger,
 //        topic_name,
 //        key,

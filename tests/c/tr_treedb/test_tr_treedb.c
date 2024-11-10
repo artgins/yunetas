@@ -341,7 +341,7 @@ PRIVATE int test_schema(
 
 /***************************************************************************
  *              Test
- *  Open as master, open iterator (realtime by disk) with callback
+ *  Open as master, open iterator with callback
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
 PRIVATE int do_test(void)
@@ -694,7 +694,7 @@ print_json2("XXXXX", tranger);
         json_t *data = json_array();
         json_t *match_cond = json_pack("{s:b, s:b, s:i}",  // owned
             "backward", TRUE,
-            "rt_by_mem", TRUE,
+            "rt_by_disk", FALSE,
             "from_rowid", -1
         );
         json_t *it = tranger2_open_iterator(

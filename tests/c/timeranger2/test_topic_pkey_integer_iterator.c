@@ -112,7 +112,7 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000001",     // key,
-        NULL,   // match_cond, owned
+        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // iterator id
         NULL,   // creator
@@ -237,7 +237,9 @@ PRIVATE int do_test(void)
                             'creator': '', \
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
-                            'match_cond': {}, \
+                            'match_cond': { \
+                                'rt_by_disk': true \
+                            }, \
                             'segments': [ \
                                 { \
                                     'id': '2000-01-01', \

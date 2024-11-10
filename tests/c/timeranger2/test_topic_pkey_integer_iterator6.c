@@ -130,7 +130,7 @@ PRIVATE int do_test(json_t *tranger)
 
         match_cond = json_pack("{s:b, s:b, s:i}",
             "backward", 0,
-            "rt_by_mem", 0,
+            "rt_by_disk", 1,
             "from_rowid", -10
         );
         tranger2_open_iterator(

@@ -116,8 +116,9 @@ PRIVATE int search_data(
 
     leidos = 0;
     counter_rowid = from_rowid;
-    json_t *match_cond = json_pack("{s:b, s:I, s:I}",
+    json_t *match_cond = json_pack("{s:b, s:b, s:I, s:I}",
         "backward", BACKWARD,
+        "rt_by_disk", 1,
         "from_rowid", (json_int_t)from_rowid,
         "to_rowid", (json_int_t)to_rowid
     );

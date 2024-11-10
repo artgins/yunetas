@@ -287,7 +287,7 @@ PUBLIC int trq_load(tr_queue trq_)
 //        "id", path,
 //        "backward", 1,
 //        "rkey", "",
-//        "rt_by_mem", 1,
+//        "rt_by_disk", 0, ??? review
 //        "load_record_callback", (json_int_t)(size_t)load_id_callback
 //    );
     json_t *jn_extra = json_pack("{s:s, s:I}",
