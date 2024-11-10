@@ -967,17 +967,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    int opened = channels_opened(gobj);
     if(!kw) {
         kw = json_object();
     }
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channels_opened",
-        json_integer(opened)
-    );
     kw_set_subdict_value(
         gobj,
         kw,
@@ -1020,17 +1012,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    int opened = channels_opened(gobj);
     if(!kw) {
         kw = json_object();
     }
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channels_opened",
-        json_integer(opened)
-    );
     kw_set_subdict_value(
         gobj,
         kw,
