@@ -1344,8 +1344,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
         {EV_SEND_COMMAND_ANSWER,    EVF_PUBLIC_EVENT},
 
-        {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
-        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
         {0, 0}
     };
