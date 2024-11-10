@@ -1149,10 +1149,10 @@ PUBLIC int gobj_start_up(                   /* Initialize the yuno */
  *  HACK using C_YUNO:
  *      you MUST use gobj_set_yuno_must_die() to stop the yuno, don't use gobj_shutdown()
  */
-PUBLIC void gobj_shutdown(void);            /* Shutdown the yuno */
+PUBLIC void gobj_shutdown(void); /* Shutdown the yuno (In yunos use gobj_set_yuno_must_die()) */
 
-PUBLIC BOOL gobj_is_shutdowning(void);      /* Check if yuno is shutdowning */
-PUBLIC void gobj_end(void);                 /* De-initialize the yuno */
+PUBLIC BOOL gobj_is_shutdowning(void);  /* Check if yuno is shutdowning */
+PUBLIC void gobj_end(void);             /* De-initialize the yuno */
 
 /*---------------------------------*
  *      GClass functions
