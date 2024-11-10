@@ -121,7 +121,7 @@ static const json_desc_t instance_json_desc[] = {
 };
 
 static topic_desc_t db_tranger_desc[] = {
-    // Topic Name,      Pkey        Key Type    Tkey        Topic Json Desc
+    // Topic Name,      Pkey        Key Type    Tkey        Cols
     {"TOPIC",           "",         0,          "",         topic_json_desc},
     {"LIST",            "",         0,          "",         list_json_desc},
     {"MESSAGE",         "",         0,          "",         message_json_desc},

@@ -919,12 +919,12 @@ int do_test(void)
     };
 
     static topic_desc_t db_test_desc[] = {
-        // Topic Name,  Pkey        Key Type        Tkey            Topic Json Desc
-        {"FAMILY",      "name",     sf_string_key, "birthday",     family_json_desc},
-        {"FAMILY2",     "name",     sf_string_key, "birthday",     family_json_desc},
-        {"FAMILY3",     "name",     sf_string_key, "birthday",     family_json_desc},
-        {"FAMILY4",     "name",     sf_string_key, "birthday",     family_json_desc},
-        {"FAMILY5",     "name",     sf_string_key, "birthday",     family_json_desc},
+        // Topic Name,  Pkey        Key Type        Tkey            Cols                Topic ext
+        {"FAMILY",      "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
+        {"FAMILY2",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
+        {"FAMILY3",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
+        {"FAMILY4",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
+        {"FAMILY5",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
         {0}
     };
 
