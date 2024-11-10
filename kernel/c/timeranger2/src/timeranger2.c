@@ -3124,7 +3124,7 @@ PUBLIC uint32_t tranger2_read_user_flag(
 }
 
 /***************************************************************************
- *  Open realtime list
+ *  Open realtime by mem
  ***************************************************************************/
 PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
@@ -3327,7 +3327,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
 }
 
 /***************************************************************************
- *  Open realtime disk,
+ *  Open realtime by disk,
  *  valid when the yuno is the master writing or not-master reading,
  *  realtime messages from events of disk
  *  WARNING could arrives the last message
@@ -4570,36 +4570,9 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
          *  Open realtime for iterator
          *-------------------------------*/
         if(realtime) {
-            BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-            BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-            if(rt_by_mem && !master) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "tranger2_open_iterator(): rt_by_mem only to master",
-                    "topic_name",   "%s", topic_name,
-                    "id",           "%s", iterator_id,
-                    "creator",      "%s", creator,
-                    NULL
-                );
-                JSON_DECREF(iterator)
-                JSON_DECREF(extra)
-                return NULL;
-            }
+            BOOL rt_by_disk = json_boolean_value(json_object_get(match_cond, "rt_by_disk"));
             json_t *rt;
-            if(rt_by_mem) {
-                rt = tranger2_open_rt_mem(
-                    tranger,
-                    topic_name,
-                    key,                    // if empty receives all keys, else only this key
-                    json_incref(match_cond),
-                    load_record_callback,   // called on append new record
-                    iterator_id,
-                    creator,
-                    NULL
-                );
-                json_object_set(iterator, "rt_mem", rt);
-            } else {
+            if(rt_by_disk) {
                 rt = tranger2_open_rt_disk(
                     tranger,
                     topic_name,
@@ -4611,6 +4584,18 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                     NULL
                 );
                 json_object_set(iterator, "rt_disk", rt);
+            } else {
+                rt = tranger2_open_rt_mem(
+                    tranger,
+                    topic_name,
+                    key,                    // if empty receives all keys, else only this key
+                    json_incref(match_cond),
+                    load_record_callback,   // called on append new record
+                    iterator_id,
+                    creator,
+                    NULL
+                );
+                json_object_set(iterator, "rt_mem", rt);
             }
             if(!rt) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -6784,27 +6769,15 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         json_decref(jn_keys);
     }
 
+    /*-------------------------------*
+     *  Open realtime for list
+     *-------------------------------*/
     if(realtime) {
         json_t *rt = NULL;
 
-        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
-        BOOL rt_by_mem = json_boolean_value(json_object_get(match_cond, "rt_by_mem"));
-        if(rt_by_mem && !master) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger2_open_list(): rt_by_mem only to master",
-                "topic_name",   "%s", topic_name,
-                "rt_id",        "%s", rt_id,
-                NULL
-            );
-            JSON_DECREF(match_cond)
-            JSON_DECREF(extra)
-            return -1;
-        }
-
-        if(rt_by_mem) {
-            rt = tranger2_open_rt_mem(
+        BOOL rt_by_disk = json_boolean_value(json_object_get(match_cond, "rt_by_disk"));
+        if(rt_by_disk) {
+            rt = tranger2_open_rt_disk(
                 tranger,
                 topic_name,
                 key,                    // if empty receives all keys, else only this key
@@ -6815,7 +6788,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
                 json_incref(extra)    // extra, owned
             );
         } else {
-            rt = tranger2_open_rt_disk(
+            rt = tranger2_open_rt_mem(
                 tranger,
                 topic_name,
                 key,                    // if empty receives all keys, else only this key
