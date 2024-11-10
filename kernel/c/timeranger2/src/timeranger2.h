@@ -178,7 +178,8 @@ typedef struct {
     const char *pkey;   // Primary key
     const system_flag2_t system_flag;
     const char *tkey;   // Time key
-    const json_desc_t *json_desc;
+    const json_desc_t *jn_cols;
+    const json_desc_t *jn_topic_ext;
 } topic_desc_t;
 
 /***************************************************************

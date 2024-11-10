@@ -903,6 +903,7 @@ int main(int argc, char *argv[])
      *  Match conditions
      *----------------------------------*/
     match_cond = json_object();
+    json_object_set_new(match_cond, "rt_by_disk", json_true());
 
     if(arguments.from_t) {
         json_object_set_new(match_cond, "from_t", json_string(arguments.from_t));

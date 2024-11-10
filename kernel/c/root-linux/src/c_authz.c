@@ -83,7 +83,7 @@ static const json_desc_t oauth_iss_desc[] = {
 
 PRIVATE topic_desc_t db_messages_desc[] = {
 // Topic Name,          Pkey            System Flag     Tkey        Topic Json Desc
-{"users_accesses",      "username",     sf_string_key, "tm",       0},
+{"users_accesses",      "username",     sf_string_key,  "tm",       0},
 {0}
 };
 

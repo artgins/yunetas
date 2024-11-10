@@ -54,9 +54,9 @@ PUBLIC int trmsg_open_topics(
             topic_desc->topic_name,
             topic_desc->pkey,
             topic_desc->tkey,
-            NULL,
+            topic_desc->jn_topic_ext?create_json_record(gobj, topic_desc->jn_topic_ext):0, // owned
             topic_desc->system_flag,
-            topic_desc->json_desc?create_json_record(gobj, topic_desc->json_desc):0, // owned
+            topic_desc->jn_cols?create_json_record(gobj, topic_desc->jn_cols):0,
             0
         );
         if(!topic) {
