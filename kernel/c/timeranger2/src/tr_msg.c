@@ -50,7 +50,7 @@ PUBLIC int trmsg_open_topics(
         const topic_desc_t *topic_desc = descs + i;
 
         json_t *topic = tranger2_create_topic(
-            tranger,    // If the topic exists then only needs (tranger,name) parameters
+            tranger,    // If the topic exists, then only needs (tranger,name) parameters
             topic_desc->topic_name,
             topic_desc->pkey,
             topic_desc->tkey,
