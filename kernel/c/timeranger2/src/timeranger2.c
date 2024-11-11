@@ -219,7 +219,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
     json_t *tranger,
     json_t *topic
 );
-PRIVATE int fs_master_callback(fs_event_t *fs_event);
+PRIVATE int master_fs_callback(fs_event_t *fs_event);
 PRIVATE fs_event_t *monitor_rt_disk_by_client(
     hgobj gobj,
     yev_loop_t *yev_loop,
@@ -227,7 +227,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     json_t *topic,
     const char *id
 );
-PRIVATE int fs_client_callback(fs_event_t *fs_event);
+PRIVATE int client_fs_callback(fs_event_t *fs_event);
 PRIVATE int mater_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -1063,7 +1063,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         yev_loop,
         full_path,
         0,      // fs_flag,
-        fs_master_callback,
+        master_fs_callback,
         gobj,
         tranger    // user_data
     );
@@ -1083,7 +1083,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
 /***************************************************************************
  *  Clients will create a rt disk directory in /disks when open a rt disk
  ***************************************************************************/
-PRIVATE int fs_master_callback(fs_event_t *fs_event)
+PRIVATE int master_fs_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
@@ -3509,7 +3509,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         yev_loop,
         full_path,
         FS_FLAG_RECURSIVE_PATHS,      // fs_flag,
-        fs_client_callback,
+        client_fs_callback,
         gobj,
         tranger    // user_data
     );
@@ -3527,9 +3527,9 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
 }
 
 /***************************************************************************
- *  The master signalize a new record appended
+ *  The MASTER signalize a new record appended
  ***************************************************************************/
-PRIVATE int fs_client_callback(fs_event_t *fs_event)
+PRIVATE int client_fs_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
