@@ -1110,8 +1110,8 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                     gobj_log_debug(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
-                        "msg",              "%s", "MASTER: Directory created by client (open rt disk)",
-                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client (open rt disk)",
+                        "msg",              "%s", "MASTER: Directory created by client",
+                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client",
                         "action",           "%s", "tranger2_open_rt_mem()",
                         "full_path",        "%s", full_path,
                         NULL
@@ -1126,8 +1126,8 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                     gobj_log_debug(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
-                        "msg",              "%s", "MASTER: Directory created by client (rt disk)",
-                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client (rt disk)",
+                        "msg",              "%s", "MASTER: Directory created by client",
+                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client",
                         "action",           "%s", "tranger2_open_rt_mem()",
                         "topic_name",       "%s", topic_name,
                         "disks",            "%s", disks,
@@ -3682,7 +3682,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
                         "msg",              "%s", "CLIENT: Directory created",
-                        "msg2",             "%s", "💾🔷 CLIENT: Directory create",
+                        "msg2",             "%s", "💾🔷 CLIENT: Directory created",
                         "action",           "%s", "ignored",
                         "full_path",        "%s", full_path,
                         NULL
@@ -3711,7 +3711,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
                         "msg",              "%s", "CLIENT: Directory created",
-                        "msg2",             "%s", "💾🔷 CLIENT: Directory create",
+                        "msg2",             "%s", "💾🔷 CLIENT: Directory created",
                         "action",           "%s", "ignored",
                         "topic_name",       "%s", topic_name,
                         "disks",            "%s", disks,
@@ -3788,23 +3788,6 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         "msg",          "%s", "Bad path client 2 /disks/rt_id/key/md2",
                         "directory",    "%s", fs_event->directory,
                         "filename",     "%s", fs_event->filename,
-                        NULL
-                    );
-                    break;
-                }
-                json_t *iterator = tranger2_get_iterator_by_id(
-                    tranger,
-                    topic_name,
-                    rt_id,
-                    ""
-                );
-                if(!iterator) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "iterator NOT FOUND",
-                        "topic_name",   "%s", topic_name,
-                        "rt_id",        "%s", rt_id,
                         NULL
                     );
                     break;
