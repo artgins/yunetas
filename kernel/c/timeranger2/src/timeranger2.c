@@ -228,7 +228,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     const char *id
 );
 PRIVATE int client_fs_callback(fs_event_t *fs_event);
-PRIVATE int mater_to_update_client_load_record_callback(
+PRIVATE int master_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -959,6 +959,16 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
             // (1) MONITOR (MI) /disks/
             // Master to monitor the (topic) directory where clients will mark their rt disks.
 
+            if(gobj_trace_level(gobj) & TRACE_FS) {
+                gobj_log_debug(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                    "msg",              "%s", "MASTER:  MONITOR INOTIFY (MI) /disks/",
+                    "msg2",             "%s", "👓🔷 MASTER:  MONITOR INOTIFY (MI) /disks/",
+                    NULL
+                );
+            }
+
             /*
              *  HACK this function will open mem lists for directories found in /disk
              */
@@ -1018,7 +1028,7 @@ PRIVATE BOOL find_rt_disk_cb(
         json_pack("{s:b}",  // match_cond, all records, only_md
             "only_md", 1
         ),
-        mater_to_update_client_load_record_callback,   // called on append new record
+        master_to_update_client_load_record_callback,   // called on append new record
         rt_id,
         "", // creator
         NULL
@@ -1094,12 +1104,37 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
             {
-                //printf("  %sMASTER Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 // (3) MONITOR Client has opened a rt disk for the topic,
                 // Master to open a mem rt to update /disks/rt_id/
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "MASTER: Directory created by client (open rt disk)",
+                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client (open rt disk)",
+                        "action",           "%s", "tranger2_open_rt_mem()",
+                        "full_path",        "%s", full_path,
+                        NULL
+                    );
+                }
+
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
                 char *topic_name = pop_last_segment(full_path);
+
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "MASTER: Directory created by client (rt disk)",
+                        "msg2",             "%s", "💾🔷 MASTER: Directory created by client (rt disk)",
+                        "action",           "%s", "tranger2_open_rt_mem()",
+                        "topic_name",       "%s", topic_name,
+                        "disks",            "%s", disks,
+                        "rt_id",            "%s", rt_id,
+                        NULL
+                    );
+                }
 
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
@@ -1120,7 +1155,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                     json_pack("{s:b}",  // match_cond, all records, only_md
                         "only_md", 1
                     ),
-                    mater_to_update_client_load_record_callback, // called on append new record
+                    master_to_update_client_load_record_callback, // called on append new record
                     rt_id,
                     "", // creator
                     NULL
@@ -1132,12 +1167,37 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
             break;
         case FS_SUBDIR_DELETED_TYPE:
             {
-                //printf("  %sMASTER Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
                 // MONITOR Client has closed a rt disk for the topic,
                 // Master to close the mem rt
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "MASTER: Directory deleted by client (close rt disk)",
+                        "msg2",             "%s", "💾🔶 MASTER: Directory deleted by client (close rt disk)",
+                        "action",           "%s", "tranger2_close_rt_mem()",
+                        "full_path",        "%s", full_path,
+                        NULL
+                    );
+                }
+
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
                 char *topic_name = pop_last_segment(full_path);
+
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "MASTER: Directory deleted by client",
+                        "msg2",             "%s", "💾🔶 MASTER: Directory deleted by client",
+                        "action",           "%s", "tranger2_close_rt_mem()",
+                        "topic_name",       "%s", topic_name,
+                        "disks",            "%s", disks,
+                        "rt_id",            "%s", rt_id,
+                        NULL
+                    );
+                }
 
                 if(strcmp(disks, "disks")!=0) {
                     /*
@@ -1164,7 +1224,6 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
             }
             break;
         case FS_FILE_CREATED_TYPE:
-            //printf("  %sMASTER File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1173,7 +1232,6 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
             );
             break;
         case FS_FILE_DELETED_TYPE:
-            //printf("  %sMASTER File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1182,7 +1240,6 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
             );
             break;
         case FS_FILE_MODIFIED_TYPE:
-            //printf("  %sMASTER File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1198,7 +1255,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
 /***************************************************************************
  *  Master mem rt callback to update /disks/rt_id/
  ***************************************************************************/
-PRIVATE int mater_to_update_client_load_record_callback(
+PRIVATE int master_to_update_client_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -1208,11 +1265,15 @@ PRIVATE int mater_to_update_client_load_record_callback(
     json_t *record      // must be owned
 )
 {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
     char full_path_dest[PATH_MAX];
     char full_path_orig[PATH_MAX];
 
     // (4) MONITOR update directory /disks/rt_id/ on new records
     // Create a hard link of md2 file
+    // Log is below
+
     json_t *rt = list;
     const char *disk_path = json_string_value(json_object_get(rt, "disk_path"));
 
@@ -1245,9 +1306,21 @@ PRIVATE int mater_to_update_client_load_record_callback(
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
     snprintf(full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename);
 
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "MASTER: rt mem callback",
+            "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
+            "action",           "%s", "update directory /disks/rt_id/, create hard link",
+            "src",              "%s", full_path_orig,
+            "dst",              "%s", full_path_dest,
+            NULL
+        );
+    }
+
     if(!is_regular_file(full_path_dest)) {
         if(link(full_path_orig, full_path_dest)<0) {
-            hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1412,6 +1485,17 @@ PUBLIC int tranger2_close_topic(
     yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     if(yev_loop && master) {
+        if(gobj_trace_level(gobj) & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "MASTER: Unwatching (MI) topic /disks/",
+                "msg2",             "%s", "👓🔶 MASTER:  Unwatching (MI) topic /disks/",
+                "action",           "%s", "fs_stop_watcher_event()",
+                NULL
+            );
+        }
+
         fs_event_t *fs_event_master = (fs_event_t *)kw_get_int(
             gobj, topic, "fs_event_master", 0, KW_REQUIRED
         );
@@ -3218,7 +3302,21 @@ PUBLIC json_t *tranger2_open_rt_mem(
         mem
     );
 
-//printf("OPEN LIST mem ===================> %p, id %s\n", mem, id); // TODO
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "open rt mem",
+            "msg2",             "%s", "📝🔷 open rt mem",
+            "topic_name",       "%s", topic_name,
+            "key",              "%s", key,
+            "rt_id",            "%s", id?id:"",
+            "creator",          "%s", creator?creator:"",
+            "p",                "%p", mem,
+            NULL
+        );
+    }
+
     return mem;
 }
 
@@ -3230,7 +3328,6 @@ PUBLIC int tranger2_close_rt_mem(
     json_t *mem
 )
 {
-
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     if(!mem) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -3242,10 +3339,22 @@ PUBLIC int tranger2_close_rt_mem(
         return -1;
     }
 
-//const char *id = kw_get_str(gobj, mem, "id", "", 0);
-//printf("CLOSE LIST mem ===================> %p, id %s\n", mem, id); // TODO
-
+    const char *id = kw_get_str(gobj, mem, "id", "", 0);
     const char *topic_name = kw_get_str(gobj, mem, "topic_name", "", KW_REQUIRED);
+
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "open rt mem",
+            "msg2",             "%s", "📝🔶 close rt mem",
+            "topic_name",       "%s", topic_name,
+            "id",               "%s", id,
+            "p",                "%p", mem,
+            NULL
+        );
+    }
+
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
     json_t *lists = kw_get_dict_value(gobj, topic, "lists", 0, KW_REQUIRED);
@@ -3432,6 +3541,21 @@ PUBLIC json_t *tranger2_open_rt_disk(
         disk
     );
 
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "open rt disk",
+            "msg2",             "%s", "💽🔷 open rt disk",
+            "topic_name",       "%s", topic_name,
+            "key",              "%s", key,
+            "rt_id",            "%s", id?id:"",
+            "creator",          "%s", creator?creator:"",
+            "p",                "%p", disk,
+            NULL
+        );
+    }
+
     /*
      *  Create in disk the realtime disk directory and monitor
      */
@@ -3442,6 +3566,18 @@ PUBLIC json_t *tranger2_open_rt_disk(
         if(1) {
             // (2) MONITOR (C) (MI)r /disks/rt_id/
             // The directory is created inside this function
+
+            if(gobj_trace_level(gobj) & TRACE_FS) {
+                gobj_log_debug(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                    "msg",              "%s", "MASTER:  MONITOR INOTIFY (MI)r /disks/rt_id/",
+                    "msg2",             "%s", "👓🔷 MASTER:  MONITOR INOTIFY (MI)r /disks/rt_id/",
+                    "action",           "%s", "monitor_rt_disk_by_client()",
+                    NULL
+                );
+            }
+
             fs_event_t *fs_event_client = monitor_rt_disk_by_client(
                 gobj, yev_loop, tranger, topic, id
             );
@@ -3454,7 +3590,6 @@ PUBLIC json_t *tranger2_open_rt_disk(
         }
     }
 
-//printf("OPEN LIST disk ===================> %p, id %s\n", disk, id); // TODO
     return disk;
 }
 
@@ -3541,13 +3676,23 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
         case FS_SUBDIR_CREATED_TYPE:
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
             // Key directory created, ignore
-
-            //printf("  %sCLIENT Dire created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             {
-                pop_last_segment(full_path);    // char *key =
-                pop_last_segment(full_path);    // char *rt_id =
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "CLIENT: Directory created",
+                        "msg2",             "%s", "💾🔷 CLIENT: Directory create",
+                        "action",           "%s", "ignored",
+                        "full_path",        "%s", full_path,
+                        NULL
+                    );
+                }
+
+                char *key = pop_last_segment(full_path);
+                char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
-                //pop_last_segment(full_path);    // char *topic_name =
+                char *topic_name = pop_last_segment(full_path);
 
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
@@ -3561,11 +3706,24 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                     break;
                 }
 
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "CLIENT: Directory created",
+                        "msg2",             "%s", "💾🔷 CLIENT: Directory create",
+                        "action",           "%s", "ignored",
+                        "topic_name",       "%s", topic_name,
+                        "disks",            "%s", disks,
+                        "rt_id",            "%s", rt_id,
+                        "key",              "%s", key,
+                        NULL
+                    );
+                }
             }
             break;
         case FS_SUBDIR_DELETED_TYPE:
             // Key directory deleted, ignore, it's me
-            //printf("  %sCLIENT Dire deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3578,7 +3736,18 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             // Record to key added, read
             // Delete the hard link of md2 file when read
             {
-                ////printf("  %sCLIENT File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "CLIENT: File created",
+                        "msg2",             "%s", "💾🔷 CLIENT: File created",
+                        "action",           "%s", "unlink",
+                        "full_path",        "%s", full_path,
+                        NULL
+                    );
+                }
+
                 if(unlink(full_path)<0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -3595,6 +3764,22 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 char *disks = pop_last_segment(full_path);
                 char *topic_name = pop_last_segment(full_path);
                 json_t *topic = tranger2_topic(tranger,topic_name);
+
+                if(gobj_trace_level(gobj) & TRACE_FS) {
+                    gobj_log_debug(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_YEV_LOOP,
+                        "msg",              "%s", "CLIENT: File created",
+                        "msg2",             "%s", "💾🔷 CLIENT: File created",
+                        "action",           "%s", "update_new_records",
+                        "topic_name",       "%s", topic_name,
+                        "disks",            "%s", disks,
+                        "rt_id",            "%s", rt_id,
+                        "key",              "%s", key,
+                        "md2",              "%s", md2,
+                        NULL
+                    );
+                }
 
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
@@ -3639,10 +3824,19 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             }
             break;
         case FS_FILE_DELETED_TYPE:
-            ////printf("  %sCLIENT File deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
+            if(gobj_trace_level(gobj) & TRACE_FS) {
+                gobj_log_debug(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_YEV_LOOP,
+                    "msg",              "%s", "CLIENT: File delete",
+                    "msg2",             "%s", "💾🔶 CLIENT: File delete",
+                    "action",           "%s", "ignore",
+                    "full_path",        "%s", full_path,
+                    NULL
+                );
+            }
             break;
         case FS_FILE_MODIFIED_TYPE:
-            //printf("  %sCLIENT File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3829,15 +4023,38 @@ PUBLIC int tranger2_close_rt_disk(
         return -1;
     }
 
-//const char *id = kw_get_str(gobj, disk, "id", "", 0);
-//printf("CLOSE LIST disk ===================> %p, id %s\n", disk, id); // TODO
-
+    const char *id = kw_get_str(gobj, disk, "id", "", 0);
     const char *topic_name = kw_get_str(gobj, disk, "topic_name", "", KW_REQUIRED);
+
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "open rt mem",
+            "msg2",             "%s", "💽🔶 close rt disk",
+            "topic_name",       "%s", topic_name,
+            "id",               "%s", id,
+            "p",                "%p", disk,
+            NULL
+        );
+    }
+
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
     yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     if(yev_loop) {
         // MONITOR Client Unwatching (MI) topic /disks/rt_id/
+        if(gobj_trace_level(gobj) & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "CLIENT: Unwatching (MI) topic /disks/rt_id/",
+                "msg2",             "%s", "👓🔶 CLIENT: Unwatching (MI) topic /disks/rt_id/",
+                "action",           "%s", "fs_stop_watcher_event()",
+                NULL
+            );
+        }
+
         fs_event_t *fs_event_client = (fs_event_t *)kw_get_int(
             gobj, disk, "fs_event_client", 0, KW_REQUIRED
         );
@@ -3852,6 +4069,18 @@ PUBLIC int tranger2_close_rt_disk(
             directory,
             kw_get_str(gobj, disk, "id", "", KW_REQUIRED)
         );
+
+        if(gobj_trace_level(gobj) & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "CLIENT: (D) /disks/rt_id/",
+                "msg2",             "%s", "👓🔶 CLIENT: (D) /disks/rt_id/",
+                "action",           "%s", "rmrdir()",
+                "full_path",        "%s", full_path,
+                NULL
+            );
+        }
         rmrdir(full_path);
     }
 

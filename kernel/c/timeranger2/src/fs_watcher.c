@@ -298,7 +298,7 @@ PRIVATE int yev_callback(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
-            "msg2",         "%s", "💾💾💥 yev callback",
+            "msg2",         "%s", "💾💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_event->result,
@@ -383,8 +383,17 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     const char *path;
     char full_path[PATH_MAX];
 
-    if(fs_event->fs_flag & FS_FLAG_DEBUG) {
-        gobj_trace_msg(gobj, "ev: %d '%s',", event->wd, event->len? event->name:"");
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "inotify_event",
+            "msg2",         "%s", "💾💾💥 inotify_event",
+            "event->wd",    "%d", event->wd,
+            "event->name",  "%s", event->len? event->name:"",
+            NULL
+        );
+
         for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
             bits_table_t entry = bits_table[i];
             if(entry.bit & event->mask) {
@@ -499,6 +508,8 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
  ***************************************************************************/
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 {
+    hgobj gobj = fs_event->gobj;
+
     json_t *watch = json_object_get(fs_event->jn_tracked_paths, path);
     if(watch) {
         gobj_log_error(fs_event->gobj, 0,
@@ -510,9 +521,6 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         );
         return -1;
     }
-
-//printf("====> add watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
-//print_json2("add_watch", fs_event->jn_tracked_paths);
 
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
@@ -526,7 +534,24 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         );
         return -1;
     }
+
     json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
+
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(0, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "add watch",
+            "msg2",             "%s", "💾🔷 add watch",
+            "path",             "%s", path,
+            "wd",               "%d", wd,
+            "fs_flag",          "%d", fs_event->fs_flag,
+            "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
+            "tracked_paths",    "%j", fs_event->jn_tracked_paths,
+            NULL
+        );
+    }
+
     return wd;
 }
 
@@ -535,10 +560,24 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
  ***************************************************************************/
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
+    hgobj gobj = fs_event->gobj;
+
     json_object_del(fs_event->jn_tracked_paths, path);
 
-//printf("====> remove watch: %s, recursive %d\n", path, fs_event->fs_flag); // TODO TEST
-//print_json2("remove_watch", fs_event->jn_tracked_paths);
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(0, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "remove watch",
+            "msg2",             "%s", "💾🔶 remove watch",
+            "path",             "%s", path,
+            "wd",               "%d", wd,
+            "fs_flag",          "%d", fs_event->fs_flag,
+            "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
+            "tracked_paths",    "%j", fs_event->jn_tracked_paths,
+            NULL
+        );
+    }
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
         if(errno != EINVAL) { // Han borrado el directorio

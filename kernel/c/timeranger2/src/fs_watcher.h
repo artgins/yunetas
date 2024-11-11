@@ -36,7 +36,6 @@ typedef enum  {
 typedef enum  {
     FS_FLAG_RECURSIVE_PATHS     = 0x0001,     // add path and all his subdirectories
     FS_FLAG_MODIFIED_FILES      = 0x0002,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
-    FS_FLAG_DEBUG               = 0x8000,     // Add FS_FILE_MODIFIED_TYPE, WARNING about using it.
 } fs_flag_t;
 
 
