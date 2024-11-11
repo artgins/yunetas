@@ -3487,6 +3487,10 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         id
     );
 
+    /*
+     *  the monitor_rt_disk_by_client must delete his directory and re-create,
+     *  this is done after reading all records and now to signalize to master to update after now
+     */
     if(is_directory(full_path)) {
         if(rmdir(full_path)<0) {
             gobj_log_error(gobj, 0,
