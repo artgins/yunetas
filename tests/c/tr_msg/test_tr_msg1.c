@@ -284,7 +284,9 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY",   // topic
-                json_pack("{s:b}", "rt_by_disk", 1),       // match_cond
+                json_pack("{s:b}", // match_cond
+                    "rt_by_disk", 1
+                ),
                 NULL,       // extra
                 NULL,       // rt_id
                 NULL        // creator
@@ -333,10 +335,11 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY2",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "backward", 0,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -389,10 +392,11 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY3",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "backward", 1,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -445,10 +449,11 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY4",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "backward", 0,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -500,10 +505,11 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY5",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "backward", 1,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -541,11 +547,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY2",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 2,
                     "backward", 0,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -582,11 +589,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY3",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 2,
                     "backward", 1,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -624,11 +632,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY4",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 2,
                     "backward", 0,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -665,11 +674,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY5",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 2,
                     "backward", 1,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -707,11 +717,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY2",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 1,
                     "backward", 0,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -748,11 +759,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY3",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 1,
                     "backward", 1,
-                    "order_by_tm", 1
+                    "order_by_tm", 1,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -790,11 +802,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY4",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 1,
                     "backward", 0,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
@@ -831,11 +844,12 @@ static int test(json_t *tranger, int caso, int cnt)
             json_t *list  = trmsg_open_list(
                 tranger,
                 "FAMILY5",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:i, s:b, s:b, s:b}",  // match_cond
                     "key", "Bisnieto",
                     "max_key_instances", 1,
                     "backward", 1,
-                    "order_by_tm", 0
+                    "order_by_tm", 0,
+                    "rt_by_disk", 1
                 ),
                 NULL,       // extra
                 "rt_id",    // rt_id
