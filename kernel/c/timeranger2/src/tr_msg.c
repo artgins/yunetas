@@ -133,7 +133,7 @@ PRIVATE int load_record_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *jn_messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
-    json_t *jn_filter2 = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
+    json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
 
     /*
      *  Search the message for this key
@@ -160,7 +160,7 @@ PRIVATE int load_record_callback(
      */
     json_t *match_fields = kw_get_dict_value(
         gobj,
-        jn_filter2,
+        match_cond,
         "match_fields",
         0,
         0
@@ -190,7 +190,7 @@ PRIVATE int load_record_callback(
     trmsg_instance_callback_t trmsg_instance_callback =
         (trmsg_instance_callback_t)(size_t)kw_get_int(
         gobj,
-        list,
+        match_cond,
         "trmsg_instance_callback",
         0,
         0
@@ -219,7 +219,7 @@ PRIVATE int load_record_callback(
      */
     unsigned max_key_instances = kw_get_int(
         gobj,
-        jn_filter2,
+        match_cond,
         "max_key_instances",
         0,
         KW_WILD_NUMBER
@@ -242,7 +242,7 @@ PRIVATE int load_record_callback(
     /*
      *  Inserta
      */
-    if(kw_get_bool(gobj, jn_filter2, "order_by_tm", 0, 0)) {
+    if(kw_get_bool(gobj, match_cond, "order_by_tm", 0, 0)) {
         /*
          *  Order by tm
          */

@@ -689,7 +689,6 @@ PUBLIC void gobj_end(void)
     }
 
     if(__yuno__) {
-        gobj_destroy(__yuno__);
         gobj_log_info(0, 0,
             "msgset",           "%s", MSGSET_STARTUP,
             "msg",              "%s", "Yuno stopped, gobj end",
@@ -698,6 +697,7 @@ PUBLIC void gobj_end(void)
             "yuno",             "%s", gobj_yuno_role_plus_name(),
             NULL
         );
+        gobj_destroy(__yuno__);
         __yuno__ = 0;
     }
 
