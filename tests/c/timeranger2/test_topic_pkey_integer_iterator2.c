@@ -352,7 +352,6 @@ PRIVATE int do_test(void)
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000001', \
                             'match_cond': { \
-                                'rt_by_disk': true \
                             }, \
                             'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
@@ -363,7 +362,6 @@ PRIVATE int do_test(void)
                             'topic_name': 'topic_pkey_integer', \
                             'key': '0000000000000000002', \
                             'match_cond': { \
-                                'rt_by_disk': true \
                             }, \
                             'load_record_callback': 99999, \
                             'list_type': 'rt_disk'\
@@ -376,7 +374,6 @@ PRIVATE int do_test(void)
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': { \
-                                'rt_by_disk': true \
                             }, \
                             'segments': [ \
                                 { \
@@ -415,7 +412,6 @@ PRIVATE int do_test(void)
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000001', \
                                 'match_cond': { \
-                                    'rt_by_disk': true \
                                 }, \
                                 'load_record_callback': 99999, \
                                 'list_type': 'rt_disk'\
@@ -427,7 +423,6 @@ PRIVATE int do_test(void)
                             'key': '0000000000000000002', \
                             'topic_name': '%s', \
                             'match_cond': { \
-                                'rt_by_disk': true \
                             }, \
                             'segments': [ \
                                 { \
@@ -466,7 +461,6 @@ PRIVATE int do_test(void)
                                 'topic_name': 'topic_pkey_integer', \
                                 'key': '0000000000000000002', \
                                 'match_cond': { \
-                                    'rt_by_disk': true \
                                 }, \
                                 'load_record_callback': 99999, \
                                 'list_type': 'rt_disk'\

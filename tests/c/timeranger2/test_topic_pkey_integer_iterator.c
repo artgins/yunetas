@@ -239,7 +239,6 @@ PRIVATE int do_test(void)
                             'key': '0000000000000000001', \
                             'topic_name': '%s', \
                             'match_cond': { \
-                                'rt_by_disk': true \
                             }, \
                             'segments': [ \
                                 { \
