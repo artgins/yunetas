@@ -3492,16 +3492,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
      *  this is done after reading all records and now to signalize to master to update after now
      */
     if(is_directory(full_path)) {
-        if(rmdir(full_path)<0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "rmdir() FAILED",
-                "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-        }
+        rmrdir(full_path);
     }
     if(mkdir(full_path, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
         gobj_log_error(gobj, 0,
@@ -3861,7 +3852,7 @@ PUBLIC int tranger2_close_rt_disk(
             directory,
             kw_get_str(gobj, disk, "id", "", KW_REQUIRED)
         );
-        rmrdir(full_path); // TODO para testear quita y pon
+        rmrdir(full_path);
     }
 
     json_t *disks = kw_get_dict_value(gobj, topic, "disks", 0, KW_REQUIRED);
