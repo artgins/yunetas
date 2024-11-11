@@ -489,10 +489,6 @@ typedef int (*tranger2_load_record_callback_t)(
         backward
         only_md     (don't load jn_record on calling callbacks)
 
-        rt_by_disk  if TRUE  => rt by disk
-                    if FALSE => realtime by memory
-                    default: FALSE
-
         from_rowid  // if to_rowid && to_t && to_tm is 0 then there is realtime
         to_rowid
         from_t
@@ -508,6 +504,8 @@ typedef int (*tranger2_load_record_callback_t)(
 **rst**/
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
+ *      rt_by_disk  if TRUE  => rt by disk
+ *                  if FALSE => realtime by memory
  */
 PUBLIC json_t *tranger2_open_iterator(
     json_t *tranger,
@@ -516,6 +514,7 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *match_cond,  // owned
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
+    BOOL rt_by_disk,
     const char *creator,     // creator
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
     json_t *extra       // owned, user data, this json will be added to the return iterator
@@ -654,6 +653,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
     json_t *match_cond, // owned
     json_t *extra,      // owned, will be added to the returned rt
     const char *rt_id,
+    BOOL rt_by_disk,
     const char *creator,
     json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
 );
