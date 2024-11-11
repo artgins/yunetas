@@ -990,10 +990,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         }
 
-        json_t *match_cond = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "rt_by_disk", !master,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
@@ -1006,6 +1005,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             match_cond,     // owned
             jn_extra,       // owned
             rt_id,          // rt_id
+            !master,        // rt_by_disk
             treedb_name,    // creator
             NULL
         )<0) {
@@ -1043,10 +1043,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             );
         }
 
-        json_t *match_cond = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "rt_by_disk", !master,
             "load_record_callback", (json_int_t)(size_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
@@ -1059,6 +1058,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             match_cond,     // owned
             jn_extra,       // owned
             rt_id,          // rt_id
+            !master,        // rt_by_disk
             treedb_name,    // creator
             NULL
         )<0) {
@@ -1427,11 +1427,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         );
     }
 
-    json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
+    json_t *match_cond = json_pack("{s:s, s:b, s:s, s:I}",
         "id", rt_id,
         "backward", 1,
         "rkey", "",
-        "rt_by_disk", !master,
         "load_record_callback", (json_int_t)(size_t)load_id_callback
     );
 
@@ -1455,6 +1454,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         match_cond,     // owned
         jn_extra,       // owned
         rt_id,          // rt_id
+        !master,        // rt_by_disk
         treedb_name,    // creator
         &rt // TODO NULL
     )<0) {
@@ -1501,10 +1501,9 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             );
         }
 
-        json_t *match_cond2 = json_pack("{s:b, s:s, s:b, s:I}",
+        json_t *match_cond2 = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "rt_by_disk", !master,
             "load_record_callback", (json_int_t)(size_t)load_pkey2_callback
         );
 
@@ -1529,6 +1528,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             match_cond2,    // owned
             jn_extra_,      // owned
             rt_id,          // rt_id
+            !master,        // rt_by_disk
             treedb_name,    // creator
             NULL
         )<0) {

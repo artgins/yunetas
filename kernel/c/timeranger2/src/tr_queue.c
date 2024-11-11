@@ -303,6 +303,7 @@ PUBLIC int trq_load(tr_queue trq_)
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
+        FALSE,
         NULL,   // creator TODO
         &tr_list
     )<0) {
@@ -374,6 +375,7 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
+        FALSE,
         NULL,   // creator TODO
         &tr_list
     );

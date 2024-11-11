@@ -285,6 +285,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     json_t *match_cond, // owned
     json_t *extra,      // owned
     const char *rt_id,
+    BOOL rt_by_disk,
     const char *creator
 )
 {
@@ -325,6 +326,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         match_cond,     // owned
         jn_extra,       // owned
         rt_id,          // rt_id
+        rt_by_disk,
         creator,        // creator
         &rt
     )<0) {

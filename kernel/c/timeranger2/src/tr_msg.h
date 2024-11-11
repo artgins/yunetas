@@ -200,6 +200,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     json_t *match_cond, // owned
     json_t *extra,      // owned
     const char *rt_id,
+    BOOL rt_by_disk,
     const char *creator
 );
 
