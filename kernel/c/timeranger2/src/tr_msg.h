@@ -191,6 +191,8 @@ typedef int (*trmsg_instance_callback_t)(
 
 /*
  *  trmsg_open_list() use tranger2_open_list(), see doc
+ *  HACK the list can be open by memory or by disk, independently of br master or not
+ *  Use "rt_by_disk" to 1 to open by disk
  */
 PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
