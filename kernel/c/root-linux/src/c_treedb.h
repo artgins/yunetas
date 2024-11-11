@@ -2,7 +2,8 @@
  *          C_TREEDB.H
  *          Treedb GClass.
  *
- *          Management of treedb's
+ *          Management of treedb's, all in the same root path
+ *
  *          - Create a __system__ timeranger
  *          - Create a treedb_system_schema (C_NODE) over the __system__ timeranger
  *
