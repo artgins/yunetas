@@ -552,6 +552,7 @@ PRIVATE int list_messages(void)
             json_incref(match_cond),  // owned
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id
+            TRUE,   // rt_by_disk
             "",     // creator
             NULL,   // JSON array, if not empty, fills it with the LOADING data, not owned
             NULL    // options

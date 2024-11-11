@@ -511,12 +511,12 @@ PRIVATE int mt_start(hgobj gobj)
     priv->users_accesses = trmsg_open_list(
         priv->tranger,
         "users_accesses",   // topic
-        json_pack("{s:b, s:i}",  // filter
-            "rt_by_disk", !priv->master,
+        json_pack("{s:i}",  // filter
             "max_key_instances", 1
         ),
         NULL,
         rt_id,
+        !priv->master,
         ""
     );
 
