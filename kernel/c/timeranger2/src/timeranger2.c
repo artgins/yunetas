@@ -3672,6 +3672,8 @@ PRIVATE int scan_files(
     const char *full_path
 )
 {
+    char full_filename[PATH_MAX];
+
     json_t *topic = tranger2_topic(tranger,topic_name);
 
     int files_md_size;
@@ -3685,6 +3687,8 @@ PRIVATE int scan_files(
 
     for(int i=0; i<files_md_size; i++) {
         char *md2 = files_md[i];
+        build_path(full_filename, sizeof(full_filename), full_path, md2, NULL);
+
         char *p = strrchr(md2, '.'); // pass file_id
         if(p) {
             *p =0;
@@ -3696,7 +3700,19 @@ PRIVATE int scan_files(
             key,
             md2
         );
+
+        if(unlink(full_filename)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "unlink() FAILED",
+                "path",         "%s", full_filename,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
     }
+
     free_ordered_filename_array(files_md, files_md_size);
 
     return 0;
@@ -3803,6 +3819,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                         "msg",          "%s", "unlink() FAILED",
+                        "path",         "%s", full_path,
                         "errno",        "%s", strerror(errno),
                         NULL
                     );
