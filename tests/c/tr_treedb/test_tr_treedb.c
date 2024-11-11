@@ -692,9 +692,8 @@ print_json2("XXXXX", tranger);
         MT_START_TIME(time_measure)
 
         json_t *data = json_array();
-        json_t *match_cond = json_pack("{s:b, s:b, s:i}",  // owned
+        json_t *match_cond = json_pack("{s:b, s:i}",  // owned
             "backward", TRUE,
-            "rt_by_disk", FALSE,
             "from_rowid", -1
         );
         json_t *it = tranger2_open_iterator(
@@ -704,6 +703,7 @@ print_json2("XXXXX", tranger);
             match_cond,
             NULL,   // load_record_callback, // called on LOADING and APPENDING
             NULL,   // iterator id
+            FALSE,  // rt_by_disk
             NULL,   // creator
             data,   // JSON array, if not empty, fills it with the LOADING data, not owned
             NULL    // owned, user data, this json will be added to the return iterator

@@ -112,9 +112,10 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000001",     // key,
-        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
+        NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // iterator id
+        TRUE,   // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options

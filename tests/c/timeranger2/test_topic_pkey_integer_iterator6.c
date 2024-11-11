@@ -128,9 +128,8 @@ PRIVATE int do_test(json_t *tranger)
         );
         MT_START_TIME(time_measure)
 
-        match_cond = json_pack("{s:b, s:b, s:i}",
+        match_cond = json_pack("{s:b, s:i}",
             "backward", 0,
-            "rt_by_disk", 1,
             "from_rowid", -10
         );
         tranger2_open_iterator(
@@ -139,7 +138,8 @@ PRIVATE int do_test(json_t *tranger)
             KEY,                    // key
             match_cond,             // match_cond, owned
             rt_disk_record_callback, // load_record_callback
-            "it_by_disk",           // id
+            "it_by_disk",           // rt_id
+            TRUE,                   // rt_by_disk
             NULL,                   // creator
             NULL,                   // data
             NULL                    // options

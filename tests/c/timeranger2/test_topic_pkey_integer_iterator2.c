@@ -138,9 +138,10 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000001",     // key,
-        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
+        NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
         "it1",  // rt id
+        TRUE,   // rt_by_disk
         NULL,   // creator
         NULL,
         NULL
@@ -167,9 +168,10 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000002",     // key,
-        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
+        NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
         NULL,   // rt id
+        TRUE,   // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options
@@ -215,9 +217,10 @@ PRIVATE int do_test(void)
         tranger,
         TOPIC_NAME,
         "0000000000000000002",     // key,
-        json_pack("{s:b}", "rt_by_disk", 1),   // match_cond, owned
+        NULL,   // match_cond, owned
         NULL,   // load_record_callback
-        NULL,   // id
+        NULL,   // rt_id
+        TRUE,   // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options

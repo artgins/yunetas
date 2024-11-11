@@ -111,12 +111,12 @@ static int test(json_t *tranger, int caso, const char *desc)
             hrc2_topic_iter1 = trmsg_open_list(
                 tranger,
                 TOPIC_NAME,    // topic
-                json_pack("{s:s, s:b}",  // match_cond
-                    "rkey", "",
-                    "rt_by_disk", 0
+                json_pack("{s:s}",  // match_cond
+                    "rkey", ""
                 ),
                 NULL,
                 "",     // rt_id
+                FALSE,  // rt_by_disk
                 ""      // creator
             );
 
@@ -144,14 +144,14 @@ static int test(json_t *tranger, int caso, const char *desc)
             hrc2_topic_iter2 = trmsg_open_list(
                 tranger,
                 TOPIC_NAME,    // topic
-                json_pack("{s:s, s:b, s:b, s:b}",  // match_cond
+                json_pack("{s:s, s:b, s:b}",  // match_cond
                     "rkey", "",
-                    "rt_by_disk", 0,
                     "backward", 1,
                     "order_by_tm", 1
                 ),
                 NULL,
                 "",     // rt_id
+                FALSE,  // rt_by_disk
                 ""      // creator
             );
 

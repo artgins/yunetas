@@ -212,7 +212,8 @@ PRIVATE int do_test(void)
             KEY,                    // key
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
-            NULL,                   // id
+            NULL,                   // rt_id
+            FALSE,                  // rt_by_disk
             NULL,                   // creator
             NULL,                   // data
             NULL                    // options
@@ -326,7 +327,8 @@ PRIVATE int do_test(void)
             KEY,                    // key
             match_cond,             // match_cond, owned
             NULL,                   // load_record_callback
-            NULL,                   // id
+            NULL,                   // rt_id
+            FALSE,                  // rt_by_disk
             NULL,                   // creator
             NULL,                   // data
             NULL                    // options
