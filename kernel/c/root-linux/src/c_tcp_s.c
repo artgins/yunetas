@@ -302,7 +302,10 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->yev_server_accept) {
         yev_stop_event(priv->yev_server_accept);
-        if(yev_event_is_stopping(priv->yev_server_accept)) {
+        if(yev_event_is_stopped(priv->yev_server_accept)) {
+            yev_destroy_event(priv->yev_server_accept);
+            priv->yev_server_accept = 0;
+        } else {
             gobj_change_state(gobj, ST_WAIT_STOPPED);
         }
     }
@@ -341,18 +344,17 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     if(yev_event_is_stopped(yev_event)) {
         gobj_change_state(gobj, ST_STOPPED);
-
-//    /* TODO
-//     *  Only NOW you can destroy this gobj,
-//     *  when uv has released the handler.
-//     */
-//        gobj_send_event(
-//            gobj_parent(gobj),
-//            EV_STOPPED ,
-//            0,
-//            gobj
-//        );
-
+        if(priv->yev_server_accept != yev_event) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "yev_event != yev_server_accept",
+                NULL
+            );
+        } else {
+            yev_destroy_event(yev_event);
+            priv->yev_server_accept = 0;
+        }
         return 0;
     }
 
