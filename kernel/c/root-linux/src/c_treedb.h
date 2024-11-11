@@ -3,6 +3,16 @@
  *          Treedb GClass.
  *
  *          Management of treedb's
+ *          - Create a __system__ timeranger
+ *          - Create a treedb_system_schema (C_NODE) over the __system__ timeranger
+ *
+ *          - With commands (by events not yet ready) you can open/close services of treedb
+ *
+ *          "open-treedb"   -> create a timeranger and a treedb (C_NODE) with the schema passed
+ *          "close-treedb"
+ *          "delete-treedb"
+ *          "create-topic"
+ *          "delete-topic"
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024, ArtGins.

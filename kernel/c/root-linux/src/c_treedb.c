@@ -3,6 +3,16 @@
  *          Treedb GClass.
  *
  *          Management of treedb's
+ *          - Create a __system__ timeranger
+ *          - Create a treedb_system_schema (C_NODE) over the __system__ timeranger
+ *
+ *          - With commands (by events not yet ready) you can open/close services of treedb
+ *
+ *          "open-treedb"   -> create a timeranger and a treedb (C_NODE) with the schema passed
+ *          "close-treedb"
+ *          "delete-treedb"
+ *          "create-topic"
+ *          "delete-topic"
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
@@ -205,9 +215,9 @@ PRIVATE hgclass __gclass__ = 0;
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -1295,9 +1305,9 @@ PRIVATE int delete_client_treedb_schema(
  ***************************************************************************/
 PRIVATE int ac_open_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO
-    KW_DECREF(kw);
-    return 0;
+
+    KW_DECREF(kw)
+    return 0; // TODO
 }
 
 /***************************************************************************
@@ -1305,9 +1315,9 @@ PRIVATE int ac_open_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_close_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO
-    KW_DECREF(kw);
-    return 0;
+
+    KW_DECREF(kw)
+    return -1; // TODO
 }
 
 /***************************************************************************
