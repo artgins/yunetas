@@ -965,6 +965,8 @@ int do_test(void)
     result += test(tranger, 32, 1);
     result += test(tranger, 33, 1);
 
+    // TODO hacen falta tests con rt_by_disk adding messages after open_list
+
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/

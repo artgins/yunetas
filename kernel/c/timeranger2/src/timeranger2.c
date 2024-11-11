@@ -3470,6 +3470,16 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     const char *id
 )
 {
+    if(empty_string(id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "rt_id cannot be empty",
+            NULL
+        );
+        return NULL;
+    }
+
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
     snprintf(full_path, sizeof(full_path), "%s/disks/%s",
@@ -3477,8 +3487,27 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         id
     );
 
-    if(!is_directory(full_path)) {
-        mkdir(full_path, json_integer_value(json_object_get(tranger, "xpermission")));
+    if(is_directory(full_path)) {
+        if(rmdir(full_path)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "rmdir() FAILED",
+                "path",         "%s", full_path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    if(mkdir(full_path, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "mkdir() FAILED",
+            "path",         "%s", full_path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
     }
 
     fs_event_t *fs_event = fs_create_watcher_event(
