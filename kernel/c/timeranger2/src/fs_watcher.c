@@ -141,7 +141,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -234,7 +234,7 @@ PRIVATE void fs_destroy_watcher_event(
         return;
     }
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(fs_event->gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -248,7 +248,7 @@ PRIVATE void fs_destroy_watcher_event(
     }
 
     if(fs_event->fd != -1) {
-        if(gobj_trace_level(0) & (TRACE_UV|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -292,7 +292,7 @@ PRIVATE int yev_callback(
     fs_event_t *fs_event = yev_event->user_data;
     hgobj gobj = fs_event->gobj;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
+    if(gobj_trace_level(gobj) & TRACE_URING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -318,7 +318,7 @@ PRIVATE int yev_callback(
                     /*
                      *  Disconnected
                      */
-                    if(gobj_trace_level(gobj) & TRACE_UV) {
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
                         if(yev_event->result != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,

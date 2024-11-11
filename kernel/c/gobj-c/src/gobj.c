@@ -367,9 +367,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"create_delete2",  "Trace create/delete of gobjs level 2: with kw"},
     {"subscriptions",   "Trace subscriptions of gobjs"},
     {"start_stop",      "Trace start/stop of gobjs"},
-    {"monitor",         "Monitor activity of gobjs"},
-    {"event_monitor",   "Monitor events of gobjs"},
-    {"liburing",         "Trace liburing mixins"},
+    {"liburing",        "Trace liburing mixins"},
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
@@ -377,6 +375,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"timer_periodic",  "Trace periodic timers"},
     {"timer",           "Trace timers"},
     {"liburing_timer",  "Trace liburing timer"},
+    {"fs",              "Trace file system"},
     {0, 0}
 };
 
