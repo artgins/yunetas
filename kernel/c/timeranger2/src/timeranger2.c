@@ -253,6 +253,18 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *new_cache_file
 );
 
+PRIVATE int create_disks_topic_directories(
+    hgobj gobj,
+    json_t *tranger,
+    const char *full_path
+);
+
+PRIVATE int delete_disks_topic_directories(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic
+);
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1019,6 +1031,26 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
 }
 
 /***************************************************************************
+ *  Return a list of topic names
+ ***************************************************************************/
+PUBLIC json_t *tranger2_list_topics( // return is yours
+    json_t *tranger
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *jn_list = json_array();
+
+    json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
+    const char *key; json_t *jn_value;
+    json_object_foreach(jn_topics, key, jn_value) {
+        json_array_append_new(jn_list, json_string(key));
+    }
+
+    return jn_list;
+}
+
+/***************************************************************************
    Return list of keys of the topic
     match_cond:
         key
@@ -1188,11 +1220,6 @@ PUBLIC int tranger2_delete_topic(
     }
 
     /*
-     *  Close topic
-     */
-    tranger2_close_topic(tranger, topic_name);
-
-    /*
      *  Get directory
      */
     char directory[PATH_MAX];
@@ -1202,12 +1229,20 @@ PUBLIC int tranger2_delete_topic(
     );
 
     /*
+     *  In the directories created in "/disks" by the clients,
+     *  remove the directory of the removed topic
+     *  Remove firstly to signalize to clients
+     */
+    delete_disks_topic_directories(gobj, tranger, topic);
+
+    /*
+     *  Close topic
+     */
+    tranger2_close_topic(tranger, topic_name);
+
+    /*
      *  Check if the topic already exists
      */
-    if(!is_directory(directory)) {
-        return -1;
-    }
-
     return rmrdir(directory);
 }
 
@@ -3417,6 +3452,10 @@ PRIVATE BOOL find_rt_disk_cb(
     wd_option opt           // option parameter
 )
 {
+    char full_path2[PATH_MAX];
+    // Copy the full path to use later, this will be destroyed
+    snprintf(full_path2, sizeof(full_path2), "%s", full_path);
+
     json_t *tranger = user_data;
     char *rt_id = pop_last_segment(full_path);
     char *disks = pop_last_segment(full_path);
@@ -3447,8 +3486,13 @@ PRIVATE BOOL find_rt_disk_cb(
         NULL
     );
 
-    snprintf(full_path, PATH_MAX, "%s/%s", directory, filename);
-    json_object_set_new(rt, "disk_path", json_string(full_path));
+    json_object_set_new(rt, "disk_path", json_string(full_path2));
+
+    /*
+     *  In the directory created in "/disks" by the client, create a directory for each topic
+     */
+    create_disks_topic_directories(gobj, tranger, full_path);
+
     return TRUE; // to continue
 }
 PRIVATE void find_rt_disk(json_t *tranger, const char *path)
@@ -3480,8 +3524,14 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         directory
     );
 
+    /*
+     *  Find current rt_id's of clients, open a tranger2_open_rt_mem for each
+     */
     find_rt_disk(tranger, full_path);
 
+    /*
+     *  Monitor future rt_id's of clients, will open a tranger2_open_rt_mem for each
+     */
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
@@ -3513,7 +3563,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
     json_t *tranger = fs_event->user_data;
 
     char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
@@ -3575,8 +3625,16 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                     NULL
                 );
 
-                snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+                snprintf(full_path, sizeof(full_path),
+                    "%s/%s", fs_event->directory, fs_event->filename
+                );
                 json_object_set_new(rt, "disk_path", json_string(full_path));
+
+                /*
+                 *  In the directory created in "/disks" by the client,
+                 *  create a directory for each topic
+                 */
+                create_disks_topic_directories(gobj, tranger, full_path);
             }
             break;
         case FS_SUBDIR_DELETED_TYPE:
@@ -3752,6 +3810,65 @@ PRIVATE int master_to_update_client_load_record_callback(
 }
 
 /***************************************************************************
+ *  MASTER a /disks/ directory of a client found,
+ *  create directories for each current topic
+ ***************************************************************************/
+PRIVATE int create_disks_topic_directories(
+    hgobj gobj,
+    json_t *tranger,
+    const char *disks_directory
+)
+{
+    char path[PATH_MAX];
+
+    json_t *jn_list_topics = tranger2_list_topics(tranger);
+
+    int idx; json_t *jn_topic_name;
+    json_array_foreach(jn_list_topics, idx, jn_topic_name) {
+        const char *topic_name = json_string_value(jn_topic_name);
+        snprintf(path, sizeof(path), "%s/%s", disks_directory, topic_name);
+
+        if(mkdir(path, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "mkdir() FAILED",
+                "path",         "%s", path,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+
+    json_decref(jn_list_topics);
+    return 0;
+}
+
+/***************************************************************************
+ *  MASTER: a topic has been deleted, delete directories of topic in /disks/
+ ***************************************************************************/
+PRIVATE int delete_disks_topic_directories(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic
+)
+{
+//  TODO this is necessary?
+//   In deleting all topic directory the client will be notify of the their directories being
+//   monitoring, no?
+
+//    char full_path[PATH_MAX];
+//    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+//    snprintf(full_path, sizeof(full_path), "%s/disks/%s",
+//        directory,
+//        rt_id
+//    );
+
+    // TODO
+    return 0;
+}
+
+/***************************************************************************
  *  CLIENT Watch create/delete subdirectories
  *  and files of disk realtime id's that creates/deletes master
  ***************************************************************************/
@@ -3784,6 +3901,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
      *  the monitor_rt_disk_by_client must delete his directory and re-create,
      *  this is done after reading all records and now to signalize to master to update after now
      */
+    int x; // TODO break in this point to see the behaviour of master
     if(is_directory(full_path)) {
         rmrdir(full_path);
     }
@@ -3828,7 +3946,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     json_t *tranger = fs_event->user_data;
 
     char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:

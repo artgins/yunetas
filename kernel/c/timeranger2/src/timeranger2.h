@@ -298,6 +298,13 @@ PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
 );
 
 /**rst**
+   Return a list of topic names
+**rst**/
+PUBLIC json_t *tranger2_list_topics( // return is yours
+    json_t *tranger
+);
+
+/**rst**
    Return list of keys of the topic
         rkey    regular expression of key
 
