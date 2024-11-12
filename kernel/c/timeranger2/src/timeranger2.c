@@ -3662,63 +3662,6 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
 }
 
 /***************************************************************************
- *  Client, scan for files
- ***************************************************************************/
-PRIVATE int scan_files(
-    hgobj gobj,
-    json_t *tranger,
-    const char *topic_name,
-    const char *key,
-    const char *full_path
-)
-{
-    char full_filename[PATH_MAX];
-
-    json_t *topic = tranger2_topic(tranger,topic_name);
-
-    int files_md_size;
-    char **files_md = get_ordered_filename_array(
-        gobj,
-        full_path,
-        ".*\\.md2",
-        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
-        &files_md_size
-    );
-
-    for(int i=0; i<files_md_size; i++) {
-        char *md2 = files_md[i];
-        build_path(full_filename, sizeof(full_filename), full_path, md2, NULL);
-
-        char *p = strrchr(md2, '.'); // pass file_id
-        if(p) {
-            *p =0;
-        }
-        update_new_records(
-            gobj,
-            tranger,
-            topic,
-            key,
-            md2
-        );
-
-        if(unlink(full_filename)<0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "unlink() FAILED",
-                "path",         "%s", full_filename,
-                "errno",        "%s", strerror(errno),
-                NULL
-            );
-        }
-    }
-
-    free_ordered_filename_array(files_md, files_md_size);
-
-    return 0;
-}
-
-/***************************************************************************
  *  The MASTER signalize a new record appended
  ***************************************************************************/
 PRIVATE int client_fs_callback(fs_event_t *fs_event)
@@ -3777,14 +3720,6 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                         NULL
                     );
                 }
-
-                /*
-                 *  When MASTER and CLIENT are different process the 'directory created' arrives,
-                 *  but the 'file created' NOT, scan files
-                 */
-                char full_path2[PATH_MAX];
-                snprintf(full_path2, sizeof(full_path2), "%s/%s", fs_event->directory, fs_event->filename);
-                scan_files(gobj, tranger, topic_name, key, full_path2);
             }
             break;
 
