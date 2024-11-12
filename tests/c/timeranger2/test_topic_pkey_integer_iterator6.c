@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
     //gobj_set_global_trace(0, TRUE);
 
     //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
-    gobj_set_gobj_trace(0, "fs", TRUE, 0);
+    //gobj_set_gobj_trace(0, "fs", TRUE, 0);
 
     /*--------------------------------*
      *      Startup gobj
