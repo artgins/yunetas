@@ -3874,7 +3874,6 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
      *  the monitor_rt_disk_by_client must delete his directory and re-create,
      *  this is done after reading all records and now to signalize to master to update after now
      */
-    int x; // TODO break in this point to see the behaviour of master
     if(is_directory(full_path)) {
         rmrdir(full_path);
     }
