@@ -1504,10 +1504,10 @@ PUBLIC json_t *load_persistent_json(
 
     if(!is_regular_file(full_path)) {
         if(!(silence && on_critical_error == LOG_NONE)) {
-            gobj_log_critical(gobj, on_critical_error,
+            gobj_log_critical(gobj, on_critical_error|LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot load json, file not exist.",
+                "msg",          "%s", "Cannot load json, file not exist",
                 "path",         "%s", full_path,
                 NULL
             );
