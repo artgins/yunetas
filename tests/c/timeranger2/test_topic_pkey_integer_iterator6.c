@@ -191,7 +191,7 @@ PRIVATE int do_test(json_t *tranger)
             }
         }
 
-        MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
+        MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
 
         if(last_t_by_disk != 946864799 || last_tm_by_disk != 946864799 ) {
