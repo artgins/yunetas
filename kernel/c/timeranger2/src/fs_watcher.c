@@ -463,7 +463,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         if (event->mask & (IN_CREATE)) {
             char *filename = event->len? event->name:"";
             if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
-                snprintf(full_path, PATH_MAX, "%s/%s", path, filename);
+                snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
                 add_watch(fs_event, full_path);
             }
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
@@ -600,8 +600,8 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
  ***************************************************************************/
 PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose)
 {
-    const char *path; json_t *jn_wd; void *n;
-    json_object_foreach_safe(jn_tracked_paths, n, path, jn_wd) {
+    const char *path; json_t *jn_wd;
+    json_object_foreach(jn_tracked_paths, path, jn_wd) {
         int wd_ = (int)json_integer_value(jn_wd);
         if(wd_ == wd) {
             return path;
