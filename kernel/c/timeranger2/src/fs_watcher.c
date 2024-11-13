@@ -249,7 +249,7 @@ PRIVATE void fs_destroy_watcher_event(
 
     if(fs_event->fd != -1) {
         if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
-            gobj_log_debug(0, 0,
+            gobj_log_debug(fs_event->gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
                 "msg",          "%s", "close socket",
@@ -384,7 +384,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     char full_path[PATH_MAX];
 
     if(gobj_trace_level(gobj) & TRACE_FS) {
-        gobj_log_debug(0, 0,
+        gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "inotify_event",
@@ -541,7 +541,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
     json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
 
     if(gobj_trace_level(gobj) & TRACE_FS) {
-        gobj_log_debug(0, 0,
+        gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_YEV_LOOP,
             "msg",              "%s", "add watch",
@@ -569,7 +569,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
     json_object_del(fs_event->jn_tracked_paths, path);
 
     if(gobj_trace_level(gobj) & TRACE_FS) {
-        gobj_log_debug(0, 0,
+        gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_YEV_LOOP,
             "msg",              "%s", "remove watch",
@@ -578,10 +578,10 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "wd",               "%d", wd,
             "fs_flag",          "%d", fs_event->fs_flag,
             "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
-            "tracked_paths",    "%j", fs_event->jn_tracked_paths,
             "p",                "%p", fs_event,
             NULL
         );
+        gobj_trace_json()
     }
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
