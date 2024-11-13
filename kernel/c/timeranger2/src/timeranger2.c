@@ -3950,7 +3950,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
         case FS_FILE_DELETED_TYPE:
-            // Key file deleted, ignore, it's me ?
+            // Key file deleted, ignore, it's me
             if(gobj_trace_level(gobj) & TRACE_FS) {
                 gobj_log_debug(gobj, 0,
                     "function",         "%s", __FUNCTION__,

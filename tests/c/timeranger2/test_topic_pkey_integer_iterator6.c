@@ -187,9 +187,12 @@ PRIVATE int do_test(json_t *tranger)
                 );
                 md2_record_t md_record;
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
-                yev_loop_run_once(yev_loop);
+                if(i % 1000 == 0) {
+                    yev_loop_run_once(yev_loop);
+                }
             }
         }
+        yev_loop_run_once(yev_loop);
 
         MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
         MT_PRINT_TIME(time_measure, "append records")
@@ -375,8 +378,8 @@ int main(int argc, char *argv[])
     //gobj_set_deep_tracing(2);
     //gobj_set_global_trace(0, TRUE);
 
-    //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
-    gobj_set_gobj_trace(0, "fs", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    // gobj_set_gobj_trace(0, "fs", TRUE, 0);
 
     /*--------------------------------*
      *      Startup gobj
