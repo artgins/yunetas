@@ -550,10 +550,10 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "wd",               "%d", wd,
             "fs_flag",          "%d", fs_event->fs_flag,
             "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
-            "tracked_paths",    "%j", fs_event->jn_tracked_paths,
             "p",                "%p", fs_event,
             NULL
         );
+        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "tracked_paths");
     }
 
     return wd;
@@ -581,7 +581,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "p",                "%p", fs_event,
             NULL
         );
-        gobj_trace_json()
+        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "tracked_paths");
     }
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
