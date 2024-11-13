@@ -3242,20 +3242,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         if(1) {
             // (2) MONITOR (C) (MI)r /disks/rt_id/
             // The directory is created inside this function
-
-            if(gobj_trace_level(gobj) & TRACE_FS) {
-                gobj_log_debug(gobj, 0,
-                    "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_YEV_LOOP,
-                    "msg",              "%s", "MONITOR INOTIFY (MI)r /disks/{rt_id}/",
-                    "msg2",             "%s", "👓🔷 MONITOR INOTIFY (MI)r /disks/{rt_id}/",
-                    "action",           "%s", "monitor_rt_disk_by_client()",
-                    "topic_name",       "%s", topic_name,
-                    "key",              "%s", key,
-                    "rt_id",            "%s", id,
-                    NULL
-                );
-            }
+            // log FS inside this function
 
             fs_event_t *fs_event_client = monitor_rt_disk_by_client(
                 gobj, yev_loop, tranger, topic, id
@@ -3874,8 +3861,21 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         id
     );
 
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "MONITOR INOTIFY (MI)r /disks/{rt_id}/",
+            "msg2",             "%s", "👓🔷 MONITOR INOTIFY (MI)r /disks/{rt_id}/",
+            "action",           "%s", "monitor_rt_disk_by_client()",
+            "path",             "%s", full_path,
+            "rt_id",            "%s", id,
+            NULL
+        );
+    }
+
     /*
-     *  the monitor_rt_disk_by_client must delete his directory and re-create,
+     *  the function must delete his directory and re-create,
      *  this is done after reading all records and now to signalize to master to update after now
      */
     if(is_directory(full_path)) {
