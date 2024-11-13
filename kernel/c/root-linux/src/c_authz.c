@@ -208,11 +208,11 @@ SDATA (DTP_STRING,      "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT
 SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
 /*
- *  HACK WARNING 2024-Jul-30: use of "tranger_path" to determine if this instance is master or not.
- *  If tranger_path is empty then:
+ *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
+ *  If tranger_path is empty, then
  *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master
  *  if it's not empty:
- *      set then it's a client (not master) using this path to setup tranger
+ *      use master as is
  */
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, internal value"),
@@ -260,9 +260,9 @@ PRIVATE hgclass __gclass__ = 0;
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -357,22 +357,8 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else {
         /*------------------------------------*
-         *  With path, it must be non-master
+         *  With path, can be master or not
          *------------------------------------*/
-        /*
-         *  Warning about bad Authz configuration
-         */
-        if(master) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Authz WITH path must be configured as non-master",
-                NULL
-            );
-        }
-
-        master = FALSE;
-        gobj_write_bool_attr(gobj, "master", master);
     }
 
     json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:i}",
