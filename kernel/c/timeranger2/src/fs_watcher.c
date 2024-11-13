@@ -141,7 +141,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -234,7 +234,7 @@ PRIVATE void fs_destroy_watcher_event(
         return;
     }
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
         gobj_log_debug(fs_event->gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -248,7 +248,7 @@ PRIVATE void fs_destroy_watcher_event(
     }
 
     if(fs_event->fd != -1) {
-        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -292,7 +292,7 @@ PRIVATE int yev_callback(
     fs_event_t *fs_event = yev_event->user_data;
     hgobj gobj = fs_event->gobj;
 
-    if(gobj_trace_level(gobj) & TRACE_URING) {
+    if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -304,9 +304,9 @@ PRIVATE int yev_callback(
             "result",       "%d", yev_event->result,
             "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
             "flag",         "%j", jn_flags,
-            "p",            "%p", yev_event,
             "fd",           "%d", yev_event->fd,
             "gbuffer",      "%p", yev_event->gbuf,
+            "p",            "%p", yev_event,
             NULL
         );
         json_decref(jn_flags);
@@ -318,7 +318,7 @@ PRIVATE int yev_callback(
                     /*
                      *  Disconnected
                      */
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
                         if(yev_event->result != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -391,6 +391,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             "msg2",         "%s", "💾💾💥 inotify_event",
             "event->wd",    "%d", event->wd,
             "event->name",  "%s", event->len? event->name:"",
+            "p",            "%p", fs_event,
             NULL
         );
 
@@ -448,6 +449,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                 "path" ,        "%s", path,
                 "wd",           "%d", event->wd,
                 "event",        "%s", event->len? event->name:"",
+                "p",            "%p", event,
                 NULL
             );
         }
@@ -517,6 +519,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Watch directory EXISTS",
             "path" ,        "%s", path,
+            "p",            "%p", event,
             NULL
         );
         return -1;
@@ -548,6 +551,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "fs_flag",          "%d", fs_event->fs_flag,
             "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
             "tracked_paths",    "%j", fs_event->jn_tracked_paths,
+            "p",                "%p", fs_event,
             NULL
         );
     }
@@ -575,6 +579,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "fs_flag",          "%d", fs_event->fs_flag,
             "recursive",        "%d", fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS,
             "tracked_paths",    "%j", fs_event->jn_tracked_paths,
+            "p",                "%p", fs_event,
             NULL
         );
     }
