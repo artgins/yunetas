@@ -3480,7 +3480,7 @@ PRIVATE BOOL find_rt_disk_cb(
      *  In the directory created in "/disks" by the client,
      *  create a directory for each topic and all keys
      */
-    create_disks_topic_keys_directories(gobj, tranger, topic_name, full_path2);
+    //create_disks_topic_keys_directories(gobj, tranger, topic_name, full_path2);
 
     return TRUE; // to continue
 }
@@ -3554,14 +3554,14 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
     char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);
 
-    char full_path2[PATH_MAX];
-    snprintf(full_path2, sizeof(full_path2), "%s/%s", fs_event->directory, fs_event->filename);
-
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
             {
                 // (3) MONITOR Client has opened a rt disk for the topic,
                 // Master to open a mem rt to update /disks/rt_id/
+
+                char full_path2[PATH_MAX];
+                snprintf(full_path2, sizeof(full_path2), "%s/%s", fs_event->directory, fs_event->filename);
 
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
@@ -3613,13 +3613,16 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                  *  In the directory created in "/disks" by the client,
                  *  create a directory for each topic and all keys
                  */
-                create_disks_topic_keys_directories(gobj, tranger, topic_name, full_path2);
+                //create_disks_topic_keys_directories(gobj, tranger, topic_name, full_path2);
             }
             break;
         case FS_SUBDIR_DELETED_TYPE:
             {
                 // MONITOR Client has closed a rt disk for the topic,
                 // Master to close the mem rt
+                char full_path2[PATH_MAX];
+                snprintf(full_path2, sizeof(full_path2), "%s/%s", fs_event->directory, fs_event->filename);
+
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
                 char *topic_name = pop_last_segment(full_path);
@@ -3895,17 +3898,14 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
 
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);
+
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
             // Key directory created, ignore
             {
-                char full_path[PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s/%s",
-                    fs_event->directory,
-                    fs_event->filename
-                );
-
                 char *key = pop_last_segment(full_path);
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
@@ -3962,12 +3962,6 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             // Record to key added, read
             // Delete the hard link of md2 file when read
             {
-                char full_path[PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s/%s",
-                    fs_event->directory,
-                    fs_event->filename
-                );
-
                 if(unlink(full_path)<0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -4035,13 +4029,8 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
         case FS_FILE_DELETED_TYPE:
-            // Key file deleted, ignore, it's me
+            // Key file deleted, ignore
             if(gobj_trace_level(gobj) & TRACE_FS) {
-                char full_path[PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s/%s",
-                    fs_event->directory,
-                    fs_event->filename
-                );
                 gobj_log_debug(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_YEV_LOOP,
