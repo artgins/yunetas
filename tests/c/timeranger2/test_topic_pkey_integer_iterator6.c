@@ -187,7 +187,7 @@ PRIVATE int do_test(json_t *tranger)
                 );
                 md2_record_t md_record;
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
-                if(i % 1000 == 0) {
+                if(i % 10 == 0) {
                     yev_loop_run_once(yev_loop);
                 }
             }
