@@ -553,7 +553,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "p",                "%p", fs_event,
             NULL
         );
-        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "tracked_paths");
+        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "💾🔷 add watch tracked_paths");
     }
 
     return wd;
@@ -581,7 +581,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "p",                "%p", fs_event,
             NULL
         );
-        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "tracked_paths");
+        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "💾🔶 remove watch tracked_paths");
     }
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
