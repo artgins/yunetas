@@ -210,12 +210,12 @@ SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Ini
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
  *  If tranger_path is empty, then
- *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master
+ *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master true
  *  if it's not empty:
- *      use master as is
+ *      use master as set externally
  */
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
-SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, internal value"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, if tranger_path is empty is set to true internally"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
