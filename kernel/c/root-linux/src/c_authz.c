@@ -215,6 +215,7 @@ SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Ini
  *      use master as set externally
  */
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
+SDATA (DTP_STRING,      "authz_yuno_role",  SDF_RD,             "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno."),
 SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, if tranger_path is empty is set to true internally"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -342,11 +343,15 @@ PRIVATE void mt_create(hgobj gobj)
         /*
          *  Set the path
          */
+        const char *authz_yuno_role = gobj_read_str_attr(gobj, "authz_yuno_role");
+        if(empty_string(authz_yuno_role)) {
+            authz_yuno_role = gobj_yuno_role();
+        }
         char path_[PATH_MAX];
         yuneta_realm_store_dir(
             path_,
             sizeof(path_),
-            gobj_yuno_role(),
+            authz_yuno_role,
             gobj_yuno_realm_owner(),
             gobj_yuno_realm_id(),
             "authzs",
