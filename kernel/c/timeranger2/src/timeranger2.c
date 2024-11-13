@@ -3247,9 +3247,12 @@ PUBLIC json_t *tranger2_open_rt_disk(
                 gobj_log_debug(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_YEV_LOOP,
-                    "msg",              "%s", "MASTER:  MONITOR INOTIFY (MI)r /disks/rt_id/",
-                    "msg2",             "%s", "👓🔷 MASTER:  MONITOR INOTIFY (MI)r /disks/rt_id/",
+                    "msg",              "%s", "MONITOR INOTIFY (MI)r /disks/{rt_id}/",
+                    "msg2",             "%s", "👓🔷 MONITOR INOTIFY (MI)r /disks/{rt_id}/",
                     "action",           "%s", "monitor_rt_disk_by_client()",
+                    "topic_name",       "%s", topic_name,
+                    "key",              "%s", key,
+                    "rt_id",            "%s", id,
                     NULL
                 );
             }
@@ -3843,7 +3846,7 @@ PRIVATE int create_disks_topic_keys_directories(// WARNING using this function t
 }
 
 /***************************************************************************
- *  CLIENT Watch create/delete subdirectories
+ *  CLIENT (or MASTER) Watch create/delete subdirectories
  *  and files of disk realtime id's that creates/deletes master
  ***************************************************************************/
 PRIVATE fs_event_t *monitor_rt_disk_by_client(
