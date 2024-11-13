@@ -253,11 +253,16 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *new_cache_file
 );
 
-PRIVATE int create_disks_topic_keys_directories(
+PRIVATE int update_key_by_hard_link(
     hgobj gobj,
     json_t *tranger,
-    const char *topic_name,
-    const char *full_path
+    char *path
+);
+
+PRIVATE int scan_disks_key_for_new_file(
+    hgobj gobj,
+    json_t *tranger,
+    char *path
 );
 
 /***************************************************************
@@ -3720,7 +3725,6 @@ PRIVATE int master_to_update_client_load_record_callback(
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_YEV_LOOP,
                 "msg",              "%s", "MASTER: rt mem callback",
-                "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
                 "action",           "%s", "create directory of key",
                 "path",              "%s", full_path_dest,
                 NULL
@@ -3765,7 +3769,6 @@ PRIVATE int master_to_update_client_load_record_callback(
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_YEV_LOOP,
                 "msg",              "%s", "MASTER: rt mem callback",
-                "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
                 "action",           "%s", "update directory /disks/rt_id/, create hard link",
                 "src",              "%s", full_path_orig,
                 "dst",              "%s", full_path_dest,
@@ -3787,48 +3790,6 @@ PRIVATE int master_to_update_client_load_record_callback(
     }
 
     JSON_DECREF(record)
-    return 0;
-}
-
-/***************************************************************************
- *  MASTER a /disks/ directory of a client found,
- *  create a directory for each topic and all keys
- ***************************************************************************/
-PRIVATE int create_disks_topic_keys_directories(// WARNING using this function time execution INCREASE a lot
-    hgobj gobj,
-    json_t *tranger,
-    const char *topic_name,
-    const char *disks_directory
-)
-{
-    char path[PATH_MAX];
-
-    json_t *jn_keys = tranger2_list_keys( // return is yours
-        tranger,
-        topic_name,
-        ""
-    );
-
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        snprintf(path, sizeof(path), "%s/%s", disks_directory, key);
-
-        if(!is_directory(path)) {
-            if(mkdir(path, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "mkdir() FAILED",
-                    "path",         "%s", path,
-                    "errno",        "%s", strerror(errno),
-                    NULL
-                );
-            }
-        }
-    }
-
-    json_decref(jn_keys);
     return 0;
 }
 
@@ -3942,50 +3903,24 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 subdirectories that it contains).
              */
             {
-
-                char *key = pop_last_segment(full_path);
-                char *rt_id = pop_last_segment(full_path);
-                char *disks = pop_last_segment(full_path);
-                char *topic_name = pop_last_segment(full_path);
-
-                if(strcmp(disks, "disks")!=0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "Bad path client 1 /disks/rt_id/key",
-                        "directory",    "%s", fs_event->directory,
-                        "filename",     "%s", fs_event->filename,
-                        NULL
-                    );
-                    break;
-                }
-
                 if(gobj_trace_level(gobj) & TRACE_FS) {
-                    char full_path2[PATH_MAX];
-                    snprintf(full_path2, sizeof(full_path2), "%s/%s",
-                        fs_event->directory,
-                        fs_event->filename
-                    );
                     gobj_log_debug(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
                         "msg",              "%s", "CLIENT: Directory created",
                         "msg2",             "%s", "💾🔷 CLIENT: Directory created",
                         "action",           "%s", "ignored",
-                        "full_path",        "%s", full_path2,
-                        "topic_name",       "%s", topic_name,
-                        "disks",            "%s", disks,
-                        "rt_id",            "%s", rt_id,
-                        "key",              "%s", key,
+                        "full_path",        "%s", full_path,
                         NULL
                     );
                 }
+                scan_disks_key_for_new_file(gobj, tranger, full_path);
             }
             break;
 
         case FS_SUBDIR_DELETED_TYPE:
             // Key directory deleted, ignore, it's me
-            // TODO this indicate that a key has been removed
+            // TODO this indicate that a key has been removed, do something
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3999,74 +3934,23 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             // Record to key added, read
             // Delete the hard link of md2 file when read
             {
-                if(unlink(full_path)<0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "unlink() FAILED",
-                        "path",         "%s", full_path,
-                        "errno",        "%s", strerror(errno),
-                        NULL
-                    );
-                }
-
-                char *md2 = pop_last_segment(full_path);
-                char *key = pop_last_segment(full_path);
-                char *rt_id = pop_last_segment(full_path);
-                char *disks = pop_last_segment(full_path);
-                char *topic_name = pop_last_segment(full_path);
-                json_t *topic = tranger2_topic(tranger,topic_name);
-
                 if(gobj_trace_level(gobj) & TRACE_FS) {
-                    char full_path2[PATH_MAX];
-                    snprintf(full_path2, sizeof(full_path2), "%s/%s",
-                        fs_event->directory,
-                        fs_event->filename
-                    );
                     gobj_log_debug(gobj, 0,
                         "function",         "%s", __FUNCTION__,
                         "msgset",           "%s", MSGSET_YEV_LOOP,
                         "msg",              "%s", "CLIENT: File created",
                         "msg2",             "%s", "💾🔷 CLIENT: File created",
-                        "full_path",        "%s", full_path2,
-                        "action",           "%s", "unlink file and update_new_records",
-                        "topic_name",       "%s", topic_name,
-                        "disks",            "%s", disks,
-                        "rt_id",            "%s", rt_id,
-                        "key",              "%s", key,
-                        "md2",              "%s", md2,
+                        "path",             "%s", full_path,
+                        "action",           "%s", "update_key_by_hard_link()",
                         NULL
                     );
                 }
-
-                if(strcmp(disks, "disks")!=0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "Bad path client 2 /disks/rt_id/key/md2",
-                        "directory",    "%s", fs_event->directory,
-                        "filename",     "%s", fs_event->filename,
-                        NULL
-                    );
-                    break;
-                }
-
-                char *p = strrchr(md2, '.'); // pass file_id
-                if(p) {
-                    *p =0;
-                }
-                update_new_records(
-                    gobj,
-                    tranger,
-                    topic,
-                    key,
-                    md2
-                );
+                update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
             }
             break;
 
         case FS_FILE_DELETED_TYPE:
-            // Key file deleted, ignore
+            // Key file deleted, ignore, it's me ?
             if(gobj_trace_level(gobj) & TRACE_FS) {
                 gobj_log_debug(gobj, 0,
                     "function",         "%s", __FUNCTION__,
@@ -4090,6 +3974,124 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
     }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  CLIENT:
+ ***************************************************************************/
+PRIVATE BOOL find_rt_disk_keys_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *full_path,        // directory+filename found
+    const char *directory,  // directory of found filename
+    char *filename,         // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    json_t *tranger = user_data;
+
+    update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
+
+    return TRUE; // to continue
+}
+PRIVATE int scan_disks_key_for_new_file(
+    hgobj gobj,
+    json_t *tranger,
+    char *path
+)
+{
+    walk_dir_tree(
+        0,
+        path,
+        0,
+        WD_MATCH_REGULAR_FILE,
+        find_rt_disk_keys_cb,
+        tranger
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  CLIENT:
+ ***************************************************************************/
+PRIVATE int update_key_by_hard_link(
+    hgobj gobj,
+    json_t *tranger,
+    char *path
+)
+{
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "CLIENT: unlink hard key",
+            "path",             "%s", path,
+            NULL
+        );
+    }
+    if(unlink(path)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "unlink() FAILED",
+            "path",         "%s", path,
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    char *md2 = pop_last_segment(path);
+    char *key = pop_last_segment(path);
+    char *rt_id = pop_last_segment(path);
+    char *disks = pop_last_segment(path);
+    char *topic_name = pop_last_segment(path);
+    if(strcmp(disks, "disks")!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Bad path client 2 /disks/rt_id/key/md2",
+            "path",         "%s", path,
+            "topic_name",   "%s", topic_name,
+            "disks",        "%s", disks,
+            "rt_id",        "%s", rt_id,
+            "key",          "%s", key,
+            "md2",          "%s", md2,
+            NULL
+        );
+        return -1;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_FS) {
+        gobj_log_debug(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_YEV_LOOP,
+            "msg",              "%s", "CLIENT: update_new_records",
+            "topic_name",       "%s", topic_name,
+            "disks",            "%s", disks,
+            "rt_id",            "%s", rt_id,
+            "key",              "%s", key,
+            "md2",              "%s", md2,
+            NULL
+        );
+    }
+
+    json_t *topic = tranger2_topic(tranger,topic_name);
+
+    char *p = strrchr(md2, '.'); // pass file_id
+    if(p) {
+        *p =0;
+    }
+    update_new_records(
+        gobj,
+        tranger,
+        topic,
+        key,
+        md2
+    );
 
     return 0;
 }
