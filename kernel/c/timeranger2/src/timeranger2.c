@@ -3867,7 +3867,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
             "msgset",           "%s", MSGSET_YEV_LOOP,
             "msg",              "%s", "MONITOR INOTIFY (MI)r /disks/{rt_id}/",
             "msg2",             "%s", "👓🔷 MONITOR INOTIFY (MI)r /disks/{rt_id}/",
-            "action",           "%s", "monitor_rt_disk_by_client()",
+            "action",           "%s", "fs_create_watcher_event recursive",
             "path",             "%s", full_path,
             "rt_id",            "%s", id,
             NULL
