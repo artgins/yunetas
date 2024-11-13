@@ -3905,7 +3905,21 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
         case FS_SUBDIR_CREATED_TYPE:
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
             // Key directory created, ignore
+
+            /*
+                inotify(7) — Linux manual page
+
+                If monitoring an entire directory subtree, and a new subdirectory
+                is created in that tree or an existing directory is renamed into
+                that tree, be aware that by the time you create a watch for the
+                new subdirectory, new files (and subdirectories) may already
+                exist inside the subdirectory.  Therefore, you may want to scan
+                the contents of the subdirectory immediately after adding the
+                watch (and, if desired, recursively add watches for any
+                subdirectories that it contains).
+             */
             {
+
                 char *key = pop_last_segment(full_path);
                 char *rt_id = pop_last_segment(full_path);
                 char *disks = pop_last_segment(full_path);
@@ -3948,7 +3962,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 
         case FS_SUBDIR_DELETED_TYPE:
             // Key directory deleted, ignore, it's me
-            // TODO this must indicate that a key has been removed
+            // TODO this indicate that a key has been removed
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
