@@ -519,7 +519,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Watch directory EXISTS",
             "path" ,        "%s", path,
-            "p",            "%p", event,
+            "p",            "%p", fs_event,
             NULL
         );
         return -1;
