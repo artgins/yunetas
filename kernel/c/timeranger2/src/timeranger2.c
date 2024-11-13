@@ -3784,7 +3784,7 @@ PRIVATE int master_to_update_client_load_record_callback(
  *  MASTER a /disks/ directory of a client found,
  *  create a directory for each topic and all keys
  ***************************************************************************/
-PRIVATE int create_disks_topic_keys_directories(
+PRIVATE int create_disks_topic_keys_directories(// WARNING using this function time execution INCREASE a lot
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
