@@ -3725,7 +3725,27 @@ PRIVATE int master_to_update_client_load_record_callback(
      */
     snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key);
     if(!is_directory(full_path_dest)) {
-        mkdir(full_path_dest, json_integer_value(json_object_get(tranger, "xpermission")));
+        if(gobj_trace_level(gobj) & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "MASTER: rt mem callback",
+                "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
+                "action",           "%s", "create directory of key",
+                "path",              "%s", full_path_dest,
+                NULL
+            );
+        }
+        if(mkdir(full_path_dest, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "mkdir() FAILED",
+                "path",         "%s", full_path_dest,
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
     }
 
     /*
@@ -3749,20 +3769,20 @@ PRIVATE int master_to_update_client_load_record_callback(
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
     snprintf(full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename);
 
-    if(gobj_trace_level(gobj) & TRACE_FS) {
-        gobj_log_debug(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_YEV_LOOP,
-            "msg",              "%s", "MASTER: rt mem callback",
-            "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
-            "action",           "%s", "update directory /disks/rt_id/, create hard link",
-            "src",              "%s", full_path_orig,
-            "dst",              "%s", full_path_dest,
-            NULL
-        );
-    }
-
     if(!is_regular_file(full_path_dest)) {
+        if(gobj_trace_level(gobj) & TRACE_FS) {
+            gobj_log_debug(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_YEV_LOOP,
+                "msg",              "%s", "MASTER: rt mem callback",
+                "msg2",             "%s", "💾🔷 MASTER: rt mem callback",
+                "action",           "%s", "update directory /disks/rt_id/, create hard link",
+                "src",              "%s", full_path_orig,
+                "dst",              "%s", full_path_dest,
+                NULL
+            );
+        }
+
         if(link(full_path_orig, full_path_dest)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4065,6 +4085,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
                 NULL
             );
             break;
+
     }
 
     return 0;
