@@ -1851,7 +1851,7 @@ PRIVATE int create_file(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "path",         "%s", full_path,
-                "msg",          "%s", "TOO MANY OPEN FILES",
+                "msg",          "%s", "TOO MANY OPEN FILES 1",
                 NULL
             );
             close_fd_wr_files(gobj, topic, "");
@@ -1887,7 +1887,7 @@ PRIVATE int create_file(
 }
 
 /***************************************************************************
- *
+ *  Called only from master
  ***************************************************************************/
 PRIVATE int get_topic_wr_fd( // optimized
     hgobj gobj,
@@ -1940,11 +1940,25 @@ PRIVATE int get_topic_wr_fd( // optimized
         if(master) {
             fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
             if(fd < 0) {
-                fd = create_file(gobj, tranger, topic, key, full_path);
+                if(errno == EMFILE) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "path",         "%s", full_path,
+                        "msg",          "%s", "TOO MANY OPEN FILES 2",
+                        NULL
+                    );
+                    close_fd_wr_files(gobj, topic, "");
+                    fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
+                }
+                if(fd < 0) {
+                    fd = create_file(gobj, tranger, topic, key, full_path);
+                }
             }
         } else {
             fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
         }
+
         if(fd<0) {
             gobj_log_critical(gobj,
                 master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,

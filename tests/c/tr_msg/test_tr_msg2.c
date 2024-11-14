@@ -53,9 +53,18 @@ static int test(json_t *tranger, int caso, const char *desc)
     case 1:
         {
             const char *test_name = desc;
+
+            json_t *error_list = json_array();
+            for(int i=0; i<100; i++) {
+                json_t *err = json_pack("{s:s}",
+                    "msg", "TOO MANY OPEN FILES 2"
+                );
+                json_array_append_new(error_list, err);
+            }
+
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                NULL,   // error's list, It must not be any log error
+                error_list,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
                 TRUE    // verbose
@@ -504,8 +513,8 @@ int do_test(void)
     }
 
     // Set new limit
-    rl.rlim_cur = 1024;  // Set soft limit
-    rl.rlim_max = 1024;  // Set hard limit
+    rl.rlim_cur = 2000;  // Set soft limit
+    rl.rlim_max = 2000;  // Set hard limit
     if (setrlimit(RLIMIT_NOFILE, &rl) == 0) {
         printf("New limit set: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
     } else {
