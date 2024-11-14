@@ -57,13 +57,11 @@ PRIVATE int load_rango_callback(
     if(pinta_md) {
         char temp[1024];
         tranger2_print_md1_record(
-            tranger,
-            topic,
-            md_record,
-            key,
-            rowid,
             temp,
-            sizeof(temp)
+            sizeof(temp),
+            key,
+            md_record,
+            FALSE
         );
         printf("%s\n", temp);
     }

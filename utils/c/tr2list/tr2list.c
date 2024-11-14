@@ -52,6 +52,7 @@ struct arguments {
     int recursive;
     char *mode;
     char *fields;
+    int print_local_time;
     int verbose;
 
     char *from_t;
@@ -106,6 +107,7 @@ static struct argp_option options[] = {
 {0,                     0,      0,                  0,      "Database",         2},
 //{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
+{"print-local-time",    't',    0,                  0,      "Print in local time", 2},
 
 {0,                     0,      0,                  0,      "Presentation",     3},
 {"verbose",             'l',    "LEVEL",            0,      "Verbose level (empty=total, 0=metadata, 1=metadata, 2=metadata+path, 3=metadata+record)", 3},
@@ -180,6 +182,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         if(arg) {
             arguments_->verbose = atoi(arg);
         }
+        break;
+    case 't':
+        arguments_->print_local_time = 1;
         break;
     case 'm':
         arguments_->mode = arg;
@@ -373,7 +378,7 @@ PRIVATE int load_record_callback(
     int verbose = arguments.verbose;
     char title[1024];
 
-    tranger2_print_md1_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
+    tranger2_print_md1_record(title, sizeof(title), key, md_record, arguments.print_local_time);
 
     BOOL table_mode = FALSE;
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
@@ -389,7 +394,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 0) {
-        tranger2_print_md0_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
+        tranger2_print_md0_record(title, sizeof(title), key, md_record, arguments.print_local_time);
         printf("%s\n", title);
         JSON_DECREF(jn_record)
         return 0;
@@ -400,7 +405,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 2) {
-        tranger2_print_md2_record(tranger, topic, md_record, key, rowid, title, sizeof(title));
+        tranger2_print_md2_record(title, sizeof(title), tranger, topic, key, md_record, arguments.print_local_time);
         printf("%s\n", title);
         JSON_DECREF(jn_record)
         return 0;

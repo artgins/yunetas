@@ -76,13 +76,11 @@ PRIVATE int rt_disk_record_callback(
     if(pinta_md) {
         char temp[1024];
         tranger2_print_md1_record(
-            tranger,
-            topic,
-            md_record,
-            key,
-            rowid,
             temp,
-            sizeof(temp)
+            sizeof(temp),
+            key,
+            md_record,
+            FALSE
         );
         //printf("BY DISK: %s\n", temp);
     }
