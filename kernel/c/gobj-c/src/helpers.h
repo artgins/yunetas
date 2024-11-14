@@ -635,7 +635,7 @@ PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t vi
 PUBLIC json_t *tdump2json(const uint8_t *s, size_t len);
 PUBLIC int print_json2(const char *label, json_t *jn);
 PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose);
-PUBLIC char *current_timestamp(char *bf, size_t bfsize);
+PUBLIC char *current_timestamp(char *bf, size_t bfsize); // `bf` must be 90 bytes minimum
 PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm);
 PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local);
 PUBLIC time_t start_sectimer(time_t seconds);   /* value <=0 will disable the timer */
