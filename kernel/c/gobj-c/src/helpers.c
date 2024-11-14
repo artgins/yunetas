@@ -4361,6 +4361,15 @@ PUBLIC char *current_timestamp(char *bf, size_t bfsize)
     return bf;
 }
 
+/*****************************************************************
+ *  Get timestamp from tm struct
+ *****************************************************************/
+PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)
+{
+    strftime(bf, bfsize, "%Y-%m-%dT%H:%M:%S.0%z", tm);
+    return bf;
+}
+
 /****************************************************************************
  *   Arranca un timer de 'seconds' segundos.
  *   El valor retornado es el que hay que usar en la funcion test_timer()
@@ -4558,7 +4567,7 @@ PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
 PUBLIC int json_check_refcounts(
     json_t *jn, // not owned
     int max_refcount,
-    int *result // firstly initalize to 0
+    int *result // firstly, initialize to 0
 )
 {
     if(!jn) {

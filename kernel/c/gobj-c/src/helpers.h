@@ -636,6 +636,7 @@ PUBLIC json_t *tdump2json(const uint8_t *s, size_t len);
 PUBLIC int print_json2(const char *label, json_t *jn);
 PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose);
 PUBLIC char *current_timestamp(char *bf, size_t bfsize);
+PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm);
 PUBLIC time_t start_sectimer(time_t seconds);   /* value <=0 will disable the timer */
 PUBLIC BOOL   test_sectimer(time_t value);      /* Return TRUE if timer has finish */
 PUBLIC uint64_t start_msectimer(uint64_t miliseconds);   /* value <=0 will disable the timer */
