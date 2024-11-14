@@ -2949,7 +2949,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     }
 
     if(tranger2_get_rt_mem_by_id(tranger, topic_name, id, creator)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "tranger2_open_rt_mem(): Mem already exists",
