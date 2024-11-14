@@ -118,6 +118,7 @@ typedef struct {
 
     uint16_t system_flag;
     uint16_t user_flag;
+    uint64_t rowid;
 } md2_record_ex_t;
 
 typedef struct {
@@ -637,39 +638,36 @@ PUBLIC int tranger2_close_all_lists(
  *  print_record_filename: Print path
  */
 PUBLIC void tranger2_print_md0_record(
-    json_t *tranger,
-    json_t *topic,
-    const md2_record_ex_t *md_record_ex,
-    const char *key,
-    json_int_t rowid,
     char *bf,
-    int bfsize
+    int bfsize,
+    const char *key,
+    const md2_record_ex_t *md_record_ex,
+    BOOL print_local_time
 );
 PUBLIC void tranger2_print_md1_record(
-    json_t *tranger,
-    json_t *topic,
-    const md2_record_ex_t *md_record_ex,
-    const char *key,
-    json_int_t rowid,
     char *bf,
-    int bfsize
+    int bfsize,
+    const char *key,
+    const md2_record_ex_t *md_record_ex,
+    BOOL print_local_time
 );
 PUBLIC void tranger2_print_md2_record(
+    char *bf,
+    int bfsize,
     json_t *tranger,
     json_t *topic,
-    const md2_record_ex_t *md_record_ex,
     const char *key,
-    json_int_t rowid,
-    char *bf,
-    int bfsize
+    const md2_record_ex_t *md_record_ex,
+    BOOL print_local_time
 );
 
 PUBLIC void tranger2_print_record_filename(
+    char *bf,
+    int bfsize,
     json_t *tranger,
     json_t *topic,
     const md2_record_ex_t *md_record_ex,
-    char *bf,
-    int bfsize
+    BOOL print_local_time
 );
 
 PUBLIC void tranger2_set_trace_level(
