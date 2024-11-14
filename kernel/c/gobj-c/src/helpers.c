@@ -4370,6 +4370,23 @@ PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)
     return bf;
 }
 
+/*****************************************************************
+ *  Get timestamp from t (zulu or local)
+ *****************************************************************/
+PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)
+{
+    struct tm *tm;
+
+    if(local) {
+        tm = localtime(&t);
+    } else {
+        tm = gmtime(&t);
+    }
+
+    strftime(bf, bfsize, "%Y-%m-%dT%H:%M:%S.0%z", tm);
+    return bf;
+}
+
 /****************************************************************************
  *   Arranca un timer de 'seconds' segundos.
  *   El valor retornado es el que hay que usar en la funcion test_timer()
