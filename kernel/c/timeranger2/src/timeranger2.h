@@ -103,75 +103,24 @@ typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf_int_key              = 0x0004,
     sf_zip_record           = 0x0010,
     sf_cipher_record        = 0x0020,
-    sf_save_md_in_record    = 0x0040,   // save md in record's file too
     sf_t_ms                 = 0x0100,   // record time in miliseconds
     sf_tm_ms                = 0x0200,   // message time in miliseconds
-    sf_no_disk              = 0x0400,
+    sf_hard_deleted_record  = 0x0400,
     sf_loading_from_disk    = 0x1000,
-    sf_soft_deleted_record  = 0x2000,
-    sf_hard_deleted_record  = 0x4000,
 } system_flag2_t;
 
 #define sf_deleted_record (sf_soft_deleted_record | sf_hard_deleted_record)
 
-#pragma pack(1)
-
-typedef struct { // Size: 96 bytes
+typedef struct {
     uint64_t __t__;
     uint64_t __tm__;
 
     uint64_t __offset__;
     uint64_t __size__;
-} md2_record_t;
 
-#pragma pack()
-
-#define TIME_FLAG_MASK  0x00000FFFFFFFFFFFULL  /* Maximum date: UTC 559444-03-08T09:40:15+0000 */
-#define USER_FLAG_MASK  0x0FFFF00000000000ULL
-
-static inline uint32_t get_user_flag(const md2_record_t *md_record) {
-    return (uint32_t )((md_record->__t__ & USER_FLAG_MASK) >> 44);
-}
-static inline uint32_t get_system_flag(const md2_record_t *md_record) {
-    return (uint32_t)((md_record->__tm__ & USER_FLAG_MASK) >> 44);
-}
-static inline uint64_t get_time_t(const md2_record_t *md_record) {
-    return md_record->__t__ & TIME_FLAG_MASK;
-}
-static inline uint64_t get_time_tm(const md2_record_t *md_record) {
-    return md_record->__tm__ & TIME_FLAG_MASK;
-}
-
-static inline void set_user_flag(md2_record_t *md_record, uint64_t user_flag) {
-    // Clear the user flag bits (44-59) in md_record->__t__
-    md_record->__t__ &= ~USER_FLAG_MASK;
-
-    // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
-    md_record->__t__ |= (user_flag & 0xFFFF) << 44;
-}
-
-static inline void set_system_flag(md2_record_t *md_record, uint64_t user_flag) {
-    // Clear the user flag bits (44-59) in md_record->__t__
-    md_record->__tm__ &= ~USER_FLAG_MASK;
-
-    // Set the new user flag by shifting it to the correct position and OR-ing it into __t__
-    md_record->__tm__ |= (user_flag & 0xFFFF) << 44;
-}
-
-static inline void set_time_t(md2_record_t *md_record, uint64_t time_val) {
-    // Clear the bits corresponding to TIME_FLAG_MASK in md_record->__t__
-    md_record->__t__ &= ~TIME_FLAG_MASK;
-
-    // Set the new time value (masked) into __t__
-    md_record->__t__ |= (time_val & TIME_FLAG_MASK);
-}
-static inline void set_time_tm(md2_record_t *md_record, uint64_t time_val) {
-    // Clear the bits corresponding to TIME_FLAG_MASK in md_record->__tm__
-    md_record->__tm__ &= ~TIME_FLAG_MASK;
-
-    // Set the new time value (masked) into __tm__
-    md_record->__tm__ |= (time_val & TIME_FLAG_MASK);
-}
+    uint16_t system_flag;
+    uint16_t user_flag;
+} md2_record_ex_t;
 
 typedef struct {
     const char *topic_name;
@@ -420,8 +369,8 @@ PUBLIC int tranger2_append_record(
     json_t *tranger,
     const char *topic_name,
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
-    uint32_t user_flag,
-    md2_record_t *md2_record, // required
+    uint16_t user_flag,
+    md2_record_ex_t *md2_record_ex, // required
     json_t *jn_record       // owned
 );
 
@@ -486,7 +435,7 @@ typedef int (*tranger2_load_record_callback_t)(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 );
 
@@ -692,7 +641,7 @@ PUBLIC int tranger2_close_all_lists(
 PUBLIC void tranger2_print_md0_record(
     json_t *tranger,
     json_t *topic,
-    const md2_record_t *md_record,
+    const md2_record_ex_t *md_record_ex,
     const char *key,
     json_int_t rowid,
     char *bf,
@@ -701,7 +650,7 @@ PUBLIC void tranger2_print_md0_record(
 PUBLIC void tranger2_print_md1_record(
     json_t *tranger,
     json_t *topic,
-    const md2_record_t *md_record,
+    const md2_record_ex_t *md_record_ex,
     const char *key,
     json_int_t rowid,
     char *bf,
@@ -710,7 +659,7 @@ PUBLIC void tranger2_print_md1_record(
 PUBLIC void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
-    const md2_record_t *md_record,
+    const md2_record_ex_t *md_record_ex,
     const char *key,
     json_int_t rowid,
     char *bf,
@@ -720,7 +669,7 @@ PUBLIC void tranger2_print_md2_record(
 PUBLIC void tranger2_print_record_filename(
     json_t *tranger,
     json_t *topic,
-    const md2_record_t *md_record,
+    const md2_record_ex_t *md_record_ex,
     char *bf,
     int bfsize
 );
