@@ -1854,14 +1854,14 @@ PRIVATE int create_file(
                 "msg",          "%s", "TOO MANY OPEN FILES",
                 NULL
             );
-            close_fd_wr_files(gobj, topic, key);
+            close_fd_wr_files(gobj, topic, "");
 
             fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
             if(fp < 0) {
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "Cannot create json file",
+                    "msg",          "%s", "Cannot create json file, after close files",
                     "path",         "%s", full_path,
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),
@@ -2075,6 +2075,7 @@ PRIVATE int close_fd_files(
                     }
                     json_object_del(jn_value, key2);
                 }
+                json_object_del(fd_files, key);
             }
         } else {
             int fd = (int)kw_get_int(gobj, fd_files, key, -1, KW_REQUIRED);

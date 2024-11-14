@@ -11,6 +11,8 @@
 #include <inttypes.h>
 #include <locale.h>
 #include <time.h>
+#include <sys/resource.h>
+
 #include <yunetas.h>
 
 #define APP "test_rt_msg2"
@@ -491,6 +493,26 @@ int do_test(void)
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
+    struct rlimit rl;
+
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        printf("Current limit: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+    } else {
+        result += -1;
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error getrlimit()");
+    }
+
+    // Set new limit
+    rl.rlim_cur = 1024;  // Set soft limit
+    rl.rlim_max = 1024;  // Set hard limit
+    if (setrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        printf("New limit set: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+    } else {
+        result += -1;
+        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error setrlimit()");
+    }
+
     result += test(tranger, 2, "LOAD FORWARD");
     result += test(tranger, 3, "LOAD BACKWARD/TM");
     result += test(tranger, 1, "ADD RECORDS");
