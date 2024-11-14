@@ -3779,7 +3779,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         if(link(full_path_orig, full_path_dest)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "link() FAILED",
                 "src",          "%s", full_path_orig,
                 "dst",          "%s", full_path_dest,
