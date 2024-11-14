@@ -55,7 +55,7 @@ PRIVATE const char *sf_names[16+1] = {
     "",                         // 0x0080
     "sf_t_ms",                  // 0x0100
     "sf_tm_ms",                 // 0x0200
-    "sf_hard_deleted_record",   // 0x0400
+    "sf_deleted_record",        // 0x0400
     "",                         // 0x0800
 
     // Non-inherited

@@ -95,10 +95,10 @@ PUBLIC int trmsg_add_instance(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_msg,  // owned
-    md2_record_t *md_record
+    md2_record_ex_t *md_record
 )
 {
-    md2_record_t md_record_;
+    md2_record_ex_t md_record_;
     if(!md_record) {
         md_record = &md_record_;
     }
@@ -127,7 +127,7 @@ PRIVATE int load_record_callback(
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {

@@ -42,7 +42,7 @@ PRIVATE int load_id_callback(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 );
 PRIVATE int load_pkey2_callback(
@@ -51,14 +51,14 @@ PRIVATE int load_pkey2_callback(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 );
 
 PRIVATE json_t *md2json(
     const char *treedb_name,
     const char *topic_name,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_int_t rowid
 );
 
@@ -3130,7 +3130,7 @@ PRIVATE json_t *record2tranger(
 PRIVATE json_t *md2json(
     const char *treedb_name,
     const char *topic_name,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_int_t rowid
 )
 {
@@ -3146,9 +3146,9 @@ PRIVATE json_t *md2json(
         json_string(topic_name)
     );
     json_object_set_new(jn_md, "rowid", json_integer(rowid));
-    json_object_set_new(jn_md, "t", json_integer((json_int_t)get_time_t(md_record)));
-    json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
-    json_object_set_new(jn_md, "tag", json_integer(get_user_flag(md_record)));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "tag", json_integer((json_int_t)md_record->user_flag));
     json_object_set_new(jn_md, "pure_node", json_true());
 
     return jn_md;
@@ -3164,7 +3164,7 @@ PRIVATE int load_id_callback(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 )
 {
@@ -3197,7 +3197,7 @@ PRIVATE int load_id_callback(
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
-    system_flag2_t system_flag = get_system_flag(md_record);
+    system_flag2_t system_flag = md_record->system_flag;
     if(system_flag & sf_loading_from_disk) {
         /*---------------------------------*
          *  Loading treedb from disk
@@ -3285,7 +3285,7 @@ PRIVATE int load_pkey2_callback(
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 )
 {
@@ -3331,7 +3331,7 @@ PRIVATE int load_pkey2_callback(
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
-    system_flag2_t system_flag = get_system_flag(md_record);
+    system_flag2_t system_flag = md_record->system_flag;
     if(system_flag & (sf_loading_from_disk)) {
         /*---------------------------------*
          *  Loading treedb from disk
@@ -4490,7 +4490,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Write to tranger (Creating)
      *-------------------------------*/
-    md2_record_t md_record;
+    md2_record_ex_t md_record;
     JSON_INCREF(record)
     int ret = tranger2_append_record(
         tranger,
@@ -4723,7 +4723,7 @@ PUBLIC int treedb_save_node(
     uint32_t tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
 
     JSON_INCREF(record)
-    md2_record_t md_record;
+    md2_record_ex_t md_record;
     int ret = tranger2_append_record(
         tranger,
         topic_name,

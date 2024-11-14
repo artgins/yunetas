@@ -29,7 +29,7 @@ typedef struct {
     DL_ITEM_FIELDS
 
     tr_queue_t *trq;
-    md2_record_t md_record;
+    md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
     time_t timeout_ack;
     int retries;
@@ -175,7 +175,7 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
     tr_queue_t *trq,
-    const md2_record_t *md_record,
+    const md2_record_ex_t *md_record,
     json_t *jn_record // owned
 )
 {
@@ -203,7 +203,7 @@ PRIVATE q_msg_t *new_msg(
         );
         return 0;
     }
-    memmove(&msg->md_record, md_record, sizeof(md2_record_t));
+    memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->jn_record = 0; // Cárgalo solo cuando se use, jn_record;
     JSON_DECREF(jn_record);
     msg->trq = trq;
@@ -234,7 +234,7 @@ PRIVATE int load_record_callback(
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
@@ -406,7 +406,7 @@ PUBLIC q_msg trq_append(
     }
 
     JSON_INCREF(jn_msg);
-    md2_record_t md_record;
+    md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
         trq->topic_name,
@@ -638,7 +638,7 @@ PUBLIC q_msg trq_prev_msg(q_msg msg)
 /***************************************************************************
     Get info of message
  ***************************************************************************/
-PUBLIC md2_record_t trq_msg_md_record(q_msg msg_)
+PUBLIC md2_record_ex_t trq_msg_md_record(q_msg msg_)
 {
     register q_msg_t *msg = msg_;
     return msg->md_record;

@@ -39,7 +39,7 @@ PRIVATE json_t *record2tranger(
 PRIVATE json_t *md2json(
     const char *msg2db_name,
     const char *topic_name,
-    md2_record_t *md_record
+    md2_record_ex_t *md_record
 );
 PRIVATE int load_record_callback(
     json_t *tranger,
@@ -47,7 +47,7 @@ PRIVATE int load_record_callback(
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 );
 
@@ -851,7 +851,7 @@ PRIVATE json_t *record2tranger(
 PRIVATE json_t *md2json(
     const char *msg2db_name,
     const char *topic_name,
-    md2_record_t *md_record
+    md2_record_ex_t *md_record
 )
 {
     json_t *jn_md = json_object();
@@ -865,9 +865,9 @@ PRIVATE json_t *md2json(
         "topic_name",
         json_string(topic_name)
     );
-    json_object_set_new(jn_md, "t", json_integer((json_int_t)get_time_t(md_record)));
-    json_object_set_new(jn_md, "tm", json_integer((json_int_t)get_time_tm(md_record)));
-    json_object_set_new(jn_md, "user_flag", json_integer(get_user_flag(md_record)));
+    json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_md, "user_flag", json_integer((json_int_t)md_record->user_flag));
     json_object_set_new(jn_md, "__pure_node__", json_true());
 
     return jn_md;
@@ -883,13 +883,13 @@ PRIVATE int load_record_callback(
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if sf_loading_from_disk
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    system_flag2_t system_flag = get_system_flag(md_record);
+    system_flag2_t system_flag = md_record->system_flag;
     if(system_flag & sf_loading_from_disk) {
         /*---------------------------------*
          *  Loading from disk
@@ -1084,7 +1084,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     /*-------------------------------*
      *  Write to tranger
      *-------------------------------*/
-    md2_record_t md_record;
+    md2_record_ex_t md_record;
     JSON_INCREF(record)
     int ret = tranger2_append_record(
         tranger,

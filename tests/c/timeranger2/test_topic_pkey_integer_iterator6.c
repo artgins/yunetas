@@ -57,20 +57,20 @@ PRIVATE int rt_disk_record_callback(
     const char *key,
     json_t *list,
     json_int_t rowid,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *record      // must be owned
 )
 {
     leidos_by_disk++;
     counter_rowid_by_disk++;
     last_rowid_by_disk = rowid;
-    last_t_by_disk = get_time_t(md_record);
-    last_tm_by_disk = get_time_tm(md_record);
+    last_t_by_disk = md_record->__t__;
+    last_tm_by_disk = md_record->__tm__;
 
-    system_flag2_t system_flag = get_system_flag(md_record);
+    system_flag2_t system_flag = md_record->system_flag;
     if(system_flag & sf_loading_from_disk) {
-        first_t_by_disk = get_time_t(md_record);
-        first_tm_by_disk = get_time_tm(md_record);
+        first_t_by_disk = md_record->__t__;
+        first_tm_by_disk = md_record->__tm__;
     }
 
     if(pinta_md) {
@@ -185,7 +185,7 @@ PRIVATE int do_test(json_t *tranger)
                    "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el."
                    "Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.x"
                 );
-                md2_record_t md_record;
+                md2_record_ex_t md_record;
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
                 if(i % 10 == 0) {
                     yev_loop_run_once(yev_loop);

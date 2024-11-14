@@ -150,7 +150,7 @@ PUBLIC int trmsg_add_instance(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_msg,  // owned
-    md2_record_t *md_record
+    md2_record_ex_t *md_record
 );
 
 /*

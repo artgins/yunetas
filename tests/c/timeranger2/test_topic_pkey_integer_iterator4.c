@@ -48,7 +48,7 @@ PRIVATE int load_rango_callback(
     const char *key,
     json_t *list,       // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *record      // must be owned
 )
 {

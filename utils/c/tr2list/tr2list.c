@@ -361,7 +361,7 @@ PRIVATE int load_record_callback(
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 )
 {
@@ -872,7 +872,7 @@ int main(int argc, char *argv[])
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_t)) * sizeof(md2_record_t);
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
     gobj_start_up(

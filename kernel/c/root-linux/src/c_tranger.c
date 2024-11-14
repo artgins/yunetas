@@ -1443,7 +1443,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         /*
          *  Append record to tranger topic
          */
-        md2_record_t md_record;
+        md2_record_ex_t md_record;
         result = tranger2_append_record(
             priv->tranger,
             topic_name,

@@ -481,8 +481,8 @@ int do_test(void)
     };
 
     static topic_desc_t db_test_desc[] = {
-    // Topic Name,  Pkey    Key Type                    Tkey            Cols                Topic ext
-    {TOPIC_NAME,    "imei", sf_string_key|sf_no_disk,   "gps_date",     traces_json_desc,   NULL},
+    // Topic Name,  Pkey    Key Type            Tkey            Cols                Topic ext
+    {TOPIC_NAME,    "imei", sf_string_key,      "gps_date",     traces_json_desc,   NULL},
     {0}
     };
 
