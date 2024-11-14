@@ -71,7 +71,7 @@ typedef enum { // WARNING add new values to opt2json()
 typedef struct gclass_s {
     DL_ITEM_FIELDS
 
-    char *gclass_name;
+    gclass_name_t gclass_name;
     dl_list_t dl_states;            // FSM
     dl_list_t dl_events;            // FSM
     const GMETHODS *gmt;            // Global methods
@@ -878,7 +878,7 @@ PUBLIC hgclass gclass_create(
     }
 
     dl_add(&dl_gclass, gclass);
-    gclass->gclass_name = gobj_strdup(gclass_name);
+    gclass->gclass_name = gclass_name;  // DANGER gobj_strdup(gclass_name); 14/11/2024
     gclass->gmt = gmt;
     gclass->lmt = lmt;
     gclass->tattr_desc = tattr_desc;
@@ -1158,7 +1158,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         sys_free_fn(event_type);
     }
 
-    sys_free_fn(gclass->gclass_name);
+    //sys_free_fn(gclass->gclass_name);
     sys_free_fn(gclass);
 }
 
