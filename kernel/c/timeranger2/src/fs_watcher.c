@@ -474,9 +474,14 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->callback(fs_event);
         }
         if (event->mask & (IN_DELETE)) {
-            /*
-             *  Is deleted above in IN_DELETE_SELF event
-             */
+            char *filename = event->len? event->name:"";
+            path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+            if(path != NULL) {
+                fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
+                fs_event->directory = (volatile char *)path;
+                fs_event->filename = filename;
+                fs_event->callback(fs_event);
+            }
         }
     } else {
         /*

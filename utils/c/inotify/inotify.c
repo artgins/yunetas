@@ -211,17 +211,8 @@ void handle_inotify_event(struct inotify_event *event)
             print_json2("PATHS", jn_tracked_paths);
         }
         if (event->mask & (IN_DELETE)) {
-            /*
-             *  Is deleted in IN_DELETE_SELF event
-             */
-//            path = get_path(event->wd, TRUE);
-//            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
-//
-//            printf("  %s-> Directory deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
-//
-//            int wd = get_wd(full_path, TRUE);
-//            remove_watch(wd);
-//            print_json2("PATHS", jn_tracked_paths);
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> Directory deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
         }
     } else {
         /*
