@@ -2325,7 +2325,7 @@ PRIVATE BOOL _kw_match_simple(
             // Empty object evaluate as false.
             matched = FALSE;
         } else {
-            // Not Empty object evaluate as true, until a NOT match condition occurs.
+            // Not Empty object evaluates as true, until a NOT match condition occurs.
             matched = TRUE;
         }
 

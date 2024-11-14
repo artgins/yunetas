@@ -2155,8 +2155,8 @@ PUBLIC int cmp_two_simple_json(
     char *val1 = jn2string(jn_var1);
     char *val2 = jn2string(jn_var2);
     int ret = strcmp(val1, val2);
-    GBMEM_FREE(val1);
-    GBMEM_FREE(val2);
+    GBMEM_FREE(val1)
+    GBMEM_FREE(val2)
     return ret;
 }
 
