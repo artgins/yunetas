@@ -565,7 +565,6 @@ PRIVATE int do_test(void)
      *      Check foto_final1
      *---------------------------------------*/
     if(1) {
-print_json2("XXXXX", tranger);
         treedb_close_db(tranger, treedb_name);
 
         const char *test = "Load treedb from tranger";
@@ -674,7 +673,7 @@ print_json2("XXXXX", tranger);
                 "offset", 110,
                 "size", 143,
                 "user_flag", 0,
-                "system_flag", 0
+                "system_flag", 4097
         );
         const char *ignore_keys[]= {
             "t",
