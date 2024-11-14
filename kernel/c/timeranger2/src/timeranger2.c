@@ -7414,8 +7414,8 @@ PUBLIC void tranger2_print_md1_record(
     char fecha[90];
     char stamp[64];
 
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-    unsigned user_flag = 0; // TODO
+    system_flag2_t system_flag = get_system_flag(md_record);
+    unsigned user_flag = get_user_flag(md_record);
 
     if(system_flag & sf_t_ms) {
         time_t t = (time_t)get_time_t(md_record);
@@ -7484,7 +7484,7 @@ PUBLIC void tranger2_print_md2_record(
     int bfsize
 )
 {
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    system_flag2_t system_flag = get_system_flag(md_record);
 
     time_t t = (time_t)get_time_t(md_record);
     uint64_t offset = md_record->__offset__;
@@ -7528,7 +7528,7 @@ PUBLIC void tranger2_print_record_filename(
     int bfsize
 )
 {
-    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    system_flag2_t system_flag = get_system_flag(md_record);
 
     time_t t = (time_t)get_time_t(md_record);
     get_t_filename(
