@@ -4253,6 +4253,7 @@ PRIVATE int update_new_records(
     /*
      *  Update cache
      */
+int x; // esto desde mem too
     if(!cur_cache_file) {
         // Update cache
         json_t *cache_files = json_object_get(
@@ -4420,14 +4421,15 @@ PRIVATE json_t *find_cache_cell(
 )
 {
     // "cache`%s`files", key
+    json_t *topic_cache = json_object_get(topic, "cache");
+    json_t *key_cache = json_object_get(topic_cache, key);
+    if(!key_cache) {
+        key_cache = json_object();
+        json_object_set_new(topic_cache, key, key_cache);
+        json_object_set_new(key_cache, "files", json_array());
+    }
     json_t *cache_files = json_object_get(
-        json_object_get(
-            json_object_get(
-                topic,
-                "cache"
-            ),
-            key
-        ),
+        key_cache,
         "files"
     );
     if(!cache_files) {
@@ -4771,6 +4773,7 @@ PRIVATE int update_mem_cache(
 
     /*
      *  See if the file cache exists
+     *  WARNING only search in the last item of cell's array
      */
     json_t *cur_cache_file = find_cache_cell(
         gobj,
@@ -4783,9 +4786,19 @@ PRIVATE int update_mem_cache(
     /*
      *  Update cache
      */
+//    json_t *key_cache = json_object();
+//    json_t *cache_files = kw_get_list(gobj, key_cache, "files", json_array(), KW_CREATE);
+//    kw_get_dict(gobj, key_cache, "total", json_object(), KW_CREATE);
 //    json_object_set_new(topic_cache, key, key_cache);
+//    update_totals_of_key_cache(gobj, topic, key);
 
-    update_cache_cell(cur_cache_file, file_id, md_record, 1, 1);
+    if(!cur_cache_file) {
+        json_array_append_new(cache_files, key_file_cache);
+
+    } else {
+        update_cache_cell(cur_cache_file, file_id, md_record, 1, 1);
+
+    }
     update_totals_of_key_cache(gobj, topic, key);
 
     return 0;
