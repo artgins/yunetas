@@ -291,6 +291,7 @@ int do_test(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
+                    'cache': {}, \
                     'lists': [], \
                     'disks': [], \
                     'iterators': [] \
@@ -536,6 +537,7 @@ int do_test(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
+                    'cache': {}, \
                     'lists': [ \
                         { \
                             'id': 'list1', \
@@ -665,6 +667,7 @@ int do_test(void)
                         } \
                     }, \
                     'rd_fd_files': {}, \
+                    'cache': {}, \
                     'lists': [ \
                         { \
                             'id': 'list1', \
@@ -953,6 +956,7 @@ int do_test2(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
+                    'cache': {}, \
                     'lists': [], \
                     'disks': [], \
                     'iterators': [] \

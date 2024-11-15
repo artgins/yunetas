@@ -4712,7 +4712,15 @@ PRIVATE int update_mem_cache(
         /*
          *  Not iterators opened
          */
-        return 0;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no cache files",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+        return -1;
     }
 
     const char *directory = json_string_value(json_object_get(topic, "directory"));
