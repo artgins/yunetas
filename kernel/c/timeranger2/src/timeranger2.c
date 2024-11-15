@@ -204,13 +204,21 @@ PRIVATE json_t *load_file_cache(
     const char *key,
     const char *filename    // md2 filename with extension
 );
+PRIVATE uint64_t load_first_and_last_record_md(
+    hgobj gobj,
+    const char *directory,
+    const char *key,
+    const char *file_id,
+    md2_record_t *md_first_record,
+    md2_record_t *md_last_record
+);
+
 PRIVATE int update_mem_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key_value,
-    md2_record_ex_t *md_record_ex,
-    int md2_fd
+    md2_record_t *md_record
 );
 PRIVATE int update_totals_of_key_cache(
     hgobj gobj,
@@ -2526,6 +2534,11 @@ PUBLIC int tranger2_append_record(
             JSON_DECREF(jn_record)
             return -1;
         }
+
+        /*
+         *  Update cache
+         */
+        update_mem_cache(gobj, tranger, topic, key_value, &md_record);
     }
 
     // TEST performance with sf_save_md_in_record 98000
@@ -2550,11 +2563,6 @@ PUBLIC int tranger2_append_record(
         "__md_tranger__",
         __md_tranger__  // owned
     );
-
-    /*
-     *  Update cache
-     */
-    update_mem_cache(gobj, tranger, topic, key_value, md_record_ex, md2_fd);
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
@@ -4193,7 +4201,6 @@ PRIVATE int update_key_by_hard_link(
             "fr_tm": 946857600,
             "to_tm": 946864799,
             "rows": 226651,
-            "wr_time": 1726943703371895964
         }
 
     Here, with the information of master in the file, we know:
@@ -4417,7 +4424,7 @@ PRIVATE int load_topic_cache(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *find_file_cache(
+PRIVATE json_t *find_file_cache( /* Find only in the last item of the array */
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4457,36 +4464,10 @@ PRIVATE json_t *find_file_cache(
 
     const char *file_id_ = json_string_value(json_object_get(cache_file, "id"));
     if(strcmp(file_id, file_id_)!=0) {
+        // Silence
         return NULL;
     }
     return cache_file;
-}
-
-/***************************************************************************
- *  Get modify time of a file in nanoseconds
- ***************************************************************************/
-PRIVATE uint64_t get_modify_time_ns(hgobj gobj, int fd)
-{
-    struct stat file_stat;
-
-    // Retrieve the file status
-    if (fstat(fd, &file_stat) == -1) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "fstat() FAILED",
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        return 0;  // Return 0 in case of an error
-    }
-
-    // Combine seconds and nanoseconds into a single uint64_t value representing nanoseconds
-    // since the epoch
-    uint64_t mtime_ns = (uint64_t)file_stat.st_mtim.tv_sec * 1000000000ULL +
-        (uint64_t)file_stat.st_mtim.tv_nsec;
-
-    return mtime_ns;
 }
 
 /***************************************************************************
@@ -4523,17 +4504,123 @@ PRIVATE json_t *load_key_cache(hgobj gobj, const char *directory, const char *ke
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t *update_file_cache_cell(
+    json_t *file_cache,
+    const char *file_id,
+    md2_record_t *md_record,
+    int operation,  // -1 to subtract, 0 to set, +1 to add
+    uint64_t rows_
+)
+{
+    uint64_t file_from_t = (uint64_t)(-1);
+    uint64_t file_to_t = 0;
+    uint64_t file_from_tm = (uint64_t)(-1);
+    uint64_t file_to_tm = 0;
+    uint64_t rows = 0;
+
+    if(!file_cache) {
+        file_cache = json_object();
+        json_object_set_new(file_cache, "id", json_string(file_id));
+    } else {
+        file_from_t = json_integer_value(json_object_get(file_cache, "fr_t"));
+        file_to_t = json_integer_value(json_object_get(file_cache, "to_t"));
+        file_from_tm = json_integer_value(json_object_get(file_cache, "fr_tm"));
+        file_to_tm = json_integer_value(json_object_get(file_cache, "to_tm"));
+        rows = json_integer_value(json_object_get(file_cache, "rows"));
+    }
+
+    if(operation > 0) {
+        rows += rows_;
+    } else if(operation == 0) {
+        rows = rows_;
+
+    } else { // < 0
+        rows -= rows_;
+    }
+
+    if(md_record->__t__ < file_from_t) {
+        file_from_t = md_record->__t__;
+    }
+    if(md_record->__t__ > file_to_t) {
+        file_to_t = md_record->__t__;
+    }
+
+    if(md_record->__tm__ < file_from_tm) {
+        file_from_tm = md_record->__tm__;
+    }
+    if(md_record->__tm__ > file_to_tm) {
+        file_to_tm = md_record->__tm__;
+    }
+
+    json_object_set_new(file_cache, "fr_t", json_integer((json_int_t)file_from_t));
+    json_object_set_new(file_cache, "to_t", json_integer((json_int_t)file_to_t));
+    json_object_set_new(file_cache, "fr_tm", json_integer((json_int_t)file_from_tm));
+    json_object_set_new(file_cache, "to_tm", json_integer((json_int_t)file_to_tm));
+    json_object_set_new(file_cache, "rows", json_integer((json_int_t)rows));
+
+    return file_cache;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *load_file_cache(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *filename    // md2 filename with extension
+    const char *file_id    // TODO search callers to change this: NOT md2 filename with extension
 )
 {
-    char full_path[PATH_MAX];
+    /*----------------------------------*
+     *  Get the first and last record
+     *----------------------------------*/
+    md2_record_t md_first_record = {0};
+    md2_record_t md_last_record = {0};
 
-    md2_record_t md_first_record;
-    md2_record_t md_last_record;
+    uint64_t file_rows = load_first_and_last_record_md(
+        gobj,
+        directory,
+        key,
+        file_id,
+        &md_first_record,
+        &md_last_record
+    );
+    if(file_rows < 0) {
+        // Error already logged
+        return NULL;
+    }
+
+    /*---------------------------*
+     *      Create the cell
+     *---------------------------*/
+    json_t *file_cache = 0;
+    file_cache = update_file_cache_cell(file_cache, file_id, &md_first_record, 0, 1);
+    update_file_cache_cell(file_cache, file_id, &md_last_record, 0, file_rows);
+
+    return file_cache;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint64_t load_first_and_last_record_md(
+    hgobj gobj,
+    const char *directory,
+    const char *key,
+    const char *file_id,
+    md2_record_t *md_first_record,
+    md2_record_t *md_last_record
+)
+{
+    uint64_t file_rows = 0;
+
+    /*----------------------------------*
+     *  Open the .md2 file of the key
+     *  (name relative to time __t__)
+     *----------------------------------*/
+    char filename[PATH_MAX];
+    char full_path[PATH_MAX];
+    sprintf(filename, "%s.md2", file_id);
     build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
     int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
     if(fd<0) {
@@ -4545,18 +4632,19 @@ PRIVATE json_t *load_file_cache(
             "errno",        "%s", strerror(errno),
             NULL
         );
-        return NULL;
+        return -1;
     }
 
-    /*
-     *  Read first record
-     */
-    ssize_t ln = read(fd, &md_first_record, sizeof(md_first_record));
-    if(ln == sizeof(md_first_record)) {
-        md_first_record.__t__ = (ntohll(md_first_record.__t__)) & TIME_FLAG_MASK;
-        md_first_record.__tm__ = (ntohll(md_first_record.__tm__)) & TIME_FLAG_MASK;
-        md_first_record.__offset__ = ntohll(md_first_record.__offset__);
-        md_first_record.__size__ = ntohll(md_first_record.__size__);
+    /*---------------------------*
+     *      Read first record
+     *---------------------------*/
+    ssize_t ln = read(fd, md_first_record, sizeof(*md_first_record));
+    if(ln == sizeof(*md_first_record)) {
+        md_first_record->__t__ = (ntohll(md_first_record->__t__)) & TIME_FLAG_MASK;
+        md_first_record->__tm__ = (ntohll(md_first_record->__tm__)) & TIME_FLAG_MASK;
+        md_first_record->__offset__ = ntohll(md_first_record->__offset__);
+        md_first_record->__size__ = ntohll(md_first_record->__size__);
+        file_rows = 1;
     } else {
         if(ln<0) {
             gobj_log_critical(gobj, 0,
@@ -4570,10 +4658,11 @@ PRIVATE json_t *load_file_cache(
         } else if(ln==0) {
             // No data
         }
-        close(fd);
-        return NULL;
     }
 
+    /*---------------------------*
+     *      Read last record
+     *---------------------------*/
     /*
      *  Seek the last record
      */
@@ -4588,42 +4677,24 @@ PRIVATE json_t *load_file_cache(
             "errno",        "%s", strerror(errno),
             NULL
         );
-        close(fd);
-        return NULL;
-    }
-    if(offset == 0) {
-        // No records
-        close(fd);
-        return NULL;
     }
 
-    uint64_t file_rows = offset/sizeof(md2_record_t);
+    if(offset >= sizeof(md2_record_t)) {
 
-    /*
-     *  Read last record
-     */
-    offset -= sizeof(md2_record_t);
-    off64_t offset2 = lseek64(fd, offset, SEEK_SET);
-    if(offset2 < 0 || offset2 != offset) {
-        gobj_log_critical(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot read last record, lseek64() FAILED",
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        close(fd);
-        return NULL;
-    }
+        file_rows = offset/sizeof(md2_record_t);
 
-    ln = read(fd, &md_last_record, sizeof(md_last_record));
-    if(ln == sizeof(md_last_record)) {
-        md_last_record.__t__ = (ntohll(md_last_record.__t__)) & TIME_FLAG_MASK;
-        md_last_record.__tm__ = (ntohll(md_last_record.__tm__)) & TIME_FLAG_MASK;
-        md_last_record.__offset__ = ntohll(md_last_record.__offset__);
-        md_last_record.__size__ = ntohll(md_last_record.__size__);
-    } else {
-        if(ln<0) {
+        /*
+         *  Read last record (first back the size of md2_record_t)
+         */
+        offset -= sizeof(md2_record_t);
+        lseek64(fd, offset, SEEK_SET);
+        ln = read(fd, &md_last_record, sizeof(md_last_record));
+        if(ln == sizeof(*md_last_record)) {
+            md_last_record->__t__ = (ntohll(md_last_record->__t__)) & TIME_FLAG_MASK;
+            md_last_record->__tm__ = (ntohll(md_last_record->__tm__)) & TIME_FLAG_MASK;
+            md_last_record->__offset__ = ntohll(md_last_record->__offset__);
+            md_last_record->__size__ = ntohll(md_last_record->__size__);
+        } else {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -4632,86 +4703,27 @@ PRIVATE json_t *load_file_cache(
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-        } else if(ln==0) {
-            // No data
         }
-        close(fd);
-        return NULL;
     }
-    uint64_t modify_time = get_modify_time_ns(gobj, fd);
+
     close(fd);
 
-    uint64_t file_from_t = (uint64_t)(-1);
-    uint64_t file_to_t = 0;
-    uint64_t file_from_tm = (uint64_t)(-1);
-    uint64_t file_to_tm = 0;
-
-    if(md_first_record.__t__ < file_from_t) {
-        file_from_t = md_first_record.__t__;
-    }
-    if(md_first_record.__t__ > file_to_t) {
-        file_to_t = md_first_record.__t__;
-    }
-
-    if(md_first_record.__tm__ < file_from_tm) {
-        file_from_tm = md_first_record.__tm__;
-    }
-    if(md_first_record.__tm__ > file_to_tm) {
-        file_to_tm = md_first_record.__tm__;
-    }
-
-    if(md_last_record.__t__ < file_from_t) {
-        file_from_t = md_last_record.__t__;
-    }
-    if(md_last_record.__t__ > file_to_t) {
-        file_to_t = md_last_record.__t__;
-    }
-
-    if(md_last_record.__tm__ < file_from_tm) {
-        file_from_tm = md_last_record.__tm__;
-    }
-    if(md_last_record.__tm__ > file_to_tm) {
-        file_to_tm = md_last_record.__tm__;
-    }
-
-    char *p = strrchr(filename, '.');    // save file name without extension
-    if(p) {
-        *p = 0;
-    }
-    json_t *file_cache = json_object();
-    json_object_set_new(file_cache, "id", json_string(filename));
-    if(p) {
-        *p = '.';
-    }
-
-    json_object_set_new(file_cache, "fr_t", json_integer((json_int_t)file_from_t));
-    json_object_set_new(file_cache, "to_t", json_integer((json_int_t)file_to_t));
-    json_object_set_new(file_cache, "fr_tm", json_integer((json_int_t)file_from_tm));
-    json_object_set_new(file_cache, "to_tm", json_integer((json_int_t)file_to_tm));
-    json_object_set_new(file_cache, "rows", json_integer((json_int_t)file_rows));
-
-    json_object_set_new(file_cache, "wr_time", json_integer((json_int_t)modify_time));
-
-    return file_cache;
+    return file_rows;
 }
 
 /***************************************************************************
- *  Update totals of a key
+ *  Update or create the cache of a key file
  ***************************************************************************/
 PRIVATE int update_mem_cache(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    md2_record_ex_t *md_record_ex,
-    int md2_fd
+    md2_record_t *md_record
 )
 {
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
     if(!topic_cache) {
-        /*
-         *  Not iterators opened
-         */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -4723,17 +4735,26 @@ PRIVATE int update_mem_cache(
         return -1;
     }
 
-    const char *directory = json_string_value(json_object_get(topic, "directory"));
-    char file_id[NAME_MAX];
+    /*
+     *  The cache id is the file_id, the file_id is based in the time __t__ of the record.
+     */
+    uint64_t t = md_record->__t__;
+    if(get_system_flag(md_record) & sf_t_ms) {
+        t /= 1000;
+    }
 
+    char file_id[NAME_MAX];
     get_file_id(
         file_id,
         sizeof(file_id),
         tranger,
         topic,
-        (md_record_ex->system_flag & sf_t_ms)? md_record_ex->__t__/1000:md_record_ex->__t__
+        t
     );
 
+    /*
+     *  See if the file cache exists
+     */
     json_t *cur_cache_file = find_file_cache(
         gobj,
         tranger,
@@ -4741,54 +4762,11 @@ PRIVATE int update_mem_cache(
         key,
         file_id
     );
-    if(cur_cache_file) {
-        /*
-         *  Update cache
-         */
-        json_object_set_new(
-            cur_cache_file,
-            "to_t",
-            json_integer((json_int_t)md_record_ex->__t__)
-        );
-        json_object_set_new(
-            cur_cache_file,
-            "to_tm",
-            json_integer((json_int_t)md_record_ex->__t__)
-        );
-        json_object_set_new(
-            cur_cache_file,
-            "rows",
-            json_integer((json_int_t)md_record_ex->rowid)
-        );
 
-        uint64_t modify_time = get_modify_time_ns(gobj, md2_fd);
-        json_object_set_new(cur_cache_file, "wr_time", json_integer((json_int_t)modify_time));
-
-    } else {
-        /*
-         *  New cache
-         */
-        char filename[NAME_MAX+8];
-        snprintf(filename, sizeof(filename), "%s.md2", file_id);
-        json_t *new_cache_file = load_file_cache(
-            gobj,
-            directory,
-            key,
-            filename
-        );
-
-        json_t *cache_files = json_object_get(
-            json_object_get(
-                json_object_get(
-                    topic,
-                    "cache"
-                ),
-                key
-            ),
-            "files"
-        );
-        json_array_append_new(cache_files, new_cache_file);
-    }
+    /*
+     *  Update cache
+     */
+    update_file_cache_cell(cur_cache_file, file_id, md_record, 1, 1);
 
     update_totals_of_key_cache(gobj, topic, key);
 
