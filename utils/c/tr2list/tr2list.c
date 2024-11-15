@@ -554,34 +554,6 @@ PRIVATE int list_messages(void)
         &rt     // rt
     );
 
-
-//    json_t *jn_keys = tranger2_list_keys( // return is yours
-//        tranger,
-//        arguments.topic,
-//        arguments.rkey
-//    );
-//
-//    int idx; json_t *jn_key;
-//    json_array_foreach(jn_keys, idx, jn_key) {
-//        const char *key = json_string_value(jn_key);
-//        json_t *tr_list = tranger2_open_iterator(
-//            tranger,
-//            arguments.topic,
-//            key,
-//            json_incref(match_cond),  // owned
-//            load_record_callback, // called on LOADING and APPENDING
-//            "",     // iterator id
-//            TRUE,   // rt_by_disk
-//            "",     // creator
-//            NULL,   // JSON array, if not empty, fills it with the LOADING data, not owned
-//            NULL    // options
-//        );
-//        if(tr_list) {
-//            tranger2_close_iterator(tranger, tr_list);
-//        }
-//    }
-//    JSON_DECREF(jn_keys)
-
     tranger2_close_list(tranger, rt);
 
     /*-------------------------------*
