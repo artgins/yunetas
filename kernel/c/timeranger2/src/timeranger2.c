@@ -15,6 +15,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/resource.h>
 
 #include <ansi_escape_codes.h>
 #include <helpers.h>
@@ -1832,11 +1833,16 @@ PRIVATE int create_file(
     int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
     if(fp < 0) {
         if(errno == EMFILE) {
+            struct rlimit rl = {0};
+            getrlimit(RLIMIT_NOFILE, &rl);
+
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "path",         "%s", full_path,
-                "msg",          "%s", "TOO MANY OPEN FILES 1",
+                "function",             "%s", __FUNCTION__,
+                "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                "path",                 "%s", full_path,
+                "msg",                  "%s", "TOO MANY OPEN FILES 1",
+                "current soft limit",   "%d", rl.rlim_cur,
+                "current hard limit",   "%d", rl.rlim_max,
                 NULL
             );
             close_fd_wr_files(gobj, topic, "");
@@ -1926,13 +1932,19 @@ PRIVATE int get_topic_wr_fd( // optimized
             fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
             if(fd < 0) {
                 if(errno == EMFILE) {
+                    struct rlimit rl = {0};
+                    getrlimit(RLIMIT_NOFILE, &rl);
+
                     gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "path",         "%s", full_path,
-                        "msg",          "%s", "TOO MANY OPEN FILES 2",
+                        "function",             "%s", __FUNCTION__,
+                        "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                        "path",                 "%s", full_path,
+                        "msg",                  "%s", "TOO MANY OPEN FILES 2",
+                        "current soft limit",   "%d", rl.rlim_cur,
+                        "current hard limit",   "%d", rl.rlim_max,
                         NULL
                     );
+
                     close_fd_wr_files(gobj, topic, "");
                     fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
                 }
