@@ -411,10 +411,6 @@ PRIVATE int load_record_callback(
         return 0;
     }
 
-//    if(!jn_record) {
-//        jn_record = tranger2_read_record_content(tranger, topic, key, md_record);
-//    }
-
     if(kw_has_key(match_cond, "filter")) {
         verbose = 3;
         json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
@@ -434,7 +430,7 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-//            tranger2_print_md0_record(tranger, topic, key, md_record, title, sizeof(title));
+            tranger2_print_md0_record(title, sizeof(title), key, md_record, arguments.print_local_time);
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
@@ -541,32 +537,52 @@ PRIVATE int list_messages(void)
     }
     printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
 
-    json_t *jn_keys = tranger2_list_keys( // return is yours
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(size_t)load_record_callback)
+    );
+    json_t *rt;
+    tranger2_open_list(
         tranger,
         arguments.topic,
-        arguments.rkey
+        match_cond, // owned
+        NULL,   // extra
+        "tr2list",   // rt_id
+        TRUE,   // rt_by_disk
+        NULL,   // creator
+        &rt     // rt
     );
 
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        json_t *tr_list = tranger2_open_iterator(
-            tranger,
-            arguments.topic,
-            key,
-            json_incref(match_cond),  // owned
-            load_record_callback, // called on LOADING and APPENDING
-            "",     // iterator id
-            TRUE,   // rt_by_disk
-            "",     // creator
-            NULL,   // JSON array, if not empty, fills it with the LOADING data, not owned
-            NULL    // options
-        );
-        if(tr_list) {
-            tranger2_close_iterator(tranger, tr_list);
-        }
-    }
-    JSON_DECREF(jn_keys)
+
+//    json_t *jn_keys = tranger2_list_keys( // return is yours
+//        tranger,
+//        arguments.topic,
+//        arguments.rkey
+//    );
+//
+//    int idx; json_t *jn_key;
+//    json_array_foreach(jn_keys, idx, jn_key) {
+//        const char *key = json_string_value(jn_key);
+//        json_t *tr_list = tranger2_open_iterator(
+//            tranger,
+//            arguments.topic,
+//            key,
+//            json_incref(match_cond),  // owned
+//            load_record_callback, // called on LOADING and APPENDING
+//            "",     // iterator id
+//            TRUE,   // rt_by_disk
+//            "",     // creator
+//            NULL,   // JSON array, if not empty, fills it with the LOADING data, not owned
+//            NULL    // options
+//        );
+//        if(tr_list) {
+//            tranger2_close_iterator(tranger, tr_list);
+//        }
+//    }
+//    JSON_DECREF(jn_keys)
+
+    tranger2_close_list(tranger, rt);
 
     /*-------------------------------*
      *  Free resources
@@ -987,12 +1003,6 @@ int main(int argc, char *argv[])
         );
     }
 
-//    if(json_object_size(match_cond)>0) {
-//        json_object_set_new(match_cond, "only_md", json_true());
-//    } else {
-//        JSON_DECREF(match_cond)
-//    }
-
     /*
      *  Do your work
      */
@@ -1044,7 +1054,6 @@ int main(int argc, char *argv[])
         (unsigned long)(((double)total_counter)/dt)
     );
 
-    JSON_DECREF(match_cond)
     gobj_end();
 
     return gobj_get_exit_code();
