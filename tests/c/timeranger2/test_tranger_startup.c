@@ -229,6 +229,7 @@ int do_test(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
+                    'cache': {}, \
                     'lists': [], \
                     'disks': [], \
                     'iterators': [] \
@@ -255,7 +256,7 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-    list_open_files();
+    //list_open_files();
 
     /*------------------------*
      *      Close topic
@@ -315,7 +316,7 @@ int do_test(void)
         result += test_json(json_incref(tranger));
     }
 
-    list_open_files();
+    //list_open_files();
 
     /*------------------------------------------*
      *  Check re-open tranger as master
