@@ -7107,8 +7107,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 
     BOOL realtime = FALSE;
     json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-    BOOL no_rt = kw_get_str(gobj, match_cond, "no_rt", 0, 0);
-    if(to_rowid == 0 && !no_rt) {
+    if(to_rowid == 0) {
         realtime = TRUE;
     }
 
