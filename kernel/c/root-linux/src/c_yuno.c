@@ -56,6 +56,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj);
 PRIVATE int set_user_trace_filter(hgobj gobj);
 PRIVATE int set_user_gobj_traces(hgobj gobj);
 PRIVATE int set_user_gobj_no_traces(hgobj gobj);
+PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files);
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -413,6 +414,7 @@ SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring"),
+SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "40000",        "Limit open files"),
 SDATA_END()
 };
 
@@ -460,6 +462,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t periodic;
     json_int_t autokill;
     json_int_t autokill_init;
+    json_int_t limit_open_files;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -509,9 +512,9 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_write_str_attr(gobj, "yuno_role_plus_name", role_plus_name);
     }
 
-    /*
+    /*--------------------------*
      *  Create the event loop
-     */
+     *--------------------------*/
     yev_loop_create(
         gobj,
         (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
@@ -525,6 +528,15 @@ PRIVATE void mt_create(hgobj gobj)
         atexit_registered = 1;
     }
 
+    /*--------------------------*
+     *  Set limit open files
+     *--------------------------*/
+    json_int_t limit_open_files = gobj_read_integer_attr(gobj, "limit_open_files");
+    set_limit_open_files(gobj, limit_open_files);
+
+    /*--------------------------*
+     *      Set start time
+     *--------------------------*/
     time_t now;
     time(&now);
     gobj_write_integer_attr(gobj, "start_time", now);
@@ -533,9 +545,15 @@ PRIVATE void mt_create(hgobj gobj)
     current_timestamp(bfdate, sizeof(bfdate));
     gobj_write_str_attr(gobj, "start_date", bfdate);
 
+    /*--------------------------*
+     *  Show attrs in start
+     *--------------------------*/
     json_t *attrs = gobj_hsdata(gobj);
     gobj_trace_json(gobj, attrs, "yuno's attrs"); // Show attributes of yuno
 
+    /*--------------------------*
+     *      Set i18n
+     *--------------------------*/
     const char *i18n_domain = gobj_read_str_attr(gobj, "i18n_domain");
     if(!empty_string(i18n_domain)) {
         const char *i18n_dirname = gobj_read_str_attr(gobj, "i18n_dirname");
@@ -612,6 +630,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_stats,         gobj_read_integer_attr)
     SET_PRIV(timeout_flush,         gobj_read_integer_attr)
     SET_PRIV(timeout_restart,       gobj_read_integer_attr)
+    SET_PRIV(limit_open_files,      gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -635,6 +654,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         } else {
             priv->t_restart = 0;
         }
+    ELIF_EQ_SET_PRIV(limit_open_files,  gobj_read_integer_attr)
+        set_limit_open_files(gobj, priv->limit_open_files);
     END_EQ_SET_PRIV()
 }
 
@@ -3765,6 +3786,29 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         gobj_save_persistent_attrs(gobj, json_string("no_trace_levels"));
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
+{
+    struct rlimit rl;
+    rl.rlim_cur = (rlim_t)limit_open_files;  // Set soft limit
+    rl.rlim_max = (rlim_t)limit_open_files;  // Set hard limit
+    if(setrlimit(RLIMIT_NOFILE, &rl)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "setrlimit() FAILED",
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
     return 0;
 }
 
