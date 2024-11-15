@@ -143,7 +143,7 @@ PRIVATE int get_topic_wr_fd( // optimized
     BOOL for_data,
     uint64_t __t__
 );
-static inline char *get_t_filename(
+PRIVATE char *get_t_filename(
     char *bf,
     int bfsize,
     json_t *tranger,
@@ -203,6 +203,14 @@ PRIVATE json_t *load_file_cache(
     const char *directory,
     const char *key,
     const char *filename    // md2 filename with extension
+);
+PRIVATE int update_mem_cache(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key_value,
+    md2_record_ex_t *md_record_ex,
+    int md2_fd
 );
 PRIVATE int update_totals_of_key_cache(
     hgobj gobj,
@@ -1006,10 +1014,15 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     kw_get_str(gobj, topic, "directory", directory, KW_CREATE);
     kw_get_dict(gobj, topic, "wr_fd_files", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "rd_fd_files", json_object(), KW_CREATE);
-    //kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
+    kw_get_dict(gobj, topic, "cache", json_object(), KW_CREATE);
     kw_get_dict(gobj, topic, "lists", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "disks", json_array(), KW_CREATE);
     kw_get_dict(gobj, topic, "iterators", json_array(), KW_CREATE);
+
+    /*-------------------------------------*
+     *  Load keys and metadata from disk
+     *-------------------------------------*/
+    load_topic_cache(gobj, tranger, topic);
 
     /*
      *  Monitoring the disk to realtime disk lists
@@ -1715,16 +1728,16 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
  *  Get fullpath of filename in content or md2 level
  *  The directory will be create if it's master
  ***************************************************************************/
-static inline char *get_t_filename(
+PRIVATE char *get_file_id(
     char *bf,
     int bfsize,
     json_t *tranger,
     json_t *topic,
-    BOOL for_data,  // TRUE for data, FALSE for md2
     uint64_t __t__ // WARNING must be in seconds!
 )
 {
     hgobj gobj = 0;
+    *bf = 0;
 
     struct tm *tm = gmtime((time_t *)&__t__);
     if(!tm) {
@@ -1738,16 +1751,33 @@ static inline char *get_t_filename(
         return NULL;
     }
 
-    char format[NAME_MAX];
     const char *filename_mask = json_string_value(json_object_get(topic, "filename_mask"));
     if(empty_string(filename_mask)) {
         filename_mask = json_string_value(json_object_get(tranger, "filename_mask"));
     }
 
-    strftime(format, sizeof(format), filename_mask, tm);
+    strftime(bf, bfsize, filename_mask, tm);
+    return bf;
+}
+
+/***************************************************************************
+ *  Get fullpath of filename in content or md2 level
+ *  The directory will be create if it's master
+ ***************************************************************************/
+PRIVATE char *get_t_filename(
+    char *bf,
+    int bfsize,
+    json_t *tranger,
+    json_t *topic,
+    BOOL for_data,  // TRUE for data, FALSE for md2
+    uint64_t __t__ // WARNING must be in seconds!
+)
+{
+    char filename[NAME_MAX];
+    get_file_id(filename, sizeof(filename), tranger, topic, __t__);
 
     snprintf(bf, bfsize, "%s.%s",
-        format,
+        filename,
         for_data?"json":"md2"
     );
 
@@ -2350,7 +2380,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);  // Can be -1, if sf_no_disk
+    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);
 
     // TEST performance 475000
 
@@ -2451,9 +2481,9 @@ PUBLIC int tranger2_append_record(
     set_system_flag(&md_record, system_flag & ~NOT_INHERITED_MASK);
 
     json_int_t relative_rowid = 0;
-    int md2_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);  // Can be -1, if sf_no_disk
-    if(md2_fp >= 0) {
-        off64_t offset = lseek64(md2_fp, 0, SEEK_END);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);
+    if(md2_fd >= 0) {
+        off64_t offset = lseek64(md2_fd, 0, SEEK_END);
         if(offset < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
@@ -2480,7 +2510,7 @@ PUBLIC int tranger2_append_record(
         big_endian.__size__ = htonll(md_record.__size__);
 
         size_t ln = write(
-            md2_fp,
+            md2_fd,
             &big_endian,
             sizeof(md2_record_t)
         );
@@ -2520,6 +2550,11 @@ PUBLIC int tranger2_append_record(
         "__md_tranger__",
         __md_tranger__  // owned
     );
+
+    /*
+     *  Update cache
+     */
+    update_mem_cache(gobj, tranger, topic, key_value, md_record_ex, md2_fd);
 
     /*--------------------------------------------*
      *      Call callbacks of realtime lists
@@ -4371,8 +4406,8 @@ PRIVATE int load_topic_cache(
     } else {
         /*
          *  Update cache
+         *  Updated in tranger2_append_record
          */
-        // TODO
     }
 
     JSON_DECREF(jn_keys)
@@ -4663,6 +4698,98 @@ PRIVATE json_t *load_file_cache(
 /***************************************************************************
  *  Update totals of a key
  ***************************************************************************/
+PRIVATE int update_mem_cache(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    md2_record_ex_t *md_record_ex,
+    int md2_fd
+)
+{
+    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
+    if(!topic_cache) {
+        /*
+         *  Not iterators opened
+         */
+        return 0;
+    }
+
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
+    char file_id[NAME_MAX];
+
+    get_file_id(
+        file_id,
+        sizeof(file_id),
+        tranger,
+        topic,
+        (md_record_ex->system_flag & sf_t_ms)? md_record_ex->__t__/1000:md_record_ex->__t__
+    );
+
+    json_t *cur_cache_file = find_file_cache(
+        gobj,
+        tranger,
+        topic,
+        key,
+        file_id
+    );
+    if(cur_cache_file) {
+        /*
+         *  Update cache
+         */
+        json_object_set_new(
+            cur_cache_file,
+            "to_t",
+            json_integer((json_int_t)md_record_ex->__t__)
+        );
+        json_object_set_new(
+            cur_cache_file,
+            "to_tm",
+            json_integer((json_int_t)md_record_ex->__t__)
+        );
+        json_object_set_new(
+            cur_cache_file,
+            "rows",
+            json_integer((json_int_t)md_record_ex->rowid)
+        );
+
+        uint64_t modify_time = get_modify_time_ns(gobj, md2_fd);
+        json_object_set_new(cur_cache_file, "wr_time", json_integer((json_int_t)modify_time));
+
+    } else {
+        /*
+         *  New cache
+         */
+        char filename[NAME_MAX+8];
+        snprintf(filename, sizeof(filename), "%s.md2", file_id);
+        json_t *new_cache_file = load_file_cache(
+            gobj,
+            directory,
+            key,
+            filename
+        );
+
+        json_t *cache_files = json_object_get(
+            json_object_get(
+                json_object_get(
+                    topic,
+                    "cache"
+                ),
+                key
+            ),
+            "files"
+        );
+        json_array_append_new(cache_files, new_cache_file);
+    }
+
+    update_totals_of_key_cache(gobj, topic, key);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Update totals of a key
+ ***************************************************************************/
 PRIVATE int update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *key)
 {
     // "cache`%s`files", key
@@ -4814,11 +4941,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         JSON_DECREF(extra)
         return NULL;
     }
-
-    /*-----------------------------------------*
-     *      Load keys and metadata from disk
-     *-----------------------------------------*/
-    load_topic_cache(gobj, tranger, topic);  // idempotent
 
     BOOL realtime;
     json_t *segments = get_segments(
