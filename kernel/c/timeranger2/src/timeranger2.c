@@ -4739,7 +4739,7 @@ PRIVATE int update_key_cache_totals(hgobj gobj, json_t *topic, const char *key)
 PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDING: add real time data
     json_t *tranger,
     const char *topic_name,
-    const char *key,    // ONLY one key by iterator
+    const char *key,    // required
     json_t *match_cond, // owned
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
     const char *iterator_id,     // iterator id, optional, if empty will be the key
@@ -7187,7 +7187,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         }
 
         if(!rt) {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "tranger2_open_list(): Cannot open rt",
@@ -7201,11 +7201,29 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         if(prt) {
             *prt = rt;
         }
-    }
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return 0;
 
-    JSON_DECREF(match_cond)
-    JSON_DECREF(extra)
-    return 0;
+    } else {
+        if(!prt || !extra) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "tranger2_open_list(): list with no-realtime require prt and extra",
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+            JSON_DECREF(match_cond)
+            JSON_DECREF(extra)
+            return -1;
+        }
+        json_object_set_new(extra, "list_type", json_string("no_rt"));
+
+        *prt = extra;
+        JSON_DECREF(match_cond)
+        return 0;
+    }
 }
 
 /***************************************************************************
@@ -7223,6 +7241,9 @@ PUBLIC int tranger2_close_list(
         return tranger2_close_rt_mem(tranger, list);
     } else if(strcmp(list_type, "rt_disk")==0) {
         return tranger2_close_rt_disk(tranger, list);
+    } else if(strcmp(list_type, "no_rt")==0) {
+        JSON_DECREF(list)
+        return 0;
     }
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,

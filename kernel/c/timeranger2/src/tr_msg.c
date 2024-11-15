@@ -337,6 +337,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
             "topic_name",   "%s", topic_name,
             NULL
         );
+        return NULL;
     }
 
     return rt;
