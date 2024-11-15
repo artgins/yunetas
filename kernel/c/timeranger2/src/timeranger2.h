@@ -586,6 +586,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     Open list, load records in memory
 
     match_cond of second level:
+        no_rt               (bool) Set TRUE if you don't want realtime (though to_rowid is 0)
         key                 (str) key (if not exists then rkey is used)
         rkey                (str) regular expression of key (empty "" is equivalent to ".*"
                             WARNING: loading form disk keys matched in rkey)

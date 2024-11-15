@@ -238,7 +238,7 @@ PRIVATE json_int_t next_segment_row(
     json_int_t cur_segment,
     json_int_t *rowid
 );
-PRIVATE BOOL tranger2_match_record(
+PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,
@@ -4881,7 +4881,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 break;
             }
 
-            if(tranger2_match_record(match_cond, total_rows, rowid, &md_record_ex, &end)) {
+            if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
 
@@ -5217,7 +5217,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
             break;
         }
 
-        if(tranger2_match_record(match_cond, total_rows, rowid, &md_record_ex, &end)) {
+        if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
             const char *file_id = json_string_value(json_object_get(segment, "id"));
             json_t *record = read_record_content(
                 tranger,
@@ -5683,7 +5683,7 @@ PRIVATE json_t *get_segments(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL tranger2_match_record(
+PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
     json_int_t total_rows,
     json_int_t rowid,
@@ -7107,7 +7107,8 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
 
     BOOL realtime = FALSE;
     json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
-    if(to_rowid == 0) {
+    BOOL no_rt = kw_get_str(gobj, match_cond, "no_rt", 0, 0);
+    if(to_rowid == 0 && !no_rt) {
         realtime = TRUE;
     }
 
