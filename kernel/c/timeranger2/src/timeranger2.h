@@ -406,7 +406,7 @@ PUBLIC int tranger2_set_user_flag(
 /**rst**
     Read record user flag (for writing mode)
 **rst**/
-PUBLIC uint32_t tranger2_read_user_flag(
+PUBLIC uint16_t tranger2_read_user_flag(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid

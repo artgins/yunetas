@@ -135,6 +135,8 @@ PRIVATE int load_record_callback(
     json_t *jn_messages = kw_get_dict(gobj, list, "messages", 0, KW_REQUIRED);
     json_t *match_cond = kw_get_dict(gobj, list, "match_cond", 0, KW_REQUIRED);
 
+print_json2("XXXX", jn_record);
+
     /*
      *  Search the message for this key
      */

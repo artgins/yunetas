@@ -1306,7 +1306,7 @@ PUBLIC json_t *tranger2_backup_topic(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    // TODO NOT tested
+    // TODO backup pending
     /*
      *  Close topic
      */
@@ -1470,7 +1470,7 @@ PUBLIC json_t *tranger2_backup_topic(
         topic_name,
         kw_get_str(gobj, topic_desc, "pkey", "", KW_REQUIRED),
         kw_get_str(gobj, topic_desc, "tkey", "", KW_REQUIRED),
-        NULL, // TODO get jn_topic
+        NULL, // TODO backup pending, get jn_topic
         (system_flag2_t)kw_get_int(gobj, topic_desc, "system_flag", 0, KW_REQUIRED),
         topic_cols,     // owned
         jn_topic_var    // owned
@@ -2813,7 +2813,7 @@ PUBLIC int tranger2_write_user_flag(
         return -1;
     }
 
-//   TODO md_record.__user_flag__= user_flag;
+    set_user_flag(&md_record, user_flag);
 
     if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
         return -1;
@@ -2858,17 +2858,20 @@ PUBLIC int tranger2_set_user_flag(
         return -1;
     }
 
+    uint16_t user_flag = get_user_flag(&md_record);
     if(set) {
         /*
          *  Set
          */
-//TODO        md_record.__user_flag__ |= mask;
+        user_flag |= mask;
+
     } else {
         /*
          *  Reset
          */
-//    TODO    md_record.__user_flag__ &= ~mask;
+        user_flag  &= ~mask;
     }
+    set_user_flag(&md_record, user_flag);
 
     if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
         return -1;
@@ -2880,7 +2883,7 @@ PUBLIC int tranger2_set_user_flag(
 /***************************************************************************
     Read record user flag (for writing mode)
  ***************************************************************************/
-PUBLIC uint32_t tranger2_read_user_flag(
+PUBLIC uint16_t tranger2_read_user_flag(
     json_t *tranger,
     const char *topic_name,
     uint64_t rowid
@@ -2919,7 +2922,8 @@ PUBLIC uint32_t tranger2_read_user_flag(
         );
         return 0;
     }
-    return 0; // TODO md_record.__user_flag__;
+    uint16_t user_flag = get_user_flag(&md_record);
+    return user_flag;
 }
 
 /***************************************************************************
