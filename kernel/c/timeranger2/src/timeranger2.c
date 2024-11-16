@@ -4722,15 +4722,27 @@ PRIVATE uint64_t load_first_and_last_record_md(
     }
 
     if(offset >= sizeof(md2_record_t)) {
-
+        /*
+         *  Save file rows
+         */
         file_rows = offset/sizeof(md2_record_t);
 
         /*
-         *  Read last record (first back the size of md2_record_t)
+         *  Read last record (firstly to back the size of md2_record_t)
          */
         offset -= sizeof(md2_record_t);
-        lseek64(fd, offset, SEEK_SET);
-        ln = read(fd, &md_last_record, sizeof(md_last_record));
+        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
+        if(offset2 < 0 || offset2 != offset) {
+            gobj_log_critical(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
+                "errno",        "%s", strerror(errno),
+                NULL
+            );
+        }
+
+        ln = read(fd, md_last_record, sizeof(md2_record_t));
         if(ln == sizeof(md2_record_t)) {
             md_last_record->__t__ = (ntohll(md_last_record->__t__)) & TIME_FLAG_MASK;
             md_last_record->__tm__ = (ntohll(md_last_record->__tm__)) & TIME_FLAG_MASK;
