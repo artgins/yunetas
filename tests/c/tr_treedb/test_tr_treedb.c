@@ -667,10 +667,10 @@ PRIVATE int do_test(void)
             "users",
             "managers",
            "__md_tranger__",
-                "rowid", 2,
+                "rowid", 5,
                 "t", 99999,
                 "tm", 0,
-                "offset", 110,
+                "offset", 539,
                 "size", 143,
                 "user_flag", 0,
                 "system_flag", 4097
