@@ -50,6 +50,7 @@ int do_test(char *path)
         FS_FLAG_RECURSIVE_PATHS,
         fs_event_callback,
         NULL,
+        NULL,
         NULL
     );
 
