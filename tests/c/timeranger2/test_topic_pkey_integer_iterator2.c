@@ -141,7 +141,6 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
         "it1",  // rt id
-        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,
         NULL
@@ -172,7 +171,6 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
         NULL,   // rt id
-        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options
@@ -220,7 +218,6 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // rt_id
-        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options

@@ -4930,7 +4930,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_t *match_cond, // owned
     tranger2_load_record_callback_t load_record_callback, // called on loading and appending new record
     const char *iterator_id,     // iterator id, optional, if empty will be the key
-    BOOL rt_by_disk,
     const char *creator,
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
     json_t *extra       // owned, user data, this json will be added to the return iterator
@@ -5124,14 +5123,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 json_object_set_new(iterator, "cur_segment", json_integer(cur_segment));
                 json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
             }
-        }
-
-        /*----------------------------------*
-         *  Mark for realtime for iterator
-         *----------------------------------*/
-        if(realtime) {
-            json_object_set_new(iterator, "realtime", json_true());
-            json_object_set_new(iterator, "rt_by_disk", json_boolean(rt_by_disk));
         }
     }
 
@@ -7252,7 +7243,6 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             json_incref(match_cond),  // match_cond, owned
             load_record_callback, // called on LOADING and APPENDING
             "",     // iterator id
-            FALSE,  // rt_by_disk
             "",     // creator
             NULL,   // to store LOADING data, not owned
             json_incref(extra) // extra, owned
@@ -7277,7 +7267,6 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                     json_incref(match_cond),  // match_cond, owned
                     load_record_callback, // called on LOADING and APPENDING
                     "",     // iterator id
-                    FALSE,  // rt_by_disk
                     "",     // creator
                     NULL,   // to store LOADING data, not owned
                     json_incref(extra) // extra, owned

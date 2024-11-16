@@ -137,7 +137,6 @@ PRIVATE int do_test(json_t *tranger)
             match_cond,             // match_cond, owned
             rt_disk_record_callback, // load_record_callback
             "it_by_disk",           // rt_id
-            TRUE,                   // rt_by_disk
             NULL,                   // creator
             NULL,                   // data
             NULL                    // options
@@ -188,7 +187,6 @@ print_json2("TRANGER", tranger);
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
                 if(i % 10 == 0) {
                     yev_loop_run_once(yev_loop);
-                    print_json2("TRANGER2", tranger);
                 }
             }
         }

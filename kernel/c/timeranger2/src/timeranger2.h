@@ -469,7 +469,6 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *match_cond, // owned
     tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
     const char *iterator_id,     // iterator id, optional, if empty will be the key
-    BOOL rt_by_disk,
     const char *creator,     // creator
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
     json_t *extra       // owned, user data, this json will be added to the return iterator
