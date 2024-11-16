@@ -218,7 +218,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     md2_record_t *md_last_record
 );
 
-PRIVATE int update_mem_cache(
+PRIVATE int update_new_record_from_mem(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -308,12 +308,12 @@ PRIVATE int master_to_update_client_load_record_callback(
     md2_record_ex_t *md_record_ex,
     json_t *record      // must be owned
 );
-PRIVATE int update_new_records(
+PRIVATE int update_new_records_from_disk(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *md2
+    char *filename
 );
 PRIVATE int publish_new_rt_disk_records(
     hgobj gobj,
@@ -2543,7 +2543,7 @@ PUBLIC int tranger2_append_record(
         /*
          *  Update cache
          */
-        update_mem_cache(gobj, tranger, topic, key_value, &md_record);
+        update_new_record_from_mem(gobj, tranger, topic, key_value, &md_record);
     }
 
     // TEST performance with sf_save_md_in_record 98000
@@ -4167,7 +4167,7 @@ PRIVATE int update_key_by_hard_link(
         gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_YEV_LOOP,
-            "msg",              "%s", "CLIENT: update_new_records",
+            "msg",              "%s", "CLIENT: update_new_records_from_disk",
             "topic_name",       "%s", topic_name,
             "disks",            "%s", disks,
             "rt_id",            "%s", rt_id,
@@ -4178,12 +4178,7 @@ PRIVATE int update_key_by_hard_link(
     }
 
     json_t *topic = tranger2_topic(tranger,topic_name);
-
-    char *p = strrchr(md2, '.'); // pass file_id
-    if(p) {
-        *p =0;
-    }
-    update_new_records(
+    update_new_records_from_disk(
         gobj,
         tranger,
         topic,
@@ -4225,23 +4220,23 @@ PRIVATE int update_key_by_hard_link(
             !!! How are you going to repeats records to the client? You fool? !!!
 
  ***************************************************************************/
-PRIVATE int update_new_records(
+PRIVATE int update_new_records_from_disk(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key,
-    const char *file_id
+    char *filename
 )
 {
     const char *directory = json_string_value(json_object_get(topic, "directory"));
-    char filename[NAME_MAX];
-    snprintf(filename, sizeof(filename), "%s.md2", file_id);
     json_t *new_cache_cell = load_cache_cell_from_disk(
         gobj,
         directory,
         key,
         filename  // warning .md2 removed
     );
+
+    char *file_id = filename; // Now it has not .md2
 
     json_t *cur_cache_cell = get_last_cache_cell(
         gobj,
@@ -4766,7 +4761,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
 /***************************************************************************
  *  Update or create the files cache of a key
  ***************************************************************************/
-PRIVATE int update_mem_cache(
+PRIVATE int update_new_record_from_mem(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
