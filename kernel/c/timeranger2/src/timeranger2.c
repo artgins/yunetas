@@ -5126,52 +5126,13 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
         }
 
-        /*-------------------------------*
-         *  Open realtime for iterator
-         *-------------------------------*/
-//        if(realtime) {
-//            json_t *rt;
-//            if(rt_by_disk) {
-//                rt = tranger2_open_rt_disk(
-//                    tranger,
-//                    topic_name,
-//                    key,                    // if empty receives all keys, else only this key
-//                    json_incref(match_cond),
-//                    load_record_callback,   // called on append new record
-//                    iterator_id,
-//                    creator,
-//                    NULL
-//                );
-//                json_object_set(iterator, "rt_disk", rt);
-//            } else {
-//                rt = tranger2_open_rt_mem(
-//                    tranger,
-//                    topic_name,
-//                    key,                    // if empty receives all keys, else only this key
-//                    json_incref(match_cond),
-//                    load_record_callback,   // called on append new record
-//                    iterator_id,
-//                    creator,
-//                    NULL
-//                );
-//                json_object_set(iterator, "rt_mem", rt);
-//            }
-//            if(!rt) {
-//                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//                    "function",     "%s", __FUNCTION__,
-//                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                    "msg",          "%s", "Cannot open rt",
-//                    "topic_name",   "%s", topic_name,
-//                    "key",          "%s", key,
-//                    "id",           "%s", iterator_id,
-//                    "creator",      "%s", creator,
-//                    NULL
-//                );
-//                JSON_DECREF(iterator)
-//                JSON_DECREF(extra)
-//                return NULL;
-//            }
-//        }
+        /*----------------------------------*
+         *  Mark for realtime for iterator
+         *----------------------------------*/
+        if(realtime) {
+            json_object_set_new(iterator, "realtime", json_true());
+            json_object_set_new(iterator, "rt_by_disk", json_boolean(rt_by_disk));
+        }
     }
 
     json_array_append_new(
