@@ -340,8 +340,7 @@ PRIVATE int do_test(void)
                             } \
                         } \
                     }, \
-                    'lists': [], \
-                    'disks': [ \
+                    'lists': [ \
                         { \
                             'id': 'it1', \
                             'creator': '', \
@@ -350,7 +349,7 @@ PRIVATE int do_test(void)
                             'match_cond': { \
                             }, \
                             'load_record_callback': 99999, \
-                            'list_type': 'rt_disk'\
+                            'list_type': 'rt_mem'\
                         }, \
                         { \
                             'id': '0000000000000000002', \
@@ -360,8 +359,10 @@ PRIVATE int do_test(void)
                             'match_cond': { \
                             }, \
                             'load_record_callback': 99999, \
-                            'list_type': 'rt_disk'\
+                            'list_type': 'rt_mem'\
                         } \
+                    ], \
+                    'disks': [ \
                     ], \
                     'iterators': [ \
                         { \
@@ -400,7 +401,7 @@ PRIVATE int do_test(void)
                             'realtime': true, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999, \
-                            'rt_disk': { \
+                            'rt_mem': { \
                                 'id': 'it1', \
                                 'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
@@ -408,7 +409,7 @@ PRIVATE int do_test(void)
                                 'match_cond': { \
                                 }, \
                                 'load_record_callback': 99999, \
-                                'list_type': 'rt_disk'\
+                                'list_type': 'rt_mem'\
                             } \
                         }, \
                         { \
@@ -447,7 +448,7 @@ PRIVATE int do_test(void)
                             'realtime': true, \
                             'list_type': 'iterator',\
                             'load_record_callback': 9999, \
-                            'rt_disk': { \
+                            'rt_mem': { \
                                 'id': '0000000000000000002', \
                                 'creator': '', \
                                 'topic_name': 'topic_pkey_integer', \
@@ -455,7 +456,7 @@ PRIVATE int do_test(void)
                                 'match_cond': { \
                                 }, \
                                 'load_record_callback': 99999, \
-                                'list_type': 'rt_disk'\
+                                'list_type': 'rt_mem'\
                             } \
                         } \
                     ] \
