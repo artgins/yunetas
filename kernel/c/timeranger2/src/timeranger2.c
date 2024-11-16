@@ -4680,8 +4680,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
     /*---------------------------*
      *      Read first record
      *---------------------------*/
-    ssize_t ln = read(fd, md_first_record, sizeof(*md_first_record));
-    if(ln == sizeof(*md_first_record)) {
+    ssize_t ln = read(fd, md_first_record, sizeof(md2_record_t));
+    if(ln == sizeof(md2_record_t)) {
         md_first_record->__t__ = (ntohll(md_first_record->__t__)) & TIME_FLAG_MASK;
         md_first_record->__tm__ = (ntohll(md_first_record->__tm__)) & TIME_FLAG_MASK;
         md_first_record->__offset__ = ntohll(md_first_record->__offset__);
@@ -4692,7 +4692,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read md2 file",
+                "msg",          "%s", "Cannot read first record of md2 file",
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL
@@ -4731,7 +4731,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
         offset -= sizeof(md2_record_t);
         lseek64(fd, offset, SEEK_SET);
         ln = read(fd, &md_last_record, sizeof(md_last_record));
-        if(ln == sizeof(*md_last_record)) {
+        if(ln == sizeof(md2_record_t)) {
             md_last_record->__t__ = (ntohll(md_last_record->__t__)) & TIME_FLAG_MASK;
             md_last_record->__tm__ = (ntohll(md_last_record->__tm__)) & TIME_FLAG_MASK;
             md_last_record->__offset__ = ntohll(md_last_record->__offset__);
@@ -4740,7 +4740,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read md2 file",
+                "msg",          "%s", "Cannot read last record of md2 file",
                 "path",         "%s", full_path,
                 "errno",        "%s", strerror(errno),
                 NULL

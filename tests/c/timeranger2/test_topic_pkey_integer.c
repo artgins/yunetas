@@ -354,6 +354,138 @@ int do_test(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
+    /*----------------------------------------------*
+     *  Check tranger memory after append records
+     *----------------------------------------------*/
+    if(1) {
+        char expected[32*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 1, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'yev_loop': 0, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {\
+                        '0000000000000000001': { \
+                            '2000-01-02.json': 99999, \
+                            '2000-01-02.md2': 99999 \
+                        }, \
+                        '0000000000000000002': { \
+                            '2000-01-02.json': 99999, \
+                            '2000-01-02.md2': 99999 \
+                        } \
+                    }, \
+                    'rd_fd_files': {}, \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 70369690862464, \
+                                    'to_tm': 70369690948863, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 70369690948864, \
+                                    'to_tm': 70369690952463, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 70369690862464, \
+                                'to_tm': 70369690952463, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 70369690862464, \
+                                    'to_tm': 70369690948863, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 70369690948864, \
+                                    'to_tm': 70369690952463, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 70369690862464, \
+                                'to_tm': 70369690952463, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    }, \
+                    'lists': [], \
+                    'disks': [], \
+                    'iterators': [] \
+                } \
+            } \
+        } \
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            "load_record_callback",
+            "2000-01-02.json",
+            "2000-01-02.md2",
+            NULL
+        };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
+        set_expected_results(
+            "check_tranger_mem4",      // test name
+            NULL,
+            expected_,
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
     /*-------------------------------------*
      *      Delete topic
      *-------------------------------------*/
@@ -503,7 +635,7 @@ int do_test(void)
      *  Check tranger memory with lists opened
      *------------------------------------------*/
     if(1) {
-        char expected[16*1024];
+        char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
             'path': '%s', \
@@ -624,7 +756,7 @@ int do_test(void)
      *  and records added
      *------------------------------------------*/
     if(1) {
-        char expected[16*1024];
+        char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
             'path': '%s', \
@@ -667,7 +799,62 @@ int do_test(void)
                         } \
                     }, \
                     'rd_fd_files': {}, \
-                    'cache': {}, \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 70369690862464, \
+                                    'to_tm': 70369690948863, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 70369690948864, \
+                                    'to_tm': 70369690952463, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 70369690862464, \
+                                'to_tm': 70369690952463, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 70369690862464, \
+                                    'to_tm': 70369690948863, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 70369690948864, \
+                                    'to_tm': 70369690952463, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 70369690862464, \
+                                'to_tm': 70369690952463, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    }, \
                     'lists': [ \
                         { \
                             'id': 'list1', \
@@ -956,7 +1143,62 @@ int do_test2(void)
                     'directory': '%s', \
                     'wr_fd_files': {}, \
                     'rd_fd_files': {}, \
-                    'cache': {}, \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 0, \
+                                    'to_t': 946684800, \
+                                    'fr_tm': 0, \
+                                    'to_tm': 946684800, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 0, \
+                                    'to_t': 946771200, \
+                                    'fr_tm': 0, \
+                                    'to_tm': 946771200, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 0, \
+                                'to_t': 946771200, \
+                                'fr_tm': 0, \
+                                'to_tm': 946771200, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 0, \
+                                    'to_t': 946684800, \
+                                    'fr_tm': 0, \
+                                    'to_tm': 946684800, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 0, \
+                                    'to_t': 946771200, \
+                                    'fr_tm': 0, \
+                                    'to_tm': 946771200, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 0, \
+                                'to_t': 946771200, \
+                                'fr_tm': 0, \
+                                'to_tm': 946771200, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    }, \
                     'lists': [], \
                     'disks': [], \
                     'iterators': [] \
