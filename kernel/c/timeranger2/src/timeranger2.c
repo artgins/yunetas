@@ -5006,7 +5006,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
     json_object_set_new(iterator, "cur_segment", json_integer(0));
     json_object_set_new(iterator, "cur_rowid", json_integer(0));
-    json_object_set_new(iterator, "realtime", json_boolean(realtime));
     json_object_set_new(iterator, "list_type", json_string("iterator"));
 
     json_object_set_new(

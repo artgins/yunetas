@@ -375,10 +375,7 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
-                            'realtime': true, \
                             'list_type': 'iterator',\
-                            'realtime': true, \
-                            'rt_by_disk': false,\
                             'load_record_callback': 9999 \
                         }, \
                         { \
@@ -414,10 +411,7 @@ PRIVATE int do_test(void)
                             ], \
                             'cur_segment': 1, \
                             'cur_rowid': 90000, \
-                            'realtime': true, \
                             'list_type': 'iterator',\
-                            'realtime': true, \
-                            'rt_by_disk': false,\
                             'load_record_callback': 9999 \
                         } \
                     ] \
