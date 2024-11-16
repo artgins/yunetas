@@ -295,17 +295,16 @@ PUBLIC int trq_load(tr_queue trq_)
     );
 
     //    tranger2_close_list(trq->tranger, tr_list);
-    json_t *tr_list;
-    if(tranger2_open_list(
+    json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
         FALSE,
-        NULL,   // creator TODO
-        &tr_list
-    )<0) {
+        NULL   // creator TODO
+    );
+    if(!tr_list) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -367,16 +366,14 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         "topic_name", trq->topic_name,
         "trq", (json_int_t)(size_t)trq
     );
-    json_t *tr_list;
-    tranger2_open_list(
+    json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
         FALSE,
-        NULL,   // creator TODO
-        &tr_list
+        NULL    // creator TODO
     );
     tranger2_close_list(trq->tranger, tr_list);
 

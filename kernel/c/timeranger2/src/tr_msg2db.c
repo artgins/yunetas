@@ -133,7 +133,7 @@ PUBLIC json_t *msg2db_open_db(
     );
 
     json_int_t schema_new_version = kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
-    int schema_version = schema_new_version;
+    json_int_t schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {
         do {
@@ -181,8 +181,8 @@ PUBLIC json_t *msg2db_open_db(
                 gobj,
                 kw_get_str(gobj, tranger, "directory", 0, KW_REQUIRED),
                 schema_filename,
-                kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
-                kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
+                (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
+                (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
                 kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 TRUE, // Create file if not exists or overwrite.
                 FALSE, // only_read
@@ -369,16 +369,15 @@ PUBLIC json_t *msg2db_open_db(
             "topic_name", topic_name,
             "msg2db_name", msg2db_name
         );
-        if(tranger2_open_list(
+        if(!tranger2_open_list(
             tranger,
             topic_name,
             match_cond,     // owned
             jn_extra,       // owned
             rt_id,          // rt_id
             !master,        // rt_by_disk
-            msg2db_name,    // creator
-            NULL
-        )<0) {
+            msg2db_name    // creator
+        )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MSG2DB_ERROR,

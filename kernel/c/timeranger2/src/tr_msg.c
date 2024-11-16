@@ -321,17 +321,16 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    json_t *rt;
-    if(tranger2_open_list(
+    json_t *rt = tranger2_open_list(
         tranger,
         topic_name,
         match_cond,     // owned
         jn_extra,       // owned
         rt_id,          // rt_id
         rt_by_disk,
-        creator,        // creator
-        &rt
-    )<0) {
+        creator         // creator
+    );
+    if(!rt) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
