@@ -126,38 +126,21 @@ PRIVATE int do_test(json_t *tranger)
         );
         MT_START_TIME(time_measure)
 
-//        match_cond = json_pack("{s:b, s:i}",
-//            "backward", 0,
-//            "from_rowid", -10
-//        );
-//        tranger2_open_iterator(
-//            tranger,
-//            TOPIC_NAME,
-//            KEY,                    // key
-//            match_cond,             // match_cond, owned
-//            rt_disk_record_callback, // load_record_callback
-//            "it_by_disk",           // rt_id
-//            TRUE,                   // rt_by_disk
-//            NULL,                   // creator
-//            NULL,                   // data
-//            NULL                    // options
-//        );
-
-        match_cond = json_pack("{s:s, s:b, s:i, s:I}",
-            "key", KEY,
+        match_cond = json_pack("{s:b, s:i}",
             "backward", 0,
-            "from_rowid", -10,
-            "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
+            "from_rowid", -10
         );
-        tranger2_open_list(
+        tranger2_open_iterator(
             tranger,
             TOPIC_NAME,
+            KEY,                    // key
             match_cond,             // match_cond, owned
-            NULL,                   // extra
+            rt_disk_record_callback, // load_record_callback
             "it_by_disk",           // rt_id
             TRUE,                   // rt_by_disk
             NULL,                   // creator
-            NULL
+            NULL,                   // data
+            NULL                    // options
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
@@ -237,12 +220,12 @@ print_json2("TRANGER", tranger);
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-//    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")) {
-//        result += tranger2_close_iterator(
-//            tranger,
-//            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")
-//        );
-//    }
+    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")) {
+        result += tranger2_close_iterator(
+            tranger,
+            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")
+        );
+    }
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*
