@@ -186,7 +186,12 @@ PRIVATE int build_topic_cache_from_disk(
     json_t *tranger,
     json_t *topic
 );
-PRIVATE json_t *find_cache_cell(
+PRIVATE json_t *get_key_cache(
+    json_t *topic,
+    const char *key
+);
+PRIVATE json_t *create_cache_key(void);
+PRIVATE json_t *get_last_cache_cell(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -202,7 +207,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *filename    // md2 filename with extension
+    char *filename  // md2 filename with extension, WARNING modified, .md2 removed
 );
 PRIVATE uint64_t load_first_and_last_record_md(
     hgobj gobj,
@@ -4191,7 +4196,8 @@ PRIVATE int update_key_by_hard_link(
 
 /***************************************************************************
  *  CLIENT
- *
+ *  Call from a client realtime disk
+
     The last record of files  - {topic}/cache/{key}/files/[{r}] -
     has the last record appended.
         {
@@ -4232,14 +4238,14 @@ PRIVATE int update_new_records(
     const char *directory = json_string_value(json_object_get(topic, "directory"));
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.md2", file_id);
-    json_t *new_file_cache = load_cache_cell_from_disk(
+    json_t *new_cache_cell = load_cache_cell_from_disk(
         gobj,
         directory,
         key,
-        filename
+        filename  // warning .md2 removed
     );
 
-    json_t *cur_cache_file = find_cache_cell(
+    json_t *cur_cache_cell = get_last_cache_cell(
         gobj,
         tranger,
         topic,
@@ -4248,32 +4254,19 @@ PRIVATE int update_new_records(
     );
 
     // Publish new data to iterator
-    publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_file, new_file_cache);
+    publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_cell, new_cache_cell);
 
     /*
-     *  Update cache
+     *  UPDATE CACHE from disk
      */
-int x; // esto desde mem too
-    if(!cur_cache_file) {
-        // Update cache
-        json_t *cache_files = json_object_get(
-            json_object_get(
-                json_object_get(
-                    topic,
-                    "cache"
-                ),
-                key
-            ),
-            "files"
-        );
-        json_array_append_new(cache_files, new_file_cache);
+    if(!cur_cache_cell) {
+        json_t *key_cache = get_key_cache(topic, key);
+        json_t *cache_files = json_object_get(key_cache, "files");
+        json_array_append_new(cache_files, new_cache_cell);
     } else {
-        json_object_update_new(cur_cache_file, new_file_cache);
+        json_object_update_new(cur_cache_cell, new_cache_cell);
     }
     update_totals_of_key_cache(gobj, topic, key);
-
-    // Mark cache as new data available to others iterators.
-    // TODO
 
     return 0;
 }
@@ -4286,15 +4279,15 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *tranger,
     json_t *topic,
     const char *key,
-    json_t *old_file_cache,
-    json_t *new_file_cache
+    json_t *old_cache_cell,
+    json_t *new_cache_cell
 )
 {
     json_t *disks = json_object_get(topic, "disks");
 
-    json_int_t from_rowid = json_integer_value(json_object_get(old_file_cache, "rows"));
-    json_int_t to_rowid = json_integer_value(json_object_get(new_file_cache, "rows"));
-    const char *file_id = json_string_value(json_object_get(new_file_cache, "id"));
+    json_int_t from_rowid = json_integer_value(json_object_get(old_cache_cell, "rows"));
+    json_int_t to_rowid = json_integer_value(json_object_get(new_cache_cell, "rows"));
+    const char *file_id = json_string_value(json_object_get(new_cache_cell, "id"));
 
     for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
@@ -4410,9 +4403,68 @@ PRIVATE int build_topic_cache_from_disk(
 }
 
 /***************************************************************************
- *  WARNING Find only in the last item of the array
+ *  Create the tree ("cache`%s`files", key) if not exist
+    "cache": {
+        "{key}": {key_cache},
+        "{key2}": {key_cache2}
+        ...
+     }
+
+    {key_cache} = {
+        "files": [
+            {
+                "id": "tracks-2024-11-14",
+                "fr_t": 1731601280,
+                "to_t": 1731606678,
+                "fr_tm": 1731601189,
+                "to_tm": 1731606678,
+                "rows": 184,
+            },
+            ...
+        ],
+        "total": {
+            "fr_t": 1731601280,
+            "to_t": 1731698630,
+            "fr_tm": 1731601189,
+            "to_tm": 1731698630,
+            "rows": 1791
+        }
+    }
  ***************************************************************************/
-PRIVATE json_t *find_cache_cell(
+PRIVATE json_t *create_cache_key(void)
+{
+    json_t *key_cache = json_object();
+    json_object_set_new(key_cache, "files", json_array());
+    json_object_set_new(key_cache, "total", json_object());
+
+    return key_cache;
+}
+
+/***************************************************************************
+ *  Return key_cache, create ("cache`%s`files", key) if not exist
+ ***************************************************************************/
+PRIVATE json_t *get_key_cache(
+    json_t *topic,
+    const char *key
+)
+{
+    // "cache`%s`files", key
+    json_t *topic_cache = json_object_get(topic, "cache");
+    json_t *key_cache = json_object_get(topic_cache, key);
+
+    if(!key_cache) {
+        // NEW KEY in CACHE
+        key_cache = create_cache_key();
+        json_object_set_new(topic_cache, key, key_cache);
+    }
+    return key_cache;
+}
+
+/***************************************************************************
+ *  WARNING Find only in the last item of the array
+ *  Create the tree ("cache`%s`files", key) if not exist
+ ***************************************************************************/
+PRIVATE json_t *get_last_cache_cell(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4421,17 +4473,8 @@ PRIVATE json_t *find_cache_cell(
 )
 {
     // "cache`%s`files", key
-    json_t *topic_cache = json_object_get(topic, "cache");
-    json_t *key_cache = json_object_get(topic_cache, key);
-    if(!key_cache) {
-        key_cache = json_object();
-        json_object_set_new(topic_cache, key, key_cache);
-        json_object_set_new(key_cache, "files", json_array());
-    }
-    json_t *cache_files = json_object_get(
-        key_cache,
-        "files"
-    );
+    json_t *key_cache = get_key_cache(topic, key);
+    json_t *cache_files = json_object_get(key_cache, "files");
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4464,41 +4507,14 @@ PRIVATE json_t *find_cache_cell(
 
 /***************************************************************************
  *  Get range time of a key
- *
-    "cache": {
-        "{key}": {key_cache}
-
-
-    {key_cache} = {
-        "files": [
-            {
-                "id": "tracks-2024-11-14",
-                "fr_t": 1731601280,
-                "to_t": 1731606678,
-                "fr_tm": 1731601189,
-                "to_tm": 1731606678,
-                "rows": 184,
-            },
-            ...
-        ],
-        "total": {
-            "fr_t": 1731601280,
-            "to_t": 1731698630,
-            "fr_tm": 1731601189,
-            "to_tm": 1731698630,
-            "rows": 1791
-        }
-    }
-
- *
  ***************************************************************************/
 PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, const char *key)
 {
     char full_path[PATH_MAX];
 
-    json_t *key_cache = json_object();
-    json_t *cache_files = kw_get_list(gobj, key_cache, "files", json_array(), KW_CREATE);
-    kw_get_dict(gobj, key_cache, "total", json_object(), KW_CREATE);
+    // NEW KEY in CACHE
+    json_t *key_cache = create_cache_key();
+    json_t *cache_files = json_object_get(key_cache, "files");
 
     build_path(full_path, sizeof(full_path), directory, "keys", key, NULL);
 
@@ -4512,8 +4528,13 @@ PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, cons
     );
     for(int i=0; i<files_md_size; i++) {
         char *filename = files_md[i];
-        json_t *key_file_cache = load_cache_cell_from_disk(gobj, directory, key, filename);
-        json_array_append_new(cache_files, key_file_cache);
+        json_t *cache_cell = load_cache_cell_from_disk(
+            gobj,
+            directory,
+            key,
+            filename    // warning .md2 removed
+        );
+        json_array_append_new(cache_files, cache_cell);
     }
     free_ordered_filename_array(files_md, files_md_size);
 
@@ -4521,7 +4542,7 @@ PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, cons
 }
 
 /***************************************************************************
- *
+ *  Update a cache cell with a new record metadata
  ***************************************************************************/
 PRIVATE json_t *update_cache_cell(
     json_t *file_cache,
@@ -4587,7 +4608,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *file_id    // TODO search callers to change this: NOT md2 filename with extension
+    char *filename  // md2 filename with extension, WARNING modified, .md2 removed
 )
 {
     /*----------------------------------*
@@ -4600,7 +4621,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
         gobj,
         directory,
         key,
-        file_id,
+        filename,
         &md_first_record,
         &md_last_record
     );
@@ -4612,9 +4633,13 @@ PRIVATE json_t *load_cache_cell_from_disk(
     /*---------------------------*
      *      Create the cell
      *---------------------------*/
-    json_t *file_cache = 0;
-    file_cache = update_cache_cell(file_cache, file_id, &md_first_record, 0, 1);
-    update_cache_cell(file_cache, file_id, &md_last_record, 0, file_rows);
+    char *p = strrchr(filename, '.');
+    if(p) {
+        *p = 0;
+        // Now filename is file_id
+    }
+    json_t *file_cache = update_cache_cell(0, filename, &md_first_record, 0, 1);
+    update_cache_cell(file_cache, filename, &md_last_record, 0, file_rows);
 
     return file_cache;
 }
@@ -4731,7 +4756,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
 }
 
 /***************************************************************************
- *  Update or create the cache of a key file
+ *  Update or create the files cache of a key
  ***************************************************************************/
 PRIVATE int update_mem_cache(
     hgobj gobj,
@@ -4774,8 +4799,9 @@ PRIVATE int update_mem_cache(
     /*
      *  See if the file cache exists
      *  WARNING only search in the last item of cell's array
+     *  Create the key cache if not exist
      */
-    json_t *cur_cache_file = find_cache_cell(
+    json_t *cur_cache_cell = get_last_cache_cell(
         gobj,
         tranger,
         topic,
@@ -4784,20 +4810,16 @@ PRIVATE int update_mem_cache(
     );
 
     /*
-     *  Update cache
+     *  UPDATE CACHE from mem
      */
-//    json_t *key_cache = json_object();
-//    json_t *cache_files = kw_get_list(gobj, key_cache, "files", json_array(), KW_CREATE);
-//    kw_get_dict(gobj, key_cache, "total", json_object(), KW_CREATE);
-//    json_object_set_new(topic_cache, key, key_cache);
-//    update_totals_of_key_cache(gobj, topic, key);
-
-    if(!cur_cache_file) {
-        json_array_append_new(cache_files, key_file_cache);
+    if(!cur_cache_cell) {
+        json_t *key_cache = get_key_cache(topic, key);
+        json_t *cache_files = json_object_get(key_cache, "files");
+        json_t *new_cache_cell = update_cache_cell(0, file_id, md_record, 1, 1);
+        json_array_append_new(cache_files, new_cache_cell);
 
     } else {
-        update_cache_cell(cur_cache_file, file_id, md_record, 1, 1);
-
+        update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
     update_totals_of_key_cache(gobj, topic, key);
 
