@@ -322,7 +322,7 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "append records without open_rt_mem", // test name
+        "append records without open_rt_mem()", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -720,7 +720,7 @@ int do_test(void)
      *      Add records
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
-        "append records with open_rt_mem", // test name
+        "append records with open_rt_mem()", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys

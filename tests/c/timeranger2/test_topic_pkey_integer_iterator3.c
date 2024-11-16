@@ -128,7 +128,7 @@ PRIVATE int search_data(
         match_cond,             // match_cond, owned
         load_rango_callback,    // load_record_callback
         NULL,                   // rt_id
-        TRUE,                   // rt_by_disk
+        FALSE,                  // rt_by_disk
         NULL,                   // creator
         data,                   // data
         NULL                    // options

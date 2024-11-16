@@ -115,7 +115,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // iterator id
-        TRUE,   // rt_by_disk
+        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options

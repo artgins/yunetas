@@ -141,7 +141,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback1,    // load_record_callback
         "it1",  // rt id
-        TRUE,   // rt_by_disk
+        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,
         NULL
@@ -164,6 +164,7 @@ PRIVATE int do_test(void)
      *  Open iterator to key2
      */
     t = tm = 946684800-1;
+
     json_t *iterator2 = tranger2_open_iterator(
         tranger,
         TOPIC_NAME,
@@ -171,12 +172,11 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         iterator_callback2,    // load_record_callback
         NULL,   // rt id
-        TRUE,   // rt_by_disk
+        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options
     );
-
     if(tm != 946774799) {
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");
         //print_json2("BAD count tm of message", tranger);
@@ -220,7 +220,7 @@ PRIVATE int do_test(void)
         NULL,   // match_cond, owned
         NULL,   // load_record_callback
         NULL,   // rt_id
-        TRUE,   // rt_by_disk
+        FALSE,  // rt_by_disk
         NULL,   // creator
         NULL,   // data
         NULL    // options
