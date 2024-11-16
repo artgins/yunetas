@@ -4220,8 +4220,6 @@ PRIVATE int update_key_by_hard_link(
             see the difference and load the new records and publish.
         - If the id of the last segment doesn't match with md2,
             do a full reload of the cache segments
-            (or only news segments, see how to use the wr_time to
-            update only what is necessary)
 
             IT'S necessary to load and publish only the new records!
             !!! How are you going to repeats records to the client? You fool? !!!

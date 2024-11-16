@@ -293,8 +293,7 @@ PRIVATE int do_test(void)
                                     'to_t': 946771199, \
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
-                                    'rows': 86400, \
-                                    'wr_time': 9999 \
+                                    'rows': 86400 \
                                 }, \
                                 { \
                                     'id': '2000-01-02', \
@@ -302,8 +301,7 @@ PRIVATE int do_test(void)
                                     'to_t': 946774799, \
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
-                                    'rows': 3600, \
-                                    'wr_time': 9999 \
+                                    'rows': 3600 \
                                 } \
                             ], \
                             'total': { \
@@ -322,8 +320,7 @@ PRIVATE int do_test(void)
                                     'to_t': 946771199, \
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
-                                    'rows': 86400, \
-                                    'wr_time': 9999 \
+                                    'rows': 86400 \
                                 }, \
                                 { \
                                     'id': '2000-01-02', \
@@ -331,8 +328,7 @@ PRIVATE int do_test(void)
                                     'to_t': 946774799, \
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
-                                    'rows': 3600, \
-                                    'wr_time': 9999 \
+                                    'rows': 3600 \
                                 } \
                             ], \
                             'total': { \
@@ -383,7 +379,6 @@ PRIVATE int do_test(void)
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
                                     'rows': 86400, \
-                                    'wr_time': 99999, \
                                     'first_row': 1, \
                                     'last_row': 86400, \
                                     'key': '0000000000000000001' \
@@ -395,7 +390,6 @@ PRIVATE int do_test(void)
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
                                     'rows': 3600, \
-                                    'wr_time': 99999, \
                                     'first_row': 86401, \
                                     'last_row': 90000, \
                                     'key': '0000000000000000001' \
@@ -432,7 +426,6 @@ PRIVATE int do_test(void)
                                     'fr_tm': 946684800, \
                                     'to_tm': 946771199, \
                                     'rows': 86400, \
-                                    'wr_time': 99999, \
                                     'first_row': 1, \
                                     'last_row': 86400, \
                                     'key': '0000000000000000002' \
@@ -444,7 +437,6 @@ PRIVATE int do_test(void)
                                     'fr_tm': 946771200, \
                                     'to_tm': 946774799, \
                                     'rows': 3600, \
-                                    'wr_time': 99999, \
                                     'first_row': 86401, \
                                     'last_row': 90000, \
                                     'key': '0000000000000000002' \
@@ -474,7 +466,6 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "__timeranger2__.json",
-            "wr_time",
             "load_record_callback",
             "2000-01-01.md2",
             "2000-01-01.json",
