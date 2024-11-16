@@ -3570,13 +3570,7 @@ PRIVATE BOOL find_rt_disk_cb(
     );
 
     json_object_set_new(rt, "disk_path", json_string(full_path2));
-    json_object_set_new(rt, "__realtime_from_disk__", json_true());
-
-    /*
-     *  In the directory created in "/disks" by the client,
-     *  create a directory for each topic and all keys
-     */
-    //create_disks_topic_keys_directories(gobj, tranger, topic_name, full_path2);
+    json_object_set_new(rt, "master_to_update_client_load_record_callback", json_true());
 
     return TRUE; // to continue
 }
@@ -3704,7 +3698,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                 );
 
                 json_object_set_new(rt, "disk_path", json_string(full_path2));
-                json_object_set_new(rt, "__realtime_from_disk__", json_true());
+                json_object_set_new(rt, "master_to_update_client_load_record_callback", json_true());
             }
             break;
         case FS_SUBDIR_DELETED_TYPE:
