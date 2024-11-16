@@ -296,6 +296,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     yev_loop_t *yev_loop,
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const char *id
 );
 PRIVATE int client_fs_callback(fs_event_t *fs_event);
@@ -3350,7 +3351,12 @@ PUBLIC json_t *tranger2_open_rt_disk(
             // log FS inside this function
 
             fs_event_t *fs_event_client = monitor_rt_disk_by_client(
-                gobj, yev_loop, tranger, topic, id
+                gobj,
+                yev_loop,
+                tranger,
+                topic,
+                key,
+                id
             );
             kw_set_dict_value(
                 gobj,
@@ -3617,7 +3623,8 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         0,      // fs_flag,
         master_fs_callback,
         gobj,
-        tranger    // user_data
+        tranger,    // user_data
+        0           // user_data2
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -3890,6 +3897,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     yev_loop_t *yev_loop,
     json_t *tranger,
     json_t *topic,
+    const char *key,
     const char *id
 )
 {
@@ -3947,7 +3955,8 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         FS_FLAG_RECURSIVE_PATHS,      // fs_flag,
         client_fs_callback,
         gobj,
-        tranger    // user_data
+        tranger,  // user_data
+        0 // TODO key
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -3969,6 +3978,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 {
     hgobj gobj = fs_event->gobj;
     json_t *tranger = fs_event->user_data;
+    // TODO char *key = fs_event->user_data2;
 
     char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);

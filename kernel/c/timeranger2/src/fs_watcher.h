@@ -58,6 +58,7 @@ struct fs_event_s {
     volatile char *filename;    // Output
     hgobj gobj;
     void *user_data;
+    void *user_data2;
     fs_callback_t callback;
     int fd;
     json_t *jn_tracked_paths;
@@ -76,7 +77,8 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_flag_t fs_flag,
     fs_callback_t callback,
     hgobj gobj,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 
 PUBLIC int fs_start_watcher_event(

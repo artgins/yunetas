@@ -91,7 +91,8 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_flag_t fs_flag,
     fs_callback_t callback,
     hgobj gobj,
-    void *user_data
+    void *user_data,
+    void *user_data2
 )
 {
     if(!is_directory(path)) {
@@ -137,6 +138,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->filename = NULL;
     fs_event->gobj = gobj;
     fs_event->user_data = user_data;
+    fs_event->user_data2 = user_data2;
     fs_event->callback = callback;
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
