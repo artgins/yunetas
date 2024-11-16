@@ -126,20 +126,20 @@ PRIVATE int do_test(json_t *tranger)
         );
         MT_START_TIME(time_measure)
 
-        match_cond = json_pack("{s:b, s:i}",
+        match_cond = json_pack("{s:b, s:i, s:s, s:I}",
             "backward", 0,
-            "from_rowid", -10
+            "from_rowid", -10,
+            "key", KEY,
+            "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
         );
-        tranger2_open_iterator(
+        tranger2_open_list(
             tranger,
             TOPIC_NAME,
-            KEY,                    // key
             match_cond,             // match_cond, owned
-            rt_disk_record_callback, // load_record_callback
+            NULL,                   // extra
             "it_by_disk",           // rt_id
-            NULL,                   // creator
-            NULL,                   // data
-            NULL                    // options
+            FALSE,                  // rt_by_disk
+            NULL                    // creator
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
@@ -171,7 +171,6 @@ PRIVATE int do_test(json_t *tranger)
         }
         t1++;   // begin by the next
 
-print_json2("TRANGER", tranger);
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {
