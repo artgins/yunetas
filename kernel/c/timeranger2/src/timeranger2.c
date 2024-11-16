@@ -213,7 +213,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *file_id,
+    const char *filename,
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 );
@@ -4651,7 +4651,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     hgobj gobj,
     const char *directory,
     const char *key,
-    const char *file_id,
+    const char *filename,
     md2_record_t *md_first_record,
     md2_record_t *md_last_record
 )
@@ -4662,9 +4662,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
      *  Open the .md2 file of the key
      *  (name relative to time __t__)
      *----------------------------------*/
-    char filename[PATH_MAX];
     char full_path[PATH_MAX];
-    sprintf(filename, "%s.md2", file_id);
     build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
     int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
     if(fd<0) {
