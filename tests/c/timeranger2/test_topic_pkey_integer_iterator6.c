@@ -126,21 +126,38 @@ PRIVATE int do_test(json_t *tranger)
         );
         MT_START_TIME(time_measure)
 
-        match_cond = json_pack("{s:b, s:i}",
+//        match_cond = json_pack("{s:b, s:i}",
+//            "backward", 0,
+//            "from_rowid", -10
+//        );
+//        tranger2_open_iterator(
+//            tranger,
+//            TOPIC_NAME,
+//            KEY,                    // key
+//            match_cond,             // match_cond, owned
+//            rt_disk_record_callback, // load_record_callback
+//            "it_by_disk",           // rt_id
+//            TRUE,                   // rt_by_disk
+//            NULL,                   // creator
+//            NULL,                   // data
+//            NULL                    // options
+//        );
+
+        match_cond = json_pack("{s:s, s:b, s:i, s:I}",
+            "key", KEY,
             "backward", 0,
-            "from_rowid", -10
+            "from_rowid", -10,
+            "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
         );
-        tranger2_open_iterator(
+        tranger2_open_list(
             tranger,
             TOPIC_NAME,
-            KEY,                    // key
             match_cond,             // match_cond, owned
-            rt_disk_record_callback, // load_record_callback
+            NULL,                   // extra
             "it_by_disk",           // rt_id
             TRUE,                   // rt_by_disk
             NULL,                   // creator
-            NULL,                   // data
-            NULL                    // options
+            NULL
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
@@ -172,6 +189,7 @@ PRIVATE int do_test(json_t *tranger)
         }
         t1++;   // begin by the next
 
+print_json2("TRANGER", tranger);
         for(json_int_t i=0; i<MAX_KEYS; i++) {
             uint64_t tm = t1;
             for(json_int_t j=0; j<MAX_RECORDS; j++) {
@@ -187,6 +205,7 @@ PRIVATE int do_test(json_t *tranger)
                 tranger2_append_record(tranger, TOPIC_NAME, tm+j, 0, &md_record, jn_record1);
                 if(i % 10 == 0) {
                     yev_loop_run_once(yev_loop);
+                    print_json2("TRANGER2", tranger);
                 }
             }
         }
@@ -218,12 +237,12 @@ PRIVATE int do_test(json_t *tranger)
         NULL,   // ignore_keys
         TRUE    // verbose
     );
-    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")) {
-        result += tranger2_close_iterator(
-            tranger,
-            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")
-        );
-    }
+//    if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")) {
+//        result += tranger2_close_iterator(
+//            tranger,
+//            tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_disk", "")
+//        );
+//    }
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*-------------------------------*

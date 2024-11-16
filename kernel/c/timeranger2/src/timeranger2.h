@@ -601,20 +601,21 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
         0 do nothing (callback will create their own list, or not),
         -1 break the load
 
+    Return realtime (rt_mem or rt_disk)  or no_rt
+
 **rst**/
-PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
+PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned, will be added to the returned rt
     const char *rt_id,
     BOOL rt_by_disk,
-    const char *creator,
-    json_t **rt         // pointer to realtime (rt_mem or rt_disk) list, optional,
+    const char *creator
 );
 
 /**rst**
-    Close list (rt_mem or rt_disk)
+    Close list (rt_mem or rt_disk or no_rt)
 **rst**/
 PUBLIC int tranger2_close_list(
     json_t *tranger,

@@ -7231,23 +7231,20 @@ PRIVATE json_t *read_record_content(
         0 do nothing (callback will create their own list, or not),
         -1 break the load
 
+    Return realtime (rt_mem or rt_disk)  or no_rt
+
  ***************************************************************************/
-PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in starting applications
+PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
     json_t *match_cond, // owned
     json_t *extra,      // owned
     const char *rt_id,
     BOOL rt_by_disk,
-    const char *creator,
-    json_t **prt         // pointer to realtime list, optional
+    const char *creator
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
-    if(prt) {
-        *prt = NULL;
-    }
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
@@ -7260,7 +7257,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
-        return -1;
+        return NULL;
     }
 
     tranger2_load_record_callback_t load_record_callback =
@@ -7276,7 +7273,7 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
         );
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
-        return -1;
+        return NULL;
     }
 
     BOOL realtime = FALSE;
@@ -7370,33 +7367,31 @@ PUBLIC int tranger2_open_list( // WARNING loading all records causes delay in st
             );
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
-            return -1;
+            return NULL;
         }
-        if(prt) {
-            *prt = rt;
-        }
+
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
-        return 0;
+        return rt;
 
     } else {
-        if(!prt || !extra) {
+        if(!extra) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger2_open_list(): list with no-realtime require prt and extra",
+                "msg",          "%s", "tranger2_open_list(): list with no-realtime require extra",
                 "topic_name",   "%s", topic_name,
                 NULL
             );
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
-            return -1;
+            return NULL;
         }
         json_object_set_new(extra, "list_type", json_string("no_rt"));
 
-        *prt = extra;
         JSON_DECREF(match_cond)
-        return 0;
+
+        return extra;
     }
 }
 
