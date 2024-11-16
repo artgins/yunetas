@@ -3253,7 +3253,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_disk: what topic?",
+            "msg",          "%s", "what topic?",
             NULL
         );
         JSON_DECREF(match_cond)
@@ -3265,7 +3265,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_disk: what load_record_callback?",
+            "msg",          "%s", "what load_record_callback?",
             NULL
         );
         JSON_DECREF(match_cond)
@@ -3277,7 +3277,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_disk: what id?",
+            "msg",          "%s", "what id?",
             NULL
         );
         JSON_DECREF(match_cond)
@@ -3291,7 +3291,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_rt_disk(): Disk already exists",
+            "msg",          "%s", "Disk already exists",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
             "id",           "%s", id,
@@ -4953,7 +4953,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_iterator(): What key?",
+            "msg",          "%s", "What key?",
             "topic_name",   "%s", topic_name,
             NULL
         );
@@ -4972,7 +4972,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "tranger2_open_iterator(): Iterator already exists",
+            "msg",          "%s", "Iterator already exists",
             "topic_name",   "%s", topic_name,
             "key",          "%s", key,
             "id",           "%s", iterator_id,
@@ -5160,7 +5160,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "tranger2_open_iterator(): Cannot open rt",
+                    "msg",          "%s", "Cannot open rt",
                     "topic_name",   "%s", topic_name,
                     "key",          "%s", key,
                     "id",           "%s", iterator_id,
@@ -7361,7 +7361,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger2_open_list(): Cannot open rt",
+                "msg",          "%s", "Cannot open rt",
                 "topic_name",   "%s", topic_name,
                 NULL
             );
@@ -7379,7 +7379,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "tranger2_open_list(): list with no-realtime require extra",
+                "msg",          "%s", "list with no-realtime require extra",
                 "topic_name",   "%s", topic_name,
                 NULL
             );
@@ -7417,7 +7417,7 @@ PUBLIC int tranger2_close_list(
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        "msg",          "%s", "tranger2_close_list(): list not found",
+        "msg",          "%s", "list not found",
         NULL
     );
     return -1;

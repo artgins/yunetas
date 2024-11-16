@@ -269,8 +269,8 @@ static int test(json_t *tranger, int caso, int cnt)
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 json_pack("[{s:s},{s:s},{s:s}]", // error's list
-                    "msg", "tranger2_open_rt_disk: what id?",
-                    "msg", "tranger2_open_list(): Cannot open rt",
+                    "msg", "what id?",
+                    "msg", "Cannot open rt",
                     "msg", "tranger2_open_list() failed"
                 ),
                 NULL,   // expected, NULL: we want to check only the logs

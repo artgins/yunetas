@@ -207,7 +207,7 @@ PRIVATE int do_test(void)
     set_expected_results( // Check that no logs happen
         "repeat open iterator", // test name
         json_pack("[{s:s}]", // error's list
-            "msg", "tranger2_open_iterator(): Iterator already exists"
+            "msg", "Iterator already exists"
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
