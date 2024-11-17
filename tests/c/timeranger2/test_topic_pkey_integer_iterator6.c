@@ -16,7 +16,8 @@
  *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c --name=pepe1
  *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c --name=pepe2
  *
- *  Performance:
+ *  Performance, in my machine, 17-Nov-2024:
+ *
  *      With one client:
  *          MASTER (count: 180000): 2.617252 seconds, 68774 op/sec
  *          CLIENT (count: 180000): 2.616992 seconds, 68781 op/sec

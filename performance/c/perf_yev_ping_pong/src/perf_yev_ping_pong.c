@@ -1,6 +1,11 @@
 /****************************************************************************
  *          perf_yev_ping_pong
  *
+
+    - Performance, in my machine, 17-Nov-2024:
+        Msg/sec    : 173.3 Thousands
+        Bytes/sec  : 177.5 Millions
+
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
