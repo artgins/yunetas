@@ -38,9 +38,9 @@
  *              Structures
  ***************************************************************************/
 
-/*
- *  Used by main to communicate with parse_opt.
- */
+/***************************************************************************
+ *              Arguments
+ ***************************************************************************/
 #define MIN_ARGS 1
 #define MAX_ARGS 1
 struct arguments {
@@ -79,16 +79,6 @@ struct arguments {
     int list_databases;
 };
 
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
-PUBLIC void yuno_catch_signals(void);
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
-PRIVATE int list_topics(const char *path);
-
-/***************************************************************************
- *      Data
- ***************************************************************************/
 const char *argp_program_version = NAME " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
@@ -141,28 +131,6 @@ static struct argp_option options[] = {
 {0}
 };
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc,
-    0,
-    0,
-    0
-};
-
-yev_loop_t *yev_loop;
-int time2exit = 10;
-struct arguments arguments;
-int total_counter = 0;
-int partial_counter = 0;
-json_t *match_cond = 0;
-yev_loop_t *yev_loop;
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
     /*
@@ -267,6 +235,35 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     }
     return 0;
 }
+
+/* Our argp parser. */
+static struct argp argp = {
+    options,
+    parse_opt,
+    args_doc,
+    doc,
+    0,
+    0,
+    0
+};
+struct arguments arguments;
+
+/***************************************************************************
+ *              Prototypes
+ ***************************************************************************/
+PUBLIC void yuno_catch_signals(void);
+PRIVATE int list_topics(const char *path);
+
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+
+yev_loop_t *yev_loop;
+int time2exit = 10;
+int total_counter = 0;
+int partial_counter = 0;
+json_t *match_cond = 0;
+yev_loop_t *yev_loop;
 
 /***************************************************************************
  *
@@ -823,10 +820,13 @@ PRIVATE void delete_right_slash(char *s)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*---------------------------------*
+     *      Arguments
+     *---------------------------------*/
+    memset(&arguments, 0, sizeof(arguments));
     /*
      *  Default values
      */
-    memset(&arguments, 0, sizeof(arguments));
     arguments.verbose = -1;
 
     /*
@@ -892,7 +892,7 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*----------------------------------*
-     *  Match conditions
+     *  Match conditions from arguments
      *----------------------------------*/
     match_cond = json_object();
 

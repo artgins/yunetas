@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
     /*-------------------------------------*
      *      Check memory loss
      *-------------------------------------*/
-    unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
+    unsigned long memory_check_list[] = {0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
