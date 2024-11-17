@@ -11,7 +11,10 @@
  *      3) Run this test as master
  *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6
  *
- *      If you want to test several clients, run each client with different name in option -n
+ *      If you want to test several clients, run each client with different name in option -n :
+ *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c --name=pepe0
+ *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c --name=pepe1
+ *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c --name=pepe2
  *
  *  Performance:
  *      With one client:
