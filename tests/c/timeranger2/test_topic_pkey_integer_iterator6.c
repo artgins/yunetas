@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
@@ -182,6 +183,7 @@ PRIVATE int rt_disk_record_callback(
  *
  ***************************************************************************/
 int yev_callback(yev_event_t *event) {
+printf("yev_callback client %d\n", arguments.client);
     if(!arguments.client) {
         // In master break on timeout
         return -1;
@@ -435,6 +437,29 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+//    /*----------------------------------*
+//     *
+//     *----------------------------------*/
+//    struct rlimit rl;
+//
+//    // Get current limit
+//    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+//        printf("Current limit: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+//    } else {
+//        global_result += -1;
+//        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error getrlimit()");
+//    }
+//
+//    // Set new limit
+//    rl.rlim_cur = 20000;  // Set soft limit
+//    rl.rlim_max = 20000;  // Set hard limit
+//    if (setrlimit(RLIMIT_NOFILE, &rl) == 0) {
+//        printf("New limit set: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+//    } else {
+//        global_result += -1;
+//        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error setrlimit()");
+//    }
+
     /*----------------------------------*
      *      Startup gobj system
      *----------------------------------*/
@@ -525,18 +550,18 @@ int main(int argc, char *argv[])
     int pid_test_client = -1;
 
     if(!arguments.client) {
-        #define CLIENT "./tests/c/timeranger2/test_topic_pkey_integer_iterator6"
-        pid_test_client = launch_daemon(
-            FALSE,
-            CLIENT,
-            "-c",
-            NULL
-        );
-        if(pid_test_client < 0) {
-            printf("%sERROR%s --> Cannot launch client test: %s\n", On_Red BWhite, Color_Off, CLIENT);
-            global_result += -1;
-        }
-        sleep(1);
+//        #define CLIENT "./tests/c/timeranger2/test_topic_pkey_integer_iterator6"
+//        pid_test_client = launch_daemon(
+//            FALSE,
+//            CLIENT,
+//            "-c",
+//            NULL
+//        );
+//        if(pid_test_client < 0) {
+//            printf("%sERROR%s --> Cannot launch client test: %s\n", On_Red BWhite, Color_Off, CLIENT);
+//            global_result += -1;
+//        }
+//        sleep(1);
     }
     global_result += do_test(tranger);
 
@@ -544,7 +569,7 @@ int main(int argc, char *argv[])
 
     int result = close_all(tranger);
 
-    yev_loop_run(yev_loop, 1);
+    yev_loop_run_once(yev_loop);
 
     if(pid_test_client > 0) {
         kill(pid_test_client, SIGQUIT);
