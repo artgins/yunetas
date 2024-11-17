@@ -13,6 +13,29 @@
  *
  *      If you want to test several clients, run each client with different name in option -n
  *
+ *  Performance:
+ *      With one client:
+ *          MASTER (count: 180000): 2.617252 seconds, 68774 op/sec
+ *          CLIENT (count: 180000): 2.616992 seconds, 68781 op/sec
+ *
+ *      With two client:
+ *          MASTER  (count: 180000): 3.937710 seconds, 45711 op/sec
+ *          CLIENT1 (count: 180000): 3.937640 seconds, 45712 op/sec
+ *          CLIENT2 (count: 180000): 3.937661 seconds, 45712 op/sec
+ *
+ *      With three client:
+ *          MASTER  (count: 180000): 4.628994 seconds, 38885 op/sec
+ *          CLIENT1 (count: 180000): 4.629067 seconds, 38884 op/sec
+ *          CLIENT2 (count: 180000): 4.629221 seconds, 38883 op/sec
+ *          CLIENT3 (count: 180000): 4.628958 seconds, 38885 op/sec
+ *
+ *      With four client:
+ *          MASTER  (count: 180000): 4.771080 seconds, 37727 op/sec
+ *          CLIENT1 (count: 180000): 4.771036 seconds, 37727 op/sec
+ *          CLIENT2 (count: 180000): 4.771012 seconds, 37727 op/sec
+ *          CLIENT3 (count: 180000): 4.771083 seconds, 37727 op/sec
+ *          CLIENT4 (count: 180000): 4.771046 seconds, 37727 op/sec
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -249,7 +272,7 @@ PRIVATE int do_test(json_t *tranger)
         char test_name_[80];
         if(arguments.client) {
             snprintf(test_name_, sizeof(test_name_),
-                "===> CLIENT '%s' waiting append records",
+                "CLIENT '%s' waiting append records",
                 arguments.name
             );
             test_name = test_name_;
@@ -541,8 +564,6 @@ int main(int argc, char *argv[])
 
     int result = close_all(tranger);
 
-    yev_loop_run_once(yev_loop);
-    sleep(1);
     yev_loop_run_once(yev_loop);
 
     /*--------------------------------*
