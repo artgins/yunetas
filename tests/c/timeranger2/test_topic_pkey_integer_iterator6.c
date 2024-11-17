@@ -11,6 +11,8 @@
  *      3) Run this test as master
  *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6
  *
+ *      If you want to test several clients, run each client with different name in option -n
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -48,6 +50,7 @@ struct arguments {
     char *args[MAX_ARGS+1];     /* positional args */
 
     int client;
+    char *name;
 };
 
 const char *argp_program_version = APP " " VERSION;
@@ -64,8 +67,9 @@ static char args_doc[] = "";
  *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
  */
 static struct argp_option options[] = {
-/*-name---------key-----arg-----flags---doc---------------------------------group */
-{"client",      'c',    0,      0,      "Run as client, default is master", 0},
+/*-name---------key-----arg---------flags---doc---------------------------------group */
+{"client",      'c',    0,          0,      "Run as client, default is master", 0},
+{"name",        'n',    "NAME",     0,      "Run as client opening list with this name", 0},
 {0}
 };
 
@@ -80,6 +84,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     switch (key) {
     case 'c':
         arguments_->client = 1;
+        break;
+    case 'n':
+        arguments_->name= arg;
         break;
     case ARGP_KEY_ARG:
         if (state->arg_num >= MAX_ARGS) {
@@ -129,6 +136,7 @@ PRIVATE yev_loop_t *yev_loop;
  ***************************************************************************/
 PRIVATE int global_result = 0;
 
+PRIVATE time_measure_t time_measure;
 PRIVATE uint64_t rows_appending = 0;
 
 PRIVATE uint64_t first_t_by_disk = 0;
@@ -153,6 +161,9 @@ PRIVATE int rt_disk_record_callback(
         first_t_by_disk = md_record->__t__;
     } else {
         rows_appending++;
+        if(rows_appending == 1) {
+            MT_START_TIME(time_measure) /* HACK the time starts when receiving the first record, set in callback */
+        }
         if(rows_appending >= MAX_KEYS * MAX_RECORDS) {
             if(arguments.client) {
                 yev_loop->running = 0;
@@ -192,7 +203,6 @@ PRIVATE int do_test(json_t *tranger)
      *  Monitoring a key, last 10 records
      *-------------------------------------*/
     if(1) {
-        time_measure_t time_measure;
         json_t *match_cond;
 
         /*-----------------------*
@@ -221,7 +231,7 @@ PRIVATE int do_test(json_t *tranger)
             TOPIC_NAME,
             match_cond,             // match_cond, owned
             NULL,                   // extra
-            arguments.client?"it_by_disk":NULL, // rt_id
+            arguments.client?arguments.name:NULL, // rt_id
             arguments.client,       // rt_by_disk
             NULL                    // creator
         );
@@ -236,8 +246,13 @@ PRIVATE int do_test(json_t *tranger)
          *      Add records
          *-------------------------------------*/
         test_name = "MASTER append records";
+        char test_name_[80];
         if(arguments.client) {
-            test_name = "CLIENT waiting append records";
+            snprintf(test_name_, sizeof(test_name_),
+                "===> CLIENT '%s' waiting append records",
+                arguments.name
+            );
+            test_name = test_name_;
         }
 
         set_expected_results( // Check that no logs happen
@@ -248,7 +263,7 @@ PRIVATE int do_test(json_t *tranger)
             TRUE    // verbose
         );
 
-        MT_START_TIME(time_measure)
+        MT_START_TIME(time_measure) /* HACK the time starts when receiving the first record, set in callback */
 
         uint64_t t1 = first_t_by_disk; // coge el ultimo t1 de disco
         if(last_t_by_disk != 946774799 || last_tm_by_disk != 946774799 ) {
@@ -426,6 +441,7 @@ int main(int argc, char *argv[])
      *  Default values
      */
     arguments.client = 0;
+    arguments.name = "it_by_disk";
 
     /*
      *  Parse arguments
@@ -525,6 +541,8 @@ int main(int argc, char *argv[])
 
     int result = close_all(tranger);
 
+    yev_loop_run_once(yev_loop);
+    sleep(1);
     yev_loop_run_once(yev_loop);
 
     /*--------------------------------*
