@@ -550,18 +550,18 @@ int main(int argc, char *argv[])
     int pid_test_client = -1;
 
     if(!arguments.client) {
-//        #define CLIENT "./tests/c/timeranger2/test_topic_pkey_integer_iterator6"
-//        pid_test_client = launch_daemon(
-//            FALSE,
-//            CLIENT,
-//            "-c",
-//            NULL
-//        );
-//        if(pid_test_client < 0) {
-//            printf("%sERROR%s --> Cannot launch client test: %s\n", On_Red BWhite, Color_Off, CLIENT);
-//            global_result += -1;
-//        }
-//        sleep(1);
+        #define CLIENT "./tests/c/timeranger2/test_topic_pkey_integer_iterator6"
+        pid_test_client = launch_daemon(
+            FALSE,
+            CLIENT,
+            "-c",
+            NULL
+        );
+        if(pid_test_client < 0) {
+            printf("%sERROR%s --> Cannot launch client test: %s\n", On_Red BWhite, Color_Off, CLIENT);
+            global_result += -1;
+        }
+        sleep(1);
     }
     global_result += do_test(tranger);
 

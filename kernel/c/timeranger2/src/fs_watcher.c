@@ -106,12 +106,21 @@ PUBLIC fs_event_t *fs_create_watcher_event(
         return NULL;
 
     }
-    int fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
+    int fd = inotify_init1(IN_NONBLOCK); // |IN_CLOEXEC
     if(fd < 0) {
+        const char *serr = "";
+        int err = errno;
+        if(err == EMFILE) {
+            serr = "The user limit on the total number of INOTIFY INSTANCES has been reached";
+        } else if(err == ENFILE) {
+            serr = "The system limit on the total number of FILE DESCRIPTORS has been reached";
+        }
         gobj_log_critical(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "inotify_init1() FAILED",
+            "msg2",         "%s", serr,
+            "errno",        "%d", err,
             "serror",       "%s", strerror(errno),
             NULL
         );
