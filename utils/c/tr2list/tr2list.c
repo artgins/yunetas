@@ -892,7 +892,7 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*----------------------------------*
-     *  Match conditions from arguments
+     *  Match conditions from Arguments
      *----------------------------------*/
     match_cond = json_object();
 
