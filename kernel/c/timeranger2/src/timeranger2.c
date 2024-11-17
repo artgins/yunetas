@@ -4830,7 +4830,7 @@ PRIVATE int update_new_record_from_mem(
 }
 
 /***************************************************************************
- *  Update totals of a key
+ *  Update totals of a key  //TODO review, optimize the  calls of this fn
  ***************************************************************************/
 PRIVATE int update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *key)
 {
