@@ -4,18 +4,23 @@
  *  - Open as master, open iterator to search with callback and data
  *  - Add records in realtime
  *
+ *  To run this test, you must:
+ *      1) Firstly run ./tests/c/timeranger2/test_topic_pkey_integer to reset the bbdd
+ *      2) Run this test as client:
+ *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6 -c
+ *      3) Run this test as master
+ *          ./tests/c/timeranger2/test_topic_pkey_integer_iterator6
+ *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
-#include <sys/resource.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
 #include <stacktrace_with_bfd.h>
 #include <yev_loop.h>
-#include <launch_daemon.h>
 #include <kwid.h>
 #include <testing.h>
 
@@ -124,14 +129,11 @@ PRIVATE yev_loop_t *yev_loop;
  ***************************************************************************/
 PRIVATE int global_result = 0;
 
-PRIVATE uint64_t leidos_by_disk = 0;
-PRIVATE json_int_t counter_rowid_by_disk = 0;
-PRIVATE json_int_t last_rowid_by_disk = 0;
+PRIVATE uint64_t rows_appending = 0;
+
 PRIVATE uint64_t first_t_by_disk = 0;
-PRIVATE uint64_t first_tm_by_disk = 0;
 PRIVATE uint64_t last_t_by_disk = 0;
 PRIVATE uint64_t last_tm_by_disk = 0;
-PRIVATE json_t *callback_data_by_disk = 0;
 
 PRIVATE int rt_disk_record_callback(
     json_t *tranger,
@@ -143,16 +145,19 @@ PRIVATE int rt_disk_record_callback(
     json_t *record      // must be owned
 )
 {
-    leidos_by_disk++;
-    counter_rowid_by_disk++;
-    last_rowid_by_disk = rowid;
     last_t_by_disk = md_record->__t__;
     last_tm_by_disk = md_record->__tm__;
 
     system_flag2_t system_flag = md_record->system_flag;
     if(system_flag & sf_loading_from_disk) {
         first_t_by_disk = md_record->__t__;
-        first_tm_by_disk = md_record->__tm__;
+    } else {
+        rows_appending++;
+        if(rows_appending >= MAX_KEYS * MAX_RECORDS) {
+            if(arguments.client) {
+                yev_loop->running = 0;
+            }
+        }
     }
 
     if(pinta_md) {
@@ -170,24 +175,7 @@ PRIVATE int rt_disk_record_callback(
         print_json2("DISK record", record);
     }
 
-    json_t *md = json_object();
-    json_object_set_new(md, "rowid", json_integer(rowid));
-    json_object_set_new(md, "t", json_integer((json_int_t)md_record->__t__));
-    json_array_append_new(callback_data_by_disk, md);
-
     JSON_DECREF(record)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-int yev_callback(yev_event_t *event) {
-printf("yev_callback client %d\n", arguments.client);
-    if(!arguments.client) {
-        // In master break on timeout
-        return -1;
-    }
     return 0;
 }
 
@@ -204,15 +192,18 @@ PRIVATE int do_test(json_t *tranger)
      *  Monitoring a key, last 10 records
      *-------------------------------------*/
     if(1) {
-        const char *KEY = "0000000000000000001";
         time_measure_t time_measure;
         json_t *match_cond;
 
         /*-----------------------*
-         *      By disk
+         *      Open list
          *-----------------------*/
+        char *test_name = "tranger2_open_iterator by MEM";
+        if(arguments.client) {
+            test_name = "tranger2_open_iterator by DISK";
+        }
         set_expected_results( // Check that no logs happen
-            "tranger2_open_iterator by disk", // test name
+            test_name, // test name
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
@@ -220,10 +211,9 @@ PRIVATE int do_test(json_t *tranger)
         );
         MT_START_TIME(time_measure)
 
-        match_cond = json_pack("{s:b, s:i, s:s, s:I}",
+        match_cond = json_pack("{s:b, s:i, s:I}",
             "backward", 0,
             "from_rowid", -10,
-            "key", KEY,
             "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
         );
         json_t *list = tranger2_open_list(
@@ -237,7 +227,7 @@ PRIVATE int do_test(json_t *tranger)
         );
 
         MT_INCREMENT_COUNT(time_measure, MAX_RECORDS)
-        MT_PRINT_TIME(time_measure, "tranger2_open_iterator by disk")
+        MT_PRINT_TIME(time_measure, test_name)
         result += test_json(NULL);  // NULL: we want to check only the logs
 
         yev_loop_run_once(yev_loop);
@@ -245,8 +235,13 @@ PRIVATE int do_test(json_t *tranger)
         /*-------------------------------------*
          *      Add records
          *-------------------------------------*/
+        test_name = "MASTER append records";
+        if(arguments.client) {
+            test_name = "CLIENT waiting append records";
+        }
+
         set_expected_results( // Check that no logs happen
-            "append records", // test name
+            test_name, // test name
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
@@ -290,7 +285,7 @@ PRIVATE int do_test(json_t *tranger)
         }
 
         MT_INCREMENT_COUNT(time_measure, MAX_KEYS*MAX_RECORDS)
-        MT_PRINT_TIME(time_measure, "append records")
+        MT_PRINT_TIME(time_measure, test_name)
 
         if(last_t_by_disk != 946864799 || last_tm_by_disk != 946864799 ) {
             result += -1;
@@ -437,29 +432,6 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-//    /*----------------------------------*
-//     *
-//     *----------------------------------*/
-//    struct rlimit rl;
-//
-//    // Get current limit
-//    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
-//        printf("Current limit: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
-//    } else {
-//        global_result += -1;
-//        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error getrlimit()");
-//    }
-//
-//    // Set new limit
-//    rl.rlim_cur = 20000;  // Set soft limit
-//    rl.rlim_max = 20000;  // Set hard limit
-//    if (setrlimit(RLIMIT_NOFILE, &rl) == 0) {
-//        printf("New limit set: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
-//    } else {
-//        global_result += -1;
-//        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error setrlimit()");
-//    }
-
     /*----------------------------------*
      *      Startup gobj system
      *----------------------------------*/
@@ -538,7 +510,7 @@ int main(int argc, char *argv[])
         0,
         2024,
         10,
-        yev_callback,
+        NULL,
         &yev_loop
     );
 
@@ -547,22 +519,6 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     json_t *tranger = open_all();
 
-    int pid_test_client = -1;
-
-    if(!arguments.client) {
-        #define CLIENT "./tests/c/timeranger2/test_topic_pkey_integer_iterator6"
-        pid_test_client = launch_daemon(
-            FALSE,
-            CLIENT,
-            "-c",
-            NULL
-        );
-        if(pid_test_client < 0) {
-            printf("%sERROR%s --> Cannot launch client test: %s\n", On_Red BWhite, Color_Off, CLIENT);
-            global_result += -1;
-        }
-        sleep(1);
-    }
     global_result += do_test(tranger);
 
     yev_loop_run_once(yev_loop);
@@ -570,10 +526,6 @@ int main(int argc, char *argv[])
     int result = close_all(tranger);
 
     yev_loop_run_once(yev_loop);
-
-    if(pid_test_client > 0) {
-        kill(pid_test_client, SIGQUIT);
-    }
 
     /*--------------------------------*
      *  Stop the event loop
