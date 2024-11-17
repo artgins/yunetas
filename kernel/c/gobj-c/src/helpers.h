@@ -180,7 +180,14 @@ PUBLIC int save_json_to_file(
 /***************************************************************************
  *
  *  type can be:
- *  str|string, int|integer, real, bool|boolean, null, dict|object, list|array
+ *      str|string,
+ *      int|integer,
+ *      real,
+ *      bool|boolean,
+ *      null,
+ *      dict|object,
+ *      list|array,
+ *      time
  *
  *  Example:
 
@@ -195,7 +202,7 @@ static json_desc_t jn_xxx_desc[] = {
  ***************************************************************************/
 typedef struct {
     const char *name;
-    const char *type;   // type can be: "str", "int", "real", "bool", "null", "dict", "list"
+    const char *type;   // type can be: "str", "int", "real", "bool", "null", "dict", "list", "time"
     const char *defaults;
     const char *fillspace;
 } json_desc_t;

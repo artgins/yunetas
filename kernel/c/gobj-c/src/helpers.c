@@ -1712,7 +1712,14 @@ PUBLIC int save_json_to_file(
 /*******************************************************************************
  *  fields: DESC str array with: key, type, defaults
  *  type can be:
- *  str|string, int|integer, real, bool|boolean, null, dict|object, list|array
+ *      str|string,
+ *      int|integer,
+ *      real,
+ *      bool|boolean,
+ *      null,
+ *      dict|object,
+ *      list|array,
+ *      time
  *******************************************************************************/
 PUBLIC json_t *create_json_record(
     hgobj gobj,
@@ -1757,6 +1764,7 @@ PUBLIC json_t *create_json_record(
             CASES("string")
                 json_object_set_new(jn, name, json_string(defaults));
                 break;
+            CASES("time")
             CASES("int")
             CASES("integer")
                 unsigned long v=0;
