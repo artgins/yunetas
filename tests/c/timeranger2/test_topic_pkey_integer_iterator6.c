@@ -366,7 +366,7 @@ PRIVATE int do_test(json_t *tranger)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *open_all(void)
+PRIVATE json_t *open_tranger(void)
 {
     global_result = 0;
 
@@ -407,7 +407,7 @@ PRIVATE json_t *open_all(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int close_all(json_t *tranger)
+PRIVATE int close_tranger(json_t *tranger)
 {
     int result = 0;
     /*-------------------------*
@@ -560,13 +560,13 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Test
      *--------------------------------*/
-    json_t *tranger = open_all();
+    json_t *tranger = open_tranger();
 
     global_result += do_test(tranger);
 
     yev_loop_run_once(yev_loop);
 
-    int result = close_all(tranger);
+    int result = close_tranger(tranger);
 
     yev_loop_run_once(yev_loop);
 

@@ -1,5 +1,7 @@
 /****************************************************************************
- *          perf_yev_ping_pong
+ *          perf_yev_ping_pong2
+ *
+ *  Same as perf_yev_ping_pong plus save messages in tranger2 (test_topic_pkey_integer_iterator6)
  *
 
     - Performance, in my machine, 17-Nov-2024:
@@ -14,7 +16,10 @@
 #include <string.h>
 #include <signal.h>
 #include <stdio.h>
+
 #include <gobj.h>
+#include <kwid.h>
+#include <timeranger2.h>
 #include <testing.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_bfd.h>
@@ -23,6 +28,9 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define DATABASE    "tr_topic_pkey_integer"
+#define TOPIC_NAME  "topic_pkey_integer_ping_pong"
+
 BOOL dump = FALSE;
 int time2exit = 5;
 
@@ -71,6 +79,31 @@ uint64_t t;
 uint64_t msg_per_second = 0;
 uint64_t bytes_per_second = 0;
 int seconds_count;
+
+PRIVATE int global_result = 0;
+PRIVATE json_t *tranger2 = 0;
+PRIVATE json_t *list = 0;
+
+/***************************************************************************
+ *  TIMERANGER
+ ***************************************************************************/
+PRIVATE int rt_disk_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record      // must be owned
+)
+{
+    system_flag2_t system_flag = md_record->system_flag;
+    if(system_flag & sf_loading_from_disk) {
+    }
+
+    JSON_DECREF(record)
+    return 0;
+}
 
 /***************************************************************************
  *  yev_loop callback
@@ -309,6 +342,12 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 if(dump) {
                     gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
                 }
+
+                json_t *jn_record = gbuf2json(gbuffer_incref(yev_event->gbuf), TRUE);
+                gbuffer_reset_rd(yev_event->gbuf);
+                md2_record_ex_t md_record;
+                tranger2_append_record(tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);
+
                 gbuffer_clear(gbuf_client_tx);
                 gbuffer_append_gbuf(gbuf_client_tx, yev_event->gbuf);
 
@@ -380,15 +419,11 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Transmit
                  */
                 if(!gbuf_client_tx) {
-                    gbuf_client_tx = gbuffer_create(BUFFER_SIZE, BUFFER_SIZE);
+                    json_t *jn_tx = json_pack("{s:s}",
+                        "hello", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                    );
+                    gbuf_client_tx = json2gbuf(0, jn_tx, 0);
                     gbuffer_setlabel(gbuf_client_tx, "client-tx");
-                    #ifdef LIKE_LIBUV_PING_PONG
-                    gbuffer_append_string(gbuf_client_tx, PING);
-                    #else
-                    for(int i= 0; i<BUFFER_SIZE; i++) {
-                        gbuffer_append_char(gbuf_client_tx, 'A');
-                    }
-                    #endif
                 }
 
                 if(!yev_client_tx) {
@@ -423,6 +458,149 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     }
 
     return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *open_tranger(void)
+{
+    global_result = 0;
+
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger2_startup", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0
+    );
+    tranger2 = tranger2_startup(0, jn_tranger, yev_loop);
+    global_result += test_json(NULL);  // NULL: we want to check only the logs
+
+    json_t *match_cond = json_pack("{s:b, s:i, s:I}",
+        "backward", 0,
+        "from_rowid", -10,
+        "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
+    );
+
+    char directory[PATH_MAX];
+    snprintf(directory, sizeof(directory), "%s/%s",
+        kw_get_str(0, tranger2, "directory", "", KW_REQUIRED),
+        TOPIC_NAME    // topic name
+    );
+    if(is_directory(directory)) {
+        rmrdir(directory);
+    }
+
+    /*-------------------------------------------------*
+     *      Create a topic
+     *-------------------------------------------------*/
+    set_expected_results(
+        "create topic", // test name
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]", // error's list
+            "msg", "Creating topic",
+            "msg", "Creating topic_desc.json",
+            "msg", "Creating topic_cols.json",
+            "msg", "Creating topic_var.json"
+        ),
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    tranger2_create_topic(
+        tranger2,
+        TOPIC_NAME,     // topic name
+        "id",           // pkey
+        "tm",           // tkey
+        json_pack("{s:i, s:s, s:i, s:i}", // jn_topic_desc
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        sf_int_key,  // system_flag
+        json_pack("{s:s, s:I, s:s}", // jn_cols, owned
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+    global_result += test_json(NULL);  // NULL: we want to check only the logs
+
+    list = tranger2_open_list(
+        tranger2,
+        TOPIC_NAME,
+        match_cond,             // match_cond, owned
+        NULL,                   // extra
+        "",                     // rt_id
+        FALSE,                  // rt_by_disk
+        NULL                    // creator
+    );
+
+    return tranger2;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_tranger(json_t *tranger)
+{
+    int result = 0;
+    /*-------------------------*
+     *  close
+     *-------------------------*/
+    printf("\n\n\n\n");
+    set_expected_results( // Check that no logs happen
+        "tranger2_close_iterator", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    tranger2_close_list(tranger, list);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    result += debug_json("tranger", tranger, FALSE);
+
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    return result;
 }
 
 /***************************************************************************
@@ -491,10 +669,20 @@ int do_test(void)
     printf("\n----------------> Quit in %d seconds <-----------------\n\n", time2exit);
 
     /*--------------------------------*
+     *      TRANGER
+     *--------------------------------*/
+    open_tranger();
+
+    /*--------------------------------*
      *      Begin run loop
      *--------------------------------*/
     t = start_msectimer(1000);
     result += yev_loop_run(yev_loop, 10);
+
+    /*--------------------------------*
+     *      TRANGER
+     *--------------------------------*/
+    close_tranger(tranger2);
 
     /*--------------------------------*
      *      Stop
@@ -550,13 +738,37 @@ int main(int argc, char *argv[])
         free_func
     );
 
-    //dump = TRUE;                        // TODO TEST
-    //gobj_set_deep_tracing(2);           // TODO TEST
-    //gobj_set_global_trace(0, TRUE);     // TODO TEST
+    /*-------------------------------------*
+     *      Check memory loss
+     *-------------------------------------*/
+    unsigned long memory_check_list[] = {0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     init_backtrace_with_bfd(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_bfd);
 
+    /*-------------------------------------*
+     *  Captura salida logger very early
+     *-------------------------------------*/
+    glog_init();
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler(
+        "testing",          // handler_name
+        0,                  // close_fn
+        capture_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+
+    //gobj_set_deep_tracing(2);
+    //gobj_set_global_trace(0, TRUE);
+
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    // gobj_set_gobj_trace(0, "fs", TRUE, 0);
+
+    /*--------------------------------*
+     *      Startup gobj
+     *--------------------------------*/
     result += gobj_start_up(
         argc,
         argv,
@@ -580,25 +792,9 @@ int main(int argc, char *argv[])
     //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*--------------------------------*
-     *      Log handlers
-     *--------------------------------*/
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
-
-    /*------------------------------*
-     *  Captura salida logger
-     *------------------------------*/
-    gobj_log_register_handler(
-        "testing",          // handler_name
-        0,                  // close_fn
-        capture_log_write,  // write_fn
-        0                   // fwrite_fn
-    );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
-
-    /*--------------------------------*
      *      Test
      *--------------------------------*/
-    const char *test = "yev_ping_pong";
+    const char *test = "yev_ping_pong2";
     json_t *error_list = json_pack("[{s:s}]",  // error_list
         "msg", "addrinfo on listen"
     );
@@ -613,9 +809,9 @@ int main(int argc, char *argv[])
     result += do_test();
     printf(Cursor_Down "\n", 4);
 
-    result += test_json(NULL);
-
     gobj_end();
+
+    result += global_result;
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "system memory not free");
