@@ -16,6 +16,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#include <copyfile.h>
+#elif defined(__linux__)
+#include <sys/sendfile.h>
+#endif
+
 #include <gobj.h>
 #include <helpers.h>
 #include <kwid.h>
@@ -128,6 +135,10 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************************
  *      Data
  ***************************************************************************/
+json_t *tranger1 = 0;
+json_t *tranger2 = 0;
+json_t *topic2 = 0;
+size_t topic_records = 0;
 
 yev_loop_t *yev_loop;
 
@@ -221,10 +232,340 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
+ *  Copy file in kernel mode.
+ ***************************************************************************/
+PRIVATE int copy_file(const char *source, const char *destination)
+{
+    int input, output;
+    if ((input = open(source, O_RDONLY)) == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Cannot open source file",
+            "path",         "%s", source,
+            NULL
+        );
+        return -1;
+    }
+
+    if ((output = newfile(destination, 0660, FALSE)) == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Cannot create destine file",
+            "path",         "%s", destination,
+            NULL
+        );
+        close(input);
+        return -1;
+    }
+
+    struct stat file_stat;
+    if (fstat(input, &file_stat)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "fstat() FAILE",
+            "path",         "%s", source,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        close(input);
+        return -1;
+    }
+
+    off_t offset = 0;
+    ssize_t bytes_copied;
+    while (offset < file_stat.st_size) {
+        bytes_copied = sendfile(output, input, &offset, file_stat.st_size - offset);
+        if (bytes_copied<0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Failed to copy file contents using sendfile",
+                "path",         "%s", destination,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            close(input);
+            close(output);
+            return -1;
+        }
+    }
+
+    if (fchown(output, file_stat.st_uid, file_stat.st_gid) == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "fchown() FAILED",
+            "path",         "%s", destination,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    close(input);
+    close(output);
+
+    if (chmod(destination, file_stat.st_mode) == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "chmod() FAILED",
+            "path",         "%s", destination,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL copy_files_first_level_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    char *destine = user_data;
+
+    char path_source[PATH_MAX];
+    char path_destine[PATH_MAX];
+
+    if(strcmp(name, "__timeranger__.json")==0) {
+        build_path(path_source, sizeof(path_source), directory, name, NULL);
+        json_t *timeranger_file = load_json_from_file(0, directory,  name, 0);
+        if(!timeranger_file) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Cannot read tranger file",
+                "path",         "%s", path_source,
+                NULL
+            );
+            gobj_set_exit_code(-1);
+            return FALSE;
+        }
+
+        json_t *jn_tranger = json_pack("{s:s, s:s, s:i, s:i, s:i, s:b}",
+            "path", destine,
+            "filename_mask", kw_get_str(0, timeranger_file, "filename_mask", "", KW_REQUIRED),
+            "xpermission", (int)kw_get_int(0, timeranger_file, "xpermission", 0,  KW_REQUIRED),
+            "rpermission", (int)kw_get_int(0, timeranger_file, "rpermission", 0,  KW_REQUIRED),
+            "on_critical_error", -1,
+            "master", 1
+        );
+
+        tranger2 = tranger2_startup(
+            0,
+            jn_tranger, // owned, See tranger2_json_desc for parameters
+            yev_loop
+        );
+        if(!tranger2) {
+            exit(-1);
+        }
+        return TRUE; // to continue
+
+    } else {
+        build_path(path_source, sizeof(path_source), directory, name, NULL);
+        build_path(path_destine, sizeof(path_destine), destine, name, NULL);
+    }
+    if(copy_file(path_source, path_destine)<0) {
+        exit(-1);
+    }
+
+    return TRUE; // to continue
+}
+
+PRIVATE int copy_files_first_level(char *source, char *destine)
+{
+    walk_dir_tree(
+        0,
+        source,
+        ".*",
+        WD_MATCH_REGULAR_FILE,
+        copy_files_first_level_cb,
+        destine
+    );
+    printf("\n");
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+int load_record_callback1(
+    json_t *tranger,
+    json_t *topic,
+    json_t *list,
+    md_record_t *md_record,
+    /*
+     *  can be null if sf_loading_from_disk (use tranger_read_record_content() to load content)
+     */
+    json_t *jn_record // must be owned
+)
+{
+    md2_record_ex_t md2_record_ex;
+
+    topic_records++;
+
+    tranger2_append_record(
+        tranger2,
+        tranger_topic_name(topic),
+        md_record->__t__,
+        md_record->__user_flag__,
+        &md2_record_ex, // required
+        jn_record       // owned
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE BOOL copy_topics_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+//    char *destine = user_data;
+
+    char path_source[PATH_MAX];
+
+    /*
+     *  Check if exist the file of topic
+     *  topic_cols.json  topic_desc.json  topic_var.json
+     */
+    build_path(path_source, sizeof(path_source), fullpath, "topic_desc.json", NULL);
+    if(!is_regular_file(path_source)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic_desc.json NOT FOUND",
+            "path",         "%s", path_source,
+            NULL
+        );
+        return TRUE;
+    }
+
+    /*
+     *  topic_cols.json  topic_desc.json  topic_var.json
+     */
+    json_t *topic_desc = load_json_from_file(0, fullpath,  "topic_desc.json", 0);
+
+    json_t *topic_cols = 0;
+    if(file_exists(fullpath, "topic_cols.json")) {
+        topic_cols = load_json_from_file(0, fullpath,  "topic_cols.json", 0);
+    }
+
+    json_t *topic_var = 0;
+    if(file_exists(fullpath, "topic_var.json")) {
+        topic_var = load_json_from_file(0, fullpath,  "topic_var.json", 0);
+    }
+
+    const char *topic_name = kw_get_str(0, topic_desc, "topic_name", "", KW_REQUIRED);
+    const char *pkey = kw_get_str(0, topic_desc, "pkey", "", KW_REQUIRED);
+    const char *tkey = kw_get_str(0, topic_desc, "tkey", "", KW_REQUIRED);
+    int system_flag = (int)kw_get_int(0, topic_desc, "system_flag", 0, KW_REQUIRED);
+
+    json_t *topic1 = tranger_open_topic( // WARNING returned json IS NOT YOURS
+        tranger1,
+        name,
+        TRUE
+    );
+    if(!topic1) {
+        exit(-1);
+    }
+
+    topic_records = 0;
+    topic2 = tranger2_create_topic( // WARNING returned json IS NOT YOURS
+        tranger2,    // If the topic exists then only needs (tranger, topic_name) parameters
+        topic_name,
+        pkey,
+        tkey,
+        0,      // owned, See topic_json_desc for parameters
+        system_flag,
+        topic_cols,    // owned
+        topic_var      // owned
+    );
+
+    json_t *list1 = tranger_open_list(
+        tranger1,
+        json_pack("{s:s, s:I}",
+            "topic_name", topic_name,
+            "load_record_callback", load_record_callback1
+        )
+    );
+
+    tranger_close_list(tranger1, list1);
+    topic2 = 0;
+
+    json_decref(topic_desc);
+
+    printf("Migrated topic: %s, records: %ld\n", topic_name, topic_records);
+
+    return TRUE; // to continue
+}
+
+PRIVATE int copy_topics(char *source, char *destine)
+{
+    walk_dir_tree(
+        0,
+        source,
+        ".*",
+        WD_MATCH_DIRECTORY,
+        copy_topics_cb,
+        destine
+    );
+    printf("\n");
+    return 0;
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
-PRIVATE int migrate(const char *source, const char *destine)
+PRIVATE int migrate(char *source, char *destine)
 {
+    char path[PATH_MAX];
+
+    build_path(path, sizeof(path), source, "__timeranger__.json", NULL);
+    if(!is_regular_file(path)) {
+        fprintf(stderr, "TimeRanger __timeranger__.json NOT FOUND: %s\n", path);
+        exit(-1);
+    }
+
+    /*
+     *  Copy files of first level, include __timeranger__ and possible schemas
+     */
+    copy_files_first_level(source, destine);
+
+    tranger1 = tranger_startup(
+        json_pack("{s:s}", "path", source)
+    );
+    if(!tranger1) {
+        exit(-1);
+    }
+
+    /*
+     *  Copy topics
+     */
+    copy_topics(source, destine);
 
     return 0;
 }
@@ -328,11 +669,15 @@ int main(int argc, char *argv[])
     }
 
     if(!is_directory(arguments.source)) {
-        fprintf(stderr, "source path is not a directory: %s\n", arguments.source);
+        fprintf(stderr, "Source path is not a directory: %s\n", arguments.source);
         exit(-1);
     }
     if(access(arguments.destine, 0)==0) {
-        fprintf(stderr, "destine path is already exists: %s\n", arguments.destine);
+        fprintf(stderr, "Destination path already exists: %s\n", arguments.destine);
+        exit(-1);
+    }
+    if(mkrdir(arguments.destine, 02775)<0) {
+        fprintf(stderr, "Cannot create destination path: %s\n", arguments.destine);
         exit(-1);
     }
 
