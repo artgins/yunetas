@@ -22,7 +22,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MESSAGE "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#define MESSAGE "{\"hola\": \"Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
 
 /***************************************************************************
  *              Structures
@@ -266,19 +266,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "msg",          "%s", "Message is not the same",
             NULL
         );
-    } else {
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Message is the same",
-            NULL
-        );
     }
 
     static int i=0;
     i++;
 
-    if(i>2) {
+    if(i>180000) {
         gobj_set_yuno_must_die();
     } else {
         GBUFFER_INCREF(gbuf)

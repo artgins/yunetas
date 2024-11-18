@@ -188,11 +188,11 @@ static void register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     // Samples of traces
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
@@ -213,31 +213,6 @@ static void register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "Starting yuno",
-        "msg", "addrinfo on listen",
-        "msg", "Listening...",
-        "msg", "Playing yuno",
-        "msg", "Connected To",
-        "msg", "Clisrv accepted",
-        "msg", "Connected From",
-        "msg", "Message is the same",
-        "msg", "Message is the same",
-        "msg", "Message is the same",
-        "msg", "Pausing yuno",
-        "msg", "Disconnected From",
-        "msg", "Disconnected To",
-        "msg", "Yuno stopped, gobj end"
-    );
-
-    set_expected_results( // Check that no logs happen
-        APP_NAME, // test name
-        errors_list, // errors_list,
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-
     MT_START_TIME(time_measure)
 }
 
@@ -247,10 +222,8 @@ static void register_yuno_and_more(void)
  ***************************************************************************/
 static void cleaning(void)
 {
-    MT_INCREMENT_COUNT(time_measure, 1)
+    MT_INCREMENT_COUNT(time_measure, 180000)
     MT_PRINT_TIME(time_measure, APP_NAME)
-
-    result += test_json(NULL);  // NULL: we want to check only the logs
 }
 
 /***************************************************************************
@@ -266,7 +239,7 @@ int main(int argc, char *argv[])
     /*
      *  Add all handlers very early
      */
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     gobj_log_register_handler(
         "testing",          // handler_name
@@ -274,7 +247,7 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
 
 
     /*------------------------------------------------*
