@@ -23,6 +23,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
 SET (YUNO_SRCS
     tr2migrate.c
+    30_timeranger.c
 )
 SET (YUNO_HDRS
 )
