@@ -28,7 +28,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "tranger_keys"
+#define NAME        "tr2keys"
 #define DOC         "List keys of a topic"
 
 #define VERSION     "1.0" // __ghelpers_version__

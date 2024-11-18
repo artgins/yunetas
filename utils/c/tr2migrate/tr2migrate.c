@@ -1,5 +1,5 @@
 /****************************************************************************
- *          tr2list.c
+ *          tr2migrate.c
  *
  *          List messages of tranger database
  *
@@ -27,8 +27,8 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "tr2list"
-#define DOC         "List messages of TimeRanger2 database.\n Examples TIME:\n  1.seconds (minutes,hours,days,weeks,months,years)"
+#define NAME        "tr2migrate"
+#define DOC         "Migrate a timeranger to timeranger2"
 
 #define VERSION     "1.0" // __ghelpers_version__
 #define SUPPORT     "<niyamaka at yuneta.io>"
@@ -41,8 +41,8 @@
 /***************************************************************************
  *              Arguments
  ***************************************************************************/
-#define MIN_ARGS 1
-#define MAX_ARGS 1
+#define MIN_ARGS 2
+#define MAX_ARGS 2
 struct arguments {
     char *args[MAX_ARGS+1];     /* positional args */
 
@@ -87,7 +87,7 @@ const char *argp_program_bug_address = SUPPORT;
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "PATH";
+static char args_doc[] = "SOURCE DESTINE";
 
 /*
  *  The options we understand.
@@ -555,7 +555,7 @@ PRIVATE int list_messages(void)
         arguments.topic,
         match_cond, // owned
         NULL,   // extra
-        "tr2list",   // rt_id
+        "tr2migrate",   // rt_id
         TRUE,   // rt_by_disk
         NULL    // creator
     );

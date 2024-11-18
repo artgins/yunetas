@@ -11,6 +11,7 @@ add_subdirectory(fs_watcher)
 add_subdirectory(inotify)
 add_subdirectory(tr2list)
 add_subdirectory(tr2keys)
+add_subdirectory(tr2migrate)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
