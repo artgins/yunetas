@@ -54,6 +54,7 @@ struct arguments {
     char *fields;
     int print_local_time;
     int verbose;
+    int show_md2;
 
     char *from_t;
     char *to_t;
@@ -103,6 +104,7 @@ static struct argp_option options[] = {
 {"verbose",             'l',    "LEVEL",            0,      "Verbose level (empty=total, 0=metadata, 1=metadata, 2=metadata+path, 3=metadata+record)", 3},
 {"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
 {"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
+{"show_md2",            'd',    0,                  0,      "Show __md_tranger__ in records", 3},
 
 {0,                     0,      0,                  0,      "Search conditions", 4},
 {"from-t",              1,      "TIME",             0,      "From time.",       4},
@@ -159,6 +161,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case 'f':
         arguments_->fields = arg;
+        break;
+    case 'd':
+        arguments_->show_md2 = 1;
         break;
 
     case 1: // from_t
@@ -408,8 +413,14 @@ PRIVATE int load_record_callback(
         return 0;
     }
 
+    /*
+     *  Here is verbose 3
+     */
+    if(!arguments.show_md2) {
+        json_object_del(jn_record, "__md_tranger__");
+    }
+
     if(kw_has_key(match_cond, "filter")) {
-        verbose = 3;
         json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
         json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
         if(!json_equal(
