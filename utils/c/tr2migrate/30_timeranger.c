@@ -28,6 +28,9 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define KEY_TYPE_MASK         0x0000000F
+#define NOT_INHERITED_MASK    0xFF000000 /* Remains will set to all records of topic */
+
 PRIVATE const char *topic_fields[] = {
     "topic_name",
     "pkey",
@@ -44,22 +47,22 @@ PRIVATE const char *topic_fields[] = {
     0
 };
 
-PRIVATE const char *sf_names[32+1] = {
-    "sf_string_key",            // 0x00000001
-    "sf_rowid_key",             // 0x00000002
-    "sf_int_key",               // 0x00000004
+PRIVATE const char *sf0_names[32+1] = {
+    "sf0_string_key",            // 0x00000001
+    "sf0_rowid_key",             // 0x00000002
+    "sf0_int_key",               // 0x00000004
     "",                         // 0x00000008
-    "sf_zip_record",            // 0x00000010
-    "sf_cipher_record",         // 0x00000020
+    "sf0_zip_record",            // 0x00000010
+    "sf0_cipher_record",         // 0x00000020
     "",                         // 0x00000040
     "",                         // 0x00000080
-    "sf_t_ms",                  // 0x00000100
-    "sf_tm_ms",                 // 0x00000200
+    "sf0_t_ms",                  // 0x00000100
+    "sf0_tm_ms",                 // 0x00000200
     "",                         // 0x00000400
     "",                         // 0x00000800
-    "sf_no_record_disk",        // 0x00001000
-    "sf_no_md_disk",            // 0x00002000
-//  "sf_no_disk",               // 0x00003000 Combinated flags CANNOT BE USE by name
+    "sf0_no_record_disk",        // 0x00001000
+    "sf0_no_md_disk",            // 0x00002000
+//  "sf0_no_disk",               // 0x00003000 Combinated flags CANNOT BE USE by name
     "",                         // 0x00004000
     "",                         // 0x00008000
     "",                         // 0x00010000
@@ -70,14 +73,14 @@ PRIVATE const char *sf_names[32+1] = {
     "",                         // 0x00200000
     "",                         // 0x00400000
     "",                         // 0x00800000
-    "sf_loading_from_disk",     // 0x01000000
-    "sf_mark1",                 // 0x02000000
+    "sf0_loading_from_disk",     // 0x01000000
+    "sf0_mark1",                 // 0x02000000
     "",                         // 0x04000000
     "",                         // 0x08000000
     "",                         // 0x10000000
     "",                         // 0x20000000
     "",                         // 0x40000000
-    "sf_deleted_record",        // 0x80000000
+    "sf0_deleted_record",        // 0x80000000
     0
 };
 
@@ -400,7 +403,7 @@ PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
     const char **names = split2(system_flag, "|, ", &list_size);
 
     for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(sf_names, *(names +i), TRUE);
+        int idx = idx_in_list(sf0_names, *(names +i), TRUE);
         if(idx > 0) {
             bitmask |= 1 << (idx-1);
         }
@@ -536,7 +539,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
         system_flag_t system_flag_key_type = system_flag & KEY_TYPE_MASK;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
-                system_flag |= sf_int_key;
+                system_flag |= sf0_int_key;
             }
         }
         kw_get_int(0,jn_topic_desc, "system_flag", system_flag, KW_CREATE);
@@ -773,7 +776,7 @@ PRIVATE int get_topic_idx_fd(
     int fd = (int)kw_get_int(0,topic, "topic_idx_fd", -1, KW_REQUIRED);
     if(fd<0) {
         system_flag_t system_flag = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
-        if((system_flag & sf_no_md_disk)) {
+        if((system_flag & sf0_no_md_disk)) {
             return -1;
         }
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -986,7 +989,7 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
      *  Open topic index
      */
     system_flag_t system_flag = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
-    if(!(system_flag & sf_no_md_disk)) {
+    if(!(system_flag & sf0_no_md_disk)) {
         if(open_topic_idx_fd(tranger, topic)<0) {
             json_decref(topic);
             return 0;
@@ -1725,7 +1728,7 @@ PRIVATE char *get_record_content_fullpath(
 PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
 {
     system_flag_t system_flag = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
-    if((system_flag & sf_no_record_disk)) {
+    if((system_flag & sf0_no_record_disk)) {
         return -1;
     }
 
@@ -1740,7 +1743,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
         topic,
         full_path,
         sizeof(full_path),
-        (system_flag & sf_t_ms)? __t__/1000:__t__
+        (system_flag & sf0_t_ms)? __t__/1000:__t__
     );
 
     if(access(full_path, 0)!=0) {
@@ -1847,7 +1850,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
 PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
 {
     system_flag_t system_flag = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
-    if((system_flag & sf_no_record_disk)) {
+    if((system_flag & sf0_no_record_disk)) {
         return 0;
     }
 
@@ -1860,7 +1863,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
         topic,
         full_path,
         sizeof(full_path),
-        (system_flag & sf_t_ms)? __t__/1000:__t__
+        (system_flag & sf0_t_ms)? __t__/1000:__t__
     );
 
     if(access(full_path, 0)!=0) {
@@ -1991,7 +1994,7 @@ PUBLIC int tranger_append_record(
      *--------------------------------------------*/
     uint32_t __system_flag__ = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
     if(!__t__) {
-        if(__system_flag__ & (sf_t_ms)) {
+        if(__system_flag__ & (sf0_t_ms)) {
             __t__ = time_in_miliseconds();
         } else {
             __t__ = time_in_seconds();
@@ -2006,7 +2009,7 @@ PUBLIC int tranger_append_record(
     /*--------------------------------------------*
      *  Recover file corresponds to __t__
      *--------------------------------------------*/
-    int content_fp = get_content_fd(tranger, topic, __t__);  // Can be -1, sf_no_disk
+    int content_fp = get_content_fd(tranger, topic, __t__);  // Can be -1, sf0_no_disk
 
     /*--------------------------------------------*
      *  New record always at the end
@@ -2071,7 +2074,7 @@ PUBLIC int tranger_append_record(
     system_flag_t system_flag_key_type = md_record->__system_flag__ & KEY_TYPE_MASK;
 
     switch(system_flag_key_type) {
-        case sf_string_key:
+        case sf0_string_key:
             {
                 const char *key_value = kw_get_str(0, jn_record, pkey, 0, 0);
                 if(!key_value) {
@@ -2105,7 +2108,7 @@ PUBLIC int tranger_append_record(
             }
             break;
 
-        case sf_int_key:
+        case sf0_int_key:
             if(kw_has_key(jn_record, pkey)) {
                 md_record->key.i = kw_get_int(0,
                     jn_record,
@@ -2123,7 +2126,7 @@ PUBLIC int tranger_append_record(
             }
             break;
 
-        case sf_rowid_key:
+        case sf0_rowid_key:
             md_record->key.i = md_record->__rowid__;
             json_object_set_new(
                 jn_record,
@@ -2178,7 +2181,7 @@ PUBLIC int tranger_append_record(
         /*
          *  Saving: first compress, second encrypt
          */
-        if(md_record->__system_flag__ & sf_zip_record) {
+        if(md_record->__system_flag__ & sf0_zip_record) {
             // if(topic->compress_callback) { TODO
             //     gbuf = topic->compress_callback(
             //         topic->user_data,
@@ -2187,7 +2190,7 @@ PUBLIC int tranger_append_record(
             //     );
             // }
         }
-        if(md_record->__system_flag__ & sf_cipher_record) {
+        if(md_record->__system_flag__ & sf0_cipher_record) {
             // if(topic->encrypt_callback) { TODO
             //     gbuf = topic->encrypt_callback(
             //         topic->user_data,
@@ -2584,7 +2587,7 @@ PUBLIC int tranger_delete_record(
         return -1;
     }
 
-    md_record.__system_flag__ |= sf_deleted_record;
+    md_record.__system_flag__ |= sf0_deleted_record;
     if(rewrite_md_record_to_file(tranger, topic, &md_record)<0) {
         return -1;
     }
@@ -2631,12 +2634,12 @@ PUBLIC int tranger_write_mark1(
         /*
          *  Set
          */
-        md_record.__system_flag__ |= sf_mark1;
+        md_record.__system_flag__ |= sf0_mark1;
     } else {
         /*
          *  Reset
          */
-        md_record.__system_flag__ &= ~sf_mark1;
+        md_record.__system_flag__ &= ~sf0_mark1;
     }
 
     if(rewrite_md_record_to_file(tranger, topic, &md_record)<0) {
@@ -2897,7 +2900,7 @@ PUBLIC json_t *tranger_open_list(
             }
 
             json_t *jn_record = 0;
-            md_record.__system_flag__ |= sf_loading_from_disk;
+            md_record.__system_flag__ |= sf0_loading_from_disk;
             if(!only_md) {
                 jn_record = tranger_read_record_content(tranger, topic, &md_record);
             }
@@ -3225,7 +3228,7 @@ PUBLIC json_t *tranger_read_record_content(
     md_record_t *md_record
 )
 {
-    if(md_record->__system_flag__ & sf_deleted_record) {
+    if(md_record->__system_flag__ & sf0_deleted_record) {
         return 0;
     }
 
@@ -3290,7 +3293,7 @@ PUBLIC json_t *tranger_read_record_content(
     /*
      *  Restoring: first decrypt, second decompress
      */
-    if(md_record->__system_flag__ & sf_cipher_record) {
+    if(md_record->__system_flag__ & sf0_cipher_record) {
         // if(topic->decrypt_callback) { TODO
         //     gbuf = topic->decrypt_callback(
         //         topic->user_data,
@@ -3299,7 +3302,7 @@ PUBLIC json_t *tranger_read_record_content(
         //     );
         // }
     }
-    if(md_record->__system_flag__ & sf_zip_record) {
+    if(md_record->__system_flag__ & sf0_zip_record) {
         // if(topic->decompress_callback) { TODO
         //     gbuf = topic->decompress_callback(
         //         topic->user_data,
@@ -3365,7 +3368,7 @@ PUBLIC BOOL tranger_match_record(
 
     if(kw_has_key(match_cond, "key")) {
         int json_type = json_typeof(json_object_get(match_cond, "key"));
-        if(md_record->__system_flag__ & (sf_int_key|sf_rowid_key)) {
+        if(md_record->__system_flag__ & (sf0_int_key|sf0_rowid_key)) {
             switch(json_type) {
             case JSON_OBJECT:
                 {
@@ -3414,7 +3417,7 @@ PUBLIC BOOL tranger_match_record(
                 break;
             }
 
-        } else if(md_record->__system_flag__ & sf_string_key) {
+        } else if(md_record->__system_flag__ & sf0_string_key) {
             switch(json_type) {
             case JSON_OBJECT:
                 {
@@ -3471,7 +3474,7 @@ PUBLIC BOOL tranger_match_record(
     }
 
     if(kw_has_key(match_cond, "rkey")) {
-        if(md_record->__system_flag__ & sf_string_key) {
+        if(md_record->__system_flag__ & sf0_string_key) {
             const char *rkey = kw_get_str(0, match_cond, "rkey", 0, 0);
             if(!rkey) {
                 return FALSE;
@@ -3614,7 +3617,7 @@ PUBLIC BOOL tranger_match_record(
             int offset;
             timestamp_t timestamp;
             parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf_tm_ms)) {
+            if(md_record->__system_flag__ & (sf0_tm_ms)) {
                 timestamp *= 1000; // TODO lost milisecond precision?
             }
             from_tm = timestamp;
@@ -3651,7 +3654,7 @@ PUBLIC BOOL tranger_match_record(
             int offset;
             timestamp_t timestamp;
             parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf_tm_ms)) {
+            if(md_record->__system_flag__ & (sf0_tm_ms)) {
                 timestamp *= 1000; // TODO lost milisecond precision?
             }
             to_tm = timestamp;
@@ -3708,12 +3711,12 @@ PUBLIC BOOL tranger_match_record(
     }
 
     if(kw_has_key(match_cond, "notkey")) {
-        if(md_record->__system_flag__ & (sf_int_key|sf_rowid_key)) {
+        if(md_record->__system_flag__ & (sf0_int_key|sf0_rowid_key)) {
             json_int_t notkey = kw_get_int(0,match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
             if(md_record->key.i == notkey) {
                 return FALSE;
             }
-        } else if(md_record->__system_flag__ & sf_string_key) {
+        } else if(md_record->__system_flag__ & sf0_string_key) {
             const char *notkey = kw_get_str(0, match_cond, "key", 0, 0);
             if(!notkey) {
                 return FALSE;
@@ -3803,7 +3806,7 @@ PUBLIC int tranger_first_record(
         return -1;
     }
 
-    if(md_record->__system_flag__ & sf_deleted_record) {
+    if(md_record->__system_flag__ & sf0_deleted_record) {
         return tranger_next_record(tranger, topic, md_record);
     }
 
@@ -3844,7 +3847,7 @@ PUBLIC int tranger_last_record(
         return -1;
     }
 
-    if(md_record->__system_flag__ & sf_deleted_record) {
+    if(md_record->__system_flag__ & sf0_deleted_record) {
         return tranger_prev_record(tranger, topic, md_record);
     }
 
@@ -3886,7 +3889,7 @@ PUBLIC int tranger_next_record(
         return -1;
     }
 
-    if(md_record->__system_flag__ & sf_deleted_record) {
+    if(md_record->__system_flag__ & sf0_deleted_record) {
         return tranger_next_record(tranger, topic, md_record);
     }
 
@@ -3930,7 +3933,7 @@ PUBLIC int tranger_prev_record(
         return -1;
     }
 
-    if(md_record->__system_flag__ & sf_deleted_record) {
+    if(md_record->__system_flag__ & sf0_deleted_record) {
         return tranger_prev_record(tranger, topic, md_record);
     }
 
@@ -3950,7 +3953,7 @@ PUBLIC void print_md0_record(
 {
     char fecha[90];
     char stamp[64];
-    if(md_record->__system_flag__ & sf_t_ms) {
+    if(md_record->__system_flag__ & sf0_t_ms) {
         time_t t = md_record->__t__;
         t /= 1000;
         strftime(fecha, sizeof(fecha), "%Y-%m-%dT%H:%M:%S%z", localtime(&t));
@@ -3961,7 +3964,7 @@ PUBLIC void print_md0_record(
     }
 
     char fecha_tm[80];
-    if(md_record->__system_flag__ & sf_tm_ms) {
+    if(md_record->__system_flag__ & sf0_tm_ms) {
         time_t t_m = md_record->__tm__;
         t_m /= 1000;
         strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%S%z", gmtime(&t_m));
@@ -3984,7 +3987,7 @@ PUBLIC void print_md0_record(
             (uint64_t)md_record->__tm__,
             fecha_tm
         );
-    } else if(key_type & (sf_int_key|sf_rowid_key)) {
+    } else if(key_type & (sf0_int_key|sf0_rowid_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
@@ -3997,7 +4000,7 @@ PUBLIC void print_md0_record(
             fecha_tm,
             md_record->key.i
         );
-    } else if(key_type & sf_string_key) {
+    } else if(key_type & sf0_string_key) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
@@ -4036,7 +4039,7 @@ PUBLIC void print_md1_record(
     struct tm *tm;
     char fecha[90];
     char stamp[64];
-    if(md_record->__system_flag__ & sf_t_ms) {
+    if(md_record->__system_flag__ & sf0_t_ms) {
         time_t t = md_record->__t__;
         int ms = t % 1000;
         t /= 1000;
@@ -4048,7 +4051,7 @@ PUBLIC void print_md1_record(
     }
 
     char fecha_tm[80];
-    if(md_record->__system_flag__ & sf_tm_ms) {
+    if(md_record->__system_flag__ & sf0_tm_ms) {
         time_t t_m = md_record->__tm__;
         int ms = t_m % 1000;
         time_t t_m_ = t_m/1000;
@@ -4075,7 +4078,7 @@ PUBLIC void print_md1_record(
             (uint64_t)md_record->__tm__,
             fecha_tm
         );
-    } else if(key_type & (sf_int_key|sf_rowid_key)) {
+    } else if(key_type & (sf0_int_key|sf0_rowid_key)) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
@@ -4091,7 +4094,7 @@ PUBLIC void print_md1_record(
             fecha_tm,
             md_record->key.i
         );
-    } else if(key_type & sf_string_key) {
+    } else if(key_type & sf0_string_key) {
         snprintf(bf, bfsize,
             "rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
@@ -4140,7 +4143,7 @@ PUBLIC void print_md2_record(
         topic,
         path,
         sizeof(path),
-        (md_record->__system_flag__ & sf_t_ms)? t/1000:t
+        (md_record->__system_flag__ & sf0_t_ms)? t/1000:t
     );
 
 

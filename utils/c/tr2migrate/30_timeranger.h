@@ -86,23 +86,20 @@ extern "C"{
  *              Structures
  ***************************************************************/
 
-#define KEY_TYPE_MASK         0x0000000F
-#define NOT_INHERITED_MASK    0xFF000000 /* Remains will set to all records of topic */
-
 typedef enum { // WARNING table with name's strings in 30_timeranger.c
-    sf_string_key           = 0x00000001,
-    sf_rowid_key            = 0x00000002,
-    sf_int_key              = 0x00000004,
-    sf_zip_record           = 0x00000010,
-    sf_cipher_record        = 0x00000020,
-    sf_t_ms                 = 0x00000100,   // record time in miliseconds
-    sf_tm_ms                = 0x00000200,   // message time in miliseconds
-    sf_no_record_disk       = 0x00001000,
-    sf_no_md_disk           = 0x00002000,
-    sf_no_disk              = 0x00003000,   // sf_no_record_disk + sf_no_md_disk
-    sf_loading_from_disk    = 0x01000000,
-    sf_mark1                = 0x02000000,
-    sf_deleted_record       = 0x80000000,
+    sf0_string_key           = 0x00000001,
+    sf0_rowid_key            = 0x00000002,
+    sf0_int_key              = 0x00000004,
+    sf0_zip_record           = 0x00000010,
+    sf0_cipher_record        = 0x00000020,
+    sf0_t_ms                 = 0x00000100,   // record time in miliseconds
+    sf0_tm_ms                = 0x00000200,   // message time in miliseconds
+    sf0_no_record_disk       = 0x00001000,
+    sf0_no_md_disk           = 0x00002000,
+    sf0_no_disk              = 0x00003000,   // sf_no_record_disk + sf_no_md_disk
+    sf0_loading_from_disk    = 0x01000000,
+    sf0_mark1                = 0x02000000,
+    sf0_deleted_record       = 0x80000000,
 } system_flag_t;
 
 #define RECORD_KEY_VALUE_MAX   (48)
