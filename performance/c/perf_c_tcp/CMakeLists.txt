@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(test_c_tcps C)
+project(perf_c_tcp C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -21,9 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 SET(SRCS
-    test1
-    test2
-    test3
+    test4
 )
 
 SET(COMMON
@@ -35,7 +33,7 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "test_tcps_${test}")
+    set(binary "perf_tcp_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
