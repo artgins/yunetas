@@ -1,16 +1,6 @@
 /***********************************************************************
  *          C_TEST5.C
  *
- *          A class to test C_TCP / C_TCP_S
- *          Test: Use pepon as server and test interchange of messages
- *
- *          Tasks
- *          - Play pepon as server with echo
- *          - Open __out_side__ (teston)
- *          - On open (pure cli connected to pepon), send a Hola message
- *          - On receiving the message re-send again
- *          - On 3 received messages shutdown
- *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -22,10 +12,10 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define DATABASE    "tr_topic_pkey_integer"
-#define TOPIC_NAME  "perf_c_tcps_test5"
+#define DATABASE    "perf_topic_integer"
+#define TOPIC_NAME  "perf_tcps_test5"
 
-#define MESSAGE "{\"hola\": \"Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+#define MESSAGE "{\"id\": 1, \"tm\": 1, \"content\": \"Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.\"}"
 
 /***************************************************************************
  *              Structures
@@ -40,6 +30,7 @@ PRIVATE int close_tranger(hgobj gobj);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+time_measure_t time_measure;
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -241,7 +232,7 @@ PRIVATE int open_tranger(hgobj gobj)
         "master", 1,
         "on_critical_error", 0
     );
-    priv->tranger2 = tranger2_startup(0, jn_tranger, yuno_event_loop());
+    priv->tranger2 = tranger2_startup(gobj, jn_tranger, yuno_event_loop());
 
     json_t *match_cond = json_pack("{s:b, s:i, s:I}",
         "backward", 0,
@@ -411,10 +402,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     md2_record_ex_t md_record;
     tranger2_append_record(priv->tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);
 
-    static int i=0;
-    i++;
-
-    if(i>=180000) {
+    if(priv->rxMsgs==1) {
+        MT_START_TIME(time_measure)
+    }
+    if(priv->rxMsgs>=180000) {
+        MT_INCREMENT_COUNT(time_measure, 180000)
+        MT_PRINT_TIME(time_measure, gobj_short_name(gobj))
         gobj_set_yuno_must_die();
     } else {
         GBUFFER_INCREF(gbuf)

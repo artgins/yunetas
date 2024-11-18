@@ -1,16 +1,6 @@
 /***********************************************************************
  *          C_TEST4.C
  *
- *          A class to test C_TCP / C_TCP_S
- *          Test: Use pepon as server and test interchange of messages
- *
- *          Tasks
- *          - Play pepon as server with echo
- *          - Open __out_side__ (teston)
- *          - On open (pure cli connected to pepon), send a Hola message
- *          - On receiving the message re-send again
- *          - On 3 received messages shutdown
- *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -22,7 +12,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MESSAGE "{\"hola\": \"Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+#define MESSAGE "{\"id\": 1, \"tm\": 1, \"content\": \"Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.\"}"
 
 /***************************************************************************
  *              Structures
@@ -35,6 +25,7 @@
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+time_measure_t time_measure;
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -271,7 +262,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     static int i=0;
     i++;
 
+    if(i==1) {
+        MT_START_TIME(time_measure)
+    }
     if(i>180000) {
+        MT_INCREMENT_COUNT(time_measure, 180000)
+        MT_PRINT_TIME(time_measure, gobj_short_name(gobj))
         gobj_set_yuno_must_die();
     } else {
         GBUFFER_INCREF(gbuf)

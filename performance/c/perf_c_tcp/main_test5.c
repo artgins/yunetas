@@ -11,6 +11,8 @@
  *          - On receiving the message re-send again
  *          - On 180000 received messages shutdown
  *
+ *  Performance 18-Nov-2024 in my machine
+ *      # TIME C_TEST5^c_test5 (count: 180000): 7.624178 seconds, 23609 op/sec
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
@@ -77,7 +79,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'c_test3',                                      \n\
+            'name': 'c_test5',                                      \n\
             'gclass': 'C_TEST5',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
@@ -163,8 +165,6 @@ PRIVATE char variable_config[]= "\
 }                                                                   \n\
 ";
 
-time_measure_t time_measure;
-
 /***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
@@ -210,11 +210,6 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
-
-    /*------------------------------*
-     *  Start test
-     *------------------------------*/
-    MT_START_TIME(time_measure)
 }
 
 /***************************************************************************
@@ -223,8 +218,6 @@ static void register_yuno_and_more(void)
  ***************************************************************************/
 static void cleaning(void)
 {
-    MT_INCREMENT_COUNT(time_measure, 180000)
-    MT_PRINT_TIME(time_measure, APP_NAME)
 }
 
 /***************************************************************************
@@ -261,7 +254,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(4);
+    // set_auto_kill_time(4);
 
     /*------------------------------------------------*
      *          Start yuneta
