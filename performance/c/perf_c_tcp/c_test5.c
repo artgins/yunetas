@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_TEST4.C
+ *          C_TEST5.C
  *
  *          A class to test C_TCP / C_TCP_S
  *          Test: Use pepon as server and test interchange of messages
@@ -329,7 +329,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_TEST4);
+GOBJ_DEFINE_GCLASS(C_TEST5);
 
 /*------------------------*
  *      States
@@ -411,5 +411,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_test5(void)
 {
-    return create_gclass(C_TEST4);
+    return create_gclass(C_TEST5);
 }

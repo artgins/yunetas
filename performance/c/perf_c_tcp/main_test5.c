@@ -77,7 +77,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'c_test3',                                      \n\
-            'gclass': 'C_TEST4',                                    \n\
+            'gclass': 'C_TEST5',                                    \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -191,8 +191,8 @@ static void register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST5), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST5), "machine", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);

@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_TEST4.H
+ *          C_TEST5.H
  *
  *          A class to test C_TCP / C_TCP_S
  *          Test: Use pepon as server and test interchange of messages
@@ -28,7 +28,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TEST4);
+GOBJ_DECLARE_GCLASS(C_TEST5);
 
 /*------------------------*
  *      States
