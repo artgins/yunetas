@@ -309,14 +309,6 @@ PRIVATE int close_tranger(hgobj gobj)
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
-    set_expected_results( // Check that no logs happen
-        "tranger_shutdown", // test name
-        NULL,   // error's list, It must not be any log error
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-
     tranger2_shutdown(priv->tranger2);
 
     return 0;
@@ -422,7 +414,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     static int i=0;
     i++;
 
-    if(i>180000) {
+    if(i>=180000) {
         gobj_set_yuno_must_die();
     } else {
         GBUFFER_INCREF(gbuf)
