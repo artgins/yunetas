@@ -8,7 +8,7 @@
  *          - Open __out_side__ (teston)
  *          - On open (pure cli connected to pepon), send a Hola message
  *          - On receiving the message re-send again
- *          - On 3 received messages shutdown
+ *          - On 180000 received messages shutdown
  *
 *
  *          Copyright (c) 2024 by ArtGins.

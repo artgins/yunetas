@@ -2,15 +2,16 @@
  *          MAIN.C
  *
  *          Test: Use pepon as server and test interchange of messages
+ *          Like test4 plus Save message in timeranger2
  *
-  *          Tasks
+ *          Tasks
  *          - Play pepon as server with echo
  *          - Open __out_side__ (teston)
  *          - On open (pure cli connected to pepon), send a Hola message
  *          - On receiving the message re-send again
- *          - On 3 received messages shutdown
+ *          - On 180000 received messages shutdown
  *
-*
+ *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
