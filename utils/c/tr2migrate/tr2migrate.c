@@ -60,7 +60,7 @@ const char *argp_program_bug_address = SUPPORT;
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "SOURCE DESTINE";
+static char args_doc[] = "PATH_TRANGER PATH_TRANGER2";
 
 /*
  *  The options we understand.
@@ -223,6 +223,15 @@ PRIVATE void delete_right_slash(char *s)
 /***************************************************************************
  *                      Main
  ***************************************************************************/
+PRIVATE int migrate(const char *source, const char *destine)
+{
+
+    return 0;
+}
+
+/***************************************************************************
+ *                      Main
+ ***************************************************************************/
 int main(int argc, char *argv[])
 {
     /*---------------------------------*
@@ -337,6 +346,8 @@ int main(int argc, char *argv[])
         NULL,
         &yev_loop
     );
+
+    migrate(arguments.source, arguments.destine);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
