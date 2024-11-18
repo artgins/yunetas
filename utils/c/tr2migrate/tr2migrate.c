@@ -200,25 +200,25 @@ static inline double ts_diff2 (struct timespec start, struct timespec end)
 /***************************************************************************
  *
  ***************************************************************************/
-//PRIVATE void delete_right_slash(char *s)
-//{
-//    int l;
-//    char c;
-//
-//    /*---------------------------------*
-//     *  Elimina blancos a la derecha
-//     *---------------------------------*/
-//    l = (int)strlen(s);
-//    if(l==0)
-//        return;
-//    while(--l>=0) {
-//        c= *(s+l);
-//        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
-//            *(s+l)='\0';
-//        else
-//            break;
-//    }
-//}
+PRIVATE void delete_right_slash(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
+            *(s+l)='\0';
+        else
+            break;
+    }
+}
 
 /***************************************************************************
  *                      Main
@@ -306,11 +306,26 @@ int main(int argc, char *argv[])
 
     clock_gettime (CLOCK_MONOTONIC, &st);
 
-//    if(empty_string(arguments.path)) {
-//        fprintf(stderr, "What TimeRanger path?\n");
-//        fprintf(stderr, "You must supply --path option\n\n");
-//        exit(-1);
-//    }
+    delete_right_slash(arguments.source);
+    delete_right_slash(arguments.destine);
+
+    if(empty_string(arguments.source)) {
+        fprintf(stderr, "What TimeRanger source path?\n");
+        exit(-1);
+    }
+    if(empty_string(arguments.destine)) {
+        fprintf(stderr, "What TimeRanger2 destine path?\n");
+        exit(-1);
+    }
+
+    if(!is_directory(arguments.source)) {
+        fprintf(stderr, "source path is not a directory: %s\n", arguments.source);
+        exit(-1);
+    }
+    if(access(arguments.destine, 0)==0) {
+        fprintf(stderr, "destine path is already exists: %s\n", arguments.destine);
+        exit(-1);
+    }
 
     /*--------------------------------*
      *  Create the event loop
@@ -322,8 +337,6 @@ int main(int argc, char *argv[])
         NULL,
         &yev_loop
     );
-
-//    delete_right_slash(arguments.path);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
