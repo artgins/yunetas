@@ -260,6 +260,10 @@ PRIVATE int mt_start(hgobj gobj)
             gobj_change_state(gobj, ST_DISCONNECTED);
         }
 
+        /*
+         *  Parse url to save schema
+         *  It's parsing again in yev_setup_connect_event()
+         */
         char schema[40]; char host[120]; char port[40];
         if(parse_url(
             gobj,
@@ -286,6 +290,25 @@ PRIVATE int mt_start(hgobj gobj)
             yev_callback,
             gobj
         );
+
+        const char *url = gobj_read_str_attr(gobj, "url");
+        if(yev_setup_connect_event(
+            priv->yev_client_connect,
+            url,    // client_url
+            NULL,   // local bind
+            0,  // ai_family AF_UNSPEC
+            0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        )<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Cannot connect tcp gobj",
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+            return -1;
+        }
+
         if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
             gobj_write_bool_attr(gobj, "use_ssl", TRUE);
         } else {
@@ -1089,24 +1112,6 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(kw)
-
-    const char *url = gobj_read_str_attr(gobj, "url");
-    if(yev_setup_connect_event(
-        priv->yev_client_connect,
-        url,    // client_url
-        NULL,   // local bind
-        0,  // ai_family AF_UNSPEC
-        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-    )<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Cannot connect tcp gobj",
-            NULL
-        );
-        try_to_stop_yevents(gobj);
-        return -1;
-    }
 
     if(yev_start_event(priv->yev_client_connect)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

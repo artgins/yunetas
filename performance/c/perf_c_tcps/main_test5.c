@@ -12,8 +12,7 @@
  *          - On 180000 received messages shutdown
  *
  *  Performance 18-Nov-2024 in my machine
- *      # TIME C_TEST5^c_test5 (count: 180000): 7.384368 seconds, 24375 op/sec
- *      TODO investigate: with TLS has more speed that without, how is that possible?
+ *      # TIME C_TEST5^c_test5 (count: 180000): 10.340712 seconds, 17406 op/sec
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.

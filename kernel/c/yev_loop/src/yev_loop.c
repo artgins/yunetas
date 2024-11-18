@@ -344,20 +344,29 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
 )
 {
     SWITCHS(schema) { // WARNING Repeated
-        ICASES("tcps")
         ICASES("tcp")
-        ICASES("tcp4hs")
         ICASES("tcp4h")
         ICASES("http")
+        ICASES("ws")
+            hints->ai_socktype = SOCK_STREAM; /* TCP socket */
+            hints->ai_protocol = IPPROTO_TCP;
+            *secure = FALSE;
+            break;
+
+        ICASES("tcps")
+        ICASES("tcp4hs")
         ICASES("https")
         ICASES("wss")
-        ICASES("ws")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
             *secure = TRUE;
             break;
 
         ICASES("udps")
+            hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
+            hints->ai_protocol = IPPROTO_UDP;
+            *secure = TRUE;
+            break;
         ICASES("udp")
             hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints->ai_protocol = IPPROTO_UDP;
@@ -1706,11 +1715,6 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         // Error already logged
         return -1;
     }
-    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_FLAG_USE_TLS;
-    } else {
-        yev_event->flag &= ~YEV_FLAG_USE_TLS;
-    }
 
     struct addrinfo hints = {
         .ai_family = ai_family,
@@ -2033,11 +2037,6 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
     if(ret < 0) {
         // Error already logged
         return -1;
-    }
-    if(strlen(schema) > 0 && schema[strlen(schema)-1]=='s') {
-        yev_event->flag |= YEV_FLAG_USE_TLS;
-    } else {
-        yev_event->flag &= ~YEV_FLAG_USE_TLS;
     }
 
     if(backlog <= 0) {
