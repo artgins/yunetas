@@ -22,6 +22,9 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define DATABASE    "tr_topic_pkey_integer"
+#define TOPIC_NAME  "perf_c_tcps_test5"
+
 #define MESSAGE "{\"hola\": \"Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
 
 /***************************************************************************
@@ -31,6 +34,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int open_tranger(hgobj gobj);
+PRIVATE int close_tranger(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -71,6 +76,10 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_output_side;
     json_int_t txMsgs;
     json_int_t rxMsgs;
+
+    json_t *tranger2;
+    json_t *list;
+
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -117,6 +126,8 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->pepon);
     }
 
+    open_tranger(gobj);
+
     return 0;
 }
 
@@ -126,6 +137,8 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    close_tranger(gobj);
 
     gobj_stop(priv->timer);
     gobj_stop(priv->pepon);
@@ -175,6 +188,139 @@ PRIVATE int mt_pause(hgobj gobj)
                     /***************************
                      *      Local Methods
                      ***************************/
+
+
+
+
+/***************************************************************************
+ *  TIMERANGER
+ ***************************************************************************/
+PRIVATE int rt_disk_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record      // must be owned
+)
+{
+    system_flag2_t system_flag = md_record->system_flag;
+    if(system_flag & sf_loading_from_disk) {
+    }
+
+    JSON_DECREF(record)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_tranger(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Write the tests in ~/tests_yuneta/
+     */
+    const char *home = getenv("HOME");
+    char path_root[PATH_MAX];
+    char path_database[PATH_MAX];
+    char path_topic[PATH_MAX];
+
+    build_path(path_root, sizeof(path_root), home, "tests_yuneta", NULL);
+    build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
+    build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
+
+    /*-------------------------------------------------*
+     *      Startup the timeranger db
+     *-------------------------------------------------*/
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root,
+        "database", DATABASE,
+        "master", 1,
+        "on_critical_error", 0
+    );
+    priv->tranger2 = tranger2_startup(0, jn_tranger, yuno_event_loop());
+
+    json_t *match_cond = json_pack("{s:b, s:i, s:I}",
+        "backward", 0,
+        "from_rowid", -10,
+        "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
+    );
+
+    char directory[PATH_MAX];
+    snprintf(directory, sizeof(directory), "%s/%s",
+        kw_get_str(0, priv->tranger2, "directory", "", KW_REQUIRED),
+        TOPIC_NAME    // topic name
+    );
+    if(is_directory(directory)) {
+        rmrdir(directory);
+    }
+
+    /*-------------------------------------------------*
+     *      Create a topic
+     *-------------------------------------------------*/
+    tranger2_create_topic(
+        priv->tranger2,
+        TOPIC_NAME,     // topic name
+        "id",           // pkey
+        "tm",           // tkey
+        json_pack("{s:i, s:s, s:i, s:i}", // jn_topic_desc
+            "on_critical_error", 4,
+            "filename_mask", "%Y-%m-%d",
+            "xpermission" , 02700,
+            "rpermission", 0600
+        ),
+        sf_int_key,  // system_flag
+        json_pack("{s:s, s:I, s:s}", // jn_cols, owned
+            "id", "",
+            "tm", (json_int_t)0,
+            "content", ""
+        ),
+        0
+    );
+
+    priv->list = tranger2_open_list(
+        priv->tranger2,
+        TOPIC_NAME,
+        match_cond,             // match_cond, owned
+        NULL,                   // extra
+        "",                     // rt_id
+        FALSE,                  // rt_by_disk
+        NULL                    // creator
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_tranger(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-------------------------*
+     *  close
+     *-------------------------*/
+    tranger2_close_list(priv->tranger2, priv->list);
+
+    /*-------------------------------*
+     *      Shutdown timeranger
+     *-------------------------------*/
+    set_expected_results( // Check that no logs happen
+        "tranger_shutdown", // test name
+        NULL,   // error's list, It must not be any log error
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+
+    tranger2_shutdown(priv->tranger2);
+
+    return 0;
+}
 
 
 
@@ -267,6 +413,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
     }
+
+    json_t *jn_record = gbuf2json(gbuffer_incref(gbuf), TRUE);
+    gbuffer_reset_rd(gbuf);
+    md2_record_ex_t md_record;
+    tranger2_append_record(priv->tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);
 
     static int i=0;
     i++;
