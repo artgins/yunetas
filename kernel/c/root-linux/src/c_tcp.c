@@ -290,43 +290,6 @@ PRIVATE int mt_start(hgobj gobj)
             yev_callback,
             gobj
         );
-
-        const char *url = gobj_read_str_attr(gobj, "url");
-        if(yev_setup_connect_event(
-            priv->yev_client_connect,
-            url,    // client_url
-            NULL,   // local bind
-            0,  // ai_family AF_UNSPEC
-            0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
-        )<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Cannot connect tcp gobj",
-                NULL
-            );
-            try_to_stop_yevents(gobj);
-            return -1;
-        }
-
-        if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
-            gobj_write_bool_attr(gobj, "use_ssl", TRUE);
-        } else {
-            gobj_write_bool_attr(gobj, "use_ssl", FALSE);
-        }
-    }
-
-    if(priv->use_ssl) {
-        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
-
-        // TODO connection with certificate
-        //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
-        //if(!empty_string(cert_pem)) {
-        //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
-        //}
-        //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
-        //    esp_transport_ssl_skip_common_name_check(priv->transport);
     }
 
     if(IS_CLI) {
@@ -381,7 +344,9 @@ PRIVATE void mt_destroy(hgobj gobj)
         ytls_free_secure_filter(priv->ytls, priv->sskt);
         priv->sskt = 0;
     }
-    EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+    if(IS_CLI) {
+        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+    }
 }
 
 /***************************************************************************
@@ -1112,6 +1077,44 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(kw)
+
+    const char *url = gobj_read_str_attr(gobj, "url");
+    if(yev_setup_connect_event(
+        priv->yev_client_connect,
+        url,    // client_url
+        NULL,   // local bind
+        0,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot connect tcp gobj",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
+
+    if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
+        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+    } else {
+        gobj_write_bool_attr(gobj, "use_ssl", FALSE);
+    }
+    if(priv->use_ssl) {
+        if(!priv->ytls) {
+            json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+            priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
+
+            // TODO connection with certificate
+            //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
+            //if(!empty_string(cert_pem)) {
+            //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));
+            //}
+            //if(gobj_read_bool_attr(gobj, "skip_cert_cn")) {
+            //    esp_transport_ssl_skip_common_name_check(priv->transport);
+        }
+    }
 
     if(yev_start_event(priv->yev_client_connect)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
