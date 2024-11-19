@@ -991,10 +991,10 @@ int main(int argc, char *argv[])
     struct rlimit rl;
     // Get current limit
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
-        if(rl.rlim_cur < 20000) {
+        if(rl.rlim_cur < 200000) {
             // Set new limit
-            rl.rlim_cur = 20000;  // Set soft limit
-            rl.rlim_max = 20000;  // Set hard limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
             setrlimit(RLIMIT_NOFILE, &rl);
         }
     }
