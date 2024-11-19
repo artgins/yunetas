@@ -5672,6 +5672,7 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = 1;
 
         json_array_foreach(cache_files, idx, cache_file) {
+// TODO tm
 //            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
 //            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
 //            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
@@ -5702,6 +5703,7 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = total_rows;
 
         json_array_backward(cache_files, idx, cache_file) {
+// TODO tm
 //            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
 //            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
 //            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
@@ -5830,6 +5832,7 @@ PRIVATE BOOL tranger2_match_metadata(
 
     *end = FALSE;
 
+// TODO tm
 //            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
 //            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
 //            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
@@ -5873,7 +5876,6 @@ PRIVATE BOOL tranger2_match_metadata(
             to_rowid = total_rows + to_rowid + 1;
         }
     }
-
 
     if(from_rowid != 0) {
         if(rowid < from_rowid) {
@@ -5975,6 +5977,7 @@ PRIVATE json_int_t first_segment_row(
         json_array_foreach(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+// TODO tm
 //            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
 //            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
 //            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
@@ -5996,6 +5999,7 @@ PRIVATE json_int_t first_segment_row(
         json_array_backward(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
+// TODO tm
 //            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
 //            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
 //            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
