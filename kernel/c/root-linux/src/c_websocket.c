@@ -1124,7 +1124,12 @@ PRIVATE int frame_completed(hgobj gobj)
         }
     }
 
-    start_wait_frame_header(gobj);
+    /*
+     *  Check the state, now, with liburing the EV_DISCONNECTED can be inside this function
+     */
+    if(gobj_current_state(gobj) != ST_DISCONNECTED) {
+        start_wait_frame_header(gobj);
+    }
     return 0;
 }
 
@@ -1603,7 +1608,8 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
-        gobj_destroy(src);
+// TODO        gobj_destroy(src);
+        gobj_set_bottom_gobj(gobj, 0); // TODO remove
     }
     KW_DECREF(kw)
     return 0;
