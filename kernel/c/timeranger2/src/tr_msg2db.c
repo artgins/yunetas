@@ -762,15 +762,16 @@ PRIVATE int _set_volatil_values(
 
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
+        json_t *default_ = kw_get_dict_value(gobj, col, "default", 0, 0);
         json_t *value = kw_get_dict_value(gobj,
             kw,
             field,
-            kw_get_dict_value(gobj, col, "default", 0, 0),
+            default_,
             0
         );
 
-        const char *field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
-        if(!field) {
+        const char *field_ = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
+        if(!field_) {
             continue;
         }
         const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);

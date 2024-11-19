@@ -35,7 +35,8 @@ extern "C"{
 #define JSON_DECREF(json)                                           \
 {                                                                   \
     if(json) {                                                      \
-        if((int)((json)->refcount) <= 0 || (json)->type > 7 || (json)->type < 0) { \
+        if(((int)((json)->refcount)) <= 0 && (json)->type < JSON_TRUE || \
+                (json)->type > 7 || (json)->type < 0) { \
             gobj_log_error(0, LOG_OPT_TRACE_STACK,                  \
                 "gobj",         "%s", __FILE__,                     \
                 "function",     "%s", __FUNCTION__,                 \
@@ -54,7 +55,8 @@ extern "C"{
 #define JSON_INCREF(json)                                           \
 {                                                                   \
     if(json) {                                                      \
-        if((int)((json)->refcount) <= 0 || (json)->type > 7 || (json)->type < 0) { \
+        if(((int)((json)->refcount)) <= 0 && (json)->type < JSON_TRUE || \
+                (json)->type > 7 || (json)->type < 0) { \
             gobj_log_error(0, LOG_OPT_TRACE_STACK,                  \
                 "gobj",         "%s", __FILE__,                     \
                 "function",     "%s", __FUNCTION__,                 \
