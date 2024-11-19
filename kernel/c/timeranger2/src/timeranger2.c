@@ -7035,20 +7035,18 @@ PRIVATE int read_md(
  ***************************************************************************/
 PUBLIC json_t *tranger2_read_record_content( // return is yours
     json_t *tranger,
-    const char *topic_name,
+    json_t *topic,
     const char *key,
     md2_record_ex_t *md_record_ex
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "Topic not found",
-            "topic",        "%s", topic_name,
+            "msg",          "%s", "What topic?",
             NULL
         );
         return NULL;
@@ -7058,7 +7056,6 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "What key?",
-            "topic",        "%s", topic_name,
             NULL
         );
         return NULL;
@@ -7068,7 +7065,6 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "md_record_ex required",
-            "topic",        "%s", topic_name,
             NULL
         );
         return NULL;

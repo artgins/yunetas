@@ -636,7 +636,7 @@ PUBLIC int tranger2_close_all_lists(
  */
 PUBLIC json_t *tranger2_read_record_content( // return is yours
     json_t *tranger,
-    const char *topic_name,
+    json_t *topic,
     const char *key,
     md2_record_ex_t *md_record_ex
 );
