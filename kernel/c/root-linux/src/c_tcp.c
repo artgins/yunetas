@@ -780,9 +780,9 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
     }
 
     if(error < 0) {
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj); // auto-stop
-        }
+        /*
+         *  Don't stop here, will be stop in return of ytls_decrypt_data()
+         */
     } else {
         set_secure_connected(gobj);
     }
