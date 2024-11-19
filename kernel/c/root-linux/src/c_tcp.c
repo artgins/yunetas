@@ -892,6 +892,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         if(ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf)<0) {
                             if(gobj_is_running(gobj)) {
                                 gobj_stop(gobj); // auto-stop
+                                // WARNING if IS_CLISRV the gobj will be destroyed here
+                                break;
                             }
                         }
 
