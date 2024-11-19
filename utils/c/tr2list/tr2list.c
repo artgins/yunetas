@@ -555,7 +555,7 @@ PRIVATE int list_messages(void)
     json_t *rt = tranger2_open_list(
         tranger,
         arguments.topic,
-        match_cond, // owned
+        json_incref(match_cond), // owned
         NULL,   // extra
         "tr2list",   // rt_id
         TRUE,   // rt_by_disk
@@ -1017,6 +1017,8 @@ int main(int argc, char *argv[])
     } else {
         list_topic_messages();
     }
+
+    json_decref(match_cond);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
