@@ -1395,14 +1395,14 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             /*
             *  It's mine (I manage inter-command and inter-stats)
             */
-            gobj_send_event(
+            int ret = gobj_send_event(
                 gobj,
                 iev_event,
                 iev_kw,
                 gobj
             );
             KW_DECREF(kw)
-            return 0;
+            return ret;
         }
 
         /*

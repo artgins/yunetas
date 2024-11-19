@@ -1608,8 +1608,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
-// TODO        gobj_destroy(src);
-        gobj_set_bottom_gobj(gobj, 0); // TODO remove
+        gobj_destroy(src);
     }
     KW_DECREF(kw)
     return 0;
