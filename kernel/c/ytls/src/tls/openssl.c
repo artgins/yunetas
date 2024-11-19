@@ -681,6 +681,7 @@ PRIVATE int do_handshake(hsskt sskt_)
                 "serror",       "%s", sskt->last_error,
                 NULL
             );
+            gobj_log_set_last_message("%s", sskt->last_error);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;
         }
