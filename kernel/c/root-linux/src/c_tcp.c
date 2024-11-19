@@ -890,12 +890,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(yev_event->gbuf)
                         if(ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf)<0) {
-                            gobj_log_error(0, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                                "msg",          "%s", "ytls_decrypt_data() FAILED",
-                                NULL
-                            );
+                            if(gobj_is_running(gobj)) {
+                                gobj_stop(gobj); // auto-stop
+                            }
                         }
 
                     } else {
