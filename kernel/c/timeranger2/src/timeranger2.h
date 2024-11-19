@@ -632,6 +632,16 @@ PUBLIC int tranger2_close_all_lists(
 );
 
 /*
+ *  Read content, useful when you load only md and want recover the content
+ */
+PUBLIC json_t *tranger2_read_record_content( // return is yours
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    md2_record_ex_t *md_record_ex
+);
+
+/*
  *  print_md0_record: Print rowid, t, tm, key
  *  print_md1_record: Print rowid, uflag, sflag, t, tm, key
  *  print_md2_record: print rowid, offset, size, t, path

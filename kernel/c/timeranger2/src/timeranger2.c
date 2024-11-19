@@ -7033,6 +7033,75 @@ PRIVATE int read_md(
 /***************************************************************************
  *   Read record data
  ***************************************************************************/
+PUBLIC json_t *tranger2_read_record_content( // return is yours
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    md2_record_ex_t *md_record_ex
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *topic = tranger2_topic(tranger, topic_name);
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Topic not found",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return NULL;
+    }
+    if(empty_string(key)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "What key?",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return NULL;
+    }
+    if(!md_record_ex) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "md_record_ex required",
+            "topic",        "%s", topic_name,
+            NULL
+        );
+        return NULL;
+    }
+
+    uint64_t t = md_record_ex->__t__;
+    if(md_record_ex->system_flag & sf_t_ms) {
+        t /= 1000;
+    }
+
+    char file_id[NAME_MAX];
+    get_file_id(
+        file_id,
+        sizeof(file_id),
+        tranger,
+        topic,
+        t
+    );
+
+    json_t *record = read_record_content(
+        tranger,
+        topic,
+        key,
+        file_id,
+        md_record_ex
+    );
+
+    return record;
+}
+
+/***************************************************************************
+ *   Read record data
+ ***************************************************************************/
 PRIVATE json_t *read_record_content(
     json_t *tranger,
     json_t *topic,
