@@ -3956,7 +3956,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         client_fs_callback,
         gobj,
         tranger,  // user_data
-        0 // TODO key
+        0 // TODO key, only must watch the key?
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
@@ -5670,14 +5670,14 @@ PRIVATE json_t *get_segments(
     if(!backward) {
         int idx; json_t *cache_file;
         json_int_t partial_rows2 = 1;
-        json_int_t rows2;
+
         json_array_foreach(cache_files, idx, cache_file) {
-// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
 //            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
 //            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
+            json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
             json_int_t rangeStart = partial_rows2; // first row of this segment
             json_int_t rangeEnd = partial_rows2 + rows2 - 1; // last row of this segment
 
@@ -5700,14 +5700,14 @@ PRIVATE json_t *get_segments(
     } else {
         int idx; json_t *cache_file;
         json_int_t partial_rows2 = total_rows;
-        json_int_t rows2;
+
         json_array_backward(cache_files, idx, cache_file) {
-// TODO           json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+//            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
 //            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
 //            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
 //            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-            rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
 
+            json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
             json_int_t rangeStart = partial_rows2 - rows2 + 1; // first row of this segment
             json_int_t rangeEnd = partial_rows2;  // last row of this segment
 
