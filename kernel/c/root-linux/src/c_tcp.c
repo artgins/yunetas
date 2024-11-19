@@ -767,8 +767,6 @@ int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_debug(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
