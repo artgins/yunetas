@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <testing.h>
@@ -985,6 +986,17 @@ int main(int argc, char *argv[])
         fprintf(stderr, "What TimeRanger path?\n");
         fprintf(stderr, "You must supply --path option\n\n");
         exit(-1);
+    }
+
+    struct rlimit rl;
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 20000) {
+            // Set new limit
+            rl.rlim_cur = 20000;  // Set soft limit
+            rl.rlim_max = 20000;  // Set hard limit
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
     }
 
     /*--------------------------------*
