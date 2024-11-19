@@ -11,13 +11,14 @@
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
-#include <regex.h>
 #include <locale.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+
 #include <gobj.h>
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <timeranger2.h>
@@ -828,10 +829,8 @@ int main(int argc, char *argv[])
     /*
      *  Do your work
      */
-    struct timespec st, et;
-    double dt;
-
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     if(empty_string(arguments.path)) {
         fprintf(stderr, "What TimeRanger path?\n");
@@ -862,19 +861,11 @@ int main(int argc, char *argv[])
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
-    clock_gettime (CLOCK_MONOTONIC, &et);
-
     /*-------------------------------------*
      *  Print times
      *-------------------------------------*/
-    dt = ts_diff2(st, et);
-
-    setlocale(LC_ALL, "");
-    printf("====> Total: %'d records; %'f seconds; %'lu op/sec\n\n",
-        total_counter,
-        dt,
-        (unsigned long)(((double)total_counter)/dt)
-    );
+    MT_INCREMENT_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "Total")
 
     JSON_DECREF(match_cond)
     gobj_end();

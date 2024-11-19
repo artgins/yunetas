@@ -24,6 +24,7 @@
 #endif
 
 #include <gobj.h>
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <timeranger2.h>
@@ -139,6 +140,7 @@ json_t *tranger1 = 0;
 json_t *tranger2 = 0;
 json_t *topic2 = 0;
 size_t topic_records = 0;
+size_t total_counter = 0;
 
 yev_loop_t *yev_loop;
 
@@ -417,6 +419,7 @@ int load_record_callback1(
     md2_record_ex_t md2_record_ex;
 
     topic_records++;
+    total_counter++;
 
     tranger2_append_record(
         tranger2,
@@ -651,10 +654,8 @@ int main(int argc, char *argv[])
     /*
      *  Do your work
      */
-    struct timespec st, et;
-    double dt;
-
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     delete_right_slash(arguments.source);
     delete_right_slash(arguments.destine);
@@ -702,12 +703,8 @@ int main(int argc, char *argv[])
     /*-------------------------------------*
      *  Print times
      *-------------------------------------*/
-    dt = ts_diff2(st, et);
-
-    setlocale(LC_ALL, "");
-    printf("====>  %'f seconds;\n\n",
-        dt
-    );
+    MT_INCREMENT_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "Total")
 
     gobj_end();
 
