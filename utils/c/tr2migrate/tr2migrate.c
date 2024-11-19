@@ -400,7 +400,7 @@ int load_record_callback1(
     json_t *list,
     md_record_t *md_record,
     /*
-     *  can be null if sf_loading_from_disk (use tranger_read_record_content() to load content)
+     *  can be null if only_md (use tranger_read_record_content() to load content)
      */
     json_t *jn_record // must be owned
 )
