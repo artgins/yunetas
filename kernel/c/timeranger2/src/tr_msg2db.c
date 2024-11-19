@@ -795,7 +795,7 @@ PRIVATE int _set_volatil_values(
         );
     }
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return 0;
 }
 
@@ -835,8 +835,8 @@ PRIVATE json_t *record2tranger(
                 value
             )<0) {
             // Error already logged
-            JSON_DECREF(new_record);
-            JSON_DECREF(cols);
+            JSON_DECREF(new_record)
+            JSON_DECREF(cols)
             return 0;
         }
     }
@@ -846,7 +846,7 @@ PRIVATE json_t *record2tranger(
     }
     json_object_del(new_record, "__md_msg2db__");
 
-    JSON_DECREF(cols);
+    JSON_DECREF(cols)
     return new_record;
 }
 
