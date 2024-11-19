@@ -698,8 +698,6 @@ int main(int argc, char *argv[])
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
 
-    clock_gettime (CLOCK_MONOTONIC, &et);
-
     /*-------------------------------------*
      *  Print times
      *-------------------------------------*/
