@@ -147,17 +147,6 @@ yev_loop_t *yev_loop;
 /***************************************************************************
  *
  ***************************************************************************/
-static inline double ts_diff2 (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    return ((double)(e-s))/1000000;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 //PRIVATE BOOL list_topic_cb(
 //    hgobj gobj,
 //    void *user_data,
