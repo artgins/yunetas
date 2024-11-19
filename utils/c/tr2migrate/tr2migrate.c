@@ -702,7 +702,7 @@ int main(int argc, char *argv[])
      *  Print times
      *-------------------------------------*/
     MT_INCREMENT_COUNT(time_measure, total_counter)
-    MT_PRINT_TIME(time_measure, "Total")
+    MT_PRINT_TIME(time_measure, "migration")
 
     gobj_end();
 

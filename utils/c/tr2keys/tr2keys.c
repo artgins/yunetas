@@ -865,7 +865,7 @@ int main(int argc, char *argv[])
      *  Print times
      *-------------------------------------*/
     MT_INCREMENT_COUNT(time_measure, total_counter)
-    MT_PRINT_TIME(time_measure, "Total")
+    MT_PRINT_TIME(time_measure, "list keys")
 
     JSON_DECREF(match_cond)
     gobj_end();
