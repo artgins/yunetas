@@ -542,6 +542,11 @@ PRIVATE int migrate(char *source, char *destine)
         exit(-1);
     }
 
+    if(mkrdir(arguments.destine, 02775)<0) {
+        fprintf(stderr, "Cannot create destination path: %s\n", arguments.destine);
+        exit(-1);
+    }
+
     /*
      *  Copy files of first level, include __timeranger__ and possible schemas
      */
@@ -639,7 +644,6 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
-
     /*
      *  Do your work
      */
@@ -664,10 +668,6 @@ int main(int argc, char *argv[])
     }
     if(access(arguments.destine, 0)==0) {
         fprintf(stderr, "Destination path already exists: %s\n", arguments.destine);
-        exit(-1);
-    }
-    if(mkrdir(arguments.destine, 02775)<0) {
-        fprintf(stderr, "Cannot create destination path: %s\n", arguments.destine);
         exit(-1);
     }
 
