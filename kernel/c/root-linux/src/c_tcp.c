@@ -789,8 +789,6 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
         set_secure_connected(gobj);
     }
 
-    ytls_flush(priv->ytls, priv->sskt);
-
     return 0;
 }
 
