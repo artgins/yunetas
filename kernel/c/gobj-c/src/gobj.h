@@ -1287,7 +1287,13 @@ PUBLIC hgobj gobj_create_gobj(
         ]
     }
 
-    If there is only one child in zchilds, this will be set as gobj_set_bottom_gobj
+    HACK: If there is only one child in zchilds, this will be set as gobj_set_bottom_gobj
+
+    HACK: Rules for proper object usage
+        - Inherently CHILD objects will ask if they are services to use gobj_publish_event()
+            instead of gobj_send_event() to parent.
+        - Inherently SERVICE objects will ask if they are pure_child to use gobj_send_event()
+            instead of gobj_publish_event()
 */
 
 PUBLIC hgobj gobj_create_tree0(
