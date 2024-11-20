@@ -799,7 +799,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 
     if(error < 0) {
         /*
-         *  Don't stop here, will be stop in return of ytls_decrypt_data()
+         *  Don't stop here, will be stopped in return of ytls_decrypt_data()
          */
     } else {
         set_secure_connected(gobj);
@@ -909,12 +909,21 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(yev_event->gbuf)
-                        if(ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf)<0) {
-                            if(gobj_is_running(gobj)) {
-                                gobj_stop(gobj); // auto-stop
-                                // WARNING if IS_CLISRV the gobj will be destroyed here
-                                break;
+                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf);
+                        if(ret < 0) {
+                            /*
+                             *  If return -1 while doing handshake then is good stop here the gobj,
+                             *  But if return -1 in response of gobj_send_event,
+                             *      then it can be already stopped and destroyed
+                             *      Solution: don't return -1 on ytls_on_clear_data_callback
+                             */
+                            if(ret < -1000) { // Mark as TLS error
+                                if(gobj_is_running(gobj)) {
+                                    gobj_stop(gobj); // auto-stop
+                                    // WARNING if IS_CLISRV the gobj will be destroyed here
+                                }
                             }
+                            break;
                         }
 
                     } else {

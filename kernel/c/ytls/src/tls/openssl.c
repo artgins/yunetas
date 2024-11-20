@@ -834,7 +834,7 @@ PRIVATE int encrypt_data(
 PRIVATE int flush_clear_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
-
+    int ret = 0;
     if(sskt->ytls->trace) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
@@ -859,7 +859,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                     NULL
                 );
                 GBUFFER_DECREF(gbuf)
-                return -1;
+                return -1111; // Mark as TLS error
             } else {
                 // no more data
                 GBUFFER_DECREF(gbuf)
@@ -869,9 +869,9 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 
         // Callback clear data
         gbuffer_set_wr(gbuf, nread);
-        sskt->on_clear_data_cb(sskt->user_data, gbuf);
+        ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
     }
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -904,7 +904,7 @@ PRIVATE int decrypt_data(
                 NULL
             );
             GBUFFER_DECREF(gbuf)
-            return -1;
+            return -1111; // Mark as TLS error
         }
 
         gbuffer_get(gbuf, written);    // Pop data
@@ -916,13 +916,14 @@ PRIVATE int decrypt_data(
             if(do_handshake(sskt)<0) {
                 // Error already logged
                 GBUFFER_DECREF(gbuf)
-                return -1;
+                return -1111; // Mark as TLS error
             }
         } else {
-            if(flush_clear_data(sskt)<0) {
+            int ret = flush_clear_data(sskt);
+            if(ret < 0) {
                 // Error already logged
                 GBUFFER_DECREF(gbuf)
-                return -1;
+                return ret;
             }
         }
     }
