@@ -332,8 +332,9 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->connected) {
-        //TODO NOOOO disconnect_on_last_transmit
-        ws_close(gobj, STATUS_NORMAL, 0);
+        if(!gobj_is_shutdowning()) {
+            ws_close(gobj, STATUS_NORMAL, 0);
+        }
     }
     if(priv->timer) {
         clear_timeout(priv->timer);

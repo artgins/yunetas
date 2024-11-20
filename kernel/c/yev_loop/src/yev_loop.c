@@ -446,7 +446,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         /* Mark this request as processed */
         return -1;
     }
-    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
+    hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
 
     /*------------------------*
      *      Trace
