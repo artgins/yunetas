@@ -1287,6 +1287,8 @@ PUBLIC hgobj gobj_create_gobj(
         ]
     }
 
+    HACK: It 'subscriber' is not set, the subscriber will be the parent
+
     HACK: If there is only one child in zchilds, this will be set as gobj_set_bottom_gobj
 
     HACK: Rules for proper object usage
