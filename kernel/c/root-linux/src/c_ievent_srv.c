@@ -1136,9 +1136,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Mainly process EV_IDENTITY_CARD_ACK
      *-----------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
+        int ret = -1;
         if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             kw_incref(iev_kw);
-            if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
+            ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);
+            if(ret==0) {
                 kw_decref(iev_kw);
                 kw_decref(kw);
                 return 0;
@@ -1147,7 +1149,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         drop(gobj);
         kw_decref(iev_kw);
         kw_decref(kw);
-        return 0;
+        return ret;
     }
 
     /*------------------------------------*
