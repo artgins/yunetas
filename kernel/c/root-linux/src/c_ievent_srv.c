@@ -1408,7 +1408,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //             }
 //         }
 
-        if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             /*
             *  It's mine (I manage inter-command and inter-stats)
             */

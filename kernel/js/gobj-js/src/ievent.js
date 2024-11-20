@@ -574,7 +574,7 @@ DEBUG: {
         // Chequea tb el nombre TODO
         let dst_role = kw_get_str(event_id, "dst_role", "");
 
-        if(dst_role != self.yuno.yuno_role) {
+        if(dst_role !== self.yuno.yuno_role) {
             log_error("It's not my role, yuno_role: " + dst_role + ", my_role: " + self.yuno.yuno_role);
             return 0;
         }
