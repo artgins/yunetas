@@ -699,6 +699,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "remote_yuno_service", gobj_read_str_attr(gobj, "remote_yuno_service")
         );
 
+        /*
+         *  SERVICE subscription model
+         */
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw_on_close, gobj);
         } else {
@@ -757,6 +760,9 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(result < 0) {
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
+        /*
+         *  SERVICE subscription model
+         */
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), EV_ON_ID_NAK, json_incref(kw), gobj);
         } else {
@@ -777,6 +783,9 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 "data", jn_data?jn_data:json_null()
             );
 
+            /*
+             *  SERVICE subscription model
+             */
             if(gobj_is_pure_child(gobj)) {
                 gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw_on_open, gobj);
             } else {
@@ -945,6 +954,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Check dst service
      *----------------------------------------*/
+    int ret = 0;
+
     const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     // TODO de momento pasa todo, multi-servicio.
     // Obligado al servicio acordado en el identity_card.
@@ -1003,14 +1014,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*
              *  It's mine (I manage inter-command and inter-stats)
              */
-            gobj_send_event(
+            ret = gobj_send_event(
                 gobj,
                 iev_event,
                 iev_kw,
                 gobj
             );
             KW_DECREF(kw)
-            return 0;
+            return ret;
         }
 
         /*-------------------------*
@@ -1021,18 +1032,21 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         // may happen collateral damages
         hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
         if(gobj_service && gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+            ret = gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
         } else {
+            /*
+             *  SERVICE subscription model
+             */
             if(gobj_is_pure_child(gobj)) {
-                gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
+                ret = gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
             } else {
-                gobj_publish_event(gobj, iev_event, iev_kw);
+                ret = gobj_publish_event(gobj, iev_event, iev_kw);
             }
         }
     }
 
     KW_DECREF(kw)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************

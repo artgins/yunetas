@@ -544,7 +544,15 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "__username__", gobj_read_str_attr(gobj, "__username__")
         );
         json_object_update_missing(kw_on_close, kw);
-        gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
+
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
+            gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw_on_close, gobj);
+        }
     }
 
     /*----------------------------*
@@ -828,7 +836,14 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             json_string(gobj_read_str_attr(gobj, "__username__"))
         );
 
-        gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
+            gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw_on_open, gobj);
+        }
     }
 
     JSON_DECREF(kw)
@@ -1434,12 +1449,20 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *
          *  WARNING efectos colaterales si lo cambio? seguro que muchos
          */
-        gobj_send_event(
-            priv->subscriber,
-            EV_SEND_IEV, //EV_IEV_MESSAGE, TODO check
-            jn_iev,
-            gobj
-        );
+
+        /*
+         *  ~CHILD subscription model, send to subscriber
+         */
+        if(gobj_is_service(gobj)) {
+            gobj_publish_event(gobj, EV_SEND_IEV, jn_iev);
+        } else {
+            gobj_send_event(
+                priv->subscriber,
+                EV_SEND_IEV, //EV_IEV_MESSAGE, TODO check
+                jn_iev,
+                gobj
+            );
+        }
     }
 
     KW_DECREF(kw)

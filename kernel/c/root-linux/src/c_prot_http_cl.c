@@ -96,7 +96,7 @@ PRIVATE void mt_create(hgobj gobj)
             NULL,                   // on_header_event
             NULL,                   // on_body_event
             EV_ON_MESSAGE,          // on_message_event ==> publish the full message in a gbuffer
-            gobj_is_pure_child(gobj)?TRUE:FALSE
+            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     } else {
         priv->parsing_response = ghttp_parser_create(
@@ -105,7 +105,7 @@ PRIVATE void mt_create(hgobj gobj)
             EV_ON_HEADER,           // on_header_event
             EV_ON_MESSAGE,          // on_body_event  ==> publish the partial message with original buffer pointer
             NULL,                   // on_message_event
-            gobj_is_pure_child(gobj)?TRUE:FALSE
+            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     }
 
@@ -254,13 +254,14 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     ghttp_parser_reset(priv->parsing_response);
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
     } else {
-        gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
+        return gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
     }
-
-    return 0;
 }
 
 /***************************************************************************
@@ -268,13 +269,14 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
     } else {
-        gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
+        return gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
     }
-
-    return 0;
 }
 
 /***************************************************************************
