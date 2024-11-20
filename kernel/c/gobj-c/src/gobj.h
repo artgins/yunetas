@@ -1257,12 +1257,24 @@ PUBLIC hgobj gobj_create_tree0(
  * Json config of tree
  *
 {
-    'name': 'x',
+    // Options to create the gobj
+
     'gclass': 'X',
+    'name': 'x',
+    'default_service': false,
+    'as_service': false, || 'service': false,
     'autostart': true,
     'autoplay': true,
+    'disable': false,
+    'pure_child': false
+
+    // Attributes of the gobj
+
     'kw': {
     }
+
+    // Childs of the gobj
+
     'zchilds': [
         {
             'name': 'xx',

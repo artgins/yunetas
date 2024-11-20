@@ -1647,9 +1647,10 @@ PUBLIC hgobj gobj_create_tree0(
     BOOL default_service = kw_get_bool(parent_, jn_tree, "default_service", 0, 0);
     BOOL as_service = kw_get_bool(parent_, jn_tree, "as_service", 0, 0) ||
         kw_get_bool(parent_, jn_tree, "service", 0, 0);
-    BOOL autoplay = kw_get_bool(parent_, jn_tree, "autoplay", 0, 0);
     BOOL autostart = kw_get_bool(parent_, jn_tree, "autostart", 0, 0);
+    BOOL autoplay = kw_get_bool(parent_, jn_tree, "autoplay", 0, 0);
     BOOL disabled = kw_get_bool(parent_, jn_tree, "disabled", 0, 0);
+    BOOL pure_child = kw_get_bool(parent_, jn_tree, "pure_child", 0, 0);
 
     // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
     gclass_name = old_to_new_gclass_name(gclass_name);
@@ -1701,7 +1702,11 @@ PUBLIC hgobj gobj_create_tree0(
                     );
                 }
             } else if(json_is_integer(jn_subscriber)) {
-                json_object_set_new(kw, "subscriber", json_integer(json_integer_value(jn_subscriber)));
+                json_object_set_new(
+                    kw,
+                    "subscriber",
+                    json_integer(json_integer_value(jn_subscriber))
+                );
             } else {
                 gobj_log_error(parent_, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1729,6 +1734,9 @@ PUBLIC hgobj gobj_create_tree0(
     }
     if(autostart) {
         gobj_flag |= gobj_flag_autostart;
+    }
+    if(pure_child) {
+        gobj_flag |= gobj_flag_pure_child;
     }
 
     hgobj first_child = gobj_create_gobj(name, gclass_name, kw, parent, gobj_flag);
