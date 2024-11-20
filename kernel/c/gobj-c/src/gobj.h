@@ -1761,7 +1761,7 @@ PUBLIC json_t *gobj_find_subscribings( // Return is YOURS
  *          If __own_event__ defined and return -1 don't continue publishing
  *
  */
-PUBLIC int gobj_publish_event( // Return the number of sent events (>=0), or -1 if someone owned the event (if __own_event__???)
+PUBLIC int gobj_publish_event( //  Return the sum of returns of gobj_send_event
     hgobj publisher,
     gobj_event_t event,
     json_t *kw  // this kw extends kw_request.

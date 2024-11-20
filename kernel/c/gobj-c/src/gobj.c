@@ -7170,7 +7170,7 @@ PUBLIC json_t *gobj_find_subscribings(
 }
 
 /***************************************************************************
- *  Return the number of sent events
+ *  Return the sum of returns of gobj_send_event
  ***************************************************************************/
 PUBLIC int gobj_publish_event(
     hgobj publisher_,
@@ -7194,7 +7194,7 @@ PUBLIC int gobj_publish_event(
             NULL
         );
         KW_DECREF(kw)
-        return 0;
+        return -1;
     }
     if(publisher->obflag & obflag_destroyed) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -7204,7 +7204,7 @@ PUBLIC int gobj_publish_event(
             NULL
         );
         KW_DECREF(kw)
-        return 0;
+        return -1;
     }
     if(empty_string(event)) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
@@ -7214,7 +7214,7 @@ PUBLIC int gobj_publish_event(
             NULL
         );
         KW_DECREF(kw)
-        return 0;
+        return -1;
     }
 
     /*--------------------------------------------------------------*
@@ -7234,7 +7234,7 @@ PUBLIC int gobj_publish_event(
                     NULL
                 );
                 KW_DECREF(kw)
-                return 0;
+                return -1;
             }
         }
     }
@@ -7272,7 +7272,7 @@ PUBLIC int gobj_publish_event(
         );
         if(topublish<=0) {
             KW_DECREF(kw)
-            return 0;
+            return topublish;
         }
     }
 
@@ -7281,6 +7281,7 @@ PUBLIC int gobj_publish_event(
      *--------------------------------------------------------------*/
     json_t *dl_subs = json_copy(publisher->dl_subscriptions); // Protect to inside deleted subs
     int sent_count = 0;
+    int ret = 0;
     json_t *subs; size_t idx;
     json_array_foreach(dl_subs, idx, subs) {
         /*-------------------------------------*
@@ -7405,16 +7406,17 @@ PUBLIC int gobj_publish_event(
                 }
             }
 
-            int ret = gobj_send_event(
+            int ret_ = gobj_send_event(
                 subscriber,
                 event,
                 kw2publish,
                 publisher
             );
-            if(ret < 0 && (subs_flag & __own_event__)) {
+            if(ret_ < 0 && (subs_flag & __own_event__)) {
                 sent_count = -1; // Return of -1 indicates that someone owned the event
                 break;
             }
+            ret += ret_;
             sent_count++;
 
             if(publisher->obflag & (obflag_destroying|obflag_destroyed)) {
@@ -7444,7 +7446,7 @@ PUBLIC int gobj_publish_event(
 
     JSON_DECREF(dl_subs)
     KW_DECREF(kw)
-    return sent_count;
+    return ret;
 }
 
 
