@@ -1261,7 +1261,7 @@ PUBLIC json_t *kw_apply_json_config_variables(
 /***************************************************************************
  *  Factory to create service gobj
  *  Used in entry_point, to run services
- *  Internally it uses gobj_create_tree()
+ *  Internally it uses gobj_create_tree0()
  ***************************************************************************/
 PUBLIC hgobj gobj_service_factory(
     const char *name,
@@ -1802,14 +1802,6 @@ PUBLIC hgobj gobj_create_tree(
             NULL);
         return (hgobj) 0;
     }
-//    if(!parent->yuno) {
-//        gobj_log_error(parent_, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-//            "msg",          "%s", "parent without yuno",
-//            NULL);
-//        return (hgobj) 0;
-//    }
 
     char *config = GBMEM_STRDUP(tree_config_);
     helper_quote2doublequote(config);

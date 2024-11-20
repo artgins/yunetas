@@ -1036,7 +1036,7 @@ typedef enum { // HACK strict ascendant value!, strings in gobj_flag_names
     gobj_flag_default_service   = 0x0002,
     gobj_flag_service           = 0x0004,   // Interface (events, attrs, commands, stats) available to external access
     gobj_flag_volatil           = 0x0008,
-    gobj_flag_pure_child        = 0x0010,   // Pure child send events directly to parent, others publish them
+    gobj_flag_pure_child        = 0x0010,   // Pure child sends events directly to parent, others publish them
     gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree0 too
     gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree0 too
 } gobj_flag_t;
@@ -1210,7 +1210,8 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 /*
  *  Factory to create service gobj
  *  Used in entry_point, to run services
- *  Internally it uses gobj_create_tree()
+ *  Internally it uses gobj_create_tree0()
+ *  The first gobj is marked as service
  */
 PUBLIC hgobj gobj_service_factory(
     const char *name,
@@ -1248,13 +1249,8 @@ PUBLIC hgobj gobj_create_gobj(
 #define gobj_create2(name, gclass, kw, parent, gobj_flag) \
     gobj_create_gobj(name, gclass, kw, parent, gobj_flag)
 
-PUBLIC hgobj gobj_create_tree0(
-    hgobj parent,
-    json_t *jn_tree
-);
-
 /*
- * Json config of tree
+ *  'jn_tree' structure
  *
 {
     // Options to create the gobj
@@ -1271,15 +1267,18 @@ PUBLIC hgobj gobj_create_tree0(
     // Attributes of the gobj
 
     'kw': {
+        'subscriber': 'service' // It 'subscriber' is not set, the subscriber will be the parent
     }
 
-    // Childs of the gobj
+    // Children of the gobj
 
     'zchilds': [
         {
-            'name': 'xx',
             'gclass': 'Xx',
+            'name': 'xx',
             'autostart': true,
+            ...
+
             'kw': {
             }
             'zchilds': [
@@ -1288,7 +1287,13 @@ PUBLIC hgobj gobj_create_tree0(
     ]
 }
 */
-PUBLIC hgobj gobj_create_tree( // TOO implicit: if no subscriber key is given, the parent is the subscriber.
+
+PUBLIC hgobj gobj_create_tree0(
+    hgobj parent,
+    json_t *jn_tree
+);
+
+PUBLIC hgobj gobj_create_tree( // Parse tree config and call gobj_create_tree0()
     hgobj parent,
     const char *tree_config,    // It can be json_config.
     const char *json_config_variables
