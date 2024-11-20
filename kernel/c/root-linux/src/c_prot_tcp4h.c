@@ -200,13 +200,14 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_write_bool_attr(gobj, "connected", TRUE);
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
     } else {
-        gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
+        return gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
     }
-
-    return 0;
 }
 
 /***************************************************************************
@@ -216,12 +217,14 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
-    if (gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
     } else {
-        gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
+        return gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
     }
-    return 0;
 }
 
 /***************************************************************************
@@ -264,10 +267,13 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
                 priv->last_pkt = 0;
 
-                if (gobj_is_pure_child(gobj)) {
-                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
-                } else {
+                /*
+                 *  CHILD subscription model
+                 */
+                if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+                } else {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
                 }
 
             } else { /* len < pend_size */
@@ -359,10 +365,13 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 json_t *kw_tx = json_pack("{s:I}",
                     "gbuffer", (json_int_t)(size_t)new_pkt
                 );
-                if (gobj_is_pure_child(gobj)) {
-                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
-                } else {
+                /*
+                 *  CHILD subscription model
+                 */
+                if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+                } else {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
                 }
 
             } else { /* len < header_erpl2.len */
