@@ -1252,40 +1252,42 @@ PUBLIC hgobj gobj_create_gobj(
 /*
  *  'jn_tree' structure
  *
-{
-    // Options to create the gobj
+    {
+        // Options to create the gobj
 
-    'gclass': 'X',
-    'name': 'x',
-    'default_service': false,
-    'as_service': false, || 'service': false,
-    'autostart': true,
-    'autoplay': true,
-    'disable': false,
-    'pure_child': false
+        'gclass': 'X',
+        'name': 'x',
+        'default_service': false,
+        'as_service': false, || 'service': false,
+        'autostart': true,
+        'autoplay': true,
+        'disable': false,
+        'pure_child': false
 
-    // Attributes of the gobj
+        // Attributes of the gobj
 
-    'kw': {
-        'subscriber': 'service' // It 'subscriber' is not set, the subscriber will be the parent
+        'kw': {
+            'subscriber': 'service' // It 'subscriber' is not set, the subscriber will be the parent
+        }
+
+        // Children of the gobj
+
+        'zchilds': [
+            {
+                'gclass': 'Xx',
+                'name': 'xx',
+                'autostart': true,
+                ...
+
+                'kw': {
+                }
+                'zchilds': [
+                ]
+            }
+        ]
     }
 
-    // Children of the gobj
-
-    'zchilds': [
-        {
-            'gclass': 'Xx',
-            'name': 'xx',
-            'autostart': true,
-            ...
-
-            'kw': {
-            }
-            'zchilds': [
-            ]
-        }
-    ]
-}
+    If there is only one child in zchilds, this will be set as gobj_set_bottom_gobj
 */
 
 PUBLIC hgobj gobj_create_tree0(
@@ -1293,7 +1295,7 @@ PUBLIC hgobj gobj_create_tree0(
     json_t *jn_tree
 );
 
-PUBLIC hgobj gobj_create_tree( // Parse tree config and call gobj_create_tree0()
+PUBLIC hgobj gobj_create_tree( // Parse tree_config and call gobj_create_tree0()
     hgobj parent,
     const char *tree_config,    // It can be json_config.
     const char *json_config_variables
