@@ -1523,9 +1523,15 @@ PUBLIC hgobj gobj_create_gobj(
     gobj->gobj_flag = gobj_flag;
 
     if(__trace_gobj_create_delete__(gobj)) {
-         trace_machine("💙💙⏩ creating: %s^%s",
+         trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s)",
             gclass->gclass_name,
-            gobj_name
+            gobj_name,
+            (gobj_flag & gobj_flag_default_service)? "DefaultService,":"",
+            (gobj_flag & gobj_flag_service)? "Service,":"",
+            (gobj_flag & gobj_flag_volatil)? "Volatil,":"",
+            (gobj_flag & gobj_flag_pure_child)? "PureChild,":"",
+            (gobj_flag & gobj_flag_autostart)? "AutoStart,":"",
+            (gobj_flag & gobj_flag_autoplay)? "AutoPlay,":""
         );
     }
 
