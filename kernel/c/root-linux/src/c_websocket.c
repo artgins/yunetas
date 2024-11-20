@@ -829,7 +829,7 @@ PRIVATE int frame_completed(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     FRAME_HEAD *frame_head = &priv->frame_head;
-
+    int ret = 0;
     gbuffer_t *unmasked = 0;
 
     if (frame_head->frame_length) {
@@ -968,9 +968,9 @@ PRIVATE int frame_completed(hgobj gobj)
                      *  CHILD subscription model
                      */
                     if(gobj_is_service(gobj)) {
-                        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+                        ret = gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
                     } else {
-                        gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
+                        ret = gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
                     }
 
                     unmasked = 0;
@@ -988,9 +988,9 @@ PRIVATE int frame_completed(hgobj gobj)
                      *  CHILD subscription model
                      */
                     if(gobj_is_service(gobj)) {
-                        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+                        ret = gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
                     } else {
-                        gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
+                        ret = gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
                     }
 
                     unmasked = 0;
@@ -1159,7 +1159,8 @@ PRIVATE int frame_completed(hgobj gobj)
     if(gobj_current_state(gobj) != ST_DISCONNECTED) {
         start_wait_frame_header(gobj);
     }
-    return 0;
+
+    return ret;
 }
 
 /***************************************************************************
@@ -1793,6 +1794,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream istream = priv->istream_frame;
+    int ret = 0;
 
     if(priv->pingT>0) {
         set_timeout(priv->timer, priv->pingT);
@@ -1806,6 +1808,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
             // Some error in parsing
             // on error do break the connection
             ws_close(gobj, STATUS_PROTOCOL_ERROR, "");
+            ret = -1;
             break;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -1846,6 +1849,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                         NULL
                     );
                     ws_close(gobj, STATUS_INVALID_PAYLOAD, "");
+                    ret = -1;
                     break;
                 }
                 priv->istream_payload = istream_create(
@@ -1862,6 +1866,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                         NULL
                     );
                     ws_close(gobj, STATUS_MESSAGE_TOO_BIG, "");
+                    ret = -1;
                     break;
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
@@ -1871,6 +1876,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
             } else {
                 if(frame_completed(gobj) == -1) {
+                    ret = -1;
                     break;
                 }
             }
@@ -1878,7 +1884,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     }
 
     KW_DECREF(kw)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -1903,6 +1909,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
     size_t bf_len = gbuffer_leftbytes(gbuf);
@@ -1913,14 +1920,14 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         gbuffer_get(gbuf, consumed);  // take out the bytes consumed
     }
     if(istream_is_completed(priv->istream_payload)) {
-        frame_completed(gobj);
+        ret = frame_completed(gobj);
     }
     if(gbuffer_leftbytes(gbuf)) {
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
 
     KW_DECREF(kw)
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
