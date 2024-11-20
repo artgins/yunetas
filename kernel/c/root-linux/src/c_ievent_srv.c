@@ -1456,11 +1456,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  ~CHILD subscription model, send to subscriber
          */
         if(gobj_is_service(gobj)) {
-            gobj_publish_event(gobj, EV_SEND_IEV, jn_iev);
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, jn_iev);
         } else {
             gobj_send_event(
                 priv->subscriber,
-                EV_SEND_IEV, //EV_IEV_MESSAGE, TODO check
+                EV_ON_IEV_MESSAGE, //EV_IEV_MESSAGE, TODO check
                 jn_iev,
                 gobj
             );

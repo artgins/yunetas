@@ -1118,7 +1118,14 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iev_event = kw_get_str(gobj, kw, "event", 0, KW_REQUIRED);
+    const char *iev_event_ = kw_get_str(gobj, kw, "event", 0, KW_REQUIRED);
+
+    /*
+     *  Need to recover the good pointer, it lost at pass as json string
+     *  (pass as integer is a solution, but by now, repeat
+     */
+    gobj_event_t iev_event = gclass_find_public_event(iev_event_, TRUE);
+
     json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
