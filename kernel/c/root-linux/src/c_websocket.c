@@ -141,6 +141,7 @@ PRIVATE int frame_completed(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
+SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",              "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",              "Timeout to close"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
@@ -229,15 +230,6 @@ PRIVATE void mt_create(hgobj gobj)
         NULL,           // on_message_event
         !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
     );
-
-    /*
- *  CHILD subscription model
- */
-    if(gobj_is_service(gobj)) {
-        gobj_publish_event(gobj, EV_ON_OPEN, 0);
-    } else {
-        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
-    }
 
     /*
      *  CHILD subscription model
@@ -1615,6 +1607,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->connected = 0;
+    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -1694,6 +1687,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 /*
                  *  CHILD subscription model
                  */
+                gobj_write_bool_attr(gobj, "connected", TRUE);
                 if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_OPEN, 0);
                 } else {
@@ -1721,6 +1715,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 /*
                  *  CHILD subscription model
                  */
+                gobj_write_bool_attr(gobj, "connected", TRUE);
                 if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_OPEN, 0);
                 } else {

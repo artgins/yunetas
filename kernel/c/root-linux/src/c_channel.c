@@ -198,8 +198,11 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
     hgobj child = gobj_first_child(gobj);
 
     while(child) {
-        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
-        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
+        if(gobj_gclass(child)==C_TIMER) {
+            continue;
+        }
+        BOOL connected = gobj_read_bool_attr(child, "connected");
+        if(connected) {
             return FALSE;
         }
 
@@ -225,10 +228,6 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    my_user_data2_t my_user_data2 = (my_user_data2_t)(size_t)gobj_read_pointer_attr(src, "user_data2");
-    my_user_data2 |= st_open;
-    gobj_write_pointer_attr(src, "user_data2", (void *)my_user_data2);
 
     /*
      *  This action is called only in ST_CLOSED state.
@@ -265,10 +264,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-
-    my_user_data2_t my_user_data2 = (my_user_data2_t)(size_t)gobj_read_pointer_attr(src, "user_data2");
-    my_user_data2 &= ~st_open;
-    gobj_write_pointer_attr(src, "user_data2", (void *)my_user_data2);
 
     if(all_childs_closed(gobj)) {
         if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
