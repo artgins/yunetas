@@ -1701,12 +1701,6 @@ PUBLIC hgobj gobj_create_tree0(
                         NULL
                     );
                 }
-            } else if(json_is_integer(jn_subscriber)) {
-                json_object_set_new(
-                    kw,
-                    "subscriber",
-                    json_integer(json_integer_value(jn_subscriber))
-                );
             } else {
                 gobj_log_error(parent_, 0,
                     "function",     "%s", __FUNCTION__,
