@@ -198,7 +198,7 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
     hgobj child = gobj_first_child(gobj);
 
     while(child) {
-        if(gobj_gclass(child)==C_TIMER) {
+        if(gobj_gclass_name(child)==C_TIMER) {
             continue;
         }
         BOOL connected = gobj_read_bool_attr(child, "connected");
