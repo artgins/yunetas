@@ -6077,7 +6077,7 @@ PUBLIC int gobj_send_event(
     /*----------------------------------*
      *  Find the event/action in state
      *----------------------------------*/
-    BOOL tracea = is_machine_tracing(dst, event) && !is_machine_not_tracing(dst, event);
+    BOOL tracea = is_machine_tracing(dst, event) && !is_machine_not_tracing(src, event);
     __inside__ ++;
 
     event_action_t *event_action = find_event_action(state, event);

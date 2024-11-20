@@ -1607,6 +1607,10 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->timer) {
+        clear_timeout(priv->timer);
+    }
+
     priv->connected = 0;
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
@@ -1632,9 +1636,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         } else {
             gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, 0, gobj);
         }
-    }
-    if(priv->timer) {
-        clear_timeout(priv->timer);
     }
     KW_DECREF(kw)
 

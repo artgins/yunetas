@@ -156,6 +156,7 @@ typedef struct _PRIVATE_DATA {
     hsskt sskt;
 
     const char *tx_ready_event_name;
+    int tx_in_progress;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -735,17 +736,25 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->yev_client_connect) {
-        yev_stop_event(priv->yev_client_connect);
-        if(yev_event_is_stopping(priv->yev_client_connect)) {
+        if(!yev_event_is_stopped(priv->yev_client_connect)) {
+            if(!yev_event_is_stopping(priv->yev_client_connect)) {
+                yev_stop_event(priv->yev_client_connect);
+            }
             to_wait_stopped = TRUE;
         }
     }
 
     if(priv->yev_client_rx) {
-        yev_stop_event(priv->yev_client_rx);
-        if(yev_event_is_stopping(priv->yev_client_rx)) {
+        if(!yev_event_is_stopped(priv->yev_client_rx)) {
+            if(!yev_event_is_stopping(priv->yev_client_rx)) {
+                yev_stop_event(priv->yev_client_rx);
+            }
             to_wait_stopped = TRUE;
         }
+    }
+
+    if(priv->tx_in_progress > 0) {
+        to_wait_stopped = TRUE;
     }
 
     if(!to_wait_stopped) {
@@ -980,37 +989,43 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  TODO in cqe->res come the written bytes,
-                     *   pop these byes of gbuf and if is not empty then write the remain
-                     */
-                    priv->txBytes += (json_int_t)yev_event->result;
-                    if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                            "msg",          "%s", "NEED retransmit, NOT ALL DATA being sent",
-                            NULL
-                        );
-                    }
+                priv->tx_in_progress--;
 
-                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                    if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                        if(!empty_string(priv->tx_ready_event_name)) {
-                            json_t *kw_tx_ready = json_object();
-                            json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                            /*
-                             *  CHILD subscription model
-                             */
-                            if(gobj_is_service(gobj)) {
-                                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                            } else {
-                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                if(yev_state == YEV_ST_IDLE) {
+                    if(gobj_is_running(gobj)) {
+                        /*
+                         *  TODO in cqe->res come the written bytes,
+                         *   pop these byes of gbuf and if is not empty then write the remain
+                         */
+                        priv->txBytes += (json_int_t)yev_event->result;
+                        if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                                "msg",          "%s", "NEED retransmit, NOT ALL DATA being sent",
+                                NULL
+                            );
+                        }
+
+                        json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                        if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
+                            if(!empty_string(priv->tx_ready_event_name)) {
+                                json_t *kw_tx_ready = json_object();
+                                json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                                /*
+                                 *  CHILD subscription model
+                                 */
+                                if(gobj_is_service(gobj)) {
+                                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                                } else {
+                                    gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                                }
                             }
                         }
+                    } else {
+                        yev_event->gobj = 0;
+                        try_to_stop_yevents(gobj);
                     }
-
 
                     yev_destroy_event(yev_event);
 
@@ -1224,6 +1239,8 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             gbuffer_incref(gbuf)
         );
 
+        priv->tx_in_progress++;
+
         BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
         yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
         yev_start_event(yev_write_event);
@@ -1253,6 +1270,8 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
         gbuffer_incref(gbuf)
     );
 
+    priv->tx_in_progress++;
+
     BOOL want_tx_ready = 0; // TODO sacalo del gbuffer kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
     yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_write_event);
@@ -1267,36 +1286,6 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     try_to_stop_yevents(gobj);
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  This action must be only in ST_WAIT_STOPPED
- *  When all yevents are stopped then change to STOPPED and set_disconnect
- ***************************************************************************/
-PRIVATE int ac_wait_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    BOOL change_to_stopped = TRUE;
-
-    if(priv->yev_client_connect) {
-        if(!yev_event_is_stopped(priv->yev_client_connect)) {
-            change_to_stopped = FALSE;
-        }
-    }
-    if(priv->yev_client_rx) {
-        if(!yev_event_is_stopped(priv->yev_client_rx)) {
-            change_to_stopped = FALSE;
-        }
-    }
-
-    if(change_to_stopped) {
-        gobj_change_state(gobj, ST_STOPPED);
-        set_disconnected(gobj);
-    }
 
     JSON_DECREF(kw)
     return 0;
@@ -1361,7 +1350,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_stopped[] = {
-        {EV_STOPPED,                ac_wait_stopped,            0},
         {0,0,0}
     };
 
@@ -1372,7 +1360,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     ev_action_t st_wait_handshake[] = {
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
-        {EV_STOPPED,                ac_drop,                    0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
@@ -1380,7 +1367,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_connected[] = {
         {EV_TX_DATA,                ac_tx_clear_data,           0},
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
-        {EV_STOPPED,                ac_drop,                    0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}
     };
