@@ -508,10 +508,14 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             "peername",     gobj_read_str_attr(gobj, "peername"),
             "sockname",     gobj_read_str_attr(gobj, "sockname")
         );
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
-        } else {
+
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
             gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
         }
     }
 }
@@ -536,10 +540,14 @@ PRIVATE void set_secure_connected(hgobj gobj)
         "peername",     gobj_read_str_attr(gobj, "peername"),
         "sockname",     gobj_read_str_attr(gobj, "sockname")
     );
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
-    } else {
+
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
         gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
+    } else {
+        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
     }
 
     ytls_flush(priv->ytls, priv->sskt);
@@ -629,10 +637,13 @@ PRIVATE void set_disconnected(hgobj gobj)
      */
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
-        } else {
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
             gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
         }
     }
 
@@ -644,10 +655,14 @@ PRIVATE void set_disconnected(hgobj gobj)
         if(gobj_is_running(gobj)) {
             gobj_stop(gobj);
         }
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
-        } else {
+
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
             gobj_publish_event(gobj, EV_STOPPED, 0);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
         }
     }
 
@@ -662,10 +677,13 @@ PRIVATE void set_disconnected(hgobj gobj)
                 gobj_read_integer_attr(gobj, "timeout_between_connections")
             );
         } else {
-            if(gobj_is_pure_child(gobj)) {
-                gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
-            } else {
+            /*
+             *  CHILD subscription model
+             */
+            if(gobj_is_service(gobj)) {
                 gobj_publish_event(gobj, EV_STOPPED, 0);
+            } else {
+                gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
             }
         }
     }
@@ -804,12 +822,14 @@ PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
     json_t *kw = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, EV_RX_DATA, kw);
     } else {
-        gobj_publish_event(gobj, EV_RX_DATA, kw);
+        return gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
     }
-    return 0;
 }
 
 /***************************************************************************
@@ -826,9 +846,7 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
     json_t *kw = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
-
-    return 0;
+    return gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 }
 
 /***************************************************************************
@@ -887,6 +905,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     priv->rxMsgs++;
                     priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
 
+                    int ret = 0;
+
                     if(priv->use_ssl) {
                         GBUFFER_INCREF(yev_event->gbuf)
                         if(ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf)<0) {
@@ -902,18 +922,22 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         json_t *kw = json_pack("{s:I}",
                             "gbuffer", (json_int_t)(size_t)yev_event->gbuf
                         );
-                        if(gobj_is_pure_child(gobj)) {
-                            gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+                        /*
+                         *  CHILD subscription model
+                         */
+                        if(gobj_is_service(gobj)) {
+                            ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
                         } else {
-                            gobj_publish_event(gobj, EV_RX_DATA, kw);
+                            ret = gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
                         }
                     }
 
                     /*
                      *  Clear buffer
                      *  Re-arm read
+                     *  Check ret is 0 because the EV_RX_DATA could provoke the destroying of gobj
                      */
-                    if(gobj_is_running(gobj)) {
+                    if(ret == 0 && gobj_is_running(gobj)) {
                         gbuffer_clear(yev_event->gbuf);
                         yev_start_event(yev_event);
                     }
@@ -967,10 +991,13 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         if(!empty_string(priv->tx_ready_event_name)) {
                             json_t *kw_tx_ready = json_object();
                             json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                            if(gobj_is_pure_child(gobj)) {
-                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                            } else {
+                            /*
+                             *  CHILD subscription model
+                             */
+                            if(gobj_is_service(gobj)) {
                                 gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                            } else {
+                                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
                             }
                         }
                     }
