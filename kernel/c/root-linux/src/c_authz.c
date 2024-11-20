@@ -2930,7 +2930,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
  ***************************************************************************/
 PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_service(C_AUTHZ, TRUE);
+    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.
