@@ -195,17 +195,16 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
 {
     BOOL all_closed = TRUE;
 
-// TRUE   hgobj child; rc_instance_t *i_child;
-//    i_child = gobj_first_child(gobj, &child);
-//
-//    while(i_child) {
-//        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
-//        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
-//            return FALSE;
-//        }
-//
-//        i_child = gobj_next_child(i_child, &child);
-//    }
+    hgobj child = gobj_first_child(gobj);
+
+    while(child) {
+        my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(child, "user_data2");
+        if(my_user_data2 & st_open) { // V547 Expression 'my_user_data2 & st_open' is always true.
+            return FALSE;
+        }
+
+        child = gobj_next_child(child);
+    }
 
     return all_closed;
 }
@@ -227,7 +226,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(src, "user_data2");
+    my_user_data2_t my_user_data2 = (my_user_data2_t)(size_t)gobj_read_pointer_attr(src, "user_data2");
     my_user_data2 |= st_open;
     gobj_write_pointer_attr(src, "user_data2", (void *)my_user_data2);
 
@@ -248,8 +247,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     set_timeout_periodic(priv->timer,gobj_read_integer_attr(gobj, "timeout"));
 
-    gobj_publish_event(gobj, event, kw);  // reuse kw
-    return 0;
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
 }
 
 /***************************************************************************
@@ -261,7 +266,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     clear_timeout(priv->timer);
 
-    my_user_data2_t my_user_data2 = (my_user_data2_t)gobj_read_pointer_attr(src, "user_data2");
+    my_user_data2_t my_user_data2 = (my_user_data2_t)(size_t)gobj_read_pointer_attr(src, "user_data2");
     my_user_data2 &= ~st_open;
     gobj_write_pointer_attr(src, "user_data2", (void *)my_user_data2);
 
@@ -277,7 +282,15 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
         gobj_change_state(gobj, ST_CLOSED);
         gobj_write_bool_attr(gobj, "opened", FALSE);
-        gobj_publish_event(gobj, event, 0);
+
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
+            return gobj_publish_event(gobj, event, kw);  // reuse kw
+        } else {
+            return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+        }
     }
 
     JSON_DECREF(kw)
@@ -300,8 +313,14 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    gobj_publish_event(gobj, event, kw); // reuse kw
-    return 0;
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
 }
 
 /***************************************************************************
@@ -320,8 +339,14 @@ PRIVATE int ac_on_id(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    gobj_publish_event(gobj, event, kw); // reuse kw
-    return 0;
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
 }
 
 /***************************************************************************
@@ -340,8 +365,14 @@ PRIVATE int ac_on_id_nak(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    gobj_publish_event(gobj, event, kw); // reuse kw
-    return 0;
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
 }
 
 /***************************************************************************
