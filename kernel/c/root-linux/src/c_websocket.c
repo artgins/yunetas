@@ -218,22 +218,37 @@ PRIVATE void mt_create(hgobj gobj)
     //TODO check priv->parsing_request = ghttp_parser_create(gobj, HTTP_REQUEST, 0, 0);
     //priv->parsing_response = ghttp_parser_create(gobj, HTTP_RESPONSE, 0, 0);
 
+    /*
+     *  CHILD subscription model
+     */
     priv->parsing_request = ghttp_parser_create(
         gobj,
         HTTP_REQUEST,   // http_parser_type
         NULL,           // on_header_event
         NULL,           // on_body_event
         NULL,           // on_message_event
-        FALSE           // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
+        !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
     );
 
+    /*
+ *  CHILD subscription model
+ */
+    if(gobj_is_service(gobj)) {
+        gobj_publish_event(gobj, EV_ON_OPEN, 0);
+    } else {
+        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
+    }
+
+    /*
+     *  CHILD subscription model
+     */
     priv->parsing_response = ghttp_parser_create(
         gobj,
         HTTP_RESPONSE,  // http_parser_type
         NULL,           // on_header_event
         NULL,           // on_body_event
         NULL,           // on_message_event ==> publish the full message in a gbuffer
-        FALSE           // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
+        !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
     );
 
 
@@ -247,6 +262,10 @@ PRIVATE void mt_create(hgobj gobj)
         );
         return;
     }
+
+    /*
+     *  CHILD subscription model
+     */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
@@ -952,7 +971,16 @@ PRIVATE int frame_completed(hgobj gobj)
                         "gbuffer", (json_int_t)(size_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
-                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+
+                    /*
+                     *  CHILD subscription model
+                     */
+                    if(gobj_is_service(gobj)) {
+                        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+                    } else {
+                        gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
+                    }
+
                     unmasked = 0;
                 }
                 break;
@@ -963,7 +991,16 @@ PRIVATE int frame_completed(hgobj gobj)
                         "gbuffer", (json_int_t)(size_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
-                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+
+                    /*
+                     *  CHILD subscription model
+                     */
+                    if(gobj_is_service(gobj)) {
+                        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+                    } else {
+                        gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw, gobj);
+                    }
+
                     unmasked = 0;
                 }
                 break;
@@ -1592,7 +1629,15 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
     if (!priv->on_close_broadcasted) {
         priv->on_close_broadcasted = TRUE;
-        gobj_publish_event(gobj, EV_ON_CLOSE, 0);
+
+        /*
+         *  CHILD subscription model
+         */
+        if(gobj_is_service(gobj)) {
+            gobj_publish_event(gobj, EV_ON_CLOSE, 0);
+        } else {
+            gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, 0, gobj);
+        }
     }
     if(priv->timer) {
         clear_timeout(priv->timer);
@@ -1646,7 +1691,15 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                  *   Upgrade to websocket
                  *------------------------------------*/
                 start_wait_frame_header(gobj);
-                gobj_publish_event(gobj, EV_ON_OPEN, 0);
+                /*
+                 *  CHILD subscription model
+                 */
+                if(gobj_is_service(gobj)) {
+                    gobj_publish_event(gobj, EV_ON_OPEN, 0);
+                } else {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
+                }
+
                 priv->on_open_broadcasted = TRUE;
                 priv->on_close_broadcasted = FALSE;
             }
@@ -1665,7 +1718,15 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                  *   Upgrade to websocket
                  *------------------------------------*/
                 start_wait_frame_header(gobj);
-                gobj_publish_event(gobj, EV_ON_OPEN, 0);
+                /*
+                 *  CHILD subscription model
+                 */
+                if(gobj_is_service(gobj)) {
+                    gobj_publish_event(gobj, EV_ON_OPEN, 0);
+                } else {
+                    gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
+                }
+
                 priv->on_open_broadcasted = TRUE;
                 priv->on_close_broadcasted = FALSE;
             } else {
