@@ -116,6 +116,7 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
 PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -263,6 +264,15 @@ SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_list_subscriptions[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
+SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
+SDATAPM (DTP_BOOLEAN,   "recursive",    0,              0,          "Walk over childs"),
+SDATAPM (DTP_BOOLEAN,   "full-names",   0,              0,          "Show full names"),
+SDATA_END()
+};
+
 PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -320,6 +330,8 @@ SDATACM (DTP_SCHEMA,    "disable-gobj",             0,      pm_gobj_def_name,cmd
 
 SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
 SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
+
+SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
 
 SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
 SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
@@ -3422,6 +3434,70 @@ PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hg
         0,
         0,
         0,
+        gobj_global_variables()
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  list subscriptions
+ ***************************************************************************/
+PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    //BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
+    //BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
+
+    hgobj gobj2view = gobj_find_service(gobj_name_, FALSE);
+    if(!gobj2view) {
+        gobj2view = gobj_find_gobj(gobj_name_);
+        if(!gobj2view) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,
+                json_sprintf(
+                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
+                ),
+                0,
+                gobj_global_variables()
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    json_t *jn_data = json_object();
+
+    /*
+     *  Inform
+     */
+    json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
+        gobj2view,
+        "",     // TODO event,
+        NULL,   // kw (__config__, __global__, __local__)
+        0       // subscriber
+    );
+    json_t *subscribings = gobj_find_subscribings( // Return is YOURS
+        gobj2view,
+        "",     // TODO event,
+        NULL,   // kw (__config__, __global__, __local__)
+        0       // subscriber
+    );
+    json_object_set_new(jn_data, "subscriptions", subscriptions);
+    json_object_set_new(jn_data, "subscribings", subscribings);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        0,
+        jn_data,
         gobj_global_variables()
     );
     JSON_DECREF(kw)
