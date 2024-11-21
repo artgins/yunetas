@@ -3441,6 +3441,27 @@ PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hg
 }
 
 /***************************************************************************
+ *  list subscribings
+ ***************************************************************************/
+PRIVATE int cb_list_subscribings(
+    hgobj child,
+    void *user_data,
+    void *user_data2
+)
+{
+    json_t *jn_data = user_data;
+    //BOOL full_names = (BOOL)(size_t)user_data;
+
+    json_object_set_new(
+        jn_data,
+        gobj_full_name(child),
+        gobj_list_subscriptions(child)
+    );
+
+    return 0;
+}
+
+/***************************************************************************
  *  list subscriptions
  ***************************************************************************/
 PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
@@ -3452,8 +3473,8 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    //BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
-    //BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
+    BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
+    BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
 
     hgobj gobj2view = gobj_find_service(gobj_name_, FALSE);
     if(!gobj2view) {
@@ -3473,32 +3494,33 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         }
     }
 
-    json_t *jn_data = json_object();
-
     /*
      *  Inform
      */
-    json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
-        gobj2view,
-        "",     // TODO event,
-        NULL,   // kw (__config__, __global__, __local__)
-        0       // subscriber
+    json_t *jn_data = json_object();
+
+    json_object_set_new(
+        jn_data,
+        gobj_full_name(gobj2view),
+        gobj_list_subscriptions(gobj2view)
     );
-    json_t *subscribings = gobj_find_subscribings( // Return is YOURS
-        gobj2view,
-        "",     // TODO event,
-        NULL,   // kw (__config__, __global__, __local__)
-        0       // subscriber
-    );
-    json_object_set_new(jn_data, "subscriptions", subscriptions);
-    json_object_set_new(jn_data, "subscribings", subscribings);
+
+    if(recursive) {
+        gobj_walk_gobj_childs_tree(
+            gobj2view,
+            WALK_TOP2BOTTOM,
+            cb_list_subscribings,
+            jn_data,
+            (void *)(size_t)full_names
+        );
+    }
 
     json_t *kw_response = build_command_response(
         gobj,
         0,
         0,
-        jn_data,
-        gobj_global_variables()
+        0,
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;

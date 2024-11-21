@@ -224,19 +224,22 @@ PRIVATE int rc_walk_by_tree(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 PRIVATE int rc_walk_by_list(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 PRIVATE int rc_walk_by_level(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 
 PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
@@ -3790,7 +3793,7 @@ PUBLIC int gobj_start(hgobj gobj_)
 /***************************************************************************
  *  Start all childs of the gobj.
  ***************************************************************************/
-PRIVATE int cb_start_child(hgobj child_, void *user_data)
+PRIVATE int cb_start_child(hgobj child_, void *user_data, void *user_data2)
 {
     gobj_t *child = child_;
     if(child->gclass->gclass_flag & gcflag_manual_start) {
@@ -3813,13 +3816,13 @@ PUBLIC int gobj_start_childs(hgobj gobj)
         return -1;
     }
 
-    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_start_child, 0);
+    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_start_child, 0, 0);
 }
 
 /***************************************************************************
  *  Start this gobj and all childs tree of the gobj.
  ***************************************************************************/
-PRIVATE int cb_start_child_tree(hgobj child_, void *user_data)
+PRIVATE int cb_start_child_tree(hgobj child_, void *user_data, void *user_data2)
 {
     gobj_t *child = child_;
     if(child->gclass->gclass_flag & gcflag_manual_start) {
@@ -3860,7 +3863,7 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
             gobj_start(gobj);
         }
     }
-    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0);
+    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
 }
 
 /***************************************************************************
@@ -3935,7 +3938,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
 /***************************************************************************
  *  Stop all childs of the gobj.
  ***************************************************************************/
-PRIVATE int cb_stop_child(hgobj child, void *user_data)
+PRIVATE int cb_stop_child(hgobj child, void *user_data, void *user_data2)
 {
     if(gobj_is_running(child)) {
         gobj_stop(child);
@@ -3963,7 +3966,7 @@ PUBLIC int gobj_stop_childs(hgobj gobj_)
         );
         return -1;
     }
-    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_stop_child, 0);
+    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_stop_child, 0, 0);
 }
 
 /***************************************************************************
@@ -3999,7 +4002,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
     if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
     }
-    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0);
+    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
 }
 
 /***************************************************************************
@@ -5080,7 +5083,8 @@ PUBLIC int gobj_walk_gobj_childs(
     hgobj gobj_,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 ) {
     gobj_t *gobj = gobj_;
     if(!gobj) {
@@ -5093,7 +5097,7 @@ PUBLIC int gobj_walk_gobj_childs(
         return 0;
     }
 
-    return rc_walk_by_list(&gobj->dl_childs, walk_type, cb_walking, user_data);
+    return rc_walk_by_list(&gobj->dl_childs, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************************
@@ -5103,7 +5107,8 @@ PUBLIC int gobj_walk_gobj_childs_tree(
     hgobj gobj_,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 ) {
     gobj_t *gobj = gobj_;
     if(!gobj) {
@@ -5116,7 +5121,7 @@ PUBLIC int gobj_walk_gobj_childs_tree(
         return 0;
     }
 
-    return rc_walk_by_tree(&gobj->dl_childs, walk_type, cb_walking, user_data);
+    return rc_walk_by_tree(&gobj->dl_childs, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************
@@ -5126,7 +5131,8 @@ PUBLIC int rc_walk_by_list(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 ) {
     gobj_t *child;
     if(walk_type & WALK_LAST2FIRST) {
@@ -5148,7 +5154,7 @@ PUBLIC int rc_walk_by_list(
             next = dl_next(child);
         }
 
-        int ret = (cb_walking)(child, user_data);
+        int ret = (cb_walking)(child, user_data, 0);
         if(ret < 0) {
             return ret;
         }
@@ -5172,12 +5178,13 @@ PRIVATE int rc_walk_by_level(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 ) {
     /*
      *  First my childs
      */
-    int ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data);
+    int ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data, user_data2);
     if(ret < 0) {
         return ret;
     }
@@ -5206,7 +5213,7 @@ PRIVATE int rc_walk_by_level(
         }
 
         dl_list_t *dl_child_list = &child->dl_childs;
-        ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data);
+        ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
         if(ret < 0) {
             return ret;
         }
@@ -5236,10 +5243,11 @@ PUBLIC int rc_walk_by_tree(
     dl_list_t *iter,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 ) {
     if(walk_type & WALK_BYLEVEL) {
-        return rc_walk_by_level(iter, walk_type, cb_walking, user_data);
+        return rc_walk_by_level(iter, walk_type, cb_walking, user_data, user_data2);
     }
 
     gobj_t *child;
@@ -5264,22 +5272,22 @@ PUBLIC int rc_walk_by_tree(
 
         if(walk_type & WALK_BOTTOM2TOP) {
             dl_list_t *dl_child_list = &child->dl_childs;
-            int ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data);
+            int ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
             if(ret < 0) {
                 return ret;
             }
 
-            ret = (cb_walking)(child, user_data);
+            ret = (cb_walking)(child, user_data, user_data2);
             if(ret < 0) {
                 return ret;
             }
         } else {
-            int ret = (cb_walking)(child, user_data);
+            int ret = (cb_walking)(child, user_data, user_data2);
             if(ret < 0) {
                 return ret;
             } else if(ret == 0) {
                 dl_list_t *dl_child_list = &child->dl_childs;
-                ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data);
+                ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
                 if(ret < 0) {
                     return ret;
                 }
@@ -7242,6 +7250,46 @@ PUBLIC json_t * gobj_find_subscriptions(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
+{
+    json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
+        gobj2view,
+        0,      // event,
+        NULL,   // kw (__config__, __global__, __local__)
+        0       // subscriber
+    );
+    int idx; json_t *sub;
+    json_array_foreach(subscriptions, idx, sub) {
+        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
+        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
+        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
+        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+    }
+
+    json_t *subscribings = gobj_find_subscribings( // Return is YOURS
+        gobj2view,
+        0,      // event,
+        NULL,   // kw (__config__, __global__, __local__)
+        0       // subscriber
+    );
+    json_array_foreach(subscribings, idx, sub) {
+        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
+        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
+        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
+        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+    }
+
+    json_t *jn_data2 = json_pack("{s:o, s:o}",
+        "subscriptions", subscriptions,
+        "subscribings", subscribings
+    );
+    return jn_data2;
+}
+
+
+/***************************************************************************
  *  Return a iter of subscribings (sdata) of the subcriber gobj,
  *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
  *  Free return with rc_free_iter(iter, TRUE, FALSE);
@@ -9125,7 +9173,7 @@ PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data)
+PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data, void *user_data2)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_trace_level(child);
@@ -9151,15 +9199,15 @@ PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data)
 PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_xxx_childs(gobj, jn_list);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_childs, jn_list);
+    cb_set_xxx_childs(gobj, jn_list,0);
+    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_childs, jn_list, 0);
     return jn_list;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data)
+PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data, void *user_data2)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_trace_no_level(child);
@@ -9185,8 +9233,8 @@ PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data)
 PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_no_xxx_childs(gobj, jn_list);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_childs, jn_list);
+    cb_set_no_xxx_childs(gobj, jn_list, 0);
+    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_childs, jn_list, 0);
     return jn_list;
 }
 

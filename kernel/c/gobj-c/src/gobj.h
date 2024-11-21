@@ -1555,20 +1555,23 @@ typedef enum {
 
 typedef int (*cb_walking_t)(
     hgobj gobj,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 
 PUBLIC int gobj_walk_gobj_childs(
     hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 PUBLIC int gobj_walk_gobj_childs_tree(
     hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
-    void *user_data
+    void *user_data,
+    void *user_data2
 );
 
 /*---------------------------------*
@@ -1751,6 +1754,7 @@ PUBLIC json_t *gobj_find_subscribings( // Return is YOURS
     json_t *kw,             // kw (__config__, __global__, __local__)
     hgobj publisher
 );
+PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view);
 
 /*
  *  In general the meaning of returns are:
