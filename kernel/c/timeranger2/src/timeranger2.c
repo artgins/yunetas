@@ -7095,6 +7095,12 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
         file_id,
         md_record_ex
     );
+    json_t *__md_tranger__ = md2json(md_record_ex, md_record_ex->rowid);
+    json_object_set_new(
+        record,
+        "__md_tranger__",
+        __md_tranger__  // owned
+    );
 
     return record;
 }
