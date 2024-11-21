@@ -6453,7 +6453,11 @@ PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t e
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC event_type_t *gobj_event_type(hgobj gobj_, gobj_event_t event, BOOL include_system_events)
+PUBLIC event_type_t *gobj_event_type( // silent function
+    hgobj gobj_,
+    gobj_event_t event,
+    BOOL include_system_events
+)
 {
     if(gobj_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
@@ -7457,6 +7461,10 @@ PUBLIC int gobj_publish_event(
      *--------------------------------------------------------------*/
     event_type_t *ev = gobj_event_type(publisher, event, TRUE);
     if(!(ev && ev->event_flag & (EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT))) {
+        /*
+         *  HACK ev can be null,
+         *  there are gclasses like c_iogate that are intermediate of other events.
+         */
         if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
             gobj_log_error(publisher, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7469,7 +7477,6 @@ PUBLIC int gobj_publish_event(
             return -1;
         }
     }
-    event = ev->event;  // HACK now is gobj_event_t
 
     BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
         !is_machine_not_tracing(publisher, event);
@@ -7610,11 +7617,15 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check if System event: don't send it if subscriber has not it
              */
-            if(ev->event_flag & EVF_SYSTEM_EVENT) {
-                if(!gobj_has_event(subscriber, event, 0)) {
-                    KW_DECREF(kw2publish)
-                    continue;
+            event_type_t *ev_ = gobj_event_type(subscriber, event, TRUE);
+            if(ev_) {
+                if(ev_->event_flag & EVF_SYSTEM_EVENT) {
+                    if(!gobj_has_event(subscriber, ev_->event, 0)) {
+                        KW_DECREF(kw2publish)
+                        continue;
+                    }
                 }
+                event = ev_->event;
             }
 
             /*
