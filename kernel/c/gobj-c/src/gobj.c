@@ -271,6 +271,10 @@ PRIVATE int json2item(
     const sdata_desc_t *it,
     json_t *jn_value // not owned
 );
+PRIVATE int gobj_unsubscribe_list(
+    json_t *dl_subs, // owned
+    BOOL force  // delete hard_subscription subs too
+);
 
 /***************************************************************
  *              Data
@@ -7153,7 +7157,7 @@ PUBLIC int gobj_unsubscribe_event(
 /***************************************************************************
  *  Unsubscribe a list of subscription hsdata
  ***************************************************************************/
-PUBLIC int gobj_unsubscribe_list(
+PRIVATE int gobj_unsubscribe_list(
     json_t *dl_subs, // owned
     BOOL force  // delete hard_subscription subs too
 )

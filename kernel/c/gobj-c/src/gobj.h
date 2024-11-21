@@ -1733,10 +1733,6 @@ PUBLIC int gobj_unsubscribe_event(
     json_t *kw, // kw (__config__, __global__, __local__)
     hgobj subscriber
 );
-PUBLIC int gobj_unsubscribe_list(
-    json_t *dl_subs, // owned
-    BOOL force  // delete hard_subscription subs too
-);
 
 PUBLIC json_t *gobj_find_subscriptions( // Return is YOURS
     hgobj publisher,
