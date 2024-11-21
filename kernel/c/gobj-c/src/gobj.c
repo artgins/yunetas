@@ -68,6 +68,14 @@ typedef enum { // WARNING add new values to opt2json()
     obflag_created          = 0x0004,
 } obflag_t;
 
+typedef struct _trans_filter_t {
+    DL_ITEM_FIELDS
+
+    const char *name;
+    hgobj gobj;
+    json_t * (*transformation_fn)(json_t *);
+} trans_filter_t;
+
 typedef struct gclass_s {
     DL_ITEM_FIELDS
 
@@ -183,6 +191,14 @@ GOBJ_DEFINE_STATE(ST_CLOSED);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE void free_trans_filter(trans_filter_t *trans_reg);
+PRIVATE int register_transformation_filter(
+    const char *name,
+    json_t * (trans_filter)(json_t *)
+);
+PRIVATE json_t *webix_trans_filter(json_t *kw);
+
+
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
@@ -354,9 +370,10 @@ PRIVATE int (*__global_save_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0
 PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
-PRIVATE dl_list_t dl_gclass;
+PRIVATE dl_list_t dl_gclass = {0};
 PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
 PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
+PRIVATE dl_list_t dl_trans_filter = {0};
 
 /*
  *  Global trace levels
@@ -483,6 +500,86 @@ SDATA_END()
 
 
 
+
+/***************************************************************************
+ *  Unregister
+ ***************************************************************************/
+PRIVATE void free_trans_filter(trans_filter_t *trans_reg)
+{
+    dl_delete(&dl_trans_filter, trans_reg, 0);
+    GBMEM_FREE(trans_reg->name)
+    GBMEM_FREE(trans_reg)
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int register_transformation_filter(
+    const char *name,
+    json_t * (trans_filter)(json_t *)
+)
+{
+    trans_filter_t *trans_reg = dl_first(&dl_trans_filter);
+    while(trans_reg) {
+        if(trans_reg->name) {
+            if(strcasecmp(trans_reg->name, name)==0) {
+                break;
+            }
+        }
+        trans_reg = dl_next(trans_reg);
+    }
+    if(trans_reg) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "trans filter ALREADY REGISTERED. Will be UPDATED",
+            "name",         "%s", name?name:"",
+            NULL
+        );
+        free_trans_filter(trans_reg);
+    }
+
+    trans_reg = GBMEM_MALLOC(sizeof(trans_filter_t));
+    if(!trans_reg) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "no memory for sizeof(trans_filter_t)",
+            "name",         "%s", name?name:"",
+            NULL
+        );
+        return -1;
+    }
+    gobj_log_debug(0, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", "Register transformation filter",
+        "service",      "%s", name?name:"",
+        NULL
+    );
+
+    trans_reg->name = GBMEM_STRDUP(name);
+    trans_reg->transformation_fn = trans_filter;
+    dl_add(&dl_trans_filter, trans_reg);
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *webix_trans_filter(
+    json_t *kw  // owned
+)
+{
+    return build_command_response(
+        0, //gobj,
+        0, // result
+        0, // json_t *jn_comment,// owned
+        0, // json_t *jn_schema, // owned
+        kw // json_t *jn_data    // owned
+    );
+}
 
 /***************************************************************************
  *  Must trace? TODO set false in non-debug compilation
@@ -613,13 +710,13 @@ PUBLIC int gobj_start_up(
     dl_init(&dl_gclass, 0);
     __jn_services__ = json_object();
 
-    // dl_init(&dl_trans_filter);
-    // gobj_add_publication_transformation_filter_fn("webix", webix_trans_filter);
-    // helper_quote2doublequote(treedb_schema_gobjs);
+    dl_init(&dl_trans_filter, 0);
+    register_transformation_filter("webix", webix_trans_filter);
 
     /*
      *  Chequea schema treedb, exit si falla.
      */
+    //helper_quote2doublequote(treedb_schema_gobjs);
     //jn_treedb_schema_gobjs = legalstring2json(treedb_schema_gobjs, TRUE);
     //if(!jn_treedb_schema_gobjs) {
     //    exit(-1);
@@ -706,6 +803,11 @@ PUBLIC void gobj_end(void)
     while((event_type = dl_first(&dl_global_event_types))) {
         dl_delete(&dl_global_event_types, event_type, 0);
         sys_free_fn(event_type);
+    }
+
+    trans_filter_t *trans_reg;
+    while((trans_reg=dl_first(&dl_trans_filter))) {
+        free_trans_filter(trans_reg);
     }
 
     JSON_DECREF(__jn_services__)
@@ -6476,6 +6578,25 @@ typedef enum {
     __own_event__           = 0x00000002,   // If gobj_send_event return -1 don't continue publishing
 } subs_flag_t;
 
+
+/*
+ *
+ */
+PRIVATE sdata_desc_t subscription_desc[] = {
+/*-ATTR-type--------name----------------flag--------default-----description---------- */
+SDATA (DTP_POINTER, "publisher",        0,          0,          "publisher gobj"),
+SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber gobj"),
+SDATA (DTP_STRING,  "event",            0,          "",          "event name subscribed"),
+SDATA (DTP_STRING,  "renamed_event",    0,          "",          "rename event name"),
+SDATA (DTP_INTEGER, "subs_flag",        0,          0,          "subscription flag"),
+//SDATA (DTP_JSON,    "__config__",       0,          0,          "subscription config kw"),
+//SDATA (DTP_JSON,    "__global__",       0,          0,          "global event kw"),
+//SDATA (DTP_JSON,    "__local__",        0,          0,          "local event kw"),
+//SDATA (DTP_JSON,    "__filter__",       0,          0,          "filter event kw"),
+//SDATA (DTP_STRING,  "__service__",      0,          0,          "subscription service"),
+SDATA_END()
+};
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -6485,7 +6606,7 @@ PRIVATE json_t * _create_subscription(
     json_t *kw, // not owned
     gobj_t * subscriber)
 {
-    json_t *subs = json_object();
+    json_t *subs = sdata_create(publisher, subscription_desc);
     json_object_set_new(subs, "event", json_integer((json_int_t)(size_t)event));
     json_object_set_new(subs, "subscriber", json_integer((json_int_t)(size_t)subscriber));
     json_object_set_new(subs, "publisher", json_integer((json_int_t)(size_t)publisher));
@@ -6495,7 +6616,8 @@ PRIVATE json_t * _create_subscription(
         json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
         json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
         json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
-        const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
+        json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
+        //const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
 
         if(__global__) {
             json_t *kw_clone = json_deep_copy(__global__);
@@ -6504,6 +6626,27 @@ PRIVATE json_t * _create_subscription(
         if(__config__) {
             json_t *kw_clone = json_deep_copy(__config__);
             json_object_set_new(subs, "__config__", kw_clone);
+
+// TODO
+//            if(kw_has_key(kw_clone, "__rename_event_name__")) {
+//                const char *renamed_event = kw_get_str(kw_clone, "__rename_event_name__", 0, 0);
+//                sdata_write_str(subs, "renamed_event", renamed_event);
+//                json_object_del(kw_clone, "__rename_event_name__");
+//                subs_flag |= __rename_event_name__;
+//
+//                // Get/Create __global__
+//                json_t *kw_global = sdata_read_json(subs, "__global__");
+//                if(!kw_global) {
+//                    kw_global = json_object();
+//                    sdata_write_json(subs, "__global__", kw_global);
+//                    kw_decref(kw_global); // Incref above
+//                }
+//                kw_set_dict_value(
+//                    kw_global,
+//                    "__original_event_name__",
+//                    json_string(event)
+//                );
+//            }
 
             if(kw_has_key(kw_clone, "__hard_subscription__")) {
                 BOOL hard_subscription = kw_get_bool(
@@ -6526,13 +6669,131 @@ PRIVATE json_t * _create_subscription(
             json_t *kw_clone = json_deep_copy(__local__);
             json_object_set_new(subs, "__local__", kw_clone);
         }
-        if(__service__) { // TODO check if it's used
-            json_object_set_new(subs, "__service__", json_string(__service__));
+        if(__filter__) {
+            json_t *kw_clone = json_deep_copy(__filter__);
+            json_object_set_new(subs, "__filter__", kw_clone);
         }
+        //if(__service__) {
+        //    json_object_set_new(subs, "__service__", json_string(__service__));
+        //}
     }
     json_object_set_new(subs, "subs_flag", json_integer((json_int_t)subs_flag));
 
     return subs;
+}
+
+/***************************************************************************
+ *  Return a iter of subscriptions (sdata),
+ *  filtering by matching:
+ *      event,kw (__config__, __global__, __local__, __filter__),subscriber
+ ***************************************************************************/
+PRIVATE json_t * _find_subscription(
+    json_t *dl_subs,
+    gobj_t *publisher,
+    gobj_event_t event,
+    json_t *kw, // owned
+    gobj_t *subscriber,
+    BOOL strict
+) {
+    BOOL (*_match)(json_t *, json_t *) = 0;
+    if(strict) {
+        _match = kw_is_identical; // WARNING don't decref anything
+    } else {
+        _match = kw_match_simple; // WARNING decref second parameter
+    }
+
+    json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
+    json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
+    json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
+    json_t *__filter__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
+
+    json_t *iter = json_array();
+
+    size_t idx; json_t *subs;
+    json_array_foreach(dl_subs, idx, subs) {
+        BOOL match = TRUE;
+
+        if(publisher) {
+            gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
+            if(publisher != publisher_) {
+                match = FALSE;
+            }
+        }
+
+        if(subscriber) {
+            gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
+            if(subscriber != subscriber_) {
+                match = FALSE;
+            }
+        }
+
+        if(event) {
+            gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
+            if(!event_ || strcasecmp(event, event_)!=0) {
+                match = FALSE;
+            }
+        }
+
+        if(__config__) {
+            json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
+            if(kw_config) {
+                if(!strict) { // HACK decref when calling _match (kw_match_simple)
+                    KW_INCREF(__config__);
+                }
+                if(!_match(kw_config, __config__)) {
+                    match = FALSE;
+                }
+            } else {
+                match = FALSE;
+            }
+        }
+        if(__global__) {
+            json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
+            if(kw_global) {
+                if(!strict) { // HACK decref when calling _match (kw_match_simple)
+                    KW_INCREF(__global__);
+                }
+                if(!_match(kw_global, __global__)) {
+                    match = FALSE;
+                }
+            } else {
+                match = FALSE;
+            }
+        }
+        if(__local__) {
+            json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
+            if(kw_local) {
+                if(!strict) { // HACK decref when calling _match (kw_match_simple)
+                    KW_INCREF(__local__);
+                }
+                if(!_match(kw_local, __local__)) {
+                    match = FALSE;
+                }
+            } else {
+                match = FALSE;
+            }
+        }
+        if(__filter__) {
+            json_t *kw_filter = kw_get_dict(0, subs, "__filter__", 0, 0);
+            if(kw_filter) {
+                if(!strict) { // HACK decref when calling _match (kw_match_simple)
+                    KW_INCREF(__filter__);
+                }
+                if(!_match(kw_filter, __filter__)) {
+                    match = FALSE;
+                }
+            } else {
+                match = FALSE;
+            }
+        }
+
+        if(match) {
+            json_array_append(iter, subs);
+        }
+    }
+
+    KW_DECREF(kw)
+    return iter;
 }
 
 /***************************************************************************
@@ -6629,100 +6890,7 @@ PRIVATE int _delete_subscription(
         gobj_trace_json(gobj, subs, "subscription in subscriber not found");
     }
 
-//    if((int)subs->refcount > 0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "subscription NOT DELETED",
-//            NULL
-//        );
-//        gobj_trace_json(gobj, subs, "subscription NOT DELETED");
-//    }
     return 0;
-}
-
-/***************************************************************************
- *  Return a iter of subscriptions (sdata),
- *  filtering by matching:
- *      event,kw (__config__, __global__, __local__, __filter__),subscriber
- ***************************************************************************/
-PRIVATE json_t * _find_subscription(
-    json_t *dl_subs,
-    gobj_t *publisher,
-    gobj_event_t event,
-    json_t *kw, // owned
-    gobj_t *subscriber,
-    BOOL full
-) {
-    json_t *__config__ = kw_get_dict(0, kw, "__config__", 0, 0);
-    json_t *__global__ = kw_get_dict(0, kw, "__global__", 0, 0);
-    json_t *__local__ = kw_get_dict(0, kw, "__local__", 0, 0);
-
-    json_t *iter = json_array();
-
-    size_t idx; json_t *subs;
-    json_array_foreach(dl_subs, idx, subs) {
-        BOOL match = TRUE;
-
-        if(publisher || full) {
-            gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
-            if(publisher != publisher_) {
-                match = FALSE;
-            }
-        }
-
-        if(subscriber || full) {
-            gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
-            if(subscriber != subscriber_) {
-                match = FALSE;
-            }
-        }
-
-        if(event || full) {
-            gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
-            if(event != event_) {
-                match = FALSE;
-            }
-        }
-
-        if(__config__ || full) {
-            json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
-            if(kw_config) {
-                if(!json_equal(kw_config, __config__)) {
-                    match = FALSE;
-                }
-            } else if(__config__) {
-                match = FALSE;
-            }
-        }
-        if(__global__ || full) {
-            json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
-            if(kw_global) {
-                if(!json_equal(kw_global, __global__)) {
-                    match = FALSE;
-                }
-            } else if(__global__) {
-                match = FALSE;
-            }
-        }
-        if(__local__ || full) {
-            json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
-            if(kw_local) {
-                if(!json_equal(kw_local, __local__)) {
-                    match = FALSE;
-                }
-            } else if(__local__) {
-                match = FALSE;
-            }
-        }
-
-        if(match) {
-            json_array_append(iter, subs);
-        }
-    }
-
-    KW_DECREF(kw)
-    return iter;
 }
 
 /***************************************************************************
@@ -7170,6 +7338,72 @@ PUBLIC json_t *gobj_find_subscribings(
 }
 
 /***************************************************************************
+ *  Apply transformation filter functions
+ *  from __config__`__trans_filter__
+ ***************************************************************************/
+PRIVATE json_t *apply_trans(hgobj gobj, json_t *kw, const char *name)
+{
+    if(!name) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "name NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    trans_filter_t *trans_reg = dl_first(&dl_trans_filter);
+    while(trans_reg) {
+        if(trans_reg->name) {
+            if(strcasecmp(trans_reg->name, name)==0) {
+                return trans_reg->transformation_fn(kw);
+            }
+        }
+        trans_reg = dl_next(trans_reg);
+    }
+
+    gobj_log_error(gobj,0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "trans filter NOT FOUND",
+        "name",         "%s", name?name:"",
+        NULL
+    );
+
+    return kw;
+}
+
+/***************************************************************************
+ *  Apply transformation filter functions
+ *  from __config__`__trans_filter__
+ ***************************************************************************/
+PRIVATE json_t *apply_trans_filters(hgobj gobj, json_t *kw, json_t *jn_trans_filters)
+{
+    if(!jn_trans_filters) {
+        return kw;
+    }
+
+    if(json_is_object(jn_trans_filters)) {
+        const char *key;
+        json_t *jn_value;
+        json_object_foreach(jn_trans_filters, key, jn_value) {
+            kw = apply_trans(gobj, kw, key);
+        }
+    } else if(json_is_array(jn_trans_filters)) {
+        size_t index;
+        json_t *jn_value;
+        json_array_foreach(jn_trans_filters, index, jn_value) {
+            kw = apply_trans_filters(gobj, kw, jn_value);
+        }
+    } else if(json_is_string(jn_trans_filters)) {
+        kw = apply_trans(gobj, kw, json_string_value(jn_trans_filters));
+    }
+
+    return kw;
+}
+
+/***************************************************************************
  *  Return the sum of returns of gobj_send_event
  ***************************************************************************/
 PUBLIC int gobj_publish_event(
@@ -7222,22 +7456,20 @@ PUBLIC int gobj_publish_event(
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
     event_type_t *ev = gobj_event_type(publisher, event, TRUE);
-
-    if(!(ev && ev->event_flag & EVF_SYSTEM_EVENT)) {
-        if(!(ev && ev->event_flag & EVF_OUTPUT_EVENT)) {
-            if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
-                gobj_log_error(publisher, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "event NOT in output event list",
-                    "event",        "%s", event,
-                    NULL
-                );
-                KW_DECREF(kw)
-                return -1;
-            }
+    if(!(ev && ev->event_flag & (EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT))) {
+        if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
+            gobj_log_error(publisher, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "event NOT in output event list",
+                "event",        "%s", event,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
         }
     }
+    event = ev->event;  // HACK now is gobj_event_t
 
     BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
         !is_machine_not_tracing(publisher, event);
@@ -7315,16 +7547,30 @@ PUBLIC int gobj_publish_event(
         /*
          *  Check if event null or event in event_list
          */
-        subs_flag_t subs_flag = (subs_flag_t)kw_get_int(publisher, subs, "subs_flag", 0, KW_REQUIRED);
+        subs_flag_t subs_flag = (subs_flag_t)kw_get_int(
+            publisher, subs, "subs_flag", 0, KW_REQUIRED
+        );
         gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(
             publisher, subs, "event", 0, KW_REQUIRED
         );
-        if(!event_ || event_ == event) {
-            // TODO check if need it: json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
+        if(empty_string(event_) || strcasecmp(event_, event)==0) {
+            json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
             json_t *__filter__ = kw_get_dict(publisher, subs, "__filter__", 0, 0);
 
+            /*
+             *  Check renamed_event
+             */
+//   TODO review        const char *event_name = sdata_read_str(subs, "renamed_event");
+//            if(empty_string(event_name)) {
+//                event_name = event;
+//            }
+
+            /*
+             *  Duplicate the kw to publish if not shared
+             *  NOW always shared
+             */
             json_t *kw2publish = kw_incref(kw);
 
             /*-------------------------------------*
@@ -7344,7 +7590,7 @@ PUBLIC int gobj_publish_event(
                 );
             } else if(__filter__) {
                 if(__publish_event_match__) {
-                    KW_INCREF(__filter__);
+                    KW_INCREF(__filter__)
                     topublish = __publish_event_match__(kw2publish , __filter__);
                 }
             }
@@ -7364,7 +7610,7 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check if System event: don't send it if subscriber has not it
              */
-            if(ev && ev->event_flag & EVF_SYSTEM_EVENT) {
+            if(ev->event_flag & EVF_SYSTEM_EVENT) {
                 if(!gobj_has_event(subscriber, event, 0)) {
                     KW_DECREF(kw2publish)
                     continue;
@@ -7378,6 +7624,18 @@ PUBLIC int gobj_publish_event(
                 kw_pop(kw2publish,
                     __local__ // not owned
                 );
+            }
+
+            /*
+             *  Apply transformation filters
+             */
+            if(__config__) {
+                json_t *jn_trans_filters = kw_get_dict_value(
+                    publisher, __config__, "__trans_filter__", 0, 0
+                );
+                if(jn_trans_filters) {
+                    kw2publish = apply_trans_filters(publisher, kw2publish, jn_trans_filters);
+                }
             }
 
             /*

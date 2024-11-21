@@ -1692,13 +1692,29 @@ HACK Only these keys are let, remain of keywords will be ignored!
                 If __own_event__ defined and gobj_send_event inside of gobj_publish_event
                 returns -1 then don't continue publishing
 
+            - "__rename_event_name__": "new event name" TODO review
+                You can rename the output original event name.
+                The :attr:`original_event_name` attribute is added to
+                the sent event with the value of the original event name.
+
+            - "__first_shot__": bool TODO review
+                If True then subscriber wants receive the event on subscription.
+                Subscribing gobj mt_subscription_added() will be called
+                and it's his responsibility to check the flag and to emit the event.
+
+            - "__trans_filter__": string or string's list TODO review
+                Transform kw to publish with transformation filters
+
+
     __global__  Dict. Base kw to be merged with the publishing kw
                 (base kw will be updated by publishing kw).
                 It's the common data received in each publication. Constants, global variables!
 
     __local__   Dict. Dictionary or list with Keys (path) to be deleted from kw before to publish.
 
-    __service__ Str. ??? in use?
+    __filter__  Selection Filter: Enable to publish only messages matching the filter.
+                Used by gobj_publish_event().
+
 */
 
 PUBLIC json_t *gobj_subscribe_event( // return not yours
