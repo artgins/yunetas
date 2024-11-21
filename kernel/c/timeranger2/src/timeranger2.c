@@ -4301,6 +4301,15 @@ PRIVATE int publish_new_rt_disk_records(
             &md_record_ex
         );
 
+        if(record) {
+            json_t *__md_tranger__ = md2json(&md_record_ex, rowid);
+            json_object_set_new(
+                record,
+                "__md_tranger__",
+                __md_tranger__  // owned
+            );
+        }
+
         int idx; json_t *disk;
         json_array_foreach(disks, idx, disk) {
             const char *key_ = json_string_value(json_object_get(disk, "key"));
