@@ -500,6 +500,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -517,6 +518,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -540,6 +542,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -559,6 +562,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 json_sprintf("Path not found: '%s'", path),
                 0,
                 0,
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -582,6 +586,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         value,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -603,6 +608,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_sprintf("check refcounts of tranger: %s", result==0?"Ok":"Bad"),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -626,6 +632,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -638,6 +645,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What topic_name?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -666,6 +674,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         topic?json_sprintf("Topic created: '%s'", topic_name):json_string(gobj_log_last_message()),
         0,
         json_incref(topic),
+                                  "",  // msg_type
         kw  // owned
     );
 }
@@ -689,6 +698,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -701,6 +711,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What topic_name?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -714,6 +725,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Topic not found: '%s'", topic_name),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -727,6 +739,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 json_sprintf("'%s' topic with records, you must force to delete", topic_name),
                 0,
                 0,
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -739,6 +752,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         ret>=0?json_sprintf("Topic deleted: '%s'", topic_name):json_string(gobj_log_last_message()),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -762,6 +776,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -782,6 +797,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         topics?0:json_string(gobj_log_last_message()),
         0,
         topic_list,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -805,6 +821,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -817,6 +834,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What topic_name?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -829,6 +847,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("Topic not found: '%s'", topic_name),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -839,6 +858,7 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         desc?0:json_string(gobj_log_last_message()),
         0,
         desc,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -860,6 +880,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_sprintf("Pending to review"),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 
@@ -1046,6 +1067,7 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_sprintf("Pending to review"),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 
@@ -1134,6 +1156,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_sprintf("Pending to review"),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 
@@ -1238,6 +1261,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_sprintf("Pending to review"),
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 
@@ -1470,6 +1494,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         jn_comment,
         0,
         0,
+        "",  // msg_type
         kw
     );
 

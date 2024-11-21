@@ -1063,6 +1063,7 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         kw,             // owned, kw request, used to extract ONLY __md_iev__
         jn_result,      // like owned, is returned!, created if null, the body of answer message
+        "",             // msg_type
         TRUE            // reverse_dst
     );
 
@@ -1087,6 +1088,7 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         kw,
         jn_result,
+        "",  // msg_type
         TRUE            // reverse_dst
     );
 
@@ -1127,6 +1129,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj,
                     kw,             // owned, kw request, used to extract ONLY __md_iev__
                     kw_response,    // like owned, is returned!, created if null, the body of answer message
+                    "",  // msg_type
                     TRUE            // reverse_dst
                 );
                 return send_static_iev(gobj,
@@ -1151,6 +1154,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
+            "",  // msg_type
             TRUE            // reverse_dst
         );
         return send_static_iev(gobj,
@@ -1194,6 +1198,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj,
                     kw,             // owned, kw request, used to extract ONLY __md_iev__
                     kw_response,    // like owned, is returned!, created if null, the body of answer message
+                    "",  // msg_type
                     TRUE            // reverse_dst
                 );
                 return send_static_iev(gobj,
@@ -1218,6 +1223,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
+            "",  // msg_type
             TRUE            // reverse_dst
         );
         return send_static_iev(gobj,

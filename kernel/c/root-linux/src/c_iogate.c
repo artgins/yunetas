@@ -287,6 +287,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         0,
         0,
         jn_stats, // owned
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -314,6 +315,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -430,6 +432,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 json_sprintf("regcomp() failed"),
                 0,
                 jn_data, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -466,6 +469,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         jn_data, // owned
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -500,6 +504,7 @@ PRIVATE json_t *cmd_enable_channels(hgobj gobj, const char *cmd, json_t *kw, hgo
                 json_sprintf("regcomp() failed"),
                 0,
                 0, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -557,6 +562,7 @@ PRIVATE json_t *cmd_disable_channels(hgobj gobj, const char *cmd, json_t *kw, hg
                 json_sprintf("regcomp() failed"),
                 0,
                 0, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -612,6 +618,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
                 json_sprintf("regcomp() failed"),
                 0,
                 0, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -665,6 +672,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
                 json_sprintf("regcomp() failed"),
                 0,
                 0, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }
@@ -719,6 +727,7 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
                 json_sprintf("regcomp() failed"),
                 0,
                 0, // owned
+                "",  // msg_type
                 kw  // owned
             );
         }

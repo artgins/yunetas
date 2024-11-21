@@ -746,6 +746,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             gobj,
             kw,
             jn_resp,
+            "",  // msg_type
             TRUE
         );
 
@@ -808,6 +809,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         gobj,
         kw,
         jn_resp,
+        "",  // msg_type
         TRUE
     );
 
@@ -899,6 +901,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_sprintf("Only authenticated users can request stats"),
                 0,
                 0,
+                "",  // msg_type
                 kw
             ),
             src
@@ -929,6 +932,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     json_sprintf("Service not found: '%s'", service),
                     0,
                     0,
+                    "",  // msg_type
                     kw
                 ),
                 src
@@ -957,6 +961,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,
             webix,
+            "",  // msg_type
             TRUE
         );
         return send_static_iev(gobj,
@@ -995,6 +1000,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_sprintf("Only authenticated users can request commands"),
                 0,
                 0,
+                "",  // msg_type
                 kw
             ),
             src
@@ -1022,6 +1028,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     json_sprintf("Service not found: '%s'", service),
                     0,
                     0,
+                    "",  // msg_type
                     kw
                 ),
                 src
@@ -1050,6 +1057,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,
             webix,
+            "",  // msg_type
             TRUE
         );
         return send_static_iev(gobj,
@@ -1323,6 +1331,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj,
                 iev_kw,
                 0,
+                "",  // msg_type
                 TRUE
             );
 

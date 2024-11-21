@@ -441,6 +441,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message.
+    const char *msg_type,
     BOOL reverse_dst
 ) {
     if(!kw_response) {
@@ -454,6 +455,8 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     }
 
     json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
+    json_object_set_new(__md_iev_dst__, "__msg_type__", json_string(msg_type?msg_type:""));
+
     json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
 
     time_t t;

@@ -935,6 +935,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -971,6 +972,7 @@ PRIVATE json_t *cmd_list_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         jn_schema,
         jwt_public_keys,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -995,6 +997,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What iss?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1005,6 +1008,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What public key?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1051,6 +1055,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("Issuer '%s' already exists", iss),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1087,6 +1092,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         json_record_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1106,6 +1112,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What iss?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1131,6 +1138,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Issuer '%s' NOT exists", iss),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1175,6 +1183,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_sprintf("Issuer '%s' deleted", iss),
         json_record_to_schema(oauth_iss_desc),
         jn_record_,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1194,6 +1203,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What iss?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1219,6 +1229,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("Issuer '%s' NOT exists", iss),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1253,6 +1264,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("Issuer '%s' disabled", iss),
         json_record_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1272,6 +1284,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What iss?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1297,6 +1310,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Issuer '%s' NOT exists", iss),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1331,6 +1345,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_sprintf("Issuer '%s' enabled", iss),
         json_record_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1348,6 +1363,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1392,6 +1408,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         0,
         jn_data,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1411,6 +1428,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What username?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1433,6 +1451,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("Can't create user: %s", username),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     } else {
@@ -1442,6 +1461,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("User created or updated: %s", username),
             0,
             user,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1462,6 +1482,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What username?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1482,6 +1503,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("User not found: '%s'", username),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1503,6 +1525,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("User enabled: %s", username),
         0,
         user,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1522,6 +1545,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What username?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1542,6 +1566,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("User not found: '%s'", username),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1566,6 +1591,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("User disabled: %s", username),
         0,
         user,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1595,6 +1621,7 @@ PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         0,
         jn_data,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1615,6 +1642,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What username?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1635,6 +1663,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("User not found: '%s'", username),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1661,6 +1690,7 @@ PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         0,
         0,
         roles,
+        "",  // msg_type
         kw  // owned
     );
 }
@@ -1681,6 +1711,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What username?"),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1701,6 +1732,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("User not found: '%s'", username),
             0,
             0,
+            "",  // msg_type
             kw  // owned
         );
     }
@@ -1768,6 +1800,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0,
         0,
         services_roles,
+        "",  // msg_type
         kw  // owned
     );
 }
