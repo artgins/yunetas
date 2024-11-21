@@ -7281,9 +7281,11 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
         json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
     }
 
-    json_t *jn_data2 = json_pack("{s:o, s:o}",
+    json_t *jn_data2 = json_pack("{s:o, s:o, s:i, s:i}",
         "subscriptions", subscriptions,
-        "subscribings", subscribings
+        "subscribings", subscribings,
+        "total subscriptions", json_array_size(subscriptions),
+        "total_subscribings", json_array_size(subscribings)
     );
     return jn_data2;
 }
