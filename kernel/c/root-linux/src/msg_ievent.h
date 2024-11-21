@@ -120,6 +120,26 @@ GOBJ_DECLARE_EVENT(EV_SEND_COMMAND_ANSWER);
 /***************************************************
  *              Prototypes
  **************************************************/
+/*
+ *  Return an inter-event object
+{
+    "event": event,
+    "kw": kw
+}
+ */
+PUBLIC json_t *iev_create(
+    hgobj gobj,
+    const char *event,
+    json_t *kw // owned
+);
+
+PUBLIC json_t *iev_create2(
+    hgobj gobj,
+    const char *event,
+    json_t *webix_msg, // owned
+    json_t *kw // owned
+);
+
 /*---------------------------------------------------------*
  *  Useful to send event's messages TO the outside world.
  *---------------------------------------------------------*/
@@ -241,6 +261,7 @@ static inline void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
     json_object_del((kw), "__md_iev__");
     json_object_del((kw), "__temp__");
     json_object_del((kw), "__md_tranger__");
+    json_object_del((kw), "__md_yuno__");
 }
 
 /*

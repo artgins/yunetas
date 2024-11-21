@@ -54,24 +54,17 @@ GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 /***************************************************************************
  *
  ***************************************************************************/
-iev_create_to_gbuffer NO VALE
-No hace falta crear un gbuffer, IOGATE pasa el mensaje directamente a la puerta de salida
-que contine un injector de eventos propio y admite todos.
-
 PUBLIC json_t* iev_create(
+    hgobj gobj,
     const char *event,
     json_t *kw // owned
 )
 {
     if(empty_string(event)) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "event NULL",
-            "process",      "%s", get_process_name(),
-            "hostname",     "%s", get_host_name(),
-            "pid",          "%d", get_pid(),
             NULL
         );
         return 0;
@@ -81,6 +74,7 @@ PUBLIC json_t* iev_create(
         kw = json_object();
     }
     kw = kw_serialize(
+        gobj,
         kw  // owned
     );
     json_t *jn_iev = json_pack("{s:s, s:o}",
@@ -88,14 +82,10 @@ PUBLIC json_t* iev_create(
         "kw", kw
     );
     if(!jn_iev) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "json_pack() FAILED",
-            "process",      "%s", get_process_name(),
-            "hostname",     "%s", get_host_name(),
-            "pid",          "%d", get_pid(),
             NULL
         );
     }
@@ -106,16 +96,18 @@ PUBLIC json_t* iev_create(
  *
  ***************************************************************************/
 PUBLIC json_t *iev_create2(
+    hgobj gobj,
     const char *event,
     json_t *webix_msg, // owned
     json_t *kw // owned
 )
 {
     json_t* iev = iev_create(
+        gobj,
         event,
         webix_msg // owned
     );
-    json_t *__temp__ = kw_get_dict_value(kw, "__temp__", 0, KW_REQUIRED);
+    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
     json_object_set(iev, "__temp__", __temp__);  // Set the channel
     KW_DECREF(kw);
 
