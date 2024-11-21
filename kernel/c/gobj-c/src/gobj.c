@@ -6709,7 +6709,7 @@ PRIVATE json_t * _find_subscription(
     json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
     json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
     json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
-    json_t *__filter__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
+    json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
 
     json_t *iter = json_array();
 
@@ -6778,7 +6778,7 @@ PRIVATE json_t * _find_subscription(
             }
         }
         if(__filter__) {
-            json_t *kw_filter = kw_get_dict(0, subs, "__filter__", 0, 0);
+            json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
             if(kw_filter) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     KW_INCREF(__filter__);
