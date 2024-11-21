@@ -6741,7 +6741,7 @@ PRIVATE json_t * _find_subscription(
 
         if(event) {
             gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
-            if(!event_ || strcasecmp(event, event_)!=0) {
+            if(!event_ || event != event_) {
                 match = FALSE;
             }
         }
@@ -7264,6 +7264,9 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
     json_array_foreach(subscriptions, idx, sub) {
         hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
         hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
+        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
+
+        json_object_set_new(sub, "s_event", json_string(event_));
         json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
         json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
     }
@@ -7277,6 +7280,9 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
     json_array_foreach(subscribings, idx, sub) {
         hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
         hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
+        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
+
+        json_object_set_new(sub, "s_event", json_string(event_));
         json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
         json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
     }
