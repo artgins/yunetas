@@ -6837,12 +6837,20 @@ PRIVATE int _delete_subscription(
      *-----------------------------*/
     if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
     ) {
-        trace_machine("💜💜👎 %s unsubscribing event '%s' of %s",
-            gobj_full_name(subscriber),
+        trace_machine(
+            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
             event?event:"",
-            gobj_full_name(publisher)
+            gobj_short_name(subscriber),
+            gobj_short_name(publisher)
         );
-        gobj_trace_json(gobj, subs, "subs");
+        gobj_trace_json(
+            gobj,
+            subs,
+            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+            event?event:"",
+            gobj_short_name(subscriber),
+            gobj_short_name(publisher)
+        );
     }
 
     /*------------------------------------------------*
@@ -7049,16 +7057,22 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
      *-----------------------------*/
     if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
     ) {
-        trace_machine("💜💜👍 %s subscribing event '%s' of %s",
-            gobj_full_name(subscriber),
+        trace_machine(
+            "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
             event?event:"",
-            gobj_full_name(publisher)
+            gobj_short_name(subscriber),
+            gobj_short_name(publisher)
         );
         if(kw) {
-            if(1 || __trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
-                if(json_object_size(kw)) {
-                    gobj_trace_json(publisher, kw, "subscribing event");
-                }
+            if(json_object_size(kw)) {
+                gobj_trace_json(
+                    publisher,
+                    subs,
+                    "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+                    event?event:"",
+                    gobj_short_name(subscriber),
+                    gobj_short_name(publisher)
+                );
             }
         }
     }
@@ -7620,7 +7634,7 @@ PUBLIC int gobj_publish_event(
             json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
-            json_t *__filter__ = kw_get_dict(publisher, subs, "__filter__", 0, 0);
+            json_t *__filter__ = kw_get_dict_value(publisher, subs, "__filter__", 0, 0);
 
             /*
              *  Check renamed_event
@@ -7655,6 +7669,24 @@ PUBLIC int gobj_publish_event(
                 if(__publish_event_match__) {
                     KW_INCREF(__filter__)
                     topublish = __publish_event_match__(kw2publish , __filter__);
+                }
+                if(tracea) {
+                    trace_machine(
+                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                        topublish?"👍":"👎",
+                        event?event:"",
+                        gobj_short_name(subscriber),
+                        gobj_short_name(publisher)
+                    );
+                    gobj_trace_json(
+                        publisher,
+                        __filter__,
+                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                        topublish?"👍":"👎",
+                        event?event:"",
+                        gobj_short_name(subscriber),
+                        gobj_short_name(publisher)
+                    );
                 }
             }
 
@@ -7695,14 +7727,15 @@ PUBLIC int gobj_publish_event(
 
             /*
              *  Apply transformation filters
+             *   TODO review, I think it was used only from c_agent
              */
             if(__config__) {
-                json_t *jn_trans_filters = kw_get_dict_value(
-                    publisher, __config__, "__trans_filter__", 0, 0
-                );
-                if(jn_trans_filters) {
-                    kw2publish = apply_trans_filters(publisher, kw2publish, jn_trans_filters);
-                }
+//                json_t *jn_trans_filters = kw_get_dict_value(
+//                    publisher, __config__, "__trans_filter__", 0, 0
+//                );
+//                if(jn_trans_filters) {
+//                    kw2publish = apply_trans_filters(publisher, kw2publish, jn_trans_filters);
+//                }
             }
 
             /*
