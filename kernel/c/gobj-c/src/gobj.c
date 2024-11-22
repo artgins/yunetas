@@ -68,14 +68,6 @@ typedef enum { // WARNING add new values to opt2json()
     obflag_created          = 0x0004,
 } obflag_t;
 
-typedef struct _trans_filter_t {
-    DL_ITEM_FIELDS
-
-    const char *name;
-    hgobj gobj;
-    json_t * (*transformation_fn)(json_t *);
-} trans_filter_t;
-
 typedef struct gclass_s {
     DL_ITEM_FIELDS
 
@@ -191,14 +183,6 @@ GOBJ_DEFINE_STATE(ST_CLOSED);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void free_trans_filter(trans_filter_t *trans_reg);
-PRIVATE int register_transformation_filter(
-    const char *name,
-    json_t * (trans_filter)(json_t *)
-);
-PRIVATE json_t *webix_trans_filter(json_t *kw);
-
-
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
@@ -505,86 +489,6 @@ SDATA_END()
 
 
 /***************************************************************************
- *  Unregister
- ***************************************************************************/
-PRIVATE void free_trans_filter(trans_filter_t *trans_reg)
-{
-    dl_delete(&dl_trans_filter, trans_reg, 0);
-    GBMEM_FREE(trans_reg->name)
-    GBMEM_FREE(trans_reg)
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int register_transformation_filter(
-    const char *name,
-    json_t * (trans_filter)(json_t *)
-)
-{
-    trans_filter_t *trans_reg = dl_first(&dl_trans_filter);
-    while(trans_reg) {
-        if(trans_reg->name) {
-            if(strcasecmp(trans_reg->name, name)==0) {
-                break;
-            }
-        }
-        trans_reg = dl_next(trans_reg);
-    }
-    if(trans_reg) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "trans filter ALREADY REGISTERED. Will be UPDATED",
-            "name",         "%s", name?name:"",
-            NULL
-        );
-        free_trans_filter(trans_reg);
-    }
-
-    trans_reg = GBMEM_MALLOC(sizeof(trans_filter_t));
-    if(!trans_reg) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "no memory for sizeof(trans_filter_t)",
-            "name",         "%s", name?name:"",
-            NULL
-        );
-        return -1;
-    }
-    gobj_log_debug(0, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_STARTUP,
-        "msg",          "%s", "Register transformation filter",
-        "service",      "%s", name?name:"",
-        NULL
-    );
-
-    trans_reg->name = GBMEM_STRDUP(name);
-    trans_reg->transformation_fn = trans_filter;
-    dl_add(&dl_trans_filter, trans_reg);
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *webix_trans_filter(
-    json_t *kw  // owned
-)
-{
-    return build_command_response(
-        0, //gobj,
-        0, // result
-        0, // json_t *jn_comment,// owned
-        0, // json_t *jn_schema, // owned
-        kw // json_t *jn_data    // owned
-    );
-}
-
-/***************************************************************************
  *  Must trace? TODO set false in non-debug compilation
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
@@ -714,7 +618,6 @@ PUBLIC int gobj_start_up(
     __jn_services__ = json_object();
 
     dl_init(&dl_trans_filter, 0);
-    register_transformation_filter("webix", webix_trans_filter);
 
     /*
      *  Chequea schema treedb, exit si falla.
@@ -806,11 +709,6 @@ PUBLIC void gobj_end(void)
     while((event_type = dl_first(&dl_global_event_types))) {
         dl_delete(&dl_global_event_types, event_type, 0);
         sys_free_fn(event_type);
-    }
-
-    trans_filter_t *trans_reg;
-    while((trans_reg=dl_first(&dl_trans_filter))) {
-        free_trans_filter(trans_reg);
     }
 
     JSON_DECREF(__jn_services__)
@@ -7409,72 +7307,6 @@ PUBLIC json_t *gobj_find_subscribings(
         subscriber,
         FALSE
     );
-}
-
-/***************************************************************************
- *  Apply transformation filter functions
- *  from __config__`__trans_filter__
- ***************************************************************************/
-PRIVATE json_t *apply_trans(hgobj gobj, json_t *kw, const char *name)
-{
-    if(!name) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "name NULL",
-            NULL
-        );
-        return 0;
-    }
-
-    trans_filter_t *trans_reg = dl_first(&dl_trans_filter);
-    while(trans_reg) {
-        if(trans_reg->name) {
-            if(strcasecmp(trans_reg->name, name)==0) {
-                return trans_reg->transformation_fn(kw);
-            }
-        }
-        trans_reg = dl_next(trans_reg);
-    }
-
-    gobj_log_error(gobj,0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "trans filter NOT FOUND",
-        "name",         "%s", name?name:"",
-        NULL
-    );
-
-    return kw;
-}
-
-/***************************************************************************
- *  Apply transformation filter functions
- *  from __config__`__trans_filter__
- ***************************************************************************/
-PRIVATE json_t *apply_trans_filters(hgobj gobj, json_t *kw, json_t *jn_trans_filters)
-{
-    if(!jn_trans_filters) {
-        return kw;
-    }
-
-    if(json_is_object(jn_trans_filters)) {
-        const char *key;
-        json_t *jn_value;
-        json_object_foreach(jn_trans_filters, key, jn_value) {
-            kw = apply_trans(gobj, kw, key);
-        }
-    } else if(json_is_array(jn_trans_filters)) {
-        size_t index;
-        json_t *jn_value;
-        json_array_foreach(jn_trans_filters, index, jn_value) {
-            kw = apply_trans_filters(gobj, kw, jn_value);
-        }
-    } else if(json_is_string(jn_trans_filters)) {
-        kw = apply_trans(gobj, kw, json_string_value(jn_trans_filters));
-    }
-
-    return kw;
 }
 
 /***************************************************************************
