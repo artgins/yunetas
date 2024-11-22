@@ -350,12 +350,12 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
     const char *topic_name
 );
 
-PUBLIC json_t *tranger2_list_topic_desc_cols( // Return MUST be decref
+PUBLIC json_t *tranger2_list_topic_desc_cols( // Return MUST be decref, old tranger_list_topic_desc()
     json_t *tranger,
     const char *topic_name
 );
 
-PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref
+PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old tranger_dict_topic_desc()
     json_t *tranger,
     const char *topic_name
 );
