@@ -344,9 +344,6 @@ PUBLIC json_t *msg2db_open_db(
             continue;
         }
 
-        /*
-         *  id is required to close the list
-         */
         build_msg2db_index_path(path, sizeof(path), msg2db_name, topic_name, "id");
 
         kw_get_subdict_value(gobj, msg2db, topic_name, "id", json_object(), KW_CREATE);
@@ -380,9 +377,9 @@ PUBLIC json_t *msg2db_open_db(
             topic_name,
             match_cond,     // owned
             jn_extra,       // owned
-            rt_id,          // rt_id
+            master?"":rt_id, // rt_id, master goes by mem, don't use rt_id
             !master,        // rt_by_disk
-            msg2db_name    // creator
+            msg2db_name     // creator
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1179,8 +1176,8 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_ids);
-        JSON_DECREF(jn_filter);
+        JSON_DECREF(jn_ids)
+        JSON_DECREF(jn_filter)
         return 0;
     }
 
@@ -1201,7 +1198,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
             }
             const char *pkey2; json_t *node;
             json_object_foreach(pkey2_dict, pkey2, node) {
-                JSON_INCREF(jn_filter);
+                JSON_INCREF(jn_filter)
                 if(match_fn(node, jn_filter)) {
                     json_array_append(list, node);
                 }
@@ -1214,11 +1211,11 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
             "msg",          "%s", "kw MUST BE a json object",
             NULL
         );
-        JSON_DECREF(list);
+        JSON_DECREF(list)
     }
 
-    JSON_DECREF(jn_ids);
-    JSON_DECREF(jn_filter);
+    JSON_DECREF(jn_ids)
+    JSON_DECREF(jn_filter)
 
     return list;
 }
