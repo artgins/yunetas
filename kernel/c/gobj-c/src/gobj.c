@@ -1112,10 +1112,10 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
         gclass = dl_next(gclass);
     }
     if(verbose) {
-        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+        gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "event NOT FOUND",
+            "msg",          "%s", "PUBLIC event NOT FOUND",
             "event",        "%s", event,
             NULL
         );

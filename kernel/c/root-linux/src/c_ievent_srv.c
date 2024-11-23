@@ -1096,7 +1096,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, TRUE);
     if(!iev_kw) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1105,6 +1105,13 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
         drop(gobj);
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(empty_string(iev_event)) {
+        // Error already logged
+        drop(gobj);
+        KW_DECREF(iev_kw)
         KW_DECREF(kw)
         return -1;
     }

@@ -173,7 +173,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     }
     json_t *jn_msg = gbuf2json(gbuf, verbose); // gbuf stolen: decref and data consumed
     if(!jn_msg) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "gbuf2json() FAILED",
@@ -189,7 +189,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_t *kw = kw_get_dict(gobj, jn_msg, "kw", 0, KW_REQUIRED);
 
     if(empty_string(event_)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "event EMPTY",
@@ -199,7 +199,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
         return NULL;
     }
     if(!kw) { // WARNING cannot be null!
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "kw EMPTY",

@@ -817,7 +817,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, 1);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, TRUE);
     if(!iev_kw) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
