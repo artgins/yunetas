@@ -467,7 +467,7 @@ PUBLIC json_t *tranger2_open_iterator(
     const char *topic_name,
     const char *key,    // required
     json_t *match_cond, // owned
-    tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING
+    tranger2_load_record_callback_t load_record_callback, // called on LOADING and APPENDING, optional
     const char *iterator_id,     // iterator id, optional, if empty will be the key
     const char *creator,     // creator
     json_t *data,       // JSON array, if not empty, fills it with the LOADING data, not owned
