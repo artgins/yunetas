@@ -5446,6 +5446,29 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     );
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *get_cache_files(hgobj gobj, json_t *topic, const char *key)
+{
+    char path[NAME_MAX];
+    snprintf(path, sizeof(path), "cache`%s`files", key);
+    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0); // Use `, don't use json_object_get()
+
+    return cache_files;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *get_cache_total(hgobj gobj, json_t *topic, const char *key)
+{
+    char path[NAME_MAX];
+    snprintf(path, sizeof(path), "cache`%s`total", key);
+    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+
+    return cache_total;
+}
 
 /***************************************************************************
  *  Return a list of segments that match conditions
@@ -5979,12 +6002,20 @@ PRIVATE json_int_t first_segment_row(
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
+//    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
+//    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
+//    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
+//    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
+
     *prowid = -1;
     size_t segments_size = json_array_size(segments);
     if(segments_size == 0) {
         // Here silence, avoid multiple logs, only logs in first/last
         return -1;
     }
+
+    json_t *segment_first = json_array_get(segments, 0);
+    json_t *segment_last = json_array_get(segments, segments_size);
 
     json_int_t rowid;
 
@@ -6009,8 +6040,22 @@ PRIVATE json_int_t first_segment_row(
                 from_rowid = total_rows + from_rowid + 1;
             }
         }
-
         rowid = from_rowid;
+
+//        json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+//        // WARNING adjust
+//        if(from_t == 0) {
+//            from_t = total_from_t;
+//        } else {
+//            if(from_t > total_to_t) {
+//                // not exist
+//                return jn_segments;
+//            } else if(from_t < total_from_t) {
+//                // out of range, begin at start
+//                from_t = total_from_t;
+//            }
+//        }
+
 
     } else {
         json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
@@ -6033,7 +6078,6 @@ PRIVATE json_int_t first_segment_row(
                 to_rowid = total_rows + to_rowid + 1;
             }
         }
-
         rowid = to_rowid;
     }
 
