@@ -149,13 +149,16 @@ PRIVATE int do_test(void)
     json_t *iterator1 = tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it1", "");
 
     if(tm != 946774799) {
-        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");
-        //print_json2("BAD count tm of message", tranger);
+        printf("%sERROR%s --> BAD count tm of message, tm %d != tm %d\n", On_Red BWhite, Color_Off,
+            (int)tm, 946774799
+        );
         result += -1;
     }
     if(t != 946774799) {
+        printf("%sERROR%s --> BAD count tm of message, t %d != t %d\n", On_Red BWhite, Color_Off,
+            (int)tm, 946774799
+        );
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count t of message");
-        //print_json2("BAD count t of message", tranger);
         result += -1;
     }
 
@@ -175,14 +178,17 @@ PRIVATE int do_test(void)
         NULL,   // data
         NULL    // options
     );
+
     if(tm != 946774799) {
-        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count tm of message");
-        //print_json2("BAD count tm of message", tranger);
+        printf("%sERROR%s --> BAD count tm of message, tm %d != tm %d\n", On_Red BWhite, Color_Off,
+            (int)tm, 946774799
+        );
         result += -1;
     }
     if(t != 946774799) {
-        printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count t of message");
-        //print_json2("BAD count t of message", tranger);
+        printf("%sERROR%s --> BAD count tm of message, tm %d != tm %d\n", On_Red BWhite, Color_Off,
+            (int)tm, 946774799
+        );
         result += -1;
     }
 
