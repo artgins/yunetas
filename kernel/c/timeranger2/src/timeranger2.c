@@ -2571,6 +2571,7 @@ PUBLIC int tranger2_append_record(
     );
 
     /*--------------------------------------------*
+     *      FEED the lists
      *      Call callbacks of realtime lists
      *--------------------------------------------*/
     json_t *lists = json_object_get(topic, "lists");
@@ -4276,6 +4277,7 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *new_cache_cell
 )
 {
+    BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     json_t *disks = json_object_get(topic, "disks");
 
     json_int_t from_rowid = json_integer_value(json_object_get(old_cache_cell, "rows"));
@@ -4310,6 +4312,9 @@ PRIVATE int publish_new_rt_disk_records(
             );
         }
 
+        /*----------------------------*
+         *      FEED the lists
+         *----------------------------*/
         int idx; json_t *disk;
         json_array_foreach(disks, idx, disk) {
             const char *key_ = json_string_value(json_object_get(disk, "key"));
@@ -4330,6 +4335,33 @@ PRIVATE int publish_new_rt_disk_records(
                         &md_record_ex,
                         json_incref(record)
                     );
+                }
+            }
+        }
+
+        if(!master) {
+            json_t *lists = json_object_get(topic, "lists");
+            json_t *list;
+            json_array_foreach(lists, idx, list) {
+                const char *key_ = json_string_value(json_object_get(list, "key"));
+                if(empty_string(key_) || strcmp(key_, key)==0) {
+                    tranger2_load_record_callback_t load_record_callback =
+                        (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                            json_object_get(list, "load_record_callback")
+                        );
+
+                    if(load_record_callback) {
+                        // Inform to the user list: record real time from memory
+                        load_record_callback(
+                            tranger,
+                            topic,
+                            key,
+                            list,
+                            rowid,
+                            &md_record_ex,
+                            json_incref(record)
+                        );
+                    }
                 }
             }
         }
