@@ -542,17 +542,33 @@ PRIVATE int list_messages(void)
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
-    json_t *rt = tranger2_open_list(
-        tranger,
-        arguments.topic,
-        json_incref(match_cond), // owned
-        NULL,   // extra
-        "tr2list",   // rt_id
-        TRUE,   // rt_by_disk
-        NULL    // creator
-    );
 
-    tranger2_close_list(tranger, rt);
+    if(arguments.key) {
+        json_t *rt = tranger2_open_iterator(
+            tranger,
+            arguments.topic,
+            arguments.key,
+            json_incref(match_cond), // owned
+            load_record_callback,
+            NULL,   // rt_id
+            NULL,   // creator
+            NULL,   // data
+            NULL    // extra
+        );
+        tranger2_close_iterator(tranger, rt);
+
+    } else {
+        json_t *rt = tranger2_open_list(
+            tranger,
+            arguments.topic,
+            json_incref(match_cond), // owned
+            NULL,   // extra
+            NULL,   // rt_id
+            FALSE,  // rt_by_disk
+            NULL    // creator
+        );
+        tranger2_close_list(tranger, rt);
+    }
 
     /*-------------------------------*
      *  Free resources
