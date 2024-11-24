@@ -1,7 +1,8 @@
 /****************************************************************************
  *          test_topic_pkey_integer_iterator6.c
  *
- *  - Open as master, open iterator to search with callback and data
+ *  - Open as master, open a iterator by MEM if master, by DISK if non-master,
+ *      to search with callback and data
  *  - Add records in realtime
  *
  *  To run this test, you must:
