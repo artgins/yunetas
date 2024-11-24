@@ -6056,6 +6056,8 @@ PRIVATE BOOL tranger2_match_metadata(
  *  Used by tranger2_iterator_get_page() where rowid/limit is set
  *      as from_rowid/to_rowid in a self created match_cond
  *  and by tranger2_open_iterator()
+ *  In this point all segments are matched, this function is only
+ *  to search the first segment to begin.
  ***************************************************************************/
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
