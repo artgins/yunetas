@@ -5449,24 +5449,43 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *get_cache_files(hgobj gobj, json_t *topic, const char *key)
+PRIVATE json_t *get_cache_files(json_t *topic, const char *key)
 {
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0); // Use `, don't use json_object_get()
+// Use `, don't use json_object_get() WHY?
+//    char path[NAME_MAX];
+//    snprintf(path, sizeof(path), "cache`%s`files", key);
+//    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0);
 
+    json_t *cache = json_object_get(topic, "cache");
+    if(!cache) {
+        return NULL;
+    }
+    json_t *key_cache = json_object_get(cache, key);
+    if(!key_cache) {
+        return NULL;
+    }
+    json_t *cache_files = json_object_get(key_cache, "files");
     return cache_files;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *get_cache_total(hgobj gobj, json_t *topic, const char *key)
+PRIVATE json_t *get_cache_total(json_t *topic, const char *key)
 {
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`total", key);
-    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+//    char path[NAME_MAX];
+//    snprintf(path, sizeof(path), "cache`%s`total", key);
+//    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
 
+    json_t *cache = json_object_get(topic, "cache");
+    if(!cache) {
+        return NULL;
+    }
+    json_t *key_cache = json_object_get(cache, key);
+    if(!key_cache) {
+        return NULL;
+    }
+    json_t *cache_total = json_object_get(key_cache, "total");
     return cache_total;
 }
 
@@ -5492,9 +5511,10 @@ PRIVATE json_t *get_segments(
     /*-------------------------------------*
      *      Recover cache data
      *-------------------------------------*/
-    char path[NAME_MAX];
-    snprintf(path, sizeof(path), "cache`%s`files", key);
-    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0); // Use `, don't use json_object_get()
+//    char path[NAME_MAX];
+//    snprintf(path, sizeof(path), "cache`%s`files", key);
+//    json_t *cache_files = kw_get_list(gobj, topic, path, 0, 0); // Use `, don't use json_object_get()
+    json_t *cache_files = get_cache_files(topic, key);
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5506,8 +5526,11 @@ PRIVATE json_t *get_segments(
         );
         return jn_segments;
     }
-    snprintf(path, sizeof(path), "cache`%s`total", key);
-    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+
+//    snprintf(path, sizeof(path), "cache`%s`total", key);
+//    json_t *cache_total = kw_get_dict(gobj, topic, path, 0, 0);
+//    if(!cache_total) {
+    json_t *cache_total = get_cache_total(topic, key);
     if(!cache_total) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
