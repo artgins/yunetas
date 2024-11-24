@@ -5707,6 +5707,7 @@ PRIVATE json_t *get_segments(
     /*------------------------------------------*
      *  Search the first file in cache files
      *  to begin the loop
+     *  MATCHING RANGE
      *------------------------------------------*/
     if(!backward) {
         int idx; json_t *cache_file;
@@ -5889,11 +5890,13 @@ PRIVATE BOOL tranger2_match_metadata(
 
     *end = FALSE;
 
-// TODO tm
-//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+    /*
+     *  MATCHING RANGE
+     */
+// TODO tm   json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+//    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+//    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+//    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
 
     // WARNING adjust REPEATED
     if(from_rowid == 0) {
@@ -5975,6 +5978,8 @@ PRIVATE json_int_t first_segment_row(
     }
 
     json_int_t rowid;
+// TODO tm   json_int_t tm;
+//    json_int_t t;
 
     if(!backward) {
         json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
@@ -6029,19 +6034,25 @@ PRIVATE json_int_t first_segment_row(
     //        return tranger_prev_record(tranger, topic, md_record);
     //    }
 
+    /*
+     *  MATCHING RANGE
+     */
     int idx; json_t *segment;
     if(!backward) {
         json_array_foreach(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-// TODO tm
-//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
-                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
+                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid &&
+                    seg_from_t <= rowid && rowid <= seg_to_t &&
+                    seg_from_tm <= rowid && rowid <= seg_to_tm
+                )) {
                     // no match, break and continue
                     break;
                 }
@@ -6056,14 +6067,17 @@ PRIVATE json_int_t first_segment_row(
         json_array_backward(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-// TODO tm
-//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+
+            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
+            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
+            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
+            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
-                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid)) {
+                if(!(seg_first_rowid <= rowid && rowid <= seg_last_rowid &&
+                    seg_from_t <= rowid && rowid <= seg_to_t &&
+                    seg_from_tm <= rowid && rowid <= seg_to_tm
+                )) {
                     // no match, break and continue
                     break;
                 }
