@@ -224,7 +224,7 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
  *-----------------------------------------------------------*/
 PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
-    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__
+    json_t *kw_request,     // owned, kw request, used to get ONLY __md_iev__
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message
     const char *msg_type,
     BOOL reverse_dst
@@ -237,7 +237,7 @@ static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
     const char *msg_type,
-    json_t *kw_request  // owned, used to extract ONLY __md_iev__.
+    json_t *kw_request  // owned, used to get ONLY __md_iev__.
 ) {
     json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
     json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, TRUE);
@@ -251,7 +251,7 @@ static inline json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
     const char *msg_type,
-    json_t *kw_request  // owned, used to extract ONLY __md_iev__.
+    json_t *kw_request  // owned, used to get ONLY __md_iev__.
 ) {
     json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
     json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, FALSE);

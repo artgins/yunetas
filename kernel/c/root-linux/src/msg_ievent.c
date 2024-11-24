@@ -439,7 +439,7 @@ PRIVATE int msg_iev_reverse_dst( // Put in destining the source, and in the sour
  ***************************************************************************/
 PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
-    json_t *kw_request,     // owned, kw request, used to extract ONLY __md_iev__.
+    json_t *kw_request,     // owned, kw request, used to get ONLY __md_iev__.
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message.
     const char *msg_type,
     BOOL reverse_dst
