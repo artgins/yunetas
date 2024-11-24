@@ -3,6 +3,7 @@
  *
  *  - Open as master, open iterator for each key (two keys),
  *      empty match_cond (all records)  with callback
+ *  - Open an iterator matching by tm
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -500,47 +501,93 @@ PRIVATE int do_test(void)
     /*---------------------------------------------*
      *  Open iterator and search by time
      *---------------------------------------------*/
-    char *test_name = "Open iterator and search by time";
-    set_expected_results( // Check that no logs happen
-        test_name, // test name
-        NULL,   // error_list,
-        NULL,   // expected, NULL: we want to check only the logs
-        NULL,   // ignore_keys
-        TRUE    // verbose
-    );
-    json_t *data = json_array();
-    json_t *iterator33 = tranger2_open_iterator(
-        tranger,
-        TOPIC_NAME,
-        "0000000000000000001",     // key,
-        json_pack("{s:i, s:i}",   // match_cond, owned
-            "from_tm", 946771199,
-            "to_tm", 946771200
-        ),
-        NULL,   // load_record_callback
-        NULL,   // rt_id
-        NULL,   // creator
-        data,   // data
-        NULL    // options
-    );
-    if(!iterator33) {
-        printf("%sERROR%s --> %s, cannot open\n", On_Red BWhite, Color_Off, test_name);
-        result += -1;
+    if(1) {
+        char *test_name = "Open iterator and search by time";
+        set_expected_results( // Check that no logs happen
+            test_name, // test name
+            NULL,   // error_list,
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        json_t *data = json_array();
+        json_t *iterator33 = tranger2_open_iterator(
+            tranger,
+            TOPIC_NAME,
+            "0000000000000000001",     // key,
+            json_pack("{s:i, s:i}",   // match_cond, owned
+                "from_tm", 946771199,
+                "to_tm", 946771200
+            ),
+            NULL,   // load_record_callback
+            NULL,   // rt_id
+            NULL,   // creator
+            data,   // data
+            NULL    // options
+        );
+        if(!iterator33) {
+            printf("%sERROR%s --> %s, cannot open\n", On_Red BWhite, Color_Off, test_name);
+            result += -1;
+        }
+
+        json_int_t solu[][2] = {
+            /* rowid    tm/t */
+            {86400,     946771199},
+            {86401,     946771200},
+            {0}
+        };
+        result += test_records(test_name, data, solu, 2);
+
+        json_decref(data);
+
+        tranger2_close_iterator(tranger, iterator33);
+
+        result += test_json(NULL);  // NULL: we want to check only the logs
     }
 
-    json_int_t solu[][2] = {
-        /* rowid    tm/t */
-        {86400,     946771199},
-        {86401,     946771200},
-        {0}
-    };
-    result += test_records(test_name, data, solu, 2);
+    if(1) {
+        char *test_name = "Open iterator and search by time";
+        set_expected_results( // Check that no logs happen
+            test_name, // test name
+            NULL,   // error_list,
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            TRUE    // verbose
+        );
+        json_t *data = json_array();
+        json_t *iterator33 = tranger2_open_iterator(
+            tranger,
+            TOPIC_NAME,
+            "0000000000000000001",     // key,
+            json_pack("{s:i, s:i}",   // match_cond, owned
+                "from_t", 946771199,
+                "to_t", 946771200
+            ),
+            NULL,   // load_record_callback
+            NULL,   // rt_id
+            NULL,   // creator
+            data,   // data
+            NULL    // options
+        );
+        if(!iterator33) {
+            printf("%sERROR%s --> %s, cannot open\n", On_Red BWhite, Color_Off, test_name);
+            result += -1;
+        }
 
-    json_decref(data);
+        json_int_t solu[][2] = {
+            /* rowid    tm/t */
+            {86400,     946771199},
+            {86401,     946771200},
+            {0}
+        };
+        result += test_records(test_name, data, solu, 2);
 
-    tranger2_close_iterator(tranger, iterator33);
+        json_decref(data);
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+        tranger2_close_iterator(tranger, iterator33);
+
+        result += test_json(NULL);  // NULL: we want to check only the logs
+    }
 
     /*---------------------------------------------*
      *  Check iterator mem
