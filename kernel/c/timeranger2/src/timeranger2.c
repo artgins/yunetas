@@ -5920,7 +5920,9 @@ PRIVATE json_t *get_segments(
 //}
 
 /***************************************************************************
- *
+ *  Used by tranger2_iterator_get_page() where rowid/limit is set
+ *      as from_rowid/to_rowid in a self create match_cond
+ *  and by tranger2_open_iterator()
  ***************************************************************************/
 PRIVATE BOOL tranger2_match_metadata(
     json_t *match_cond,
@@ -5931,16 +5933,13 @@ PRIVATE BOOL tranger2_match_metadata(
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
-    json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
-
     *end = FALSE;
 
-// TODO tm
-//            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-//            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-//            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-//            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
+    /*--------------------------*
+     *      Rowid
+     *--------------------------*/
+    json_int_t from_rowid = json_integer_value(json_object_get(match_cond, "from_rowid"));
+    json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
 
     // WARNING adjust REPEATED
     if(from_rowid == 0) {
@@ -5999,6 +5998,54 @@ PRIVATE BOOL tranger2_match_metadata(
         }
     }
 
+    /*--------------------------*
+     *      t
+     *--------------------------*/
+    json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
+    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
+
+    if(from_t != 0) {
+        if(md_record_ex->__t__ < from_t) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    if(to_t != 0) {
+        if(md_record_ex->__t__ > to_t) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    /*--------------------------*
+     *      tm
+     *--------------------------*/
+    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
+    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
+
+    if(from_tm != 0) {
+        if(md_record_ex->__tm__ < from_tm) {
+            if(backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
+    if(to_tm != 0) {
+        if(md_record_ex->__tm__ > to_tm) {
+            if(!backward) {
+                *end = TRUE;
+            }
+            return FALSE;
+        }
+    }
+
     return TRUE;
 }
 
@@ -6006,7 +6053,8 @@ PRIVATE BOOL tranger2_match_metadata(
  *  Here searching only by rowid between segments previously matched
  *  by all others like t, tm
  *  Used by tranger2_iterator_get_page() where rowid/limit is set
- *  as from_rowid/to_rowid in a self create match_cond
+ *      as from_rowid/to_rowid in a self create match_cond
+ *  and by tranger2_open_iterator()
  ***************************************************************************/
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
