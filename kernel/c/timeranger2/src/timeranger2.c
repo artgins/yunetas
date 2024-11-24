@@ -6003,7 +6003,10 @@ PRIVATE BOOL tranger2_match_metadata(
 }
 
 /***************************************************************************
- *
+ *  Here searching only by rowid between segments previously matched
+ *  by all others like t, tm
+ *  Used by tranger2_iterator_get_page() where rowid/limit is set
+ *  as from_rowid/to_rowid in a self create match_cond
  ***************************************************************************/
 PRIVATE json_int_t first_segment_row(
     json_t *segments,
@@ -6014,20 +6017,12 @@ PRIVATE json_int_t first_segment_row(
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
 
-//    json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
-//    json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
-//    json_int_t total_from_tm = kw_get_int(gobj, cache_total, "fr_tm", 0, KW_REQUIRED);
-//    json_int_t total_to_tm = kw_get_int(gobj, cache_total, "to_tm", 0, KW_REQUIRED);
-
     *prowid = -1;
     size_t segments_size = json_array_size(segments);
     if(segments_size == 0) {
         // Here silence, avoid multiple logs, only logs in first/last
         return -1;
     }
-
-    json_t *segment_first = json_array_get(segments, 0);
-    json_t *segment_last = json_array_get(segments, segments_size);
 
     json_int_t rowid;
 
@@ -6052,22 +6047,8 @@ PRIVATE json_int_t first_segment_row(
                 from_rowid = total_rows + from_rowid + 1;
             }
         }
+
         rowid = from_rowid;
-
-//        json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));
-//        // WARNING adjust
-//        if(from_t == 0) {
-//            from_t = total_from_t;
-//        } else {
-//            if(from_t > total_to_t) {
-//                // not exist
-//                return jn_segments;
-//            } else if(from_t < total_from_t) {
-//                // out of range, begin at start
-//                from_t = total_from_t;
-//            }
-//        }
-
 
     } else {
         json_int_t to_rowid = json_integer_value(json_object_get(match_cond, "to_rowid"));
@@ -6090,6 +6071,7 @@ PRIVATE json_int_t first_segment_row(
                 to_rowid = total_rows + to_rowid + 1;
             }
         }
+
         rowid = to_rowid;
     }
 
@@ -6102,12 +6084,6 @@ PRIVATE json_int_t first_segment_row(
         json_array_foreach(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-
-            // MATCHING RANGE
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
                 if(!(
@@ -6127,12 +6103,6 @@ PRIVATE json_int_t first_segment_row(
         json_array_backward(segments, idx, segment) {
             json_int_t seg_first_rowid = json_integer_value(json_object_get(segment, "first_row"));
             json_int_t seg_last_rowid = json_integer_value(json_object_get(segment, "last_row"));
-
-            // MATCHING RANGE
-            json_int_t seg_from_t = json_integer_value(json_object_get(segment, "fr_t"));
-            json_int_t seg_to_t = json_integer_value(json_object_get(segment, "to_t"));
-            json_int_t seg_from_tm = json_integer_value(json_object_get(segment, "fr_tm"));
-            json_int_t seg_to_tm = json_integer_value(json_object_get(segment, "to_tm"));
 
             do {
                 if(!(
