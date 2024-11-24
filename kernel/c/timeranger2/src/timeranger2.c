@@ -5074,7 +5074,12 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         md2_record_ex_t md_record_ex;
 
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
-        json_int_t cur_segment = first_segment_row(segments, total_rows, match_cond, &rowid);
+        json_int_t cur_segment = first_segment_row(
+            segments,
+            total_rows,
+            match_cond,
+            &rowid
+        );
 
         /*
          *  Save the pointer
@@ -5353,7 +5358,12 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 
     json_t *segments = json_object_get(iterator, "segments");
     json_int_t rowid = 0;
-    json_int_t cur_segment = first_segment_row(segments, total_rows, match_cond, &rowid);
+    json_int_t cur_segment = first_segment_row(
+        segments,
+        total_rows,
+        match_cond,
+        &rowid
+    );
 
     if(cur_segment < 0) {
         JSON_DECREF(match_cond)
