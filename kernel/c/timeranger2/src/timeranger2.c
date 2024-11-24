@@ -5712,7 +5712,6 @@ PRIVATE json_t *get_segments(
     if(!backward) {
         int idx; json_t *cache_file;
         json_int_t partial_rows2 = 1;
-// TODO tm
 
         json_array_foreach(cache_files, idx, cache_file) {
             json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
