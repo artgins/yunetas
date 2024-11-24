@@ -75,6 +75,54 @@ PRIVATE int iterator_callback2(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int test_records(const char *test_name, json_t *data, json_int_t solu[][2], int n)
+{
+    int result = 0;
+
+    if(!data) {
+        printf("%sERROR%s --> %s, no data\n", On_Red BWhite, Color_Off, test_name);
+        result += -1;
+    }
+    if(json_array_size(data)!=n) {
+        printf("%sERROR%s --> %s, size != 2\n", On_Red BWhite, Color_Off, test_name);
+        result += -1;
+    }
+
+    for(int i=0; i<n; i++) {
+        json_t *r = json_array_get(data, i);
+        if(!r) {
+            printf("%sERROR%s --> %s, no record %d\n", On_Red BWhite, Color_Off, test_name, i);
+            return -1;
+        }
+        json_int_t rowid = kw_get_int(0, r, "__md_tranger__`rowid", -1, KW_REQUIRED);
+        json_int_t tm = kw_get_int(0, r, "tm", -1, KW_REQUIRED);
+        json_int_t t = kw_get_int(0, r, "__md_tranger__`t", -1, KW_REQUIRED);
+        if(rowid != solu[i][0]) {
+            printf("%sERROR%s --> %s, bad rowid %d %d\n", On_Red BWhite, Color_Off,
+                test_name, (int)rowid, (int)solu[i][0]
+            );
+            return -1;
+        }
+        if(tm != solu[i][1]) {
+            printf("%sERROR%s --> %s, bad tm %d %d\n", On_Red BWhite, Color_Off,
+                test_name, (int)tm, (int)solu[i][1]
+            );
+            return -1;
+        }
+        if(t != solu[i][1]) {
+            printf("%sERROR%s --> %s, bad t %d %d\n", On_Red BWhite, Color_Off,
+                test_name, (int)tm, (int)solu[i][1]
+            );
+            return -1;
+        }
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *              Test
  *  Open as master, open iterator (realtime by disk) with callback
  *  HACK: return -1 to fail, 0 to ok
@@ -232,6 +280,266 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Repeat iterator must be null");
         result += -1;
     }
+    result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*---------------------------------------------*
+     *  Check iterator mem
+     *---------------------------------------------*/
+    if(1) {
+        char expected[32*1024];
+        snprintf(expected, sizeof(expected), "\
+        { \
+            'path': '%s', \
+            'database': '%s', \
+            'filename_mask': '%%Y', \
+            'xpermission': 1528, \
+            'rpermission': 384, \
+            'on_critical_error': 0, \
+            'master': true, \
+            'gobj': 0, \
+            'trace_level': 0, \
+            'directory': '%s', \
+            'fd_opened_files': { \
+                '__timeranger2__.json': 9999 \
+            }, \
+            'yev_loop': 0, \
+            'topics': { \
+                '%s': { \
+                    'topic_name': '%s', \
+                    'pkey': 'id', \
+                    'tkey': 'tm', \
+                    'system_flag': 4, \
+                    'filename_mask': '%%Y-%%m-%%d', \
+                    'xpermission': 1472, \
+                    'rpermission': 384, \
+                    'topic_version': 1, \
+                    'cols': { \
+                        'id': '', \
+                        'tm': 0, \
+                        'content': '', \
+                        'content2': '' \
+                    }, \
+                    'directory': '%s', \
+                    'wr_fd_files': {}, \
+                    'rd_fd_files': { \
+                        '0000000000000000001': { \
+                            '2000-01-01.md2': 9999, \
+                            '2000-01-01.json': 9999, \
+                            '2000-01-02.md2': 9999, \
+                            '2000-01-02.json': 9999 \
+                        }, \
+                        '0000000000000000002': { \
+                            '2000-01-01.md2': 9999, \
+                            '2000-01-01.json': 9999, \
+                            '2000-01-02.md2': 9999, \
+                            '2000-01-02.json': 9999 \
+                        } \
+                    }, \
+                    'cache': { \
+                        '0000000000000000001': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        }, \
+                        '0000000000000000002': { \
+                            'files': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400 \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600 \
+                                } \
+                            ], \
+                            'total': { \
+                                'fr_t': 946684800, \
+                                'to_t': 946774799, \
+                                'fr_tm': 946684800, \
+                                'to_tm': 946774799, \
+                                'rows': 90000 \
+                            } \
+                        } \
+                    }, \
+                    'lists': [ \
+                    ], \
+                    'disks': [ \
+                    ], \
+                    'iterators': [ \
+                        { \
+                            'id': 'it1', \
+                            'creator': '', \
+                            'key': '0000000000000000001', \
+                            'topic_name': '%s', \
+                            'match_cond': { \
+                            }, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000001' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000001' \
+                                } \
+                            ], \
+                            'cur_segment': 1, \
+                            'cur_rowid': 90000, \
+                            'list_type': 'iterator',\
+                            'load_record_callback': 9999 \
+                        }, \
+                        { \
+                            'id': '0000000000000000002', \
+                            'creator': '', \
+                            'key': '0000000000000000002', \
+                            'topic_name': '%s', \
+                            'match_cond': { \
+                            }, \
+                            'segments': [ \
+                                { \
+                                    'id': '2000-01-01', \
+                                    'fr_t': 946684800, \
+                                    'to_t': 946771199, \
+                                    'fr_tm': 946684800, \
+                                    'to_tm': 946771199, \
+                                    'rows': 86400, \
+                                    'first_row': 1, \
+                                    'last_row': 86400, \
+                                    'key': '0000000000000000002' \
+                                }, \
+                                { \
+                                    'id': '2000-01-02', \
+                                    'fr_t': 946771200, \
+                                    'to_t': 946774799, \
+                                    'fr_tm': 946771200, \
+                                    'to_tm': 946774799, \
+                                    'rows': 3600, \
+                                    'first_row': 86401, \
+                                    'last_row': 90000, \
+                                    'key': '0000000000000000002' \
+                                } \
+                            ], \
+                            'cur_segment': 1, \
+                            'cur_rowid': 90000, \
+                            'list_type': 'iterator',\
+                            'load_record_callback': 9999 \
+                        } \
+                    ] \
+                } \
+            } \
+        } \
+        ", path_root, DATABASE, path_database, TOPIC_NAME, TOPIC_NAME, path_topic, TOPIC_NAME, TOPIC_NAME);
+
+        const char *ignore_keys[]= {
+            "__timeranger2__.json",
+            "load_record_callback",
+            "2000-01-01.md2",
+            "2000-01-01.json",
+            "2000-01-02.md2",
+            "2000-01-02.json",
+            NULL
+        };
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
+        if(!expected_) {
+            result += -1;
+        }
+        set_expected_results(
+            "check iterator mem",      // test name
+            NULL,
+            expected_,
+            ignore_keys,
+            TRUE
+        );
+        result += test_json(json_incref(tranger));
+    }
+
+    /*---------------------------------------------*
+     *  Open iterator and search by time
+     *---------------------------------------------*/
+    char *test_name = "Open iterator and search by time";
+    set_expected_results( // Check that no logs happen
+        test_name, // test name
+        NULL,   // error_list,
+        NULL,   // expected, NULL: we want to check only the logs
+        NULL,   // ignore_keys
+        TRUE    // verbose
+    );
+    json_t *data = json_array();
+    json_t *iterator33 = tranger2_open_iterator(
+        tranger,
+        TOPIC_NAME,
+        "0000000000000000001",     // key,
+        json_pack("{s:i, s:i}",   // match_cond, owned
+            "from_tm", 946771199,
+            "to_tm", 946771200
+        ),
+        NULL,   // load_record_callback
+        NULL,   // rt_id
+        NULL,   // creator
+        data,   // data
+        NULL    // options
+    );
+    if(!iterator33) {
+        printf("%sERROR%s --> %s, cannot open\n", On_Red BWhite, Color_Off, test_name);
+        result += -1;
+    }
+
+    json_int_t solu[][2] = {
+        /* rowid    tm/t */
+        {86400,     946771199},
+        {86401,     946771200},
+        {0}
+    };
+    result += test_records(test_name, data, solu, 2);
+
+    json_decref(data);
+
+    tranger2_close_iterator(tranger, iterator33);
+
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     /*---------------------------------------------*
