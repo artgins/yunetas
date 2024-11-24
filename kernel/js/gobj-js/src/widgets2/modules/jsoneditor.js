@@ -20,5 +20,5 @@
         </script>
 
  ******************************************************************/
-import { JSONEditor} from "/static/jsoneditor/standalone.js";
-window.JSONEditor = JSONEditor;
+import { createJSONEditor} from "/static/jsoneditor/standalone.js";
+window.JSONEditor = createJSONEditor;

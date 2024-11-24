@@ -5713,23 +5713,31 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = 1;
 
         json_array_foreach(cache_files, idx, cache_file) {
-// TODO tm
-//            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-
             json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
             json_int_t rangeStart = partial_rows2; // first row of this segment
             json_int_t rangeEnd = partial_rows2 + rows2 - 1; // last row of this segment
-
             // If the current range starts after the input range ends, stop further checks
             if (rangeStart > to_rowid) {
                 break;
             }
 
+            json_int_t rangeT_start = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+            json_int_t rangeT_end = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+            if(rangeT_start > to_t) {
+                break;
+            }
+
+            json_int_t rangeTM_start = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+            json_int_t rangeTM_end = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            if(rangeTM_start > to_tm) {
+                break;
+            }
+
             // Print only the valid ranges
-            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
+                rangeT_start <= to_t && rangeT_end >= from_t &&
+                rangeTM_start <= to_tm && rangeTM_end >= from_tm
+            ) {
                 json_t *jn_segment = json_deep_copy(cache_file);
                 json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
                 json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
@@ -5744,23 +5752,31 @@ PRIVATE json_t *get_segments(
         json_int_t partial_rows2 = total_rows;
 
         json_array_backward(cache_files, idx, cache_file) {
-// TODO tm
-//            json_int_t from_t_2 = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
-//            json_int_t to_t_2 = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
-//            json_int_t from_tm_2 = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
-//            json_int_t to_tm_2 = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
-
             json_int_t rows2 = kw_get_int(gobj, cache_file, "rows", 0, KW_REQUIRED);
             json_int_t rangeStart = partial_rows2 - rows2 + 1; // first row of this segment
             json_int_t rangeEnd = partial_rows2;  // last row of this segment
-
             // If the current range ends before the input range starts, stop further checks
             if (rangeEnd < from_rowid) {
                 break;
             }
 
+            json_int_t rangeT_start = kw_get_int(gobj, cache_file, "fr_t", 0, KW_REQUIRED);
+            json_int_t rangeT_end = kw_get_int(gobj, cache_file, "to_t", 0, KW_REQUIRED);
+            if (rangeT_end < from_t) {
+                break;
+            }
+
+            json_int_t rangeTM_start = kw_get_int(gobj, cache_file, "fr_tm", 0, KW_REQUIRED);
+            json_int_t rangeTM_end = kw_get_int(gobj, cache_file, "to_tm", 0, KW_REQUIRED);
+            if (rangeTM_end < from_tm) {
+                break;
+            }
+
             // Print only the valid ranges
-            if (rangeStart <= to_rowid && rangeEnd >= from_rowid) {
+            if (rangeStart <= to_rowid && rangeEnd >= from_rowid &&
+                rangeT_start <= to_t && rangeT_end >= from_t &&
+                rangeTM_start <= to_tm && rangeTM_end >= from_tm
+            ) {
                 json_t *jn_segment = json_deep_copy(cache_file);
                 json_object_set_new(jn_segment, "first_row", json_integer(rangeStart));
                 json_object_set_new(jn_segment, "last_row", json_integer(rangeEnd));
