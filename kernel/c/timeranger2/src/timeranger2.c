@@ -5093,6 +5093,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             json_object_set_new(iterator, "cur_rowid", json_integer(rowid));
         }
 
+        json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
+
         BOOL end = FALSE;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
@@ -5110,7 +5112,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             )<0) {
                 break;
             }
-            json_int_t total_rows = get_topic_key_rows(gobj, topic, key); // TODO
             if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
                 json_t *record = NULL;
