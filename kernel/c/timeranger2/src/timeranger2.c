@@ -5839,88 +5839,6 @@ PRIVATE json_t *get_segments(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE json_int_t segments_first_row(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//    json_int_t cur_segment = 0;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "first_row"));
-//}
-
-/***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE json_int_t segments_last_row(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "last_row"));
-//}
-
-/***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE json_int_t segments_first_t(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//
-//    json_int_t cur_segment = 0;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "fr_t"));
-//}
-
-/***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE json_int_t segments_last_t(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//
-//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "to_t"));
-//}
-
-/***************************************************************************
- *  Get first_t
- ***************************************************************************/
-//PRIVATE json_int_t segments_first_tm(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//
-//    json_int_t cur_segment = 0;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "fr_tm"));
-//}
-
-/***************************************************************************
- *
- ***************************************************************************/
-//PRIVATE json_int_t segments_last_tm(json_t *segments)
-//{
-//    if (json_array_size(segments) == 0) {
-//        return 0;
-//    }
-//
-//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
-//    json_t *segment = json_array_get(segments, cur_segment);
-//    return json_integer_value(json_object_get(segment, "to_tm"));
-//}
-
-/***************************************************************************
  *  Used by tranger2_iterator_get_page() where rowid/limit is set
  *      as from_rowid/to_rowid in a self create match_cond
  *  and by tranger2_open_iterator()
@@ -6273,6 +6191,88 @@ PRIVATE json_int_t next_segment_row(
  *  TODO To review below functions, perhaps not needed
  *
  */
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+//PRIVATE json_int_t segments_first_row(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//    json_int_t cur_segment = 0;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "first_row"));
+//}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+//PRIVATE json_int_t segments_last_row(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "last_row"));
+//}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+//PRIVATE json_int_t segments_first_t(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//
+//    json_int_t cur_segment = 0;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "fr_t"));
+//}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+//PRIVATE json_int_t segments_last_t(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//
+//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "to_t"));
+//}
+
+/***************************************************************************
+ *  Get first_t
+ ***************************************************************************/
+//PRIVATE json_int_t segments_first_tm(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//
+//    json_int_t cur_segment = 0;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "fr_tm"));
+//}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+//PRIVATE json_int_t segments_last_tm(json_t *segments)
+//{
+//    if (json_array_size(segments) == 0) {
+//        return 0;
+//    }
+//
+//    json_int_t cur_segment = (json_int_t)json_array_size(segments) - 1;
+//    json_t *segment = json_array_get(segments, cur_segment);
+//    return json_integer_value(json_object_get(segment, "to_tm"));
+//}
 
 /**rst**
     Get metadata/record in iterator that firstly match match_cond
