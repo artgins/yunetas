@@ -1005,6 +1005,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                                 "msg",          "%s", "NEED retransmit, NOT ALL DATA being sent",
                                 NULL
                             );
+
+                            priv->tx_in_progress++;
+                            yev_start_event(yev_event);
+                            break;
                         }
 
                         json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
