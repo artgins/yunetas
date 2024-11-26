@@ -246,8 +246,8 @@ typedef enum {
     LOG_HND_OPT_WARNING         = 0x0008,
     LOG_HND_OPT_INFO            = 0x0010,
     LOG_HND_OPT_DEBUG           = 0x0020,
-    LOG_HND_OPT_AUDIT           = 0x0040,
-    LOG_HND_OPT_MONITOR         = 0x0080,
+    LOG_HND_OPT_XXXX            = 0x0040, // Set by default in all handler_options:255, be careful
+    LOG_HND_OPT_XXXXX           = 0x0080, // Set by default in all handler_options:255, be careful
     LOG_HND_OPT_NODISCOVER      = 0x0100,
     LOG_HND_OPT_NOTIME          = 0x0200,
     LOG_HND_OPT_TRACE_STACK     = 0x0400,
