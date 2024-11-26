@@ -76,7 +76,10 @@ PRIVATE const char *log_handler_opt_names[]={
     "LOG_HND_OPT_DEBUG",
     "LOG_HND_OPT_AUDIT",
     "LOG_HND_OPT_MONITOR",
+    "LOG_HND_OPT_NODISCOVER",
+    "LOG_HND_OPT_NOTIME",
     "LOG_HND_OPT_TRACE_STACK",
+    "LOG_HND_OPT_BEAUTIFUL_JSON",
     0
 };
 
@@ -111,7 +114,7 @@ typedef int hgen_t;
  ***************************************************************/
 PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
-PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap);
+PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap);
 PRIVATE void discover(hgobj gobj, hgen_t hgen);
 
 /*****************************************************************
@@ -486,7 +489,7 @@ PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -501,7 +504,7 @@ PUBLIC void gobj_log_critical(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -516,7 +519,7 @@ PUBLIC void gobj_log_error(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -531,7 +534,7 @@ PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -546,7 +549,7 @@ PUBLIC void gobj_log_info(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -561,7 +564,7 @@ PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...)
 
     va_list ap;
     va_start(ap, opt);
-    _log(gobj, priority, opt, ap);
+    _log_jnbf(gobj, priority, opt, ap);
     va_end(ap);
 }
 
@@ -907,7 +910,6 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
         return;
     }
 
-    BOOL backtrace_showed = FALSE;
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         if(must_ignore(lh, priority)) {
@@ -926,12 +928,9 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
         }
         if((opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) ||
                 ((lh->handler_options & LOG_HND_OPT_TRACE_STACK) && priority <=LOG_ERR)) {
-            if(!backtrace_showed) {
-                if(show_backtrace_fn && lh->hr->fwrite_fn) {
-                    show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
-                }
+            if(show_backtrace_fn && lh->hr->fwrite_fn) {
+                show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
             }
-            backtrace_showed = TRUE;
         }
 
         /*
@@ -952,45 +951,129 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 }
 
 /*****************************************************************
- *      Log
+ *      Log data in json format
  *****************************************************************/
-PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
+PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 {
-    char timestamp[90];
-
     if(!__initialized__) {
         return;
     }
+
     if(__inside_log__) {
         return;
     }
     __inside_log__ = 1;
 
-    current_timestamp(timestamp, sizeof(timestamp));
+    log_handler_t *lh = dl_first(&dl_log_handlers);
+    while(lh) {
+        if(must_ignore(lh, priority)) {
+            /*
+             *  Next
+             */
+            lh = dl_next(lh);
+            continue;
+        }
 
-    ul_buffer_reset(0, TRUE);
-    json_add_string(0, "timestamp", timestamp);
+        if(lh->hr->write_fn) {
+            ul_buffer_reset(0, (lh->handler_options & LOG_HND_OPT_BEAUTIFUL_JSON)?TRUE:FALSE);
 
-    discover(gobj, 0);
+            if(!(lh->handler_options & LOG_HND_OPT_NOTIME)) {
+                char timestamp[90];
+                current_timestamp(timestamp, sizeof(timestamp));
+                json_add_string(0, "timestamp", timestamp);
+            }
+            if(priority <= LOG_CRIT || !(lh->handler_options & LOG_HND_OPT_NODISCOVER)) {
+                // LOG_EMERG LOG_ALERT LOG_CRIT always use discover()
+                discover(gobj, 0);
+            }
+            va_list ap_;
+            va_copy(ap_, ap);
+            // with this json the keys can be repeated!!!
+            json_vappend(0, priority, ap_);
+            va_end(ap_);
+            if(opt & LOG_OPT_EXIT_NEGATIVE) {
+                json_add_string(0, "exiting", "-1");
+            }
+            if(opt & LOG_OPT_EXIT_ZERO) {
+                json_add_string(0, "exiting", "0");
+            }
+            if(opt & LOG_OPT_ABORT) {
+                json_add_string(0, "exiting", "abort");
+            }
+            char *bf = json_get_buf(0);
+            int ret = (lh->hr->write_fn)(lh->h, priority, bf, strlen(bf));
+            if(ret < 0) { // Handler owns the message
+                break;
+            }
+        }
+        if(lh->hr->fwrite_fn) {
+            if((opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) ||
+                    ((lh->handler_options & LOG_HND_OPT_TRACE_STACK) && priority <=LOG_ERR)
+                ) {
+                show_backtrace(lh->hr->fwrite_fn, lh->h);
+            }
+        }
 
-    json_vappend(0, priority, ap);
-
-    if(opt & LOG_OPT_EXIT_NEGATIVE) {
-        json_add_string(0, "exiting", "-1");
+        /*
+         *  Next
+         */
+        lh = dl_next(lh);
     }
-    if(opt & LOG_OPT_EXIT_ZERO) {
-        json_add_string(0, "exiting", "0");
-    }
-    if(opt & LOG_OPT_ABORT) {
-        json_add_string(0, "exiting", "abort");
-    }
-
-    char *s = json_get_buf(0);
-
-    _log_bf(priority, opt, s, strlen(s));
 
     __inside_log__ = 0;
+
+    if(opt & LOG_OPT_EXIT_NEGATIVE) {
+        exit(-1);
+    }
+    if(opt & LOG_OPT_EXIT_ZERO) {
+        exit(0);
+    }
+    if(opt & LOG_OPT_ABORT) {
+        abort();
+    }
 }
+
+///*****************************************************************
+// *      Log
+// *****************************************************************/
+//PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
+//{
+//    char timestamp[90];
+//
+//    if(!__initialized__) {
+//        return;
+//    }
+//    if(__inside_log__) {
+//        return;
+//    }
+//    __inside_log__ = 1;
+//
+//    current_timestamp(timestamp, sizeof(timestamp));
+//
+//    // TODO (lh->handler_options & LOG_HND_OPT_BEATIFUL_JSON)?TRUE:FALSE
+//    ul_buffer_reset(0, TRUE);
+//    json_add_string(0, "timestamp", timestamp);
+//
+//    discover(gobj, 0);
+//
+//    json_vappend(0, priority, ap);
+//
+//    if(opt & LOG_OPT_EXIT_NEGATIVE) {
+//        json_add_string(0, "exiting", "-1");
+//    }
+//    if(opt & LOG_OPT_EXIT_ZERO) {
+//        json_add_string(0, "exiting", "0");
+//    }
+//    if(opt & LOG_OPT_ABORT) {
+//        json_add_string(0, "exiting", "abort");
+//    }
+//
+//    char *s = json_get_buf(0);
+//
+//    _log_bf(priority, opt, s, strlen(s));
+//
+//    __inside_log__ = 0;
+//}
 
 /***************************************************************************
  *
