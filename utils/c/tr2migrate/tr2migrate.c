@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/resource.h>
 #include <string.h>
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
@@ -647,9 +648,6 @@ int main(int argc, char *argv[])
     /*
      *  Do your work
      */
-    time_measure_t time_measure;
-    MT_START_TIME(time_measure)
-
     delete_right_slash(arguments.source);
     delete_right_slash(arguments.destine);
 
@@ -669,6 +667,20 @@ int main(int argc, char *argv[])
     if(access(arguments.destine, 0)==0) {
         fprintf(stderr, "Destination path already exists: %s\n", arguments.destine);
         exit(-1);
+    }
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
+    struct rlimit rl;
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 200000) {
+            // Set new limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
     }
 
     /*--------------------------------*
