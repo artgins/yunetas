@@ -463,14 +463,14 @@ PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
             ignore = FALSE;
         break;
 
-//    case LOG_AUDIT:
+    case LOG_AUDIT:
 //        if(handler_options & LOG_HND_OPT_XXXX)
-//            ignore = FALSE;
-//        break;
-//    case LOG_MONITOR:
+            ignore = FALSE;
+        break;
+    case LOG_MONITOR:
 //        if(handler_options & LOG_HND_OPT_XXXXX)
-//            ignore = FALSE;
-//        break;
+            ignore = FALSE;
+        break;
 
     default:
         break;
