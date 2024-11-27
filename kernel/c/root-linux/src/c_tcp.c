@@ -1014,8 +1014,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         }
 
                         json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                        if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                            if(!empty_string(priv->tx_ready_event_name)) {
+                        if(yev_event->flag & YEV_FLAG_WANT_TX_READY || 1) {
+                            if(!empty_string(priv->tx_ready_event_name) || 1) {
                                 json_t *kw_tx_ready = json_object();
                                 json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
                                 /*
