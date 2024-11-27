@@ -3276,15 +3276,46 @@
         const startTime = performance.now();
         let lastMarkTime = startTime;
 
+        log_warning(
+            `--> ${name} - starting`
+        );
+
         return {
             mark: (label = "Intermediate") => {
                 const currentTime = performance.now();
                 log_warning(
-                    `--> ${name} ${label} - total: ${(currentTime - startTime)/1000} sec, partial: ${(currentTime - lastMarkTime)/1000} sec`
+                    `--> ${name} ${label} - partial: ${(currentTime - lastMarkTime)/1000} sec, total: ${(currentTime - startTime)/1000} sec`
                 );
                 lastMarkTime = currentTime;
             }
         };
+    }
+
+    function createTimeTracker(tracker_name="Time Tracker") {
+        log_warning(
+            `--> ${tracker_name} - starting`
+        );
+        return {
+            name: tracker_name,
+            startTime: new Date().getTime(), // performance.now(),
+            lastMarkTime: new Date().getTime(), //performance.now()
+        };
+    }
+
+    function markTime(tracker, label = "Intermediate") {
+        if (!tracker || !tracker.startTime || !tracker.lastMarkTime) {
+            throw new Error("Invalid tracker object. Did you call createTimeTracker()?");
+        }
+
+        const currentTime = new Date().getTime(); //performance.now();
+        const totalTime = (currentTime - tracker.startTime) / 1000;
+        const sinceLastMark = (currentTime - tracker.lastMarkTime) / 1000;
+
+        log_warning(
+            `--> ${tracker.name} ${label} - partial: ${sinceLastMark.toFixed(3)} sec, total: ${totalTime.toFixed(3)} sec`
+        );
+
+        tracker.lastMarkTime = currentTime;
     }
 
 
@@ -3579,4 +3610,6 @@
     exports.element_near_parent = element_near_parent;
     exports.is_pure_number = is_pure_number;
     exports.timeTracker = timeTracker;
+    exports.createTimeTracker = createTimeTracker;
+    exports.markTime = markTime;
 })(this);
