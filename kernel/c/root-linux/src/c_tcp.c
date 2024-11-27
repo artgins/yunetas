@@ -1013,18 +1013,23 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             break;
                         }
 
-                        json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                        if(yev_event->flag & YEV_FLAG_WANT_TX_READY || 1) {
-                            if(!empty_string(priv->tx_ready_event_name) || 1) {
-                                json_t *kw_tx_ready = json_object();
-                                json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                                /*
-                                 *  CHILD subscription model
-                                 */
-                                if(gobj_is_service(gobj)) {
-                                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                                } else {
-                                    gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+                            /*
+                             *  Avoid the event EV_TX_READY in TLS while doing handshaking
+                             */
+                            json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                            if(yev_event->flag & YEV_FLAG_WANT_TX_READY || 1) {
+                                if(!empty_string(priv->tx_ready_event_name) || 1) {
+                                    json_t *kw_tx_ready = json_object();
+                                    json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                                    /*
+                                     *  CHILD subscription model
+                                     */
+                                    if(gobj_is_service(gobj)) {
+                                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                                    } else {
+                                        gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+                                    }
                                 }
                             }
                         }
