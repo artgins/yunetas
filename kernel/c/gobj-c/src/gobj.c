@@ -6899,7 +6899,6 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
-        gobj_trace_json(publisher, dl_subs, "subscription(s) REPEATED, will be deleted and override");
         gobj_unsubscribe_list(json_incref(dl_subs), FALSE);
     }
     JSON_DECREF(dl_subs)
