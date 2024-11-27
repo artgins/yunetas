@@ -999,13 +999,14 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                          */
                         priv->txBytes += (json_int_t)yev_event->result;
                         if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
-                            //gobj_log_error(gobj, 0,
-                            //    "function",     "%s", __FUNCTION__,
-                            //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                            //    "msg",          "%s", "NEED retransmit, NOT ALL DATA being sent",
-                            //    "pending",      "%d", (int)gbuffer_leftbytes(yev_event->gbuf),
-                            //    NULL
-                            //);
+                            if(gobj_trace_level(gobj) & TRACE_MACHINE) {
+                                trace_machine("🔄 mach(%s%s^%s), st: %s transmit PENDING data %ld",
+                                    !gobj_is_running(gobj)?"!!":"",
+                                    gobj_gclass_name(gobj), gobj_name(gobj),
+                                    gobj_current_state(gobj),
+                                    (long)gbuffer_leftbytes(yev_event->gbuf)
+                                );
+                            }
 
                             priv->tx_in_progress++;
                             yev_start_event(yev_event);
