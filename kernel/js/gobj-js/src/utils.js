@@ -3264,6 +3264,30 @@
         return str.trim() !== '' && !isNaN(num);
     }
 
+    /************************************************************
+     * Example Usage
+     *     const tracker = timeTracker("Track1");
+     *     tracker.mark("Step 1");
+     *     tracker.mark("Step 2");
+     ************************************************************/
+    function timeTracker(tracker_name="Time Tracker")
+    {
+        const name = tracker_name;
+        const startTime = performance.now();
+        let lastMarkTime = startTime;
+
+        return {
+            mark: (label = "Intermediate") => {
+                const currentTime = performance.now();
+                log_warning(
+                    `--> ${name} ${label} - total: ${(currentTime - startTime)/1000} sec, partial: ${(currentTime - lastMarkTime)/1000} sec`
+                );
+                lastMarkTime = currentTime;
+            }
+        };
+    }
+
+
 // TODO move this code outside, to some helper
 ///***************************************************************************
 // *
@@ -3554,4 +3578,5 @@
     exports.gobj_near_parent = gobj_near_parent;
     exports.element_near_parent = element_near_parent;
     exports.is_pure_number = is_pure_number;
+    exports.timeTracker = timeTracker;
 })(this);
