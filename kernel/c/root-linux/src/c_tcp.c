@@ -1000,7 +1000,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         priv->txBytes += (json_int_t)yev_event->result;
                         if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
                             if(gobj_trace_level(gobj) & TRACE_MACHINE) {
-                                trace_machine("🔄 mach(%s%s^%s), st: %s transmit PENDING data %ld",
+                                trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
                                     !gobj_is_running(gobj)?"!!":"",
                                     gobj_gclass_name(gobj), gobj_name(gobj),
                                     gobj_current_state(gobj),
