@@ -137,7 +137,7 @@ int do_test(void)
     /*--------------------------------*
      *  Process ring queue
      *--------------------------------*/
-    yev_loop_run(yev_loop, 1);
+    yev_loop_run(yev_loop, 2);
 
     /*--------------------------------*
      *  Launch a client to connect us
