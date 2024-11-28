@@ -13,7 +13,7 @@ export CFLAGS="-Wno-error=char-subscripts -g3 -ggdb -fPIC"
 #   - else default "/yuneta/development/yunetas"
 #
 #   YUNETA_INSTALL_PREFIX by default:
-#       - /yuneta/development/outputs_ext
+#       --prefix=/yuneta/development/outputs_ext
 #-----------------------------------------------------#
 if [ -n "$YUNETAS_BASE" ]; then
     YUNETAS_BASE_DIR="$YUNETAS_BASE"
