@@ -70,6 +70,18 @@ make install
 cd ..
 cd ../..
 
+#------------------------------------------
+#   libbacktrace
+#------------------------------------------
+echo "===================== libbacktrace ======================="
+cd build/libbacktrace
+
+./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+make
+make install
+cd ../..
+
+
 # Fix these old dependencies, the new cause errors. NEWS: it seems that works with last version
 #/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
 #/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install bungle/lua-resty-session=4.0.5

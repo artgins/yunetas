@@ -11,6 +11,9 @@ export CFLAGS="-Wno-error=char-subscripts -g3 -ggdb -fPIC"
 #   Get yunetas base path:
 #   - defined in environment variable YUNETAS_BASE
 #   - else default "/yuneta/development/yunetas"
+#
+#   YUNETA_INSTALL_PREFIX by default:
+#       - /yuneta/development/outputs_ext
 #-----------------------------------------------------#
 if [ -n "$YUNETAS_BASE" ]; then
     YUNETAS_BASE_DIR="$YUNETAS_BASE"
@@ -162,6 +165,19 @@ gmake
 gmake install
 cd ..
 cd ../..
+
+#------------------------------------------
+#   libbacktrace
+#------------------------------------------
+echo "===================== libbacktrace ======================="
+cd build/libbacktrace
+
+./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+make
+make install
+cd ../..
+
+
 
 # Fix these old dependencies, the new cause errors. NEWS: it seems that works with last version
 #/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
