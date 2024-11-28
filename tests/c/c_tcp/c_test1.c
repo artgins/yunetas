@@ -14,6 +14,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <iconv.h>
+#include <backtrace.h>
 
 #include "common/c_pepon.h"
 #include "c_test1.h"
@@ -193,6 +194,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     set_timeout(priv->timer, 1000); // timeout to drop
+
+extern void print_backtrace2(void);
+    print_backtrace2();
 
     JSON_DECREF(kw)
     return 0;

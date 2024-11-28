@@ -52,6 +52,7 @@ foreach(test ${SRCS})
         libpcre2-8.a
         libssl.a
         libcrypto.a
+        libbacktrace.a
 
         pthread dl  # used by openssl
         uuid
