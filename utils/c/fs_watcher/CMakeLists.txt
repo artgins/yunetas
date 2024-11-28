@@ -48,6 +48,7 @@ target_link_libraries(${PROJECT_NAME}
     uuid
     #util
     bfd     # to stacktrace
+    libbacktrace.a
 )
 
 #if(ESP32_MODE)

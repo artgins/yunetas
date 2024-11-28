@@ -49,6 +49,7 @@ target_link_libraries(${PROJECT_NAME}
     pthread dl  # used by openssl
     uuid
     bfd     # to stacktrace
+    libbacktrace.a
     m
 )
 

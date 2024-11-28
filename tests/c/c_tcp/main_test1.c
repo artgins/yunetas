@@ -12,8 +12,6 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <backtrace.h>
-
 #include <yunetas.h>
 #include "common/c_pepon.h"
 #include "c_test1.h"
@@ -260,54 +258,10 @@ static void cleaning(void)
 }
 
 /***************************************************************************
- *  Backtrace
- ***************************************************************************/
-PRIVATE struct backtrace_state *state = NULL;
-// Callback for errors
-PRIVATE void error_callback(void *data, const char *msg, int errnum) {
-    (void)data;
-    fprintf(stderr, "Error: %s (%d)\n", msg, errnum);
-}
-
-// Callback for full backtrace information
-PRIVATE int full_callback(void *data, uintptr_t pc, const char *filename,
-                         int lineno, const char *function) {
-    (void)data;
-
-    if (filename && function) {
-        printf("  %s:%d: %s (0x%lx)\n", filename, lineno, function, (unsigned long)pc);
-    } else if (filename) {
-        printf("  %s:%d: (unknown function) (0x%lx)\n", filename, lineno, (unsigned long)pc);
-    } else {
-        printf("  (unknown) (0x%lx)\n", (unsigned long)pc);
-    }
-    return 0;
-}
-
-PUBLIC void print_backtrace2(void)
-{
-    if (!state) {
-        fprintf(stderr, "Error: backtrace state not initialized.\n");
-        return;
-    }
-
-    printf("Backtrace:\n");
-    backtrace_full(state, 0, full_callback, error_callback, NULL);
-}
-
-/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    // Initialize the backtrace state
-    state = backtrace_create_state(argv[0], 1, error_callback, NULL);
-
-    if (!state) {
-        fprintf(stderr, "Error: Failed to create backtrace state.\n");
-        return 1;
-    }
-
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/

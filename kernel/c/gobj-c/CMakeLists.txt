@@ -41,6 +41,7 @@ set (SRCS
     src/rotatory.c
 
     src/stacktrace_with_bfd.c
+    src/stacktrace_with_backtrace.c
 )
 
 set (HDRS
@@ -64,6 +65,7 @@ set (HDRS
     src/rotatory.h
 
     src/stacktrace_with_bfd.h
+    src/stacktrace_with_backtrace.h
 )
 
 ##############################################

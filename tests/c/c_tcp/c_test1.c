@@ -195,9 +195,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     set_timeout(priv->timer, 1000); // timeout to drop
 
-extern void print_backtrace2(void);
-    print_backtrace2();
-
     JSON_DECREF(kw)
     return 0;
 }
