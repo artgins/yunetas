@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
     }
 
     if(result<0) {
-        printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, APP);
+        printf("<-- %sTEST FAILED%s: %s, is telnet installed? use to make a connect.\n", On_Red BWhite, Color_Off, APP);
     }
     return result<0?-1:0;
 }
