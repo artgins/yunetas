@@ -137,7 +137,7 @@ int do_test(void)
     /*--------------------------------*
      *  Process ring queue
      *--------------------------------*/
-    yev_loop_run(yev_loop, 2);
+    yev_loop_run(yev_loop, 1);
 
     /*--------------------------------*
      *  Launch a client to connect us
@@ -147,7 +147,7 @@ int do_test(void)
     /*--------------------------------*
      *  Process ring queue
      *--------------------------------*/
-    yev_loop_run(yev_loop, 2);
+    yev_loop_run(yev_loop, 1);
 
     /*------------------------------------------------------------*
      *  Here we are because a telnet was connected us or timeout

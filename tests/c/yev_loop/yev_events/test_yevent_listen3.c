@@ -137,7 +137,7 @@ int do_test(void)
         AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept);
-    yev_loop_run(yev_loop, 2);
+    yev_loop_run(yev_loop, 1);
 
     /*--------------------------------*
      *      Close the socket
