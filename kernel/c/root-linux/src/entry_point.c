@@ -438,8 +438,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Parse input arguments
      *------------------------------------------------*/
-    struct arguments arguments;
-    memset(&arguments, 0, sizeof(struct arguments));
+    struct arguments arguments = {0};
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
     if(arguments.stop) {

@@ -75,11 +75,11 @@ PRIVATE int full_callback(
     void *h = data->h;
 
     if (filename && function) {
-        fwrite_fn(h, LOG_DEBUG, "  %s:%d: %s (0x%lx)\n", filename, lineno, function, (unsigned long)pc);
+        fwrite_fn(h, LOG_DEBUG, "%-34s %s:%d (0x%lx) ", function, filename, lineno, (unsigned long)pc);
     } else if (filename) {
-        fwrite_fn(h, LOG_DEBUG, "  %s:%d: (unknown function) (0x%lx)\n", filename, lineno, (unsigned long)pc);
+        fwrite_fn(h, LOG_DEBUG, "%s:%d (0x%lx)", filename, lineno, (unsigned long)pc);
     } else {
-        fwrite_fn(h, LOG_DEBUG, "  (unknown) (0x%lx)\n", (unsigned long)pc);
+        fwrite_fn(h, LOG_DEBUG, "(unknown) (0x%lx)", (unsigned long)pc);
     }
     return 0;
 }

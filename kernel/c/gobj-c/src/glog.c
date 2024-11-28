@@ -112,7 +112,6 @@ typedef int hgen_t;
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap);
 PRIVATE void discover(hgobj gobj, hgen_t hgen);
@@ -173,7 +172,7 @@ PRIVATE volatile char __inside_log__ = 0;
 PRIVATE char trace_with_short_name = FALSE; // TODO functions to set this variables
 PRIVATE char trace_with_full_name = TRUE;  // TODO functions to set this variables
 
-PRIVATE show_backtrace_fn_t show_backtrace_fn = show_backtrace;
+PRIVATE show_backtrace_fn_t show_backtrace_fn = 0;
 PRIVATE dl_list_t dl_log_handlers = {0};
 PRIVATE int max_log_register = 0;
 PRIVATE log_reg_t log_register[MAX_LOG_HANDLER_TYPES+1] = {0};
@@ -702,30 +701,9 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void show_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
+PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_)
 {
-#ifdef __linux__
-    void* callstack[128];
-    int frames = backtrace(callstack, sizeof(callstack) / sizeof(void*));
-    char** symbols = backtrace_symbols(callstack, frames);
-
-    if (symbols == NULL) {
-        return;
-    }
-    fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
-    for (int i = 0; i < frames; i++) {
-        fwrite_fn(h, LOG_DEBUG, "%s", symbols[i]);
-    }
-    free(symbols);
-#endif
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace)
-{
-    show_backtrace_fn = show_backtrace;
+    show_backtrace_fn = show_backtrace_;
 }
 
 /***************************************************************************
@@ -737,7 +715,6 @@ PUBLIC void print_backtrace(void)
         show_backtrace_fn(stdout_fwrite, stdout);
     }
 }
-
 
 /***************************************************************************
  *
@@ -1010,7 +987,9 @@ PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
             if((opt & (LOG_OPT_TRACE_STACK|LOG_OPT_EXIT_NEGATIVE|LOG_OPT_ABORT)) ||
                     ((lh->handler_options & LOG_HND_OPT_TRACE_STACK) && priority <=LOG_ERR)
                 ) {
-                show_backtrace(lh->hr->fwrite_fn, lh->h);
+                if(show_backtrace_fn && lh->hr->fwrite_fn) {
+                    show_backtrace_fn(lh->hr->fwrite_fn, lh->h);
+                }
             }
         }
 
