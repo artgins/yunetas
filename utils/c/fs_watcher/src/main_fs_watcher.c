@@ -7,7 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
-#include <stacktrace_with_bfd.h>
+#include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
 #include <ansi_escape_codes.h>
 #include <fs_watcher.h>
@@ -137,8 +137,8 @@ int main(int argc, char *argv[])
 //    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
 #ifdef DEBUG
-    init_backtrace_with_bfd(argv[0]);
-    set_show_backtrace_fn(show_backtrace_with_bfd);
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
 #endif
 
     gobj_start_up(

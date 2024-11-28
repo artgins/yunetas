@@ -49,7 +49,7 @@
 
 #include <gobj.h>
 #include <timeranger2.h>
-#include <stacktrace_with_bfd.h>
+#include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
 #include <kwid.h>
 #include <testing.h>
@@ -502,8 +502,8 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
-    init_backtrace_with_bfd(argv[0]);
-    set_show_backtrace_fn(show_backtrace_with_bfd);
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
 
     /*-------------------------------------*
      *  Captura salida logger very early

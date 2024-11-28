@@ -40,7 +40,6 @@ set (SRCS
     src/launch_daemon.c
     src/rotatory.c
 
-    src/stacktrace_with_bfd.c
     src/stacktrace_with_backtrace.c
 )
 
@@ -64,7 +63,6 @@ set (HDRS
     src/launch_daemon.h
     src/rotatory.h
 
-    src/stacktrace_with_bfd.h
     src/stacktrace_with_backtrace.h
 )
 

@@ -42,9 +42,10 @@ foreach(test ${SRCS})
         libjansson.a
         liburing.a
         libpcre2-8.a
+        libbacktrace.a
+
         m
         uuid
-        bfd     # to stacktrace
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

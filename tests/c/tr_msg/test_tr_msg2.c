@@ -584,8 +584,8 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
 
-    init_backtrace_with_bfd(argv[0]);
-    set_show_backtrace_fn(show_backtrace_with_bfd);
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
 
     gobj_start_up(
         argc,

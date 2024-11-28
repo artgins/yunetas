@@ -31,7 +31,7 @@ extern "C"{
 #include <log_udp_handler.h>
 #include <parse_url.h>
 #include <replace_string.h>
-#include <stacktrace_with_bfd.h>
+#include <stacktrace_with_backtrace.h>
 #include <stats_parser.h>
 #include <testing.h>
 #include <ytls.h>

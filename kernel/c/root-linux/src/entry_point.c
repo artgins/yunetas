@@ -23,7 +23,7 @@
 #include <yev_loop.h>
 #include <log_udp_handler.h>
 #include <gobj_environment.h>
-#include <stacktrace_with_bfd.h>
+#include <stacktrace_with_backtrace.h>
 // #include <stacktrace_with_backtrace.h>
 #include <yuneta_version.h>
 #include <rotatory.h>
@@ -429,8 +429,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *process_name = APP_NAME;
 
 #ifdef DEBUG
-    // init_backtrace_with_bfd(argv[0]);
-    // set_show_backtrace_fn(show_backtrace_with_bfd);
     init_backtrace_with_backtrace(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_backtrace);
 #endif

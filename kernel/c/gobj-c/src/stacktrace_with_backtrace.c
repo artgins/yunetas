@@ -12,13 +12,7 @@
 #ifdef __linux__
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <syslog.h>
-#include <stdbool.h>
-#include <limits.h>
-#include <bfd.h>
-#include <libiberty/demangle.h>
-#include <execinfo.h>
 #include <backtrace.h>
 
 #include "stacktrace_with_backtrace.h"
@@ -124,8 +118,6 @@ PUBLIC int init_backtrace_with_backtrace(const char *program)
             return -1;
         }
 
-
-        bfd_init();
         initialized = TRUE;
     }
     snprintf(program_name, sizeof(program_name), "%s", program?program:"");

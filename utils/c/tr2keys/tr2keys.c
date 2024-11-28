@@ -23,7 +23,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <timeranger2.h>
-#include <stacktrace_with_bfd.h>
+#include <stacktrace_with_backtrace.h>
 #include <cpu.h>
 #include <yev_loop.h>
 
@@ -693,8 +693,8 @@ int main(int argc, char *argv[])
     );
 
 #ifdef DEBUG
-    init_backtrace_with_bfd(argv[0]);
-    set_show_backtrace_fn(show_backtrace_with_bfd);
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
 #endif
 
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;

@@ -49,9 +49,9 @@ foreach(test ${SRCS})
         libjansson.a
         liburing.a
         libpcre2-8.a
+        libbacktrace.a
 
         uuid
-        bfd     # to stacktrace
         m
     )
     add_test("${current_directory_name}/${test}" ${binary})

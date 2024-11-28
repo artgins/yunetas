@@ -49,11 +49,10 @@ target_link_libraries(${PROJECT_NAME}
     libpcre2-8.a
     libssl.a
     libcrypto.a
+    libbacktrace.a
 
     pthread dl  # used by openssl
     uuid
-    bfd     # to stacktrace
-    libbacktrace.a
     m
 )
 

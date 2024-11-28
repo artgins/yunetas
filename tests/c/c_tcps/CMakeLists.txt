@@ -52,11 +52,10 @@ foreach(test ${SRCS})
         libpcre2-8.a
         libssl.a
         libcrypto.a
+        libbacktrace.a
 
         pthread dl  # used by openssl
         uuid
-        bfd     # to stacktrace
-        libbacktrace.a
         m
     )
     add_test("${current_directory_name}/${test}" ${binary})
