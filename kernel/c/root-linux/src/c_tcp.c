@@ -413,7 +413,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Info of "connected"
      */
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT || 1) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -565,7 +565,7 @@ PRIVATE void set_disconnected(hgobj gobj)
     gobj_write_bool_attr(gobj, "connected", FALSE);
     gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+    if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT) || 1) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
