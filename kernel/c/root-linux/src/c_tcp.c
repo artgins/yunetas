@@ -1033,9 +1033,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                                 }
                             }
                         }
+                        yev_destroy_event(yev_event);
+                    } else {
+                        yev_destroy_event(yev_event);
+                        try_to_stop_yevents(gobj);
                     }
-
-                    yev_destroy_event(yev_event);
 
                 } else {
                     /*
