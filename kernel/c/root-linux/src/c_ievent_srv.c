@@ -750,6 +750,8 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             TRUE
         );
 
+        // TODO why don't send a mark in the message, the when transmit is done, drop the connection?
+        //      so we avoid create a timer with each ievent_srv (could it be millions)
         send_static_iev(
             gobj,
             EV_IDENTITY_CARD_ACK,
