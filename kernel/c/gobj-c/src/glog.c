@@ -185,6 +185,8 @@ PRIVATE uint32_t __warning_count__ = 0;
 PRIVATE uint32_t __info_count__ = 0;
 PRIVATE uint32_t __debug_count__ = 0;
 
+PRIVATE log_handler_opt_t global_handler_option = 0;
+
 /****************************************************************************
  *
  ****************************************************************************/
@@ -426,6 +428,24 @@ PUBLIC json_t *gobj_log_list_handlers(void)
         lh = dl_next(lh);
     }
     return jn_array;
+}
+
+/*****************************************************************
+ *  Only for LOG_HND_OPT_BEAUTIFUL_JSON
+ *****************************************************************/
+PUBLIC int gobj_log_set_global_handler_option(
+    log_handler_opt_t log_handler_opt,
+    BOOL set
+)
+{
+    if(set) {
+        global_handler_option |= log_handler_opt;
+
+    } else {
+        global_handler_option &= ~log_handler_opt;
+    }
+
+    return 0;
 }
 
 /*****************************************************************
@@ -952,7 +972,11 @@ PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
         }
 
         if(lh->hr->write_fn) {
-            ul_buffer_reset(0, (lh->handler_options & LOG_HND_OPT_BEAUTIFUL_JSON)?TRUE:FALSE);
+            BOOL json_beautiful = (lh->handler_options & LOG_HND_OPT_BEAUTIFUL_JSON)?TRUE:FALSE;
+            if(global_handler_option & LOG_HND_OPT_BEAUTIFUL_JSON) {
+                json_beautiful = TRUE;
+            }
+            ul_buffer_reset(0, json_beautiful);
 
             if(!(lh->handler_options & LOG_HND_OPT_NOTIME)) {
                 char timestamp[90];
@@ -1011,48 +1035,6 @@ PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
         abort();
     }
 }
-
-///*****************************************************************
-// *      Log
-// *****************************************************************/
-//PRIVATE void _log(hgobj gobj, int priority, log_opt_t opt, va_list ap)
-//{
-//    char timestamp[90];
-//
-//    if(!__initialized__) {
-//        return;
-//    }
-//    if(__inside_log__) {
-//        return;
-//    }
-//    __inside_log__ = 1;
-//
-//    current_timestamp(timestamp, sizeof(timestamp));
-//
-//    // TODO (lh->handler_options & LOG_HND_OPT_BEATIFUL_JSON)?TRUE:FALSE
-//    ul_buffer_reset(0, TRUE);
-//    json_add_string(0, "timestamp", timestamp);
-//
-//    discover(gobj, 0);
-//
-//    json_vappend(0, priority, ap);
-//
-//    if(opt & LOG_OPT_EXIT_NEGATIVE) {
-//        json_add_string(0, "exiting", "-1");
-//    }
-//    if(opt & LOG_OPT_EXIT_ZERO) {
-//        json_add_string(0, "exiting", "0");
-//    }
-//    if(opt & LOG_OPT_ABORT) {
-//        json_add_string(0, "exiting", "abort");
-//    }
-//
-//    char *s = json_get_buf(0);
-//
-//    _log_bf(priority, opt, s, strlen(s));
-//
-//    __inside_log__ = 0;
-//}
 
 /***************************************************************************
  *

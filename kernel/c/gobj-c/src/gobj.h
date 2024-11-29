@@ -2277,6 +2277,15 @@ PUBLIC int gobj_log_add_handler(
 );
 PUBLIC int gobj_log_del_handler(const char *handler_name); // delete all handlers if handle_name is empty
 PUBLIC json_t *gobj_log_list_handlers(void);
+
+/*
+ *  Only for LOG_HND_OPT_BEAUTIFUL_JSON
+ */
+PUBLIC int gobj_log_set_global_handler_option(
+    log_handler_opt_t log_handler_opt,
+    BOOL set
+);
+
 PUBLIC int stdout_write(void *v, int priority, const char *bf, size_t len);
 PUBLIC int stdout_fwrite(void* v, int priority, const char* format, ...);
 
