@@ -252,8 +252,8 @@ PUBLIC void glog_end(void)
 PUBLIC int gobj_log_register_handler(
     const char* handler_type,
     loghandler_close_fn_t close_fn,
-    loghandler_write_fn_t write_fn,
-    loghandler_fwrite_fn_t fwrite_fn
+    loghandler_write_fn_t write_fn,     // for log
+    loghandler_fwrite_fn_t fwrite_fn    // for backtrace
 ) {
     if(max_log_register >= MAX_LOG_HANDLER_TYPES) {
         return -1;

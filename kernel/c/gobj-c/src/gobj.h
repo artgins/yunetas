@@ -2264,8 +2264,8 @@ PUBLIC void glog_end(void); // Better you don't call. It's few memory and you wi
 PUBLIC int gobj_log_register_handler(
     const char *handler_type,
     loghandler_close_fn_t close_fn,
-    loghandler_write_fn_t write_fn,
-    loghandler_fwrite_fn_t fwrite_fn
+    loghandler_write_fn_t write_fn,     // for log
+    loghandler_fwrite_fn_t fwrite_fn    // for backtrace
 );
 PUBLIC BOOL gobj_log_exist_handler(const char *handler_name);
 
