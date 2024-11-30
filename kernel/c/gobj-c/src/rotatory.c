@@ -335,7 +335,7 @@ PUBLIC int rotatory_write(hrotatory_t hr_, int priority, const char* bf, size_t 
         _rotatory(hr, spriority, strlen(spriority));
         _rotatory(hr, bf, len);
     }
-    #define END_LOG "\n\n"
+    #define END_LOG "\n"
     _rotatory(hr, END_LOG, strlen(END_LOG));
     return 0;
 }

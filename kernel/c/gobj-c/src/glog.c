@@ -680,7 +680,7 @@ PUBLIC int stdout_write(void* v, int priority, const char* bf, size_t len)
     fwrite(": ", strlen(": "), 1, stdout);
     fwrite(bf, len, 1, stdout);
 
-    #define END_LOG "\n\n"
+    #define END_LOG "\n"
     fwrite(END_LOG, strlen(END_LOG), 1, stdout);
     fflush(stdout);
 
