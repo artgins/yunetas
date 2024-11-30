@@ -902,6 +902,7 @@ PUBLIC void print_error(
 
 /*****************************************************************
  *      Log data in transparent format
+ *      Used in trace_machine and trace_vjson
  *****************************************************************/
 PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 {
@@ -951,6 +952,7 @@ PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 
 /*****************************************************************
  *      Log data in json format
+ *      Used in gobj_log_*()
  *****************************************************************/
 PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
 {
@@ -1638,6 +1640,7 @@ PRIVATE char *ul_buffer_finalize(hgen_t hgen)
     else
         buffer->msg[buffer->len++] = ' ';
     buffer->msg[buffer->len++] = '}';
+    buffer->msg[buffer->len++] = '\n';
     buffer->msg[buffer->len] = '\0';
     return buffer->msg;
 }
@@ -1647,7 +1650,7 @@ PRIVATE char *ul_buffer_finalize(hgen_t hgen)
  *****************************************************************/
 PRIVATE char * json_get_buf(hgen_t hgen)
 {
-    return ul_buffer_finalize (hgen);
+    return ul_buffer_finalize(hgen);
 }
 
 /*****************************************************************
