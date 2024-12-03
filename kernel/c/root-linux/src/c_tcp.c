@@ -155,6 +155,9 @@ typedef struct _PRIVATE_DATA {
     hytls ytls;
     hsskt sskt;
 
+    dl_list_t dl_tx;
+    gbuffer_t *gbuf_txing;
+
     const char *tx_ready_event_name;
     int tx_in_progress;
 } PRIVATE_DATA;
@@ -1017,19 +1020,17 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             /*
                              *  Avoid the event EV_TX_READY in TLS while doing handshaking
                              */
-                            json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                            if(yev_event->flag & YEV_FLAG_WANT_TX_READY || 1) {
-                                if(!empty_string(priv->tx_ready_event_name) || 1) {
-                                    json_t *kw_tx_ready = json_object();
-                                    json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-                                    /*
-                                     *  CHILD subscription model
-                                     */
-                                    if(gobj_is_service(gobj)) {
-                                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                                    } else {
-                                        gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                                    }
+                            if(!empty_string(priv->tx_ready_event_name) || 1) {
+                                json_t *kw_tx_ready = json_object();
+                                json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
+                                json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
+                                /*
+                                 *  CHILD subscription model
+                                 */
+                                if(gobj_is_service(gobj)) {
+                                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                                } else {
+                                    gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
                                 }
                             }
                         }
@@ -1187,9 +1188,9 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Sending data not encrypted
+ *  Sending data, if using TLS will be encrypted, else sent
  ***************************************************************************/
-PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1251,8 +1252,6 @@ PRIVATE int ac_tx_clear_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
         priv->tx_in_progress++;
 
-        BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
-        yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
         yev_start_event(yev_write_event);
     }
 
@@ -1282,8 +1281,6 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     priv->tx_in_progress++;
 
-    BOOL want_tx_ready = 0; // TODO sacalo del gbuffer kw_get_bool(gobj, kw, "want_tx_ready", 0, 0); // TODO get from attr?
-    yev_set_flag(yev_write_event, YEV_FLAG_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_write_event);
 
     KW_DECREF(kw)
@@ -1375,7 +1372,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_connected[] = {
-        {EV_TX_DATA,                ac_tx_clear_data,           0},
+        {EV_TX_DATA,                ac_tx_data,                 0},
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
         {EV_DROP,                   ac_drop,                    0},
         {0,0,0}

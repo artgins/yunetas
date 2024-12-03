@@ -42,7 +42,6 @@ PRIVATE const char *yev_flag_s[] = {
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_TLS",
     "YEV_FLAG_CONNECTED",
-    "YEV_FLAG_WANT_TX_READY",
     0
 };
 

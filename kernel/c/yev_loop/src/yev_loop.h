@@ -14,7 +14,6 @@
 #include <netdb.h>
 
 #include <gobj.h>
-#include <helpers.h>
 #include <parse_url.h>
 
 #ifdef __cplusplus
@@ -92,7 +91,6 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_TIMER_PERIODIC     = 0x01,
     YEV_FLAG_USE_TLS            = 0x02,
     YEV_FLAG_CONNECTED          = 0x04,     // user
-    YEV_FLAG_WANT_TX_READY      = 0x08,     // user
 } yev_flag_t;
 
 typedef enum  {

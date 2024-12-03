@@ -728,7 +728,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
     that the application should retry the operation later.
     */
 
-    long pending;
+    int pending;
     while((pending = BIO_pending(sskt->wbio))>0) {
         gbuffer_t *gbuf = gbuffer_create(pending, pending);
         if(!gbuf) {
@@ -741,7 +741,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
             return -1;
         }
         char *p = gbuffer_cur_wr_pointer(gbuf);
-        int ret = BIO_read(sskt->wbio, p, pending);
+        const int ret = BIO_read(sskt->wbio, p, pending);
         if(sskt->ytls->trace) {
             gobj_trace_msg(gobj, "------- flush_encrypted_data() %d, userp %p", ret, sskt->user_data);
         }
@@ -778,10 +778,10 @@ PRIVATE int encrypt_data(
 
     size_t len;
     while(sskt->ssl && (len = gbuffer_chunk(gbuf))>0) {
-        char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
-        int written = SSL_write(sskt->ssl, p, len);
+        const char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
+        const int written = SSL_write(sskt->ssl, p, len);
         if(written <= 0) {
-            int ret = SSL_get_error(sskt->ssl, written);
+            const int ret = SSL_get_error(sskt->ssl, written);
             switch(ret) {
             case SSL_ERROR_WANT_READ:
             case SSL_ERROR_WANT_WRITE:
