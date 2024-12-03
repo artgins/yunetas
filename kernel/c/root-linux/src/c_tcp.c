@@ -98,7 +98,7 @@ SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verifi
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
 
-SDATA (DTP_STRING,  "tx_ready_event_name",SDF_RD,       "",         "Legacy attr. Set no-empty if you want EV_TX_READY event"),
+SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set true if you don't want EV_TX_READY event"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
@@ -158,7 +158,7 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
 
-    const char *tx_ready_event_name;
+    BOOL no_tx_ready_event;
     int tx_in_progress;
 } PRIVATE_DATA;
 
@@ -195,7 +195,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     SET_PRIV(use_ssl,               gobj_read_bool_attr)
-    SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
+    SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
     SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
@@ -209,7 +209,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(tx_ready_event_name,   gobj_read_str_attr)
+    ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
@@ -1020,10 +1020,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             /*
                              *  Avoid the event EV_TX_READY in TLS while doing handshaking
                              */
-                            if(!empty_string(priv->tx_ready_event_name) || 1) {
+                            if(!priv->no_tx_ready_event) {
                                 json_t *kw_tx_ready = json_object();
-                                json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                                json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
                                 /*
                                  *  CHILD subscription model
                                  */
@@ -1188,7 +1186,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Sending data, if using TLS will be encrypted, else sent
+ *  Sending data, if using TLS will be encrypted, else sent as is
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {

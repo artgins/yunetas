@@ -779,19 +779,14 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     set_disconnected(gobj, strerror(-yev_event->result));
 
                 } else {
-                    json_int_t mark = (json_int_t)gbuffer_getmark(yev_event->gbuf);
-                    if(yev_event->flag & YEV_FLAG_WANT_TX_READY) {
-                        json_t *kw_tx_ready = json_object();
-                        json_object_set_new(kw_tx_ready, "gbuffer_mark", json_integer(mark));
-
-                        /*
-                         *  CHILD subscription model
-                         */
-                        if(gobj_is_service(gobj)) {
-                            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                        } else {
-                            gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                        }
+                    json_t *kw_tx_ready = json_object();
+                    /*
+                     *  CHILD subscription model
+                     */
+                    if(gobj_is_service(gobj)) {
+                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                    } else {
+                        gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
                     }
                 }
 
@@ -861,7 +856,6 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL want_tx_ready = kw_get_bool(gobj, kw, "want_tx_ready", 0, 0);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -884,7 +878,6 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->tty_fd,
         gbuffer_incref(gbuf)
     );
-    yev_set_flag(yev_client_tx, YEV_FLAG_WANT_TX_READY, want_tx_ready);
     yev_start_event(yev_client_tx);
 
     KW_DECREF(kw)
