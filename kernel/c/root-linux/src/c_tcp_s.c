@@ -30,7 +30,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 //PRIVATE void on_close_cb(uv_handle_t* handle);
 //PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
 

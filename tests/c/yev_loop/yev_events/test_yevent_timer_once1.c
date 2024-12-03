@@ -29,7 +29,7 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data

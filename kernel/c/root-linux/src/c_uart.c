@@ -35,7 +35,7 @@ typedef enum serial_parity {
  ***************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
-PRIVATE int yev_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 
 /***************************************************************
  *              Data

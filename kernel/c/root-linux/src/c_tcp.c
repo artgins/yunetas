@@ -69,7 +69,7 @@ GOBJ_DECLARE_EVENT(EV_SEND_ENCRYPTED_DATA);
  ***************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE void set_connected(hgobj gobj, int fd);
-PRIVATE int yev_callback(yev_event_t *event);
+PRIVATE int yev_callback(yev_event_t *yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);

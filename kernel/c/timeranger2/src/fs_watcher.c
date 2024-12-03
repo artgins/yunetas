@@ -33,7 +33,7 @@ PRIVATE void fs_destroy_watcher_event(
     fs_event_t *fs_event
 );
 PRIVATE int yev_callback(
-    yev_event_t *event
+    yev_event_t *yev_event
 );
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
