@@ -77,6 +77,11 @@ extern "C"{
         index >= 0 && (value = json_array_get(array, index)); \
         index--)
 
+#define json_array_foreach_continue(array, index, value)                                \
+    for (;                                                                              \
+         index < json_array_size(array) && (value = json_array_get(array, index));      \
+         index++)
+
 #define JSON_TYPEOF(json, tipo) (json && json_typeof(json)==tipo)
 
 /*---------------------------------*
