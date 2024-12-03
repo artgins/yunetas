@@ -440,17 +440,6 @@
     }
 
     /********************************************
-     *  Return UTC time of right now
-     ********************************************/
-    function get_now()
-    {
-        let start = new Date();
-        start.setMilliseconds(0);
-
-        return start/1000;
-    }
-
-    /********************************************
      *  t: UTC time
      *  mask: format of moment.js
      ********************************************/
@@ -476,7 +465,6 @@
     exports.get_months_range = get_months_range;
     exports.get_years_range = get_years_range;
     exports.get_today = get_today;
-    exports.get_now = get_now;
     exports.display_time = display_time;
 
 })(this);

@@ -310,7 +310,6 @@ PRIVATE int mt_start(hgobj gobj)
             }
             tcp0 = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_connex, gobj);
             gobj_set_bottom_gobj(gobj, tcp0);
-            gobj_write_str_attr(tcp0, "tx_ready_event_name", 0);
         }
     }
 

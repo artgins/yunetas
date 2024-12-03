@@ -2616,51 +2616,6 @@
     }
 
     /************************************************************
-     *        Get current date
-     *        Return string in "2022/09/12 12:27:15" format
-     ************************************************************/
-    function get_current_datetime()
-    {
-        let currentTime = new Date();
-        let month = currentTime.getMonth() + 1;
-        if (month < 10) {
-            month = "0" + month;
-        }
-        let day = currentTime.getDate();
-        if (day < 10) {
-            day = "0" + day;
-        }
-        let year = currentTime.getFullYear();
-        let fecha = year + "/" + month + "/" + day;
-
-        let hours = currentTime.getHours();
-        if (hours < 10) {
-            hours = "0" + hours;
-        }
-        let minutes = currentTime.getMinutes();
-        if (minutes < 10) {
-            minutes = "0" + minutes;
-        }
-        let seconds = currentTime.getSeconds();
-        if (seconds < 10) {
-            seconds = "0" + seconds;
-        }
-        let hora = hours + ":" + minutes + ":" + seconds;
-        return fecha + " " + hora;
-    }
-
-    /********************************************
-     *  Return UTC time of right now
-     ********************************************/
-    function get_now()
-    {
-        let start = new Date();
-        start.setMilliseconds(0);
-
-        return start/1000;
-    }
-
-    /************************************************************
      * https://stackoverflow.com/questions/38552003/how-to-decode-jwt-token-in-javascript-without-using-a-library
      ************************************************************/
     function jwtDecode(jwt)
@@ -3291,6 +3246,49 @@
         };
     }
 
+    /************************************************************
+     *        Get current date
+     *        Return string in "2022/09/12 12:27:15" format
+     ************************************************************/
+    function get_current_datetime()
+    {
+        let currentTime = new Date();
+        let month = currentTime.getMonth() + 1;
+        if (month < 10) {
+            month = "0" + month;
+        }
+        let day = currentTime.getDate();
+        if (day < 10) {
+            day = "0" + day;
+        }
+        let year = currentTime.getFullYear();
+        let fecha = year + "/" + month + "/" + day;
+
+        let hours = currentTime.getHours();
+        if (hours < 10) {
+            hours = "0" + hours;
+        }
+        let minutes = currentTime.getMinutes();
+        if (minutes < 10) {
+            minutes = "0" + minutes;
+        }
+        let seconds = currentTime.getSeconds();
+        if (seconds < 10) {
+            seconds = "0" + seconds;
+        }
+        let hora = hours + ":" + minutes + ":" + seconds;
+        return fecha + " " + hora;
+    }
+
+    /********************************************
+     *  Return UTC time of right now
+     ********************************************/
+    function get_now()
+    {
+        let start = Math.floor(Date.now() / 1000);
+        return start;
+    }
+
 
 // TODO move this code outside, to some helper
 ///***************************************************************************
@@ -3561,8 +3559,6 @@
     exports.adjust_font_size = adjust_font_size;
     exports.adjust_icon_size = adjust_icon_size;
     exports.htmlToElement = htmlToElement;
-    exports.get_current_datetime = get_current_datetime;
-    exports.get_now = get_now;
     exports.jwtDecode = jwtDecode;
     exports.jwt2json = jwt2json;
     exports.is_metadata_key = is_metadata_key;
@@ -3583,4 +3579,6 @@
     exports.element_near_parent = element_near_parent;
     exports.is_pure_number = is_pure_number;
     exports.timeTracker = timeTracker;
+    exports.get_current_datetime = get_current_datetime;
+    exports.get_now = get_now;
 })(this);

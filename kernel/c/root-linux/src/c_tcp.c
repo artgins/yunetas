@@ -807,7 +807,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 
     //static int counter = 0;
     //size_t size = dl_size(&priv->dl_tx);
-    // TODO if(priv->max_tx_queue && size >= priv->max_tx_queue) {
+    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
     //     if((counter % priv->max_tx_queue)==0) {
     //         log_error(0,
     //             "gobj",         "%s", gobj_full_name(gobj),
