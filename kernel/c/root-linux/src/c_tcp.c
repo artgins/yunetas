@@ -182,6 +182,8 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    dl_init(&priv->dl_tx, gobj);
+
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
@@ -351,6 +353,9 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(IS_CLI) {
         EXEC_AND_RESET(ytls_cleanup, priv->ytls)
     }
+
+    GBUFFER_DECREF(priv->gbuf_txing)
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 }
 
 /***************************************************************************
@@ -373,7 +378,10 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "rxMsgs")==0) {
         v.found = 1;
         v.v.i = priv->rxMsgs;
+    } else if(strcmp(name, "cur_tx_queue")==0) {
+        v.v.i = (json_int_t)dl_size(&priv->dl_tx);
     }
+
     return v;
 }
 
@@ -694,6 +702,136 @@ PRIVATE void set_disconnected(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Write the current gbuffer
+ ***************************************************************************/
+PRIVATE int write_data(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = priv->gbuf_txing;
+
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
+            gobj_short_name(gobj),
+            gobj_read_str_attr(gobj, "sockname"),
+            " -> ",
+            gobj_read_str_attr(gobj, "peername")
+        );
+    }
+
+    if(priv->sskt) {
+        GBUFFER_INCREF(gbuf)
+        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ytls_encrypt_data() FAILED",
+                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+        }
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+                NULL
+            );
+        }
+    } else {
+        priv->txMsgs++;
+
+        /*
+         *  Transmit
+         */
+        int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
+        yev_event_t *yev_write_event = yev_create_write_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            fd,
+            gbuffer_incref(gbuf)
+        );
+
+        priv->tx_in_progress++;
+        yev_start_event(yev_write_event);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Try more writes
+ ***************************************************************************/
+PRIVATE void try_more_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Clear the current tx msg
+     */
+    GBUFFER_DECREF(priv->gbuf_txing)
+
+    /*
+     *  Get the next tx msg
+     */
+    gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
+    if(!gbuf_txing) {
+        /*
+         *  If no more publish tx ready
+         */
+        if(!priv->no_tx_ready_event) {
+            json_t *kw_tx_ready = json_object();
+            /*
+             *  CHILD subscription model
+             */
+            if(gobj_is_service(gobj)) {
+                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+            } else {
+                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+            }
+        }
+    } else {
+        priv->gbuf_txing = gbuf_txing;
+        dl_delete(&priv->dl_tx, gbuf_txing, 0);
+        write_data(gobj);
+    }
+}
+
+/***************************************************************************
+ *  Enqueue data
+ ***************************************************************************/
+PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    //static int counter = 0;
+    //size_t size = dl_size(&priv->dl_tx);
+    // TODO if(priv->max_tx_queue && size >= priv->max_tx_queue) {
+    //     if((counter % priv->max_tx_queue)==0) {
+    //         log_error(0,
+    //             "gobj",         "%s", gobj_full_name(gobj),
+    //             "function",     "%s", __FUNCTION__,
+    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //             "msg",          "%s", "Tiro mensaje tx",
+    //             "counter",      "%d", (int)counter,
+    //             NULL
+    //         );
+    //     }
+    //     counter++;
+    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
+    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
+    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
+    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
+    //     gbuf_decref(gbuf_first);
+    // }
+
+    dl_add(&priv->dl_tx, gbuf);
+
+    return 0;
+}
+
+/***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
@@ -997,8 +1135,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                 if(yev_state == YEV_ST_IDLE) {
                     if(gobj_is_running(gobj)) {
                         /*
-                         *  TODO in cqe->res come the written bytes,
-                         *   pop these byes of gbuf and if is not empty then write the remain
+                         *  See if all data was transmitted
                          */
                         priv->txBytes += (json_int_t)yev_event->result;
                         if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
@@ -1016,21 +1153,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             break;
                         }
 
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
-                            /*
-                             *  Avoid the event EV_TX_READY in TLS while doing handshaking
-                             */
-                            if(!priv->no_tx_ready_event) {
-                                json_t *kw_tx_ready = json_object();
-                                /*
-                                 *  CHILD subscription model
-                                 */
-                                if(gobj_is_service(gobj)) {
-                                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                                } else {
-                                    gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                                }
-                            }
+                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
+                            try_more_writes(gobj);
                         }
                         yev_destroy_event(yev_event);
                     } else {
@@ -1204,53 +1328,11 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
-            gobj_short_name(gobj),
-            gobj_read_str_attr(gobj, "sockname"),
-            " -> ",
-            gobj_read_str_attr(gobj, "peername")
-        );
-    }
-
-    if(priv->sskt) {
-        GBUFFER_INCREF(gbuf)
-        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "ytls_encrypt_data() FAILED",
-                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
-                NULL
-            );
-            try_to_stop_yevents(gobj);
-        }
-        if(gbuffer_leftbytes(gbuf) > 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
-                NULL
-            );
-        }
+    if(!priv->gbuf_txing) {
+        priv->gbuf_txing = gbuffer_incref(gbuf);
+        write_data(gobj);
     } else {
-        priv->txMsgs++;
-
-        /*
-         *  Transmit
-         */
-        int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-        yev_event_t *yev_write_event = yev_create_write_event(
-            yuno_event_loop(),
-            yev_callback,
-            gobj,
-            fd,
-            gbuffer_incref(gbuf)
-        );
-
-        priv->tx_in_progress++;
-
-        yev_start_event(yev_write_event);
+        enqueue_write(gobj, gbuffer_incref(gbuf));
     }
 
     KW_DECREF(kw)
@@ -1278,7 +1360,6 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
     );
 
     priv->tx_in_progress++;
-
     yev_start_event(yev_write_event);
 
     KW_DECREF(kw)
