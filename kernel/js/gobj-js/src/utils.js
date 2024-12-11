@@ -122,6 +122,20 @@
     }
 
     /************************************************************
+     *  Duplicate objects (new references) in a new object
+     *  using the modern structuredClone
+     ************************************************************/
+    function duplicate_objects(...sourceObjects)
+    {
+        const result = {};
+        for (const obj of sourceObjects) {
+            const clonedObj = structuredClone(obj); // Deep copy using structuredClone
+            Object.assign(result, clonedObj); // Merge into the result object
+        }
+        return result;
+    }
+
+    /************************************************************
      *  Update a dict with another dict: ONLY existing items!! (YES recursive)
      ************************************************************/
     function json_object_update_existing_recursive(destination, source) {
@@ -3463,6 +3477,7 @@
     //=======================================================================
     exports.__duplicate__ = __duplicate__;
     exports.__update_dict__ = __update_dict__;
+    exports.duplicate_objects = duplicate_objects;
     exports.json_object_update_existing_recursive = json_object_update_existing_recursive;
     exports.json_object_update_existing = __update_dict__;
     exports.__extend_dict__ = __extend_dict__;
