@@ -3062,7 +3062,7 @@
         /*
          *  Append content, it can be a string or another kids
          */
-        if (typeof content === 'string') {
+        if(is_string(content)) {
             content = content.trim();
             if(content.length > 0 && content[0] === '<') {
                 el.appendChild(createOneHtml(content));
@@ -3073,21 +3073,31 @@
                     el.textContent = content;
                 }
             }
-        } else if (Array.isArray(content) && content.length > 0) {
-            if(is_string(content[0])) {
-                el.appendChild(createElement2(content));
-            } else {
-                for (let child of content) {
-                    // Check if the child is an array description or an HTMLElement
-                    if (Array.isArray(child) && child.length > 0) {
-                        el.appendChild(createElement2(child));
-                    } else if (child instanceof HTMLElement) {
-                        el.appendChild(child);
+        } else if(is_array(content)) {
+            if(content.length > 0) {
+                if(is_string(content[0])) {
+                    el.appendChild(createElement2(content));
+                } else {
+                    for (let child of content) {
+                        // Check if the child is an array description or an HTMLElement
+                        if (Array.isArray(child) && child.length > 0) {
+                            el.appendChild(createElement2(child));
+                        } else if (child instanceof HTMLElement) {
+                            el.appendChild(child);
+                        }
                     }
                 }
             }
-        } else if (content instanceof HTMLElement || content instanceof Text) {
+        } else if(content instanceof HTMLElement ||
+                content instanceof Text ||
+                content instanceof SVGElement)
+        {
             el.appendChild(content);
+        } else {
+            if(content !== undefined) {
+                log_error("content ignored");
+                console.error(content);
+            }
         }
 
         /*
@@ -3100,6 +3110,13 @@
         }
 
         return el;
+    }
+
+    /***************************************************************************
+     * Create SVG element from string code
+     ***************************************************************************/
+    function parseSVG(string) {
+        return ((new DOMParser().parseFromString(string, 'image/svg+xml')).firstChild);
     }
 
     /***************************************************************************
@@ -3595,6 +3612,7 @@
     exports.debounce = debounce;
     exports.createOneHtml = createOneHtml;
     exports.createElement2 = createElement2;
+    exports.parseSVG = parseSVG;
     exports.getPositionRelativeToBody = getPositionRelativeToBody;
     exports.datasetToObject = datasetToObject;
     exports.build_name = build_name;
