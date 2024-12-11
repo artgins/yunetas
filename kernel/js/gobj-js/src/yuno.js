@@ -585,11 +585,10 @@
      *        register a service gobj
      ************************************************************/
     proto._register_service_gobj = function(gobj) {
-        var self = this;
-        var named_gobj = self._service_gobjs[gobj.name];
+        let self = this;
+        let named_gobj = self._service_gobjs[gobj.name];
         if (named_gobj) {
-            var msg = "GObj service ALREADY REGISTERED: " + gobj.name;
-            log_error(msg);
+            log_error(`GObj service ALREADY REGISTERED: '${gobj.name}'`);
             return false;
         }
         self._service_gobjs[gobj.name] = gobj;

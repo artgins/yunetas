@@ -333,7 +333,7 @@
             return null;
         }
         for(let i=0; i<list.length; i++) {
-            if(list[i] && list[i].id == id) {
+            if(list[i] && list[i].id === id) {
                 return list[i];
             }
         }
@@ -440,7 +440,9 @@
      *      http://stackoverflow.com/questions/202605/repeat-string-javascript
      ************************************************************/
     String.prototype.repeat = function(count) {
-        if (count < 1) return "";
+        if (count < 1) {
+            return "";
+        }
         var result = "", pattern = this.valueOf();
         while (count > 1) {
             if (count & 1) {
@@ -474,7 +476,7 @@
         var s1 = (str1+"").substring(0, lgth);
         var s2 = (str2+"").substring(0, lgth);
 
-        return ( ( s1 == s2 ) ? 0 : ( ( s1 > s2 ) ? 1 : -1 ) );
+        return ( ( s1 === s2 ) ? 0 : ( ( s1 > s2 ) ? 1 : -1 ) );
     }
 
 
@@ -512,8 +514,6 @@
         } else {
             return 0;
         }
-
-        return 0;
     }
 
     /************************************************************
@@ -594,7 +594,7 @@
             return true;
         }
 
-        if(s.length == 0) {
+        if(s.length === 0) {
             return true;
         }
         return false;
@@ -786,9 +786,9 @@
                 /*
                  *  Do simple operation
                  */
-                if(op == "__equal__") { // TODO __equal__ by default
+                if(op === "__equal__") { // TODO __equal__ by default
                     let cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
-                    if(cmp!=0) {
+                    if(cmp!==0) {
                         matched = false;
                         break;
                     }
@@ -3225,23 +3225,33 @@
      *     tracker.mark("Step 1");
      *     tracker.mark("Step 2");
      ************************************************************/
-    function timeTracker(tracker_name="Time Tracker")
+    function timeTracker(tracker_name="Time Tracker", verbose=false)
     {
         const name = tracker_name;
         const startTime = performance.now();
         let lastMarkTime = startTime;
 
-        log_warning(
-            `--> ${name} - starting`
-        );
+        if(verbose) {
+            log_warning(
+                `--> ${name} - starting`
+            );
+        }
 
         return {
             mark: (label = "Intermediate", result="") => {
                 const currentTime = performance.now();
-                log_warning(
-                    `--> ${name} ${label} - partial: ${(currentTime - lastMarkTime)/1000} sec, total: ${(currentTime - startTime)/1000} sec, ${result}`
-                );
+                const partial = (currentTime - lastMarkTime) / 1000;
+                const total = (currentTime - startTime) / 1000;
+                if(verbose) {
+                    log_warning(
+                        `--> ${name} ${label} - partial: ${partial} sec, total: ${total} sec, ${result}`
+                    );
+                }
                 lastMarkTime = currentTime;
+                return {
+                    partial: partial,
+                    total: total
+                };
             }
         };
     }
