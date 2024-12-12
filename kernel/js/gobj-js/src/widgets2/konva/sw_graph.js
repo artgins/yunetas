@@ -3,6 +3,8 @@
  *
  *          **View** that contains **gobj** **nodes** and **links** (or others gobj)
  *
+ *          Based in ScrollvieW
+ *
  *          A **view** can work inside a multiview
  *
  *          On start automatic send events:
@@ -42,8 +44,6 @@
  *              EV_POSITION
  *              EV_SIZE
  *              EV_RESIZE
- *
- *          Based in ScrollvieW
  *
  *          Copyright (c) 2022, ArtGins.
  *          All Rights Reserved.
