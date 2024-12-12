@@ -5510,14 +5510,9 @@ PRIVATE json_t *get_segments(
      *-------------------------------------*/
     json_t *cache_files = get_cache_files(topic, key);
     if(!cache_files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no cache",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "key",          "%s", key,
-            NULL
-        );
+        /*
+         *  Key not exits
+         */
         return jn_segments;
     }
 
@@ -7032,7 +7027,7 @@ PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key
         return 0;
     }
     snprintf(path, sizeof(path), "cache`%s`total`rows", key);
-    return kw_get_int(gobj, topic, path, 0, KW_REQUIRED);
+    return kw_get_int(gobj, topic, path, 0, 0);
 }
 
 /***************************************************************************
