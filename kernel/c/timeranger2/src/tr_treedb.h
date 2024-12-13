@@ -570,7 +570,7 @@ PUBLIC json_t *treedb_list_snaps( // Return MUST be decref, list of snaps
  *          Template
  *----------------------------*/
 PUBLIC json_t *create_template_record(
-    const char *template_name,
+    const char *template_name, // used only for log
     json_t *cols,       // NOT owned
     json_t *kw          // Owned
 );

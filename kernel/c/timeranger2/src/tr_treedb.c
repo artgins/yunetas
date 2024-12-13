@@ -2436,7 +2436,7 @@ PRIVATE json_t *filtra_fkeys(
  *
  ***************************************************************************/
 PRIVATE int set_tranger_field_value(
-    const char *topic_name,
+    const char *topic_name, // used only for log
     const char *field,
     json_t *col,    // NOT owned
     json_t *record, // NOT owned
@@ -8784,7 +8784,7 @@ PUBLIC json_t *treedb_list_snaps( // Return MUST be decref, list of snaps
  *
  ***************************************************************************/
 PUBLIC json_t *create_template_record(
-    const char *template_name,
+    const char *template_name, // used only for log
     json_t *cols,       // NOT owned
     json_t *kw          // Owned
 )
@@ -8801,7 +8801,7 @@ PUBLIC json_t *create_template_record(
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
         json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
-        if(!value) {
+        if(!value || strcmp(field, "template_version")==0) {
             value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
         set_tranger_field_value(
