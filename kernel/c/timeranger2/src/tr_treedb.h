@@ -141,6 +141,7 @@ PUBLIC int treedb_set_callback(
                         // For use in gobj attributes
         "readable"      // Field readable by user
         "writable"      // Field writable by user implicit "readable"
+        "hidden"        // Field hidden to user
         "stats"         // field with stats implicit "readable"
         "rstats"        // field with resettable stats implicit "stats"
         "pstats"        // field with persistent stats implicit "stats"
