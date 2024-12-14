@@ -2441,19 +2441,13 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0);
 
     if(empty_string(treedb_name)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What treedb_name?"),
-            0,
-            0,
-            "",  // msg_type
-            kw  // owned
-        );
+        treedb_name = priv->treedb_name;
     }
     json_t *topics = gobj_treedb_topics(gobj, treedb_name, json_incref(_jn_options), src);
 
