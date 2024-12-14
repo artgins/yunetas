@@ -2860,7 +2860,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         nodes?
             json_sprintf("%d nodes", (int)json_array_size(nodes)):
             json_string(gobj_log_last_message()),
-        nodes?tranger2_topic_desc(priv->tranger, topic_name):0,
+        nodes?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         nodes,
         "",  // msg_type
         kw  // owned
@@ -2913,7 +2913,7 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(gobj,
         node?0:-1,
         node?0:json_sprintf("Node not found"),
-        node?tranger2_topic_desc(priv->tranger, topic_name):0,
+        node?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         node,
         "",  // msg_type
         kw  // owned
@@ -2967,7 +2967,7 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
         instances?
             json_sprintf("%d instances", (int)json_array_size(instances)):
             json_string(gobj_log_last_message()),
-        instances?tranger2_topic_desc(priv->tranger, topic_name):0,
+        instances?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         instances,
         "",  // msg_type
         kw  // owned
@@ -3086,7 +3086,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 //        gobj,
 //        0,
 //        0,
-//        tranger2_topic_desc(priv->tranger, topic_name),
+//        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
 //        jn_data,
 //        kw  // owned
 //    );
@@ -3108,7 +3108,7 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(gobj,
         0,
         0,
-        tranger2_topic_desc(priv->tranger, "__snaps__"),
+        tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"),
         jn_data,
         "",  // msg_type
         kw  // owned
@@ -3153,7 +3153,7 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(gobj,
         ret,
         ret==0?json_sprintf("Snap '%s' shot", name):json_string(gobj_log_last_message()),
-        ret==0?tranger2_topic_desc(priv->tranger, "__snaps__"):0,
+        ret==0?tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"):0,
         jn_data,
         "",  // msg_type
         kw  // owned
