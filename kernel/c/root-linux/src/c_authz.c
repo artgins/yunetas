@@ -1406,7 +1406,7 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
-        0,
+        tranger2_list_topic_desc_cols(priv->tranger, "users"),
         jn_data,
         "",  // msg_type
         kw  // owned
@@ -1459,7 +1459,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             0,
             json_sprintf("User created or updated: %s", username),
-            0,
+            tranger2_list_topic_desc_cols(priv->tranger, "users"),
             user,
             "",  // msg_type
             kw  // owned
@@ -1523,7 +1523,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj,
         0,
         json_sprintf("User enabled: %s", username),
-        0,
+        tranger2_list_topic_desc_cols(priv->tranger, "users"),
         user,
         "",  // msg_type
         kw  // owned
@@ -1589,7 +1589,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj,
         0,
         json_sprintf("User disabled: %s", username),
-        0,
+        tranger2_list_topic_desc_cols(priv->tranger, "users"),
         user,
         "",  // msg_type
         kw  // owned
@@ -1619,7 +1619,7 @@ PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
-        0,
+        tranger2_list_topic_desc_cols(priv->tranger, "roles"),
         jn_data,
         "",  // msg_type
         kw  // owned
