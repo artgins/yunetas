@@ -80,13 +80,6 @@ static const json_desc_t oauth_iss_desc[] = {
 {0}
 };
 
-
-PRIVATE topic_desc_t db_messages_desc[] = {
-// Topic Name,          Pkey            System Flag     Tkey        Cols    Topic ext
-{"users_accesses",      "username",     sf_string_key,  "tm",       NULL,   NULL},
-{0}
-};
-
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
@@ -252,7 +245,6 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger;
     BOOL master;
 
-    json_t *users_accesses;      // dict with users opened
     json_t *jn_validations;
 } PRIVATE_DATA;
 
@@ -482,35 +474,6 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    /*---------------------------*
-     *  Open topics as messages
-     *---------------------------*/
-    trmsg_open_topics(
-        priv->tranger,
-        db_messages_desc
-    );
-
-    /*
-     *  To open users' accesses
-     */
-    char rt_id[NAME_MAX];
-    snprintf(rt_id, sizeof(rt_id), "%s-%s-users_accesses",
-        gobj_gclass_name(gobj),
-        gobj_name(gobj)
-    );
-
-    priv->users_accesses = trmsg_open_list(
-        priv->tranger,
-        "users_accesses",   // topic
-        json_pack("{s:i}",  // filter
-            "max_key_instances", 1
-        ),
-        NULL,
-        rt_id,
-        !priv->master,
-        ""
-    );
-
     return 0;
 }
 
@@ -520,19 +483,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->users_accesses) {
-        trmsg_close_list(priv->tranger, priv->users_accesses);
-        priv->users_accesses = NULL;
-    }
-
-    /*---------------------------*
-     *  Close topics as messages
-     *---------------------------*/
-    trmsg_close_topics(
-        priv->tranger,
-        db_messages_desc
-    );
 
     gobj_stop(priv->gobj_treedb);
     gobj_stop(priv->gobj_tranger);
@@ -1375,7 +1325,6 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
-    char temp[256];
     json_t *jn_users = gobj_list_nodes(
         priv->gobj_treedb,
         "users",
@@ -1386,28 +1335,12 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj
     );
 
-    json_t *jn_data = json_array();
-    int idx; json_t *jn_user;
-    json_array_foreach(jn_users, idx, jn_user) {
-        const char *user_id = kw_get_str(gobj, jn_user, "id", "", 0);
-        json_t *jn_user_roles = kw_get_list(gobj, jn_user, "roles", 0, 0);
-        json_t *jn_roles_ids = kwid_get_ids(jn_user_roles);
-        char *roles_ids = json2uglystr(jn_roles_ids);
-        snprintf(temp, sizeof(temp), "%-36s %s", user_id, roles_ids);
-        change_char(temp, '"', '\'');
-        json_array_append_new(jn_data, json_string(temp));
-        JSON_DECREF(jn_roles_ids)
-        GBMEM_FREE(roles_ids)
-    }
-
-    json_decref(jn_users);
-
     return msg_iev_build_response(
         gobj,
         0,
         0,
         tranger2_list_topic_desc_cols(priv->tranger, "users"),
-        jn_data,
+        jn_users,
         "",  // msg_type
         kw  // owned
     );
@@ -2500,18 +2433,25 @@ PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload
          *  Crea user en users_accesses
          */
         json_t *user = json_pack("{s:s, s:s, s:I, s:O}",
+            "id", username,
             "ev", "login",
-            "username", username,
             "tm", (json_int_t)time_in_seconds(),
             "jwt_payload", jwt_payload
         );
 
-        trmsg_add_instance(
+        md2_record_ex_t md_record;
+
+        if(tranger2_append_record(
             priv->tranger,
             "users_accesses",
-            user, // owned
-            0
-        );
+            0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
+            0, // user_flag,
+            &md_record,
+            user // owned
+        )<0) {
+            // Error already logged
+            return -1;
+        }
     }
 
     return 0;
@@ -2529,17 +2469,24 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
          *  Crea user en users_accesses
          */
         json_t *user = json_pack("{s:s, s:s, s:I}",
+            "id", username,
             "ev", "logout",
-            "username", username,
             "tm", (json_int_t)time_in_seconds()
         );
 
-        trmsg_add_instance(
+        md2_record_ex_t md_record;
+
+        if(tranger2_append_record(
             priv->tranger,
             "users_accesses",
-            user, // owned
-            0
-        );
+            0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
+            0, // user_flag,
+            &md_record,
+            user // owned
+        )<0) {
+            // Error already logged
+            return -1;
+        }
     }
 
     return 0;

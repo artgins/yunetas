@@ -56,7 +56,7 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '6',                                          \n\
+    'schema_version': '9',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
@@ -190,7 +190,7 @@ static char treedb_schema_authzs[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '5',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
@@ -242,6 +242,58 @@ static char treedb_schema_authzs[]= "\
                     'fillspace': 10,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
+                    ]                                               \n\
+                },                                                  \n\
+                '_geometry': {                                      \n\
+                    'header': 'Geometry',                           \n\
+                    'type': 'blob',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'users_accesses',                                 \n\
+            'pkey': 'id',                                           \n\
+            'tkey': 'tm',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '2',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'User',                               \n\
+                    'fillspace': 40,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'required'                                  \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'ev': {                                             \n\
+                    'header': 'Event',                              \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'required'                                  \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'tm': {                                             \n\
+                    'header': 'Update Time',                        \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'now',                                      \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'jwt_payload': {                                    \n\
+                    'header': 'JWT',                                \n\
+                    'type': 'blob',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
