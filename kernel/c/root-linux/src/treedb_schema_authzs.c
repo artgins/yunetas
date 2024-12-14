@@ -56,7 +56,7 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '5',                                          \n\
+    'schema_version': '6',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
@@ -190,11 +190,11 @@ static char treedb_schema_authzs[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '4',                                   \n\
+            'topic_version': '5',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
-                    'fillspace': 32,                                \n\
+                    'fillspace': 40,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
