@@ -93,6 +93,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -181,7 +182,8 @@ SDATACM (DTP_SCHEMA,    "enable-iss",       0,      pm_rm_iss,      cmd_enable_i
 SDATACM (DTP_SCHEMA,    "disable-iss",      0,      pm_rm_iss,      cmd_disable_iss,"Disable OAuth2 Issuer"),
 
 SDATACM (DTP_SCHEMA,    "authzs",           0,      pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (DTP_SCHEMA,    "users",            0,      pm_users,       cmd_users,      "List users and their roles"),
+SDATACM (DTP_SCHEMA,    "users",            0,      pm_users,       cmd_users,      "List users"),
+SDATACM (DTP_SCHEMA,    "accesses",         0,      pm_users,       cmd_accesses,   "List user accesses"),
 SDATACM (DTP_SCHEMA,    "create-user",      0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
 SDATACM (DTP_SCHEMA,    "enable-user",      0,      pm_enable_user, cmd_enable_user,"Enable user"),
 SDATACM (DTP_SCHEMA,    "disable-user",     0,      pm_disable_user,cmd_disable_user,"Disable user"),
@@ -1349,6 +1351,34 @@ PRIVATE json_t *cmd_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *jn_filter = kw_get_dict(gobj, kw, "filter", 0, KW_EXTRACT);
+    json_t *jn_users = gobj_list_nodes(
+        priv->gobj_treedb,
+        "users_accesses",
+        jn_filter,
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(priv->tranger, "users_accesses"),
+        jn_users,
+        "",  // msg_type
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1951,8 +1981,7 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
     BOOL validated = FALSE;
     *jwt_payload = NULL;
 
-    jwt_t *jwt;
-    int ret;
+    jwt_t *jwt=0;
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
@@ -1962,7 +1991,7 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
             continue;
         }
         const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
-        ret = jwt_decode(
+        int ret = jwt_decode(
             &jwt,
             token,
             (const unsigned char *)pkey,
@@ -2432,26 +2461,22 @@ PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload
         /*
          *  Crea user en users_accesses
          */
-        json_t *user = json_pack("{s:s, s:s, s:I, s:O}",
+        json_t *access = json_pack("{s:s, s:s, s:I, s:O}",
             "id", username,
             "ev", "login",
             "tm", (json_int_t)time_in_seconds(),
             "jwt_payload", jwt_payload
         );
 
-        md2_record_ex_t md_record;
-
-        if(tranger2_append_record(
-            priv->tranger,
+        json_decref(gobj_update_node(
+            priv->gobj_treedb,
             "users_accesses",
-            0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-            0, // user_flag,
-            &md_record,
-            user // owned
-        )<0) {
-            // Error already logged
-            return -1;
-        }
+            access, // owned
+            json_pack("{s:b}",
+                "create", 1
+            ),
+            gobj
+        ));
     }
 
     return 0;
@@ -2468,25 +2493,21 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
         /*
          *  Crea user en users_accesses
          */
-        json_t *user = json_pack("{s:s, s:s, s:I}",
+        json_t *access = json_pack("{s:s, s:s, s:I}",
             "id", username,
             "ev", "logout",
             "tm", (json_int_t)time_in_seconds()
         );
 
-        md2_record_ex_t md_record;
-
-        if(tranger2_append_record(
-            priv->tranger,
+        json_decref(gobj_update_node(
+            priv->gobj_treedb,
             "users_accesses",
-            0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
-            0, // user_flag,
-            &md_record,
-            user // owned
-        )<0) {
-            // Error already logged
-            return -1;
-        }
+            access, // owned
+            json_pack("{s:b}",
+                "create", 1
+            ),
+            gobj
+        ));
     }
 
     return 0;
@@ -2776,9 +2797,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ADD_USER,             ac_create_user,            0},
-        {EV_REJECT_USER,          ac_reject_user,         0},
-        {EV_ON_CLOSE,             ac_on_close,            0},
+        {EV_ADD_USER,             ac_create_user,           0},
+        {EV_REJECT_USER,          ac_reject_user,           0},
+        {EV_ON_CLOSE,             ac_on_close,              0},
         {0,0,0}
     };
     states_t states[] = {

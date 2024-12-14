@@ -13,8 +13,6 @@
 #include <kwid.h>
 #include <gobj_environment.h>
 #include <parse_url.h>
-#include <comm_prot.h>
-#include <yuneta_version.h>
 
 #include "c_timer.h"
 #include "msg_ievent.h"
@@ -133,7 +131,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
-     *  CHILD subscription model
+     *  CHILD/SERVER subscription model
      */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber) {
@@ -546,13 +544,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_object_update_missing(kw_on_close, kw);
 
         /*
-         *  CHILD subscription model
+         *  CHILD/SERVER subscription model
          */
-        if(gobj_is_service(gobj)) {
-            gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
-        } else {
-            gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw_on_close, gobj);
-        }
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
     }
 
     /*----------------------------*
@@ -841,13 +835,9 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         );
 
         /*
-         *  CHILD subscription model
+         *  CHILD/SERVER subscription model
          */
-        if(gobj_is_service(gobj)) {
-            gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
-        } else {
-            gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw_on_open, gobj);
-        }
+        gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
     }
 
     JSON_DECREF(kw)
