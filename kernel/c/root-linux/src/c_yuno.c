@@ -818,13 +818,20 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
 /***************************************************************************
  *  Show register
  ***************************************************************************/
+static const json_desc_t services_desc[] = {
+// Name             Type        Defaults    Fillspace
+{"service",         "string",   "",         "60"},  // First item is the pkey
+{"gclass",          "string",   "",         "60"},
+{0}
+};
 PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *jn_schema = json_record_to_schema(services_desc);
     json_t *jn_response = build_command_response(
         gobj,
         0,
         0,
-        0,
+        jn_schema,
         gobj_service_register()
     );
     JSON_DECREF(kw)
