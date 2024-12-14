@@ -332,6 +332,7 @@
         "inherit",
         "readable",
         "writable",     // implicit readable
+        "hidden",
         "stats",        // implicit readable
         "rstats",       // implicit stats
         "pstats"        // implicit stats
@@ -359,7 +360,8 @@
         "hex",
         "binary",
         "percent",
-        "base64"
+        "base64",
+        "coordinates"
     ];
 
     function treedb_get_field_desc(col)
@@ -372,6 +374,7 @@
             enum_list: null,
             is_required: false,
             is_writable: false,    // Must be explicitly writable
+            is_hidden: false,
             default_value: col.default,
             placeholder: col.placeholder,
         };
@@ -409,6 +412,9 @@
                     case "required":
                         field_desc.is_required = true;
                         break;
+                    case "hidden":
+                        field_desc.is_hidden = true;
+                        break;
                 }
             }
         }
@@ -426,6 +432,7 @@
             enum_list: null,
             is_required: false,
             is_writable: false,    // Must be explicitly writable
+            is_hidden: false,
             default_value: undefined,
             placeholder: undefined,
         };
@@ -456,6 +463,9 @@
                             break;
                         case "required":
                             field_desc.is_required = true;
+                            break;
+                        case "hidden":
+                            field_desc.is_hidden = true;
                             break;
                     }
                 }
