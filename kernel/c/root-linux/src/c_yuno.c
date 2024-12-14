@@ -820,8 +820,8 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
  ***************************************************************************/
 static const json_desc_t services_desc[] = {
 // Name             Type        Defaults    Fillspace
-{"service",         "string",   "",         "60"},  // First item is the pkey
-{"gclass",          "string",   "",         "60"},
+{"service",         "string",   "",         "40"},  // First item is the pkey
+{"gclass",          "string",   "",         "40"},
 {0}
 };
 PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
