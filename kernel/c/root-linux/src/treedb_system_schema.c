@@ -70,17 +70,17 @@
 static char treedb_system_schema[]= "\
 {                                                                   \n\
     'id': 'treedb_system_schema',                                   \n\
-    'schema_version': '1',                                          \n\
+    'schema_version': '2',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'treedbs',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Treedb',                             \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -100,7 +100,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'topics': {                                         \n\
                     'header': 'Topics',                             \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -122,11 +122,11 @@ static char treedb_system_schema[]= "\
             'id': 'topics',                                         \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -135,7 +135,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'treedbs': {                                        \n\
                     'header': 'Treedbs',                            \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -143,7 +143,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'pkey': {                                           \n\
                     'header': 'Primary Key',                        \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'default': 'id',                                \n\
                     'flag': [                                       \n\
@@ -154,7 +154,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'pkey2s': {                                         \n\
                     'header': 'Secondary Keys',                     \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -163,7 +163,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'system_flag': {                                    \n\
                     'header': 'System Flag',                        \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'default': 'sf_string_key',                     \n\
                     'flag': [                                       \n\
@@ -195,7 +195,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'cols': {                                           \n\
                     'header': 'Columns',                            \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -217,12 +217,12 @@ static char treedb_system_schema[]= "\
             'id': 'cols',                                           \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'pkey2s': 'value',                                      \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'rowid',                              \n\
-                    'fillspace': 4,                                 \n\
+                    'fillspace': 10,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -231,7 +231,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'value': {                                          \n\
                     'header': 'Column',                             \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -240,7 +240,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'topics': {                                         \n\
                     'header': 'Topics',                             \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -248,7 +248,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'header': {                                         \n\
                     'header': 'Header',                             \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -258,7 +258,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'fillspace': {                                      \n\
                     'header': 'Fillspace',                          \n\
-                    'fillspace': 3,                                 \n\
+                    'fillspace': 6,                                 \n\
                     'type': 'integer',                              \n\
                     'default': 3,                                   \n\
                     'flag': [                                       \n\
@@ -268,7 +268,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'type': {                                           \n\
                     'header': 'Type',                               \n\
-                    'fillspace': 5,                                 \n\
+                    'fillspace': 12,                                 \n\
                     'type': 'string',                               \n\
                     'enum': [                                       \n\
                         'string',                                   \n\
@@ -323,7 +323,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'hook': {                                           \n\
                     'header': 'Hook',                               \n\
-                    'fillspace': 8,                                 \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -332,7 +332,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'default': {                                        \n\
                     'header': 'Default',                            \n\
-                    'fillspace': 8,                                 \n\
+                    'fillspace': 10,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -341,7 +341,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
-                    'fillspace': 8,                                 \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -350,7 +350,7 @@ static char treedb_system_schema[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
-                    'fillspace': 8,                                 \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\

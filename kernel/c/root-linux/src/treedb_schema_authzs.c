@@ -56,17 +56,17 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '4',                                          \n\
+    'schema_version': '5',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '3',                                   \n\
+            'topic_version': '4',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Role',                               \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 32,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -75,7 +75,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'roles': {                                          \n\
                     'header': 'Roles',                              \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -84,7 +84,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'parent_role_id': {                                 \n\
                     'header': 'Role Parent',                        \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -92,7 +92,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -112,7 +112,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'realm_id': {                                       \n\
                     'header': 'Realm Id',                           \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -122,7 +122,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'service': {                                        \n\
                     'header': 'Service',                            \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -132,7 +132,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'permission': {                                     \n\
                     'header': 'Permission',                         \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -141,7 +141,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'permissions': {                                    \n\
                     'header': 'Permissions',                        \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -150,7 +150,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'deny': {                                           \n\
                     'header': 'Deny',                               \n\
-                    'fillspace': 4,                                 \n\
+                    'fillspace': 6,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
                     'flag': [                                       \n\
@@ -169,7 +169,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'users': {                                          \n\
                     'header': 'Users',                              \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -179,7 +179,7 @@ static char treedb_schema_authzs[]= "\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
                     'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
@@ -190,11 +190,11 @@ static char treedb_schema_authzs[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '3',                                   \n\
+            'topic_version': '4',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 32,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -203,7 +203,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'roles': {                                          \n\
                     'header': 'Role',                               \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 30,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -221,7 +221,7 @@ static char treedb_schema_authzs[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -247,7 +247,7 @@ static char treedb_schema_authzs[]= "\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
                     'type': 'blob',                                 \n\
-                    'fillspace': 10,                                \n\
+                    'fillspace': 20,                                \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
