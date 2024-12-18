@@ -4431,7 +4431,7 @@ PUBLIC BOOL test_sectimer(time_t value)
  ****************************************************************************/
 PUBLIC uint64_t start_msectimer(uint64_t miliseconds)
 {
-    uint64_t ms = time_in_miliseconds();
+    uint64_t ms = time_in_miliseconds_monotonic();
     ms += miliseconds;
     return ms;
 }
@@ -4446,19 +4446,31 @@ PUBLIC BOOL test_msectimer(uint64_t value)
         return FALSE;
     }
 
-    uint64_t ms = time_in_miliseconds();
+    uint64_t ms = time_in_miliseconds_monotonic();
 
     return (ms>=value)? TRUE:FALSE;
 }
 
 /****************************************************************************
- *  Current time in milisecons
+ *  Return MONOTONIC time in miliseconds
+ ****************************************************************************/
+PUBLIC uint64_t time_in_miliseconds_monotonic(void)
+{
+    struct timespec spec;
+
+    clock_gettime(CLOCK_MONOTONIC, &spec); //Este no da el time from Epoch
+
+    // Convert to milliseconds
+    return ((uint64_t)spec.tv_sec)*1000 + ((uint64_t)spec.tv_nsec)/1000000;
+}
+
+/****************************************************************************
+ *  Current **real** time in milliseconds
  ****************************************************************************/
 PUBLIC uint64_t time_in_miliseconds(void)
 {
     struct timespec spec;
 
-    //clock_gettime(CLOCK_MONOTONIC, &spec); //Este no da el time from Epoch
     clock_gettime(CLOCK_REALTIME, &spec);
 
     // Convert to milliseconds
@@ -4466,7 +4478,7 @@ PUBLIC uint64_t time_in_miliseconds(void)
 }
 
 /***************************************************************************
- *  Return current time in seconds (standart time(&t))
+ *  Return current time in seconds (standard time(&t))
  ***************************************************************************/
 PUBLIC uint64_t time_in_seconds(void)
 {

@@ -467,7 +467,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t ms = time_in_miliseconds();
+    uint64_t ms = time_in_miliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }

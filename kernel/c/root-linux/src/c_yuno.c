@@ -3931,7 +3931,7 @@ PRIVATE void load_stats(hgobj gobj)
         unsigned int pid = getpid();
         uint64_t cpu_ticks;
         cpu_usage(pid, 0, &cpu_ticks);
-        //uint64_t ms = time_in_miliseconds();
+        //uint64_t ms = time_in_miliseconds_monotonic();
         time_t ms;  // Usando segundos no se pierde el uso de cpu
         time(&ms);
         if(!priv->last_ms) {
