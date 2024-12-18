@@ -4179,7 +4179,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     // Let others uses the periodic timer, save resources
-    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, json_incref(kw));
+    gobj_publish_event(gobj, EV_TIMEOUT_PERIODIC, json_incref(kw)); // TODO review: consume a lot of CPU, there a lot of C_TIMER's !!
 
     if(priv->autokill > 0) {
         if(priv->autokill_init >= priv->autokill) {
