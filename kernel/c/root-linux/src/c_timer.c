@@ -30,7 +30,7 @@ PRIVATE const sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 SDATA (DTP_BOOLEAN, "periodic",         SDF_RD,         "0",        "True for periodic timeouts"),
-SDATA (DTP_INTEGER, "msec",             SDF_RD,         "0",        "Timeout in miliseconds, WARNING working in seconds!"),
+SDATA (DTP_INTEGER, "msec",             SDF_RD,         "0",        "Timeout in miliseconds"),
 SDATA_END()
 };
 
@@ -77,7 +77,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
         if(priv->msec > 0) {
-            priv->t_flush = start_sectimer(priv->msec/1000);
+            priv->t_flush = start_msectimer(priv->msec);
         } else {
             priv->t_flush = 0;
         }
@@ -94,7 +94,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
 
     if(priv->msec > 0) {
-        priv->t_flush = start_sectimer(priv->msec/1000);
+        priv->t_flush = start_msectimer(priv->msec);
     }
     return 0;
 }
@@ -146,9 +146,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_event_t ev = (priv->periodic)? EV_TIMEOUT_PERIODIC : EV_TIMEOUT;
 
     if(priv->msec > 0) {
-        if(test_sectimer(priv->t_flush)) {
+        if(test_msectimer(priv->t_flush)) {
             if(priv->periodic) { // Quickly restart to avoid adding the execution time of action
-                priv->t_flush = start_sectimer(priv->msec/1000);
+                priv->t_flush = start_msectimer(priv->msec);
             } else {
                 priv->t_flush = 0;
             }

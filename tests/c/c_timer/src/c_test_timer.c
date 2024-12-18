@@ -89,6 +89,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
     json_int_t rxMsgs;
+    uint64_t time_measure_start;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -173,7 +174,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     set_timeout_periodic(priv->timer, priv->timeout);
-
+    priv->time_measure_start = time_in_miliseconds_monotonic();
     return 0;
 }
 
@@ -288,6 +289,18 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     process_msg(gobj, kw, src);
     if(priv->rxMsgs == 5) {
+        uint64_t yuno_periodic = (uint64_t)gobj_read_integer_attr(gobj_yuno(), "periodic");
+        uint64_t time_measure_end = time_in_miliseconds_monotonic();
+        uint64_t tm = time_measure_end - priv->time_measure_start;
+        if(!(tm >= 5000 && tm <= 5010 + yuno_periodic)) {
+            gobj_log_error(gobj, 0,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "bad time",
+                "tm",           "%d", (int)tm,
+                NULL
+            );
+        }
+
         gobj_set_yuno_must_die();
     }
 

@@ -418,7 +418,7 @@ SDATA (DTP_JSON,    "denied_ips",       SDF_PERSIST,    "{}",           "Denied 
 SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep trace set or not set"),
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
-SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "200",          "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important."),
+SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "200",          "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats. WARNING don't change timeout, must be 1 second as is used by autokill"),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
