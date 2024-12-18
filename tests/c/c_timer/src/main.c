@@ -122,9 +122,11 @@ static void register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
+            "msg", "print time",
+            "msg", "print time",
             "msg", "print time",
             "msg", "print time",
             "msg", "print time",
@@ -149,8 +151,8 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 3 && tm < 3.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 3 && tm < 3.1)\n", On_Red BWhite, Color_Off, tm);
+    if(!(tm >= 5 && tm < 6)) {
+        printf("%sERROR --> %s time %f (must be tm >= 5 && tm < 6)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
 

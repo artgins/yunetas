@@ -4448,7 +4448,7 @@ PUBLIC BOOL test_msectimer(uint64_t value)
 
     uint64_t ms = time_in_miliseconds();
 
-    return (ms>value)? TRUE:FALSE;
+    return (ms>=value)? TRUE:FALSE;
 }
 
 /****************************************************************************

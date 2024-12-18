@@ -253,11 +253,14 @@ PRIVATE int process_msg(
     hgobj src
 )
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *stats = gobj_stats(gobj, "", json_incref(kw), src);
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "print time",
-        NULL
+        "count",        "%d", priv->rxMsgs,
+    NULL
     );
 
     JSON_DECREF(stats)
@@ -284,7 +287,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     priv->rxMsgs++;
 
     process_msg(gobj, kw, src);
-    if(priv->rxMsgs == 3) {
+    if(priv->rxMsgs == 5) {
         gobj_set_yuno_must_die();
     }
 
