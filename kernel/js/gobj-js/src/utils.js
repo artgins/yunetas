@@ -2295,12 +2295,6 @@
         }
 
         console.error(msg);
-        // try {
-        //     // Code throwing an exception
-        //     throw new Error();
-        // } catch(e) {
-        //     console.log(e.stack);
-        // }
     }
 
     function log_warning(msg)

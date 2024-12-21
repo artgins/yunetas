@@ -713,6 +713,16 @@ let __inside_event_loop__ = 0;
     };
 
     /************************************************************
+     *      post_event
+     ************************************************************/
+    proto.gobj_post_event = function(event, kw, src)
+    {
+        setTimeout(() => {
+            this.gobj_send_event(event, kw, src);
+        }, 10);
+    };
+
+    /************************************************************
      *      send_event
      ************************************************************/
     proto.gobj_send_event = function(event, kw, src)

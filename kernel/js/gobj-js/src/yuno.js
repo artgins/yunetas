@@ -38,9 +38,9 @@
         tracing: 0,
         no_poll: 0,
         trace_timer: 0,
-        trace_inter_event: false,
         trace_creation: false,
-        trace_ievent_callback: null
+        trace_inter_event: false,       // trace traffic
+        trace_ievent_callback: null     // trace traffic
     };
     var FSM = {
         'event_list': [
@@ -441,13 +441,7 @@
         }
         if (gobj._destroyed) {
             // Already deleted
-            log_debug("<========== ALREADY DESTROYED! " + gobj.gclass_name + "^" + gobj.name);
-            try {
-                // Code throwing an exception
-                throw new Error();
-            } catch(e) {
-                console.log(e.stack);
-            }
+            log_error("<========== ALREADY DESTROYED! " + gobj.gclass_name + "^" + gobj.name);
             return;
         }
         if(gobj.gobj_is_running()) {
