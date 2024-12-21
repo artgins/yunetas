@@ -38,8 +38,9 @@
         tracing: 0,
         no_poll: 0,
         trace_timer: 0,
-        trace_creation: false,
-        trace_inter_event: false,       // trace traffic
+        trace_creation: 0,
+        trace_i18n: 0,
+        trace_inter_event: 0,       // trace traffic
         trace_ievent_callback: null     // trace traffic
     };
     var FSM = {
