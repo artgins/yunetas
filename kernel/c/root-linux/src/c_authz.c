@@ -679,7 +679,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "YES: Local Ip allowed",
+            "msg",          "%s", "LOGIN: Local Ip allowed",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -702,7 +702,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     const char *status;
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
         char temp[256];
-        snprintf(temp, sizeof(temp), "YES: %s", status);
+        snprintf(temp, sizeof(temp), "NO: %s", status);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
@@ -959,7 +959,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH,
-        "msg",          "%s", "YES: JWT User authenticated",
+        "msg",          "%s", "LOGIN: JWT User authenticated",
         "user",         "%s", username,
         "service",      "%s", dst_service,
         NULL
@@ -2706,6 +2706,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 ),
                 src
             ));
+
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "LOGOUT",
+                "user",         "%s", username,
+                NULL
+            );
         }
     }
 
