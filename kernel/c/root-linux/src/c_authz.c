@@ -40,7 +40,12 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload);
+PRIVATE int add_user_login(
+    hgobj gobj,
+    const char *username,
+    json_t *jwt_payload,
+    const char *peername
+);
 
 PRIVATE json_t *identify_system_user(
     hgobj gobj,
@@ -830,7 +835,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*------------------------------*
      *      Save user access
      *------------------------------*/
-    add_user_login(gobj, username, jwt_payload);
+    add_user_login(gobj, username, jwt_payload, peername);
 
     /*--------------------------------------------*
      *  Get sessions, check max sessions allowed
@@ -2558,7 +2563,12 @@ PRIVATE json_t *get_user_permissions(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload)
+PRIVATE int add_user_login(
+    hgobj gobj,
+    const char *username,
+    json_t *jwt_payload,
+    const char *peername
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -2566,10 +2576,11 @@ PRIVATE int add_user_login(hgobj gobj, const char *username, json_t *jwt_payload
         /*
          *  Crea user en users_accesses
          */
-        json_t *access = json_pack("{s:s, s:s, s:I, s:O}",
+        json_t *access = json_pack("{s:s, s:s, s:I, s:s, s:O}",
             "id", username,
             "ev", "login",
             "tm", (json_int_t)time_in_seconds(),
+            "ip", peername,
             "jwt_payload", jwt_payload
         );
 
