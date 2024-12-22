@@ -74,6 +74,51 @@ DEBUG: {
      ****************************************/
     function setup_websocket(self)
     {
+        const url = self.config.urls[self.config.idx_url];
+        log_debug(`====> Starting WebSocket to '${url}' (${self.gobj_short_name()})`);
+
+        // Define event handlers
+        function handleOpen() {
+            self.gobj_send_event('EV_ON_OPEN', { url: url }, self);
+        }
+
+        function handleClose() {
+            self.gobj_send_event('EV_ON_CLOSE', { url: url }, self);
+        }
+
+        function handleError() {
+            self.gobj_send_event('EV_ON_CLOSE', { url: url }, self); // Intentional?
+            log_error(`${self.gobj_short_name()}: WebSocket error occurred.`);
+        }
+
+        function handleMessage(event) {
+            self.gobj_send_event('EV_ON_MESSAGE', { url: url, data: event.data }, self);
+        }
+
+        // Initialize WebSocket
+        let websocket;
+        try {
+            websocket = new WebSocket(url);
+            if (!websocket) {
+                log_error(`${self.gobj_short_name()}: Cannot open WebSocket to '${url}'`);
+                return null; // Explicitly return null on failure
+            }
+        } catch (e) {
+            log_error(`${self.gobj_short_name()}: Cannot open WebSocket to '${url}', Error: ${e.message}`);
+            return null;
+        }
+
+        // Assign WebSocket event handlers
+        websocket.onopen = handleOpen;
+        websocket.onclose = handleClose;
+        websocket.onerror = handleError;
+        websocket.onmessage = handleMessage;
+
+        return websocket; // Return the WebSocket instance
+    }
+
+    function setup_websocketx(self)
+    {
         var url = self.config.urls[self.config.idx_url];
         log_debug("====> Starting WebSocket to '" + url + "' (" + self.gobj_short_name() + ")");
 
@@ -159,12 +204,11 @@ DEBUG: {
             log_error("iev_create() event NULL");
             return null;
         }
-        var iev = new InterEvent(
-            event,
-            kw
-        );
 
-        return iev;
+        return {
+            event: event,
+            kw: kw || {}
+        };
     }
 
     /**************************************
@@ -300,7 +344,7 @@ DEBUG: {
             log_error("parsing inter_event: websocket data not a json object");
             return null;
         }
-        var event = x['event'];
+        let event = x['event'];
         if(!event) {
             log_error("parsing inter_event: no event");
             return null;
@@ -310,7 +354,7 @@ DEBUG: {
             return null;
         }
 
-        var kw = x['kw'];
+        let kw = x['kw'];
         if(!kw) {
             log_error("parsing inter_kw: no kw");
             return null;
@@ -320,11 +364,10 @@ DEBUG: {
             return null;
         }
 
-        var iev = new InterEvent(
-            event,
-            kw
-        );
-        return iev;
+        return {
+            event: event,
+            kw: kw || {}
+        };
     }
 
     /********************************************
@@ -558,8 +601,10 @@ DEBUG: {
             } else {
                 log_error("ignoring event: " + iev_event + " for " + self.name);
             }
+            iev_msg = null;
             return 0;
         }
+        iev_msg = null;
 
         /*------------------------------------*
          *   Analyze inter_event
@@ -582,7 +627,7 @@ DEBUG: {
         /*------------------------------------*
          *   Is the event a subscription?
          *------------------------------------*/
-        if(msg_type == '__subscribing__') {
+        if(msg_type === "__subscribing__") {
             /*
              *  it's a external subscription
              */
@@ -593,7 +638,7 @@ DEBUG: {
         /*---------------------------------------*
          *   Is the event is a unsubscription?
          *---------------------------------------*/
-        if(msg_type == '__unsubscribing__') {
+        if(msg_type === "__unsubscribing__") {
             /*
              *  it's a external unsubscription
              */
