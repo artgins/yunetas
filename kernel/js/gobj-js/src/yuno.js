@@ -438,11 +438,11 @@
         let full_name = gobj.gobj_full_name();
 
         if (this.config.trace_creation) {
-            log_debug("💔💔⏩ destroying: " + full_name);
+            log_debug("💔💔⏩ destroying: " + gobj.gobj_short_name());
         }
         if (gobj._destroyed) {
             // Already deleted
-            log_error("<========== ALREADY DESTROYED! " + gobj.gclass_name + "^" + gobj.name);
+            log_error("<========== ALREADY DESTROYED! " + gobj.gobj_short_name());
             return;
         }
         if(gobj.gobj_is_running()) {
