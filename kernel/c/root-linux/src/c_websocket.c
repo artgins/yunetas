@@ -1757,7 +1757,7 @@ PRIVATE int ac_timeout_waiting_handshake(hgobj gobj, const char *event, json_t *
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting websocket handshake",
         NULL
     );
