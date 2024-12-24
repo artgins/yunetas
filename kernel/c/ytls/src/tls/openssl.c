@@ -672,15 +672,6 @@ PRIVATE int do_handshake(hsskt sskt_)
         default:
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "SSL_do_handshake() FAILED",
-                "ret",          "%d", (int)detail,
-                "error",        "%d", (int)sskt->error,
-                "serror",       "%s", sskt->last_error,
-                NULL
-            );
             gobj_log_set_last_message("%s", sskt->last_error);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;

@@ -936,7 +936,7 @@ int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 {
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_debug(gobj, 0,
+        gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
