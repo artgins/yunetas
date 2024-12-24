@@ -349,7 +349,7 @@ PRIVATE hytls init(
         unsigned long err = ERR_get_error();
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OAUTH_ERROR,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
             "msg",          "%s", "SSL_CTX_new() FAILED",
             "error",        "%s", ERR_error_string(err, NULL),
             NULL

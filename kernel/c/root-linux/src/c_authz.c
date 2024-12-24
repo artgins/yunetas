@@ -844,7 +844,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     if(!sessions) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OAUTH_ERROR,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
             "msg",          "%s", "__sessions NULL",
             NULL
         );
