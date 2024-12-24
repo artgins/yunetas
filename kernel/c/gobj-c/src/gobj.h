@@ -197,7 +197,6 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_INTERNAL_ERROR           "Internal Error"
 #define MSGSET_SYSTEM_ERROR             "OS Error"
 #define MSGSET_JSON_ERROR               "Jansson Error"
-#define MSGSET_LIBUV_ERROR              "Liburing Error"
 #define MSGSET_LIBURING_ERROR           "Liburing Error"
 #define MSGSET_OAUTH_ERROR              "OAuth Error"
 #define MSGSET_TRANGER_ERROR            "Tranger Error"
