@@ -97,7 +97,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                "msgset",       "%s", MSGSET_LIBURING_ERROR,
                 "msg",          "%s", "yev_event not implemented",
                 NULL
             );

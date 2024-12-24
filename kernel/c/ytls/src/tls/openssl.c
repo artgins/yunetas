@@ -349,7 +349,7 @@ PRIVATE hytls init(
         unsigned long err = ERR_get_error();
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_OAUTH_ERROR,
             "msg",          "%s", "SSL_CTX_new() FAILED",
             "error",        "%s", ERR_error_string(err, NULL),
             NULL
@@ -674,7 +674,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "SSL_do_handshake() FAILED",
                 "ret",          "%d", (int)detail,
                 "error",        "%d", (int)sskt->error,

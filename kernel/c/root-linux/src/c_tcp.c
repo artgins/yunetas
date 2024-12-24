@@ -1205,7 +1205,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     if(gobj_trace_level(gobj) & TRACE_URING || 1) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+                            "msgset",       "%s", MSGSET_LIBURING_ERROR,
                             "msg",          "%s", "TCP: connect FAILED",
                             "msg2",         "%s", "🌐TCP: connect FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
