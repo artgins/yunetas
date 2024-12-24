@@ -813,7 +813,7 @@ PRIVATE void process(
 )
 {
     gobj_log_info(0,0,
-        "msgset",       "%s", MSGSET_START_STOP,
+        "msgset",       "%s", MSGSET_STARTUP,
         "msg",          "%s", "Starting yuno",
         "work_dir",     "%s", work_dir,
         "domain_dir",   "%s", domain_dir,

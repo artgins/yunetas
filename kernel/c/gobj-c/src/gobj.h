@@ -225,7 +225,6 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_TRACK_MEM                "TrackMem"
 #define MSGSET_AUTH                     "Auth"
 
-#define MSGSET_START_STOP               "Start Stop"
 #define MSGSET_PERSISTENT_IEVENTS       "Persistent IEvents"
 #define MSGSET_OPEN_CLOSE               "Open Close"
 #define MSGSET_DATABASE                 "Database"
