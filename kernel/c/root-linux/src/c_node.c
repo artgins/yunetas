@@ -125,7 +125,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_update_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
-SDATAPM (DTP_STRING,    "  content64",    0,              0,          "Node content in base64"),
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "Node content in base64"),
 SDATAPM (DTP_JSON,      "record",       0,              0,          "Node content in json"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: create, autolink, volatil, refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
