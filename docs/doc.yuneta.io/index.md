@@ -74,5 +74,5 @@ CHANGELOG
 :caption: Api reference
 :maxdepth: 2
 
-api/index.md
+api/api.md
 ```
