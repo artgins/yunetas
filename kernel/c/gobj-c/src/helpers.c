@@ -847,12 +847,15 @@ PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes, BOOL b1024)
     suffixes[6] = "EB";
     unsigned int s = 0; // which suffix to use
     double count = (double)bytes;
+
     while (count >= unit && s < 7)
     {
         s++;
         count /= unit;
     }
-    if (count - floor(count) == 0.0)
+
+    // Check if count is an integer by comparing to its cast to int
+    if (count == (int)count)
         snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
     else
         snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
