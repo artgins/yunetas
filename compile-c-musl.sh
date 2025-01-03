@@ -32,10 +32,11 @@ make install
 
 ##########################################
 #       yev_loop
+#       WARNING compile with gcc!!
 ##########################################
 cd "${YUNETAS_BASE_DIR}/kernel/c/yev_loop"
 rm -rf build; mkdir build
-cd build; cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/musl-gcc ..
+cd build; cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/cc ..
 make install
 
 ##########################################

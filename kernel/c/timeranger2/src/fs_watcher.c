@@ -15,6 +15,7 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/inotify.h>
+#include <errno.h>
 
 #include <helpers.h>
 #include <kwid.h>

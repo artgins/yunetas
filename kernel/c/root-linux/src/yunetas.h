@@ -22,7 +22,6 @@ extern "C"{
 #include <comm_prot.h>
 #include <command_parser.h>
 #include <ghttp_parser.h>
-#include <gobj_environment.h>
 #include <helpers.h>
 #include <istream.h>
 #include <json_config.h>

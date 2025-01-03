@@ -55,7 +55,6 @@ foreach(test ${SRCS})
         libbacktrace.a
 
         pthread dl  # used by openssl
-        m
     )
     add_test("${current_directory_name}/${test}" ${binary})
 

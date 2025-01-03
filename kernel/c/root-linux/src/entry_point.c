@@ -31,11 +31,9 @@
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "ydaemon.h"
-#include "c_authz.h"         // the grandmother
+#include "c_authz.h"        // the grandmother
 #include "c_yuno.h"         // the grandmother
 #include "entry_point.h"
-
-// #include "../../gobj-c/src/stacktrace_with_backtrace.h"
 
 /***************************************************************************
  *      Constants

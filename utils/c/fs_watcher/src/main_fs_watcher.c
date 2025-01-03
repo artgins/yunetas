@@ -7,6 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <gobj.h>
+#include <helpers.h>
 #include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
 #include <ansi_escape_codes.h>

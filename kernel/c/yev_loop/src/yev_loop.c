@@ -10,12 +10,12 @@
 #include <liburing.h>
 #include <unistd.h>
 #include <sys/timerfd.h>
-#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <parse_url.h>
 #include <kwid.h>
 #include "yev_loop.h"
 

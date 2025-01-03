@@ -33,11 +33,8 @@ SET (YUNO_HDRS
 ##############################################
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-## Force static linking
+# Force static linking
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-#
-## Specify the paths to glibc and libm static libraries
-#link_directories(/usr/lib/x86_64-linux-gnu)
 
 target_link_libraries(${PROJECT_NAME}
     libyunetas-core-linux.a
@@ -51,9 +48,6 @@ target_link_libraries(${PROJECT_NAME}
     libpcre2-8.a
     libcrypto.a
     libbacktrace.a
-
-#    libmvec.a
-#    libm.a
 )
 
 #if(ESP32_MODE)

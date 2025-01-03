@@ -58,8 +58,6 @@ foreach(test ${SRCS})
         libpcre2-8.a
         libbacktrace.a
         libcrypto.a
-
-        m
     )
     add_test("${current_directory_name}/${test}" ${binary})
 

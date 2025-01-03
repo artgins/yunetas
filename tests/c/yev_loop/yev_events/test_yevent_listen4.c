@@ -20,10 +20,10 @@
 #include <signal.h>
 #include <gobj.h>
 #include <testing.h>
-#include <launch_daemon.h>
 #include <ansi_escape_codes.h>
 #include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
+#include <helpers.h>
 
 /***************************************************************
  *              Constants

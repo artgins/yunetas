@@ -44,8 +44,6 @@ foreach(test ${SRCS})
         libpcre2-8.a
         libbacktrace.a
         libcrypto.a
-
-        m
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

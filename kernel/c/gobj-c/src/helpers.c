@@ -10,13 +10,11 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <locale.h>
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/file.h>
-#include <math.h>
 #include <time.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -4897,7 +4895,13 @@ PUBLIC const char *get_hostname(void)
 
     if(!*hostname) {
 #ifdef __linux__
-        gethostname(hostname, sizeof(hostname)-1);
+        FILE *file = fopen("/etc/hostname", "r");
+        if(file) {
+            fgets(hostname, sizeof(hostname), file);
+            fclose(file);
+            left_justify(hostname);
+        }
+        // Merde dynamic library dependency, gethostname(hostname, sizeof(hostname)-1);
 #elif defined(ESP_PLATFORM)
         // TODO improve
         snprintf(hostname, sizeof(hostname), "%s", "esp32");

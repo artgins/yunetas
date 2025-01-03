@@ -81,6 +81,7 @@
 
 #include <gobj.h>
 #include <yev_loop.h>
+#include <helpers.h>
 
 #ifdef __cplusplus
 extern "C"{
