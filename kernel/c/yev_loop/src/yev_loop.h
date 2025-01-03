@@ -10,7 +10,8 @@
 #pragma once
 
 #include <gobj.h>
-#include <netdb.h>
+#include <netdb.h>  // need it by struct addrinfo
+#include <liburing.h>
 
 #ifdef __cplusplus
 extern "C"{

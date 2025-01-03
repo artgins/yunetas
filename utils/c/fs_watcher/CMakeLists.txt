@@ -33,9 +33,6 @@ SET (YUNO_HDRS
 ##############################################
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-# Force static linking
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-
 target_link_libraries(${PROJECT_NAME}
     libyunetas-core-linux.a
     libtimeranger2.a
