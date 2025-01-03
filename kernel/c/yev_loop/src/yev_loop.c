@@ -882,9 +882,9 @@ PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC int yev_get_fd(yev_event_h yev_event)
 {
-    if(((yev_event_t *)yev_event)->type == YEV_ACCEPT_TYPE) {
-        return ((yev_event_t *)yev_event)->result;
-    }
+    // if(((yev_event_t *)yev_event)->type == YEV_ACCEPT_TYPE) {
+    //     return ((yev_event_t *)yev_event)->result;
+    // }
     return ((yev_event_t *)yev_event)->fd;
 }
 
