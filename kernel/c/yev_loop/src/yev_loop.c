@@ -23,11 +23,48 @@
  *              Constants
  ***************************************************************/
 #define DEFAULT_BACKLOG 512
+int multishot_available = 0; // Available since kernel 5.19
 
 /***************************************************************
  *              Structures
  ***************************************************************/
-int multishot_available = 0; // Available since kernel 5.19
+typedef struct yev_event_s yev_event_t;
+typedef struct yev_loop_s yev_loop_t;
+
+typedef struct {
+    struct sockaddr dst_addr;  // TODO eso solo le hace falta al connect y accept type
+    socklen_t dst_addrlen;      // TODO     improve to reduce space
+    struct sockaddr src_addr;
+    socklen_t src_addrlen;
+    int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
+    int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
+} sock_info_t;
+
+struct yev_event_s {
+    yev_loop_t *yev_loop;
+    uint8_t type;           // yev_type_t
+    uint8_t flag;           // yev_flag_t
+    uint8_t state;          // yev_state_t
+    int fd;
+    uint64_t timer_bf;
+    gbuffer_t *gbuf;
+    hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
+    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
+    void *user_data;
+    int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
+
+    sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
+};
+
+struct yev_loop_s {
+    struct io_uring ring;
+    unsigned entries;
+    hgobj yuno;
+    int keep_alive;
+    volatile int running;
+    volatile int stopping;
+    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
+};
 
 /***************************************************************
  *              Prototypes
@@ -62,7 +99,7 @@ PUBLIC int yev_loop_create(
     unsigned entries,
     int keep_alive,
     yev_callback_t callback,
-    yev_loop_t **yev_loop_
+    yev_loop_h *yev_loop_
 )
 {
     struct io_uring ring_test;
@@ -141,17 +178,18 @@ retry:
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_loop_destroy(yev_loop_t *yev_loop)
+PUBLIC void yev_loop_destroy(yev_loop_h yev_loop)
 {
-    io_uring_queue_exit(&yev_loop->ring);
+    io_uring_queue_exit(&((yev_loop_t *)yev_loop)->ring);
     GBMEM_FREE(yev_loop)
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
+PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     if(__inside_loop__) {
         gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -245,8 +283,9 @@ PUBLIC int yev_loop_run(yev_loop_t *yev_loop, int timeout_in_seconds)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
+PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     struct io_uring_cqe *cqe;
 
     if(__inside_loop__) {
@@ -298,8 +337,10 @@ PUBLIC int yev_loop_run_once(yev_loop_t *yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_loop_stop(yev_loop_t *yev_loop)
+PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
 {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+
     if(!yev_loop->stopping) {
         yev_loop->stopping = TRUE;
         if(gobj_trace_level(0) & TRACE_URING) {
@@ -402,8 +443,10 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char * yev_get_state_name(yev_event_t *yev_event)
+PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
 {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     if (yev_event->state == YEV_ST_IDLE) {
         return "ST_IDLE";
 
@@ -792,10 +835,12 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
  *
  ***************************************************************************/
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
                     // if NULL reset the current gbuf
 ) {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     if(gbuf && gbuf == yev_event->gbuf) {
         return 0;
     }
@@ -819,11 +864,88 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->gbuf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_get_fd(yev_event_h yev_event)
+{
+    if(((yev_event_t *)yev_event)->type == YEV_ACCEPT_TYPE) {
+        return ((yev_event_t *)yev_event)->result;
+    }
+    return ((yev_event_t *)yev_event)->fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
+    yev_event_h yev_event,
+    int fd
+) {
+    ((yev_event_t *)yev_event)->fd = fd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void yev_set_flag(
+    yev_event_h yev_event,
+    yev_flag_t flag,
+    BOOL set
+){
+    if(set) {
+        ((yev_event_t *)yev_event)->flag |= flag;
+    } else {
+        ((yev_event_t *)yev_event)->flag &= ~flag;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_state_t yev_get_flag(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->flag;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_state_t yev_get_state(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->state;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_get_result(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj yev_get_gobj(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->gobj;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_set_user_data(
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     void *user_data
 )
 {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
     yev_event->user_data = user_data;
     return 0;
 }
@@ -832,8 +954,10 @@ PUBLIC int yev_set_user_data(
  *
  ***************************************************************************/
 PUBLIC int yev_start_event(
-    yev_event_t *yev_event
+    yev_event_h yev_event_
 ) {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     /*------------------------*
      *  Check parameters
      *------------------------*/
@@ -1136,10 +1260,11 @@ PUBLIC int yev_start_event(
  *
  ***************************************************************************/
 PUBLIC int yev_start_timer_event(
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     time_t timeout_ms,
     BOOL periodic
 ) {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
     /*------------------------*
      *  Check parameters
      *------------------------*/
@@ -1290,8 +1415,10 @@ PUBLIC int yev_start_timer_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int yev_stop_event(yev_event_t *yev_event) // IDEMPOTENT close fd (timer,accept,connect)
+PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,accept,connect)
 {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     /*------------------------*
      *  Check parameters
      *------------------------*/
@@ -1448,8 +1575,34 @@ PUBLIC int yev_stop_event(yev_event_t *yev_event) // IDEMPOTENT close fd (timer,
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_destroy_event(yev_event_t *yev_event)
+PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
 {
+    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
+{
+    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
+{
+    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void yev_destroy_event(yev_event_h yev_event_)
+{
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     /*------------------------*
      *  Check parameters
      *------------------------*/
@@ -1580,11 +1733,13 @@ PRIVATE yev_event_t *create_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_timer_event(
-    yev_loop_t *yev_loop,
+PUBLIC yev_event_h yev_create_timer_event(
+    yev_loop_h yev_loop_,
     yev_callback_t callback,
     hgobj gobj
 ) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
@@ -1616,11 +1771,12 @@ PUBLIC yev_event_t *yev_create_timer_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_connect_event(
-    yev_loop_t *yev_loop,
+PUBLIC yev_event_h yev_create_connect_event(
+    yev_loop_h yev_loop_,
     yev_callback_t callback,
     hgobj gobj
 ) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
@@ -1655,12 +1811,13 @@ PUBLIC yev_event_t *yev_create_connect_event(
  ***************************************************************************/
 PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
                                     // If fd already set, close and set the new
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 ) {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1940,11 +2097,13 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_accept_event(
-    yev_loop_t *yev_loop,
+PUBLIC yev_event_h yev_create_accept_event(
+    yev_loop_h yev_loop_,
     yev_callback_t callback,
     hgobj gobj
 ) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
@@ -1978,13 +2137,15 @@ PUBLIC yev_event_t *yev_create_accept_event(
  *
  ***************************************************************************/
 PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
-    yev_event_t *yev_event,
+    yev_event_h yev_event_,
     const char *listen_url,
     int backlog,            /* queue of pending connections for socket listening, default 512 */
     BOOL shared,            /* open socket as shared */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
 ) {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     if(!yev_event) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -2231,13 +2392,14 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
 /***************************************************************************
  *
  *********** ****************************************************************/
-PUBLIC yev_event_t *yev_create_read_event(
-    yev_loop_t *yev_loop,
+PUBLIC yev_event_h yev_create_read_event(
+    yev_loop_h yev_loop_,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 ) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
@@ -2271,13 +2433,14 @@ PUBLIC yev_event_t *yev_create_read_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_t *yev_create_write_event(
-    yev_loop_t *yev_loop,
+PUBLIC yev_event_h yev_create_write_event(
+    yev_loop_h yev_loop_,
     yev_callback_t callback,
     hgobj gobj,
     int fd,
     gbuffer_t *gbuf
 ) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
     if(!yev_event) {
         // Error already logged
@@ -2342,8 +2505,10 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *yev_event_type_name(yev_event_t *yev_event)
+PUBLIC const char *yev_event_type_name(yev_event_h yev_event_)
 {
+    yev_event_t *yev_event = (yev_event_t *)yev_event_;
+
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
             return "YEV_READ_TYPE";
