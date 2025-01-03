@@ -24,7 +24,6 @@
 #include <yev_loop.h>
 #include <log_udp_handler.h>
 #include <stacktrace_with_backtrace.h>
-// #include <stacktrace_with_backtrace.h>
 #include <yuneta_version.h>
 #include <rotatory.h>
 
@@ -36,7 +35,7 @@
 #include "c_yuno.h"         // the grandmother
 #include "entry_point.h"
 
-#include "../../gobj-c/src/stacktrace_with_backtrace.h"
+// #include "../../gobj-c/src/stacktrace_with_backtrace.h"
 
 /***************************************************************************
  *      Constants

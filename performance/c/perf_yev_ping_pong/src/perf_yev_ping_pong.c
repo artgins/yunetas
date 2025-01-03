@@ -145,11 +145,11 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     }
 
                     char nice[64];
-                    nice_size(nice, sizeof(nice), msg_per_second);
+                    nice_size(nice, sizeof(nice), msg_per_second, FALSE);
                     printf("\n" Erase_Whole_Line Move_Horizontal, 1);
                     printf("Msg/sec    : %s\n", nice);
                     printf(Erase_Whole_Line Move_Horizontal, 1);
-                    nice_size(nice, sizeof(nice), bytes_per_second);
+                    nice_size(nice, sizeof(nice), bytes_per_second, FALSE);
                     printf("Bytes/sec  : %s\n", nice);
                     printf(Cursor_Up, 3);
                     printf(Move_Horizontal, 1);

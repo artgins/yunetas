@@ -4319,9 +4319,9 @@ PUBLIC int register_c_yuno(void)
 }
 
 /***************************************************************************
- *
+ *  Return void * to hide #include <yev_loop.h> dependency
  ***************************************************************************/
-PUBLIC yev_loop_t *yuno_event_loop(void)
+PUBLIC void *yuno_event_loop(void)
 {
     hgobj gobj = gobj_yuno();
     PRIVATE_DATA *priv = gobj_priv_data(gobj);

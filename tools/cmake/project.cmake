@@ -43,8 +43,9 @@ link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
-include_directories("/usr/include")
-link_directories("/usr/lib")
+# Specify C standard
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)

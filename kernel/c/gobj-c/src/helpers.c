@@ -833,8 +833,10 @@ PUBLIC BOOL all_numbers(const char* s)
  *  Prints to the provided buffer a nice number of bytes (KB, MB, GB, etc)
  *  https://www.mbeckler.org/blog/?p=114
  ***************************************************************************/
-PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes)
+PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes, BOOL b1024)
 {
+    double unit = b1024 ? 1000 : 1024;
+
     const char *suffixes[7];
     suffixes[0] = "B";
     suffixes[1] = "Thousands";
@@ -845,46 +847,15 @@ PUBLIC void nice_size(char *bf, size_t bfsize, uint64_t bytes)
     suffixes[6] = "EB";
     unsigned int s = 0; // which suffix to use
     double count = (double)bytes;
-    while (count >= 1000 && s < 7)
+    while (count >= unit && s < 7)
     {
         s++;
-        count /= 1000;
+        count /= unit;
     }
     if (count - floor(count) == 0.0)
         snprintf(bf, bfsize, "%d %s", (int)count, suffixes[s]);
     else
         snprintf(bf, bfsize, "%.1f %s", count, suffixes[s]);
-}
-
-/***************************************************************************
- *  Print a byte count in a human readable format
- *  https://programming.guide/worlds-most-copied-so-snippet.html
- ***************************************************************************/
-PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si)
-{
-    size_t unit = si ? 1000 : 1024;
-    size_t absBytes = bytes;
-
-    if (absBytes < unit) {
-        snprintf(bf, bfsize, "%zu B", bytes);
-        return; // bytes + " B";
-    }
-
-    int exp = (int) (log((double)absBytes) / log((double)unit));
-    size_t th = (size_t) ceil(pow((double)unit, exp) * ((double)unit - 0.05));
-
-    if (exp < 6 && absBytes >= th - ((th & 0xFFF) == 0xD00 ? 51 : 0)) {
-        exp++;
-    }
-
-    char *sufijos = (si ? "kMGTPE" : "KMGTPE");
-    char pre = sufijos[exp - 1];
-
-    if (exp > 4) {
-        bytes /= unit;
-        exp -= 1;
-    }
-    snprintf(bf, bfsize, "%.1f %c%sB", (double)bytes / pow((double)unit, exp), pre, (si ? "" : "i"));
 }
 
 /***************************************************************************

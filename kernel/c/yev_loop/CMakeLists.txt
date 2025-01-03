@@ -16,6 +16,11 @@ else()
 endif()
 include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 
+# Specify the paths to glibc and libm static libraries
+link_directories(/usr/lib/x86_64-linux-gnu)
+
+#include_directories("/usr/include")
+
 ##############################################
 #   Source
 ##############################################

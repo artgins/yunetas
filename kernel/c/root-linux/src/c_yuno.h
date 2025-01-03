@@ -11,7 +11,6 @@
 #pragma once
 
 #include <gobj.h>
-#include <yev_loop.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -47,8 +46,9 @@ PUBLIC int register_c_yuno(void);
 
 /*
  *  Get yuno event loop
+ *  Return void * to hide #include <yev_loop.h> dependency
  */
-PUBLIC yev_loop_t *yuno_event_loop(void);
+PUBLIC void *yuno_event_loop(void);
 
 /*--------------------------------------------------*
  *  Allowed ips for authz without jwt

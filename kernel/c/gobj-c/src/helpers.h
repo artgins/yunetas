@@ -76,8 +76,7 @@ PUBLIC char *helper_doublequote2quote(char *str);
     Return TRUE if all characters (not empty) are numbers
 **rst**/
 PUBLIC BOOL all_numbers(const char* s);
-PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes);
-PUBLIC void nice_size2(char *bf, size_t bfsize, size_t bytes, BOOL si); // si ? 1000 : 1024
+PUBLIC void nice_size(char* bf, size_t bfsize, uint64_t bytes, BOOL b1024);
 PUBLIC void delete_right_blanks(char *s);
 PUBLIC void delete_left_blanks(char *s);
 PUBLIC void left_justify(char *s);

@@ -1386,7 +1386,7 @@ PRIVATE int build_slave_data(hgobj gobj)
     }
     char temp[128];
     char nice[64];
-    nice_size(nice, sizeof(nice), (uint64_t)array_size);
+    nice_size(nice, sizeof(nice), (uint64_t)array_size, FALSE);
     snprintf(temp, sizeof(temp), "Allocating Modbus Array of %s (%d) bytes, %d slaves",
         nice,
         array_size,
