@@ -21,7 +21,10 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <syslog.h>
-#include <uuid/uuid.h>
+
+#ifdef __linux__
+#include <openssl/rand.h>
+#endif
 
 #include <arpa/inet.h>   // For htonl and htons
 #include <endian.h>      // For __BYTE_ORDER, __LITTLE_ENDIAN, etc.
@@ -214,6 +217,7 @@ PRIVATE int _walk_tree(
  *     Data
  *****************************************************************/
 static BOOL umask_cleared = FALSE;
+static char _node_uuid[64] = {0}; // uuid of the node
 
 
 
@@ -3799,7 +3803,7 @@ static const struct special {
     { "AM", date_am },
     { "never", date_never },
     { "now", date_now },
-    { NULL }
+    { NULL, NULL }
 };
 
 static const char *number_name[] = {
@@ -3816,7 +3820,7 @@ static const struct typelen {
     { "hours", 60*60 },
     { "days", 24*60*60 },
     { "weeks", 7*24*60*60 },
-    { NULL }
+    { NULL, 0 }
 };
 
 static const char *approxidate_alpha(const char *date, struct tm *tm, struct tm *now, int *num, int *touched)
@@ -4910,20 +4914,162 @@ PUBLIC int count_char(const char *s, char c)
     return count;
 }
 
+/*****************************************************************
+ *
+ *****************************************************************/
+PUBLIC const char *get_hostname(void)
+{
+    static char hostname[64 + 1] = {0};
+
+    if(!*hostname) {
+#ifdef __linux__
+        gethostname(hostname, sizeof(hostname)-1);
+#elif defined(ESP_PLATFORM)
+        // TODO improve
+        snprintf(hostname, sizeof(hostname), "%s", "esp32");
+#else
+    #error "What S.O.?"
+#endif
+    }
+    return hostname;
+}
+
 /***************************************************************************
- * This is the linux friendly implementation, but it could work on other
- * systems that have libuuid available
+ *  Create a random uuid
  ***************************************************************************/
 PUBLIC int create_uuid(char *bf, int bfsize)
 {
+    if(bfsize > 0) {
+        *bf = 0;
+    }
     if(bfsize < 37) {
-        if(bfsize > 0) {
-            *bf = 0;
-        }
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "buffer TOO small",
+            NULL
+        );
         return -1;
     }
-    uuid_t out;
-    uuid_generate(out);
-    uuid_unparse_lower(out, bf);
+
+#ifdef __linux__
+    unsigned char uuid[16];
+    RAND_bytes(uuid, 16);       // depends of openssl
+
+    // Set the version to 4 (randomly generated UUID)
+    uuid[6] = (uuid[6] & 0x0F) | 0x40;
+    // Set the variant to DCE 1.1
+    uuid[8] = (uuid[8] & 0x3F) | 0x80;
+
+    snprintf(bf, bfsize,
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        uuid[0], uuid[1], uuid[2], uuid[3],
+        uuid[4], uuid[5],
+        uuid[6], uuid[7],
+        uuid[8], uuid[9],
+        uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
+    );
+#else
+    #error "What S.O.?"
+#endif
+
     return 0;
+}
+
+/***************************************************************************
+ *  Node uuid
+ ***************************************************************************/
+#ifdef __linux__
+PRIVATE void save_node_uuid(void)
+{
+    char *directory = "/yuneta/store/agent/uuid";
+    json_t *jn_uuid = json_object();
+    json_object_set_new(jn_uuid, "uuid", json_string(_node_uuid));
+
+    save_json_to_file(
+        NULL,
+        directory,
+        "uuid.json",
+        02770,
+        0660,
+        0,
+        TRUE,   //create
+        FALSE,  //only_read
+        jn_uuid // owned
+    );
+}
+#endif
+
+/***************************************************************************
+ *  Node uuid
+ ***************************************************************************/
+#ifdef __linux__
+PRIVATE int read_node_uuid(void)
+{
+   json_t *jn_uuid = load_json_from_file(
+       NULL,
+        "/yuneta/store/agent/uuid",
+        "uuid.json",
+        0
+    );
+
+    if(jn_uuid) {
+        const char *uuid_ = kw_get_str(0, jn_uuid, "uuid", "", KW_REQUIRED);
+        snprintf(_node_uuid, sizeof(_node_uuid), "%s", uuid_);
+        json_decref(jn_uuid);
+        return 0;
+    }
+    return -1;
+}
+#endif
+
+/***************************************************************************
+ *  Node uuid
+ ***************************************************************************/
+#ifdef __linux__
+PRIVATE int create_node_uuid(void)
+{
+    read_node_uuid(); // get node uuid in _node_uuid
+    if(!empty_string(_node_uuid)) {
+        return 0;
+    }
+
+    // TODO improve, I use node_uuid to identify the machine, be depending of machine
+    create_uuid(_node_uuid, sizeof(_node_uuid));
+    save_node_uuid();
+    return 0;
+}
+#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const char *node_uuid(void)
+{
+    if(!_node_uuid[0]) {
+#ifdef ESP_PLATFORM
+        uint8_t mac_addr[6] = {0};
+        esp_efuse_mac_get_default(mac_addr);
+        snprintf(uuid, sizeof(uuid), "ESP32-%02X-%02X-%02X-%02X-%02X-%02X",
+            mac_addr[0],
+            mac_addr[1],
+            mac_addr[2],
+            mac_addr[3],
+            mac_addr[4],
+            mac_addr[5]
+        );
+        gobj_log_info(0, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Mac address",
+            "efuse_mac",    "%s", uuid,
+            "uuid",         "%s", uuid,
+            NULL
+        );
+#elif defined(__linux__)
+        create_node_uuid();
+#else
+    #error "What S.O.?"
+#endif
+    }
+    return _node_uuid;
 }

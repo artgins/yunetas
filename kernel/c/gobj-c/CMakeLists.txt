@@ -24,7 +24,6 @@ set (SRCS
     src/ghttp_parser.c
     src/gobj.c
     src/glog.c
-    src/gobj_environment.c
     src/istream.c
     src/parse_url.c
     src/log_udp_handler.c
@@ -50,7 +49,6 @@ set (HDRS
     src/gobj.h
     src/istream.h
     src/parse_url.h
-    src/gobj_environment.h
     src/log_udp_handler.h
     src/helpers.h
     src/kwid.h

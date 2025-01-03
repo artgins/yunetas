@@ -17,10 +17,13 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #ifdef __linux__
-#include <fcntl.h>
-#include <syslog.h>
-#include <linux/if.h>
+    #include <fcntl.h>
+    #include <syslog.h>
+    #if __has_include(<linux/if.h>)
+        #include <linux/if.h>
+    #endif
 #endif
+
 #ifdef ESP_PLATFORM
 #include <esp_event.h>
 #include <esp_log.h>
@@ -54,6 +57,10 @@
  */
 #define DEFAULT_UDP_FRAME_SIZE  1500
 #define DEFAULT_BUFFER_SIZE     (256*1024L)
+
+#ifndef IFNAMSIZ
+#define	IFNAMSIZ	16
+#endif
 
 /***************************************************************************
  *              Structures

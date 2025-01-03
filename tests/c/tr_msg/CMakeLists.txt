@@ -43,9 +43,9 @@ foreach(test ${SRCS})
         liburing.a
         libpcre2-8.a
         libbacktrace.a
+        libcrypto.a
 
         m
-        uuid
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

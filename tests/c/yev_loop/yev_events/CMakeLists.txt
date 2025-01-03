@@ -57,9 +57,9 @@ foreach(test ${SRCS})
         liburing.a
         libpcre2-8.a
         libbacktrace.a
+        libcrypto.a
 
         m
-        uuid
     )
     add_test("${current_directory_name}/${test}" ${binary})
 

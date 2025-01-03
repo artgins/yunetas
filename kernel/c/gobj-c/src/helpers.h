@@ -685,7 +685,10 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
 **rst**/
 PUBLIC int count_char(const char *s, char c);
 
-PUBLIC int create_uuid(char *bf, int bfsize);
+PUBLIC const char *get_hostname(void);
+
+PUBLIC int create_uuid(char *bf, int bfsize);   // Create a new random uuid (used by treedb)
+PUBLIC const char *node_uuid(void);             // Get the uuid of the machine
 
 #ifdef __cplusplus
 }

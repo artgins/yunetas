@@ -48,7 +48,6 @@ foreach(test ${SRCS})
         libbacktrace.a
 
         m
-        uuid
     )
     add_test("${current_directory_name}/${test}" ${binary})
 

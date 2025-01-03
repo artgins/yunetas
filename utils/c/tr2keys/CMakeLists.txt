@@ -42,10 +42,10 @@ target_link_libraries(${PROJECT_NAME}
     libjansson.a
     liburing.a
     libpcre2-8.a
+    libcrypto.a
     libbacktrace.a
 
     m
-    uuid
 )
 
 #if(ESP32_MODE)

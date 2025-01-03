@@ -6,7 +6,6 @@
  *          Copyright (c) 2019, Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <argp.h>
 #include <locale.h>
 
 #include "ansi_escape_codes.h"

@@ -14,7 +14,6 @@
 
 #ifdef __linux__
     #include <syslog.h>
-    #include <execinfo.h>
 #endif
 
 #ifdef ESP_PLATFORM

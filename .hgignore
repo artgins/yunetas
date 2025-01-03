@@ -1,5 +1,8 @@
 syntax:regexp
 
+cmake-build-debug-clang/
+cmake-build-debug-musl/
+
 external-libs/liburing/
 external-libs/projects_with_liburing/
 \.venv/
