@@ -287,8 +287,8 @@ PUBLIC int open_exclusive(const char *path, int flags, int permission)
  ***************************************************************************/
 PUBLIC off_t filesize(const char *path)
 {
-    struct stat64 st;
-    int ret = stat64(path, &st);
+    struct stat st;
+    int ret = stat(path, &st);
     if(ret < 0) {
         return 0;
     }
@@ -301,8 +301,8 @@ PUBLIC off_t filesize(const char *path)
  ***************************************************************************/
 PUBLIC off_t filesize2(int fd)
 {
-    struct stat64 st;
-    int ret = fstat64(fd, &st);
+    struct stat st;
+    int ret = fstat(fd, &st);
     if(ret < 0) {
         return 0;
     }
@@ -375,8 +375,8 @@ PUBLIC BOOL is_directory(const char *path)
  ***************************************************************************/
 PUBLIC off_t file_size(const char *path)
 {
-    struct stat64 st;
-    if(stat64(path, &st)<0) {
+    struct stat st;
+    if(stat(path, &st)<0) {
         return 0;
     }
     off_t size = st.st_size;

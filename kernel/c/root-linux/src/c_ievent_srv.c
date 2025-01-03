@@ -11,7 +11,6 @@
 #include <stdio.h>
 
 #include <kwid.h>
-#include <gobj_environment.h>
 #include <parse_url.h>
 
 #include "c_timer.h"

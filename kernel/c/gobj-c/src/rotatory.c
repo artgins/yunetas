@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <sys/statvfs.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "helpers.h"
 #include "rotatory.h"
@@ -249,7 +250,7 @@ PUBLIC hrotatory_t rotatory_open(
         }
         close(fd);
     }
-    hr->flog = fopen64(hr->path, "a");
+    hr->flog = fopen(hr->path, "a");
     if(!hr->flog) {
         print_error(
             hr->pe_flag,
@@ -406,7 +407,7 @@ PRIVATE void _rotatory_trunk(rotatory_log_t *hr)
     if(hr->flog) {
         rotatory_flush(hr);
         fclose(hr->flog);
-        hr->flog = fopen64(hr->path, "w");
+        hr->flog = fopen(hr->path, "w");
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
@@ -546,7 +547,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
             }
             close(fd);
         }
-        hr->flog = fopen64(hr->path, "w");
+        hr->flog = fopen(hr->path, "w");
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
@@ -569,8 +570,8 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
          *  each MAX_COUNTER_STATVFS times.
          */
 #ifdef __linux__
-        struct statvfs64 fiData;
-        if(fstatvfs64(fileno(hr->flog), &fiData) == 0) {
+        struct statvfs fiData;
+        if(fstatvfs(fileno(hr->flog), &fiData) == 0) {
             int free_percent = (fiData.f_bavail * 100)/fiData.f_blocks;
             if(free_percent < hr->min_free_disk_percentage) {
                 // No escribo nada con %free menor que x

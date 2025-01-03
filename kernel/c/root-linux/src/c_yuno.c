@@ -21,7 +21,6 @@
 #include <sys/utsname.h>
 #include <sys/resource.h>
 
-#include <gobj_environment.h>
 #include <kwid.h>
 #include <command_parser.h>
 #include <log_udp_handler.h>

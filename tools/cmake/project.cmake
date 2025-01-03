@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.5)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 
-set (CMAKE_ENABLE_EXPORTS TRUE)
-
 #--------------------------------------------------#
 #   Check YUNETAS_BASE_DIR
 #--------------------------------------------------#
@@ -44,6 +42,9 @@ link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
 
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
+
+include_directories("/usr/include")
+link_directories("/usr/lib")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)

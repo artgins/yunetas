@@ -14,7 +14,6 @@
 #include <unistd.h>
 
 #include <kwid.h>
-#include <gobj_environment.h>
 #include <parse_url.h>
 #include <comm_prot.h>
 #include <yuneta_version.h>

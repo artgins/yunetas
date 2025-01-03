@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <signal.h>
 #include <unistd.h>
+#include <limits.h>
 #include <argp.h>
 
 #include <command_parser.h>
@@ -22,7 +23,6 @@
 #include <kwid.h>
 #include <yev_loop.h>
 #include <log_udp_handler.h>
-#include <gobj_environment.h>
 #include <stacktrace_with_backtrace.h>
 // #include <stacktrace_with_backtrace.h>
 #include <yuneta_version.h>
