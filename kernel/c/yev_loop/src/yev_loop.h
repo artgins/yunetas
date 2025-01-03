@@ -129,7 +129,9 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop);
 PUBLIC int yev_loop_run(yev_loop_h yev_loop, int timeout_in_seconds);
 PUBLIC int yev_loop_run_once(yev_loop_h yev_loop);
 PUBLIC int yev_loop_stop(yev_loop_h yev_loop);
+PUBLIC void yev_loop_reset_running(yev_loop_h yev_loop);
 PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event);
+PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event);
 PUBLIC BOOL yev_event_is_running(yev_event_h yev_event);
 PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of protocols
     yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn
@@ -164,15 +166,19 @@ PUBLIC void yev_set_flag(
     yev_flag_t flag,
     BOOL set
 );
-PUBLIC yev_state_t yev_get_flag(yev_event_h yev_event);
+PUBLIC yev_type_t yev_get_type(yev_event_h yev_event);
+PUBLIC yev_callback_t yev_get_callback(yev_event_h yev_event);
+PUBLIC yev_loop_h yev_get_loop(yev_event_h yev_event);
+PUBLIC yev_flag_t yev_get_flag(yev_event_h yev_event);
 PUBLIC yev_state_t yev_get_state(yev_event_h yev_event);
 PUBLIC int yev_get_result(yev_event_h yev_event);
 PUBLIC hgobj yev_get_gobj(yev_event_h yev_event);
+PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop);
 PUBLIC int yev_set_user_data(
     yev_event_h yev_event,
     void *user_data
 );
-
+PUBLIC void * yev_get_user_data(yev_event_h yev_event);
 PUBLIC const char *yev_get_state_name(yev_event_h yev_event);
 
 PUBLIC int yev_start_event(

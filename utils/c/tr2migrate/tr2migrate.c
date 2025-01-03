@@ -11,7 +11,7 @@
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
-#include <locale.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -143,7 +143,7 @@ json_t *topic2 = 0;
 size_t topic_records = 0;
 size_t total_counter = 0;
 
-yev_loop_t *yev_loop;
+yev_loop_h yev_loop;
 
 /***************************************************************************
  *
@@ -717,7 +717,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int times = 0;
     times++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(times > 1) {
         exit(-1);
     }

@@ -9,6 +9,8 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+#include <limits.h>
+
 #include <gobj.h>
 #include <kwid.h>
 #include <timeranger2.h>
@@ -34,9 +36,9 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_t *yev_loop;
-yev_event_t *yev_event_once;
-yev_event_t *yev_event_periodic;
+yev_loop_h yev_loop;
+yev_event_h yev_event_once;
+yev_event_h yev_event_periodic;
 int wait_time = 1;
 int times_once = 0;
 int times_periodic = 0;
@@ -1447,7 +1449,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }

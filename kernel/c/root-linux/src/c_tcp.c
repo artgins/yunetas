@@ -69,7 +69,7 @@ GOBJ_DECLARE_EVENT(EV_SEND_ENCRYPTED_DATA);
  ***************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE void set_connected(hgobj gobj, int fd);
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
@@ -139,8 +139,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     BOOL __clisrv__;
-    yev_event_t *yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
-    yev_event_t *yev_client_rx;
+    yev_event_h yev_client_connect;    // Used if not __clisrv__ (pure tcp client)
+    yev_event_h yev_client_rx;
     int fd_clisrv;
     int timeout_inactivity;
     BOOL inform_disconnection;
@@ -471,11 +471,11 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     if(priv->yev_client_rx) {
         yev_set_fd(priv->yev_client_rx, fd);
     }
-    if(!priv->yev_client_rx->gbuf) {
+    if(!yev_get_gbuf(priv->yev_client_rx)) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
     } else {
-        gbuffer_clear(priv->yev_client_rx->gbuf);
+        gbuffer_clear(yev_get_gbuf(priv->yev_client_rx));
     }
 
     yev_start_event(priv->yev_client_rx);
@@ -605,21 +605,21 @@ PRIVATE void set_disconnected(hgobj gobj)
     }
 
     if(priv->yev_client_connect) {
-        if(priv->yev_client_connect->fd > 0) {
+        if(yev_get_fd(priv->yev_client_connect) > 0) {
             if(gobj_trace_level(gobj) & TRACE_URING) {
                 gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_YEV_LOOP,
                     "msg",          "%s", "close socket yev_client_connect",
                     "msg2",         "%s", "💥🟥 close socket yev_client_connect",
-                    "fd",           "%d", priv->yev_client_connect->fd ,
+                    "fd",           "%d", yev_get_fd(priv->yev_client_connect) ,
                     "p",            "%p", priv->yev_client_connect,
                     NULL
                 );
             }
 
-            close(priv->yev_client_connect->fd);
-            priv->yev_client_connect->fd = -1;
+            close(yev_get_fd(priv->yev_client_connect));
+            yev_set_fd(priv->yev_client_connect, -1);
         }
     } else {
         if(priv->fd_clisrv > 0) {
@@ -745,8 +745,8 @@ PRIVATE int write_data(hgobj gobj)
         /*
          *  Transmit
          */
-        int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-        yev_event_t *yev_write_event = yev_create_write_event(
+        int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_client_connect);
+        yev_event_h yev_write_event = yev_create_write_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
@@ -1002,7 +1002,7 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_h yev_event)
 {
     if(!yev_event) {
         /*
@@ -1011,11 +1011,11 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return 0;
     }
 
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_get_gobj(yev_event);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_URING) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1023,12 +1023,12 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "msg2",         "%s", "🌐🌐💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
-            "fd",           "%d", yev_event->fd,
-            "gbuffer",      "%p", yev_event->gbuf,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
             NULL
         );
         json_decref(jn_flags);
@@ -1036,15 +1036,15 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
 
     yev_state_t yev_state = yev_get_state(yev_event);
 
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
                     /*
-                     *  yev_event->gbuf can be null if yev_stop_event() was called
+                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                      */
                     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "%s: %s%s%s",
+                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
                             " <- ",
@@ -1053,13 +1053,13 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     }
 
                     priv->rxMsgs++;
-                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_event->gbuf);
+                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_get_gbuf(yev_event));
 
                     int ret = 0;
 
                     if(priv->use_ssl) {
-                        GBUFFER_INCREF(yev_event->gbuf)
-                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_event->gbuf);
+                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
+                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_get_gbuf(yev_event));
                         if(ret < 0) {
                             /*
                              *  If return -1 while doing handshake then is good stop here the gobj,
@@ -1077,9 +1077,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         }
 
                     } else {
-                        GBUFFER_INCREF(yev_event->gbuf)
+                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
                         json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)yev_event->gbuf
+                            "gbuffer", (json_int_t)(size_t)yev_get_gbuf(yev_event)
                         );
                         /*
                          *  CHILD subscription model
@@ -1097,7 +1097,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                      *  Check ret is 0 because the EV_RX_DATA could provoke the destroying of gobj
                      */
                     if(ret == 0 && gobj_is_running(gobj)) {
-                        gbuffer_clear(yev_event->gbuf);
+                        gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
 
@@ -1105,7 +1105,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     /*
                      *  Disconnected
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
                     if(gobj_trace_level(gobj) & TRACE_URING || 1) {
                         gobj_log_debug(gobj, 0,
@@ -1116,8 +1116,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
                             NULL
                         );
@@ -1137,14 +1137,14 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                         /*
                          *  See if all data was transmitted
                          */
-                        priv->txBytes += (json_int_t)yev_event->result;
-                        if(gbuffer_leftbytes(yev_event->gbuf) > 0) {
+                        priv->txBytes += (json_int_t)yev_get_result(yev_event);
+                        if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
                             if(gobj_trace_level(gobj) & TRACE_MACHINE) {
                                 trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
                                     !gobj_is_running(gobj)?"!!":"",
                                     gobj_gclass_name(gobj), gobj_name(gobj),
                                     gobj_current_state(gobj),
-                                    (long)gbuffer_leftbytes(yev_event->gbuf)
+                                    (long)gbuffer_leftbytes(yev_get_gbuf(yev_event))
                                 );
                             }
 
@@ -1166,7 +1166,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                     /*
                      *  Disconnected
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
                     if(gobj_trace_level(gobj) & TRACE_URING || 1) {
                         gobj_log_debug(gobj, 0,
@@ -1177,8 +1177,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
                             NULL
                         );
@@ -1195,12 +1195,12 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         case YEV_CONNECT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-                    set_connected(gobj, yev_event->fd);
+                    set_connected(gobj, yev_get_fd(yev_event));
                 } else {
                     /*
                      *  Error on connection
                      */
-                    gobj_log_set_last_message("%s", strerror(-yev_event->result));
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
                     if(gobj_trace_level(gobj) & TRACE_URING || 1) {
                         gobj_log_debug(gobj, 0,
@@ -1209,8 +1209,8 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
                             "msg",          "%s", "TCP: connect FAILED",
                             "msg2",         "%s", "🌐TCP: connect FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "errno",        "%d", -yev_event->result,
-                            "strerror",     "%s", strerror(-yev_event->result),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
                             NULL
                         );
@@ -1350,8 +1350,8 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
     /*
      *  Transmit
      */
-    int fd = priv->__clisrv__? priv->fd_clisrv:priv->yev_client_connect->fd;
-    yev_event_t *yev_write_event = yev_create_write_event(
+    int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_client_connect);
+    yev_event_h yev_write_event = yev_create_write_event(
         yuno_event_loop(),
         yev_callback,
         gobj,

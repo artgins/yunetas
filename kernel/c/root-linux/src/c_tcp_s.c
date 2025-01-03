@@ -30,7 +30,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_h yev_event);
 //PRIVATE void on_close_cb(uv_handle_t* handle);
 //PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
 
@@ -92,7 +92,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t connxs;
     json_int_t tconnxs;
 
-    yev_event_t *yev_server_accept;
+    yev_event_h yev_server_accept;
     int fd_listen;
     hytls ytls;
     BOOL use_ssl;
@@ -332,7 +332,7 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *  Accept cb
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_h yev_event)
 {
     hgobj gobj = yev_get_gobj(yev_event);
     if(!gobj) {
@@ -362,7 +362,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         return 0;
     }
 
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_ACCEPT_TYPE:
             break;
 
@@ -381,7 +381,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     /*-------------------------------------------------*
      *  WARNING: Here only with YEV_ACCEPT_TYPE event
      *-------------------------------------------------*/
-    int fd_clisrv = yev_event->result;
+    int fd_clisrv = yev_get_result(yev_event);
     if(fd_clisrv<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

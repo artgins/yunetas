@@ -266,12 +266,11 @@ PRIVATE int list_topics(const char *path);
  *      Data
  ***************************************************************************/
 
-yev_loop_t *yev_loop;
+yev_loop_h yev_loop;
 int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
-yev_loop_t *yev_loop;
 
 /***************************************************************************
  *
@@ -1058,7 +1057,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int times = 0;
     times++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(times > 1) {
         exit(-1);
     }

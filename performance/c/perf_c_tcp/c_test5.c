@@ -5,6 +5,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <iconv.h>
+#include <limits.h>
 
 #include "common/c_pepon.h"
 #include "c_test5.h"

@@ -49,8 +49,8 @@ typedef int (*fs_callback_t)(
 );
 
 struct fs_event_s {
-    yev_loop_t *yev_loop;
-    yev_event_t *yev_event;
+    yev_loop_h yev_loop;
+    yev_event_h yev_event;
     const char *path;
     fs_flag_t fs_flag;
     fs_type_t fs_type;          // Output
@@ -72,7 +72,7 @@ struct fs_event_s {
  *      will cause IN_Q_OVERFLOW and event lost.
  *************************************************************************/
 PUBLIC fs_event_t *fs_create_watcher_event(
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     const char *path,
     fs_flag_t fs_flag,
     fs_callback_t callback,

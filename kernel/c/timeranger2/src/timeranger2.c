@@ -290,14 +290,14 @@ PRIVATE BOOL tranger2_match_metadata(
 );
 PRIVATE fs_event_t *monitor_disks_directory_by_master(
     hgobj gobj,
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     json_t *tranger,
     json_t *topic
 );
 PRIVATE int master_fs_callback(fs_event_t *fs_event);
 PRIVATE fs_event_t *monitor_rt_disk_by_client(
     hgobj gobj,
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -351,7 +351,7 @@ PRIVATE int scan_disks_key_for_new_file(
 PUBLIC json_t *tranger2_startup(
     hgobj gobj,
     json_t *jn_tranger, // owned, See tranger2_json_desc for parameters
-    yev_loop_t *yev_loop
+    yev_loop_h yev_loop
 )
 {
     json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
@@ -1045,7 +1045,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*
      *  Monitoring the disk to realtime disk lists
      */
-    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    yev_loop_h yev_loop = (yev_loop_h)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     if(yev_loop) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         if(master) {
@@ -1248,7 +1248,7 @@ PUBLIC int tranger2_close_topic(
     close_fd_opened_files(gobj, topic, NULL);
 
     // MONITOR Master Unwatching (MI) topic /disks/
-    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    yev_loop_h yev_loop = (yev_loop_h)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     BOOL master = json_boolean_value(json_object_get(tranger, "master"));
     if(yev_loop && master) {
         if(gobj_trace_level(gobj) & TRACE_FS) {
@@ -3346,7 +3346,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     /*
      *  Create in disk the realtime disk directory and monitor
      */
-    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    yev_loop_h yev_loop = (yev_loop_h)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     if(yev_loop) {
         // Master can operate as a non-master and operate through the disk (NOT SENSE, only to test)
         // BOOL master = json_boolean_value(json_object_get(tranger, "master"));
@@ -3412,7 +3412,7 @@ PUBLIC int tranger2_close_rt_disk(
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, KW_REQUIRED);
 
-    yev_loop_t *yev_loop = (yev_loop_t *)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
+    yev_loop_h yev_loop = (yev_loop_h)kw_get_int(gobj, tranger, "yev_loop", 0, KW_REQUIRED);
     if(yev_loop) {
         // MONITOR Client Unwatching (MI) topic /disks/rt_id/
         if(gobj_trace_level(gobj) & TRACE_FS) {
@@ -3603,7 +3603,7 @@ PRIVATE void find_rt_disk(json_t *tranger, const char *path)
  ***************************************************************************/
 PRIVATE fs_event_t *monitor_disks_directory_by_master(
     hgobj gobj,
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     json_t *tranger,
     json_t *topic
 )
@@ -3899,7 +3899,7 @@ PRIVATE int master_to_update_client_load_record_callback(
  ***************************************************************************/
 PRIVATE fs_event_t *monitor_rt_disk_by_client(
     hgobj gobj,
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     json_t *tranger,
     json_t *topic,
     const char *key,

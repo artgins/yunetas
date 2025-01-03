@@ -16,6 +16,7 @@
 #include <string.h>
 #include <signal.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -47,13 +48,13 @@ int who_drop = 0; // 0 client, 1 srv_cli, 2 server
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_server_callback(yev_event_t *event);
-PRIVATE int yev_client_callback(yev_event_t *event);
+PRIVATE int yev_server_callback(yev_event_h event);
+PRIVATE int yev_client_callback(yev_event_h event);
 
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_t *yev_loop;
+yev_loop_h yev_loop;
 
 #ifdef LIKE_LIBUV_PING_PONG
 static char PING[] = "PING\n";
@@ -64,16 +65,16 @@ int srv_cli_fd;
 int fd_listen;
 
 gbuffer_t *gbuf_server_tx = 0;
-yev_event_t *yev_server_tx = 0;
+yev_event_h yev_server_tx = 0;
 
 gbuffer_t *gbuf_server_rx = 0;
-yev_event_t *yev_server_rx = 0;
+yev_event_h yev_server_rx = 0;
 
 gbuffer_t *gbuf_client_tx = 0;
-yev_event_t *yev_client_tx = 0;
+yev_event_h yev_client_tx = 0;
 
 gbuffer_t *gbuf_client_rx = 0;
-yev_event_t *yev_client_rx = 0;
+yev_event_h yev_client_rx = 0;
 
 uint64_t t;
 uint64_t msg_per_second = 0;
@@ -108,7 +109,7 @@ PRIVATE int rt_disk_record_callback(
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+PRIVATE int yev_loop_callback(yev_event_h yev_event) {
     if (!yev_event) {
         /*
          *  It's the timeout
@@ -121,21 +122,21 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_server_callback(yev_event_t *yev_event)
+PRIVATE int yev_server_callback(yev_event_h yev_event)
 {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_get_gobj(yev_event);
     int ret = 0;
 
     if(dump) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
             "msg2",         "%s", "💥 yev server callback",
             "event type",   "%s", yev_event_type_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
             NULL
@@ -144,7 +145,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     }
 
     yev_state_t yev_state = yev_get_state(yev_event);
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
                 if(yev_state != YEV_ST_IDLE) {
@@ -156,7 +157,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 }
 
                 msg_per_second++;
-                bytes_per_second += gbuffer_leftbytes(yev_event->gbuf);
+                bytes_per_second += gbuffer_leftbytes(yev_get_gbuf(yev_event));
                 if(test_msectimer(t)) {
                     seconds_count++;
                     if(seconds_count && (seconds_count % drop_in_seconds)==0) {
@@ -197,10 +198,10 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                  *  Save received data to transmit: do echo
                  */
                 if(dump) {
-                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Server receiving");
+                    gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "Server receiving");
                 }
                 gbuffer_clear(gbuf_server_tx);
-                gbuffer_append_gbuf(gbuf_server_tx, yev_event->gbuf);
+                gbuffer_append_gbuf(gbuf_server_tx, yev_get_gbuf(yev_event));
 
                 /*
                  *  Transmit
@@ -215,8 +216,8 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                  *  Clear buffer
                  *  Re-arm read
                  */
-                gbuffer_clear(yev_event->gbuf);
-                yev_set_gbuffer(yev_server_rx, yev_event->gbuf);
+                gbuffer_clear(yev_get_gbuf(yev_event));
+                yev_set_gbuffer(yev_server_rx, yev_get_gbuf(yev_event));
                 yev_start_event(yev_server_rx);
             }
             break;
@@ -240,7 +241,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                     break;
                 }
 
-                srv_cli_fd = yev_event->result;
+                srv_cli_fd = yev_get_result(yev_event);
 
                 char sockname[80], peername[80];
                 get_peername(peername, sizeof(peername), srv_cli_fd);
@@ -256,7 +257,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 }
                 if(!yev_server_rx) {
                     yev_server_rx = yev_create_read_event(
-                        yev_event->yev_loop,
+                        yev_get_loop(yev_event),
                         yev_server_callback,
                         NULL,
                         srv_cli_fd,
@@ -273,7 +274,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                 }
                 if(!yev_server_tx) {
                     yev_server_tx = yev_create_write_event(
-                        yev_event->yev_loop,
+                        yev_get_loop(yev_event),
                         yev_server_callback,
                         NULL,
                         srv_cli_fd,
@@ -302,21 +303,21 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int yev_client_callback(yev_event_t *yev_event)
+PRIVATE int yev_client_callback(yev_event_h yev_event)
 {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_get_gobj(yev_event);
     int ret = 0;
 
     if(dump) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
             "msg2",         "%s", "💥 yev client callback",
             "event type",   "%s", yev_event_type_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "flag",         "%j", jn_flags,
             "p",            "%p", yev_event,
             NULL
@@ -325,7 +326,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     }
 
     yev_state_t yev_state = yev_get_state(yev_event);
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
                 if(yev_state != YEV_ST_IDLE) {
@@ -340,16 +341,16 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Save received data to transmit: do echo
                  */
                 if(dump) {
-                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client receiving");
+                    gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "Client receiving");
                 }
 
-                json_t *jn_record = gbuf2json(gbuffer_incref(yev_event->gbuf), TRUE);
-                gbuffer_reset_rd(yev_event->gbuf);
+                json_t *jn_record = gbuf2json(gbuffer_incref(yev_get_gbuf(yev_event)), TRUE);
+                gbuffer_reset_rd(yev_get_gbuf(yev_event));
                 md2_record_ex_t md_record;
                 tranger2_append_record(tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);
 
                 gbuffer_clear(gbuf_client_tx);
-                gbuffer_append_gbuf(gbuf_client_tx, yev_event->gbuf);
+                gbuffer_append_gbuf(gbuf_client_tx, yev_get_gbuf(yev_event));
 
                 /*
                  *  Transmit
@@ -364,7 +365,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Clear buffer
                  *  Re-arm read
                  */
-                gbuffer_clear(yev_event->gbuf);
+                gbuffer_clear(yev_get_gbuf(yev_event));
                 yev_start_event(yev_client_rx);
             }
             break;
@@ -392,8 +393,8 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 }
 
                 char sockname[80], peername[80];
-                get_peername(peername, sizeof(peername), yev_event->fd);
-                get_sockname(sockname, sizeof(sockname), yev_event->fd);
+                get_peername(peername, sizeof(peername), yev_get_fd(yev_event));
+                get_sockname(sockname, sizeof(sockname), yev_get_fd(yev_event));
                 printf("CONNECTED sockname %s -> peername %s \n", sockname, peername);
 
                 /*
@@ -405,10 +406,10 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                 }
                 if(!yev_client_rx) {
                     yev_client_rx = yev_create_read_event(
-                        yev_event->yev_loop,
+                        yev_get_loop(yev_event),
                         yev_client_callback,
                         NULL,
-                        yev_event->fd,
+                        yev_get_fd(yev_event),
                         0
                     );
                 }
@@ -428,10 +429,10 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
 
                 if(!yev_client_tx) {
                     yev_client_tx = yev_create_write_event(
-                        yev_event->yev_loop,
+                        yev_get_loop(yev_event),
                         yev_client_callback,
                         NULL,
-                        yev_event->fd,
+                        yev_get_fd(yev_event),
                         0
                     );
                 }
@@ -440,7 +441,7 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
                  *  Transmit
                  */
                 if(dump) {
-                    gobj_trace_dump_gbuf(gobj, yev_event->gbuf, "Client transmitting");
+                    gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "Client transmitting");
                 }
                 yev_set_gbuffer(yev_client_tx, gbuf_client_tx);
                 yev_start_event(yev_client_tx);
@@ -624,7 +625,7 @@ int do_test(void)
     /*--------------------------------*
      *      Setup server
      *--------------------------------*/
-    yev_event_t *yev_server_accept = yev_create_accept_event(
+    yev_event_h yev_server_accept = yev_create_accept_event(
         yev_loop,
         yev_server_callback,
         NULL
@@ -647,7 +648,7 @@ int do_test(void)
     /*--------------------------------*
      *      Setup client
      *--------------------------------*/
-    yev_event_t *yev_client_connect = yev_create_connect_event(
+    yev_event_h yev_client_connect = yev_create_connect_event(
         yev_loop,
         yev_client_callback,
         NULL
@@ -830,7 +831,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int times = 0;
     times++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(times > 1) {
         exit(-1);
     }

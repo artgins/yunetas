@@ -24,7 +24,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_h yev_event);
 
 /***************************************************************
  *              Data
@@ -44,7 +44,7 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    yev_event_t *yev_event;
+    yev_event_h yev_event;
     BOOL periodic;
     json_int_t msec;
 } PRIVATE_DATA;
@@ -136,16 +136,16 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_h yev_event)
 {
-    hgobj gobj = yev_event->gobj;
+    hgobj gobj = yev_get_gobj(yev_event);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -153,9 +153,9 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             "msg2",         "%s", "⏰⏰ ✅✅ hard timeout got",
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "fd",           "%d", yev_get_fd(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
@@ -353,14 +353,14 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
     gobj_write_bool_attr(gobj, "periodic", FALSE);
 
     if(tracea) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "set_timeout",
             "msg2",         "%s", "⏰⏰ 🟦 set_timeout",
             "type",         "%s", yev_event_type_name(priv->yev_event),
-            "fd",           "%d", priv->yev_event->fd,
+            "fd",           "%d", yev_get_fd(priv->yev_event),
             "p",            "%p", priv->yev_event,
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
@@ -397,14 +397,14 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
     gobj_write_bool_attr(gobj, "periodic", TRUE);
 
     if(tracea) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "set_timeout_periodic",
             "msg2",         "%s", "⏰⏰ 🟦🟦 set_timeout_periodic",
             "type",         "%s", yev_event_type_name(priv->yev_event),
-            "fd",           "%d", priv->yev_event->fd,
+            "fd",           "%d", yev_get_fd(priv->yev_event),
             "p",            "%p", priv->yev_event,
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,
@@ -438,14 +438,14 @@ PUBLIC void clear_timeout0(hgobj gobj)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     if(tracea) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), priv->yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "clear_timeout",
             "msg2",         "%s", "⏰⏰ ❎ clear_timeout",
             "type",         "%s", yev_event_type_name(priv->yev_event),
-            "fd",           "%d", priv->yev_event->fd,
+            "fd",           "%d", yev_get_fd(priv->yev_event),
             "p",            "%p", priv->yev_event,
             "flag",         "%j", jn_flags,
             "periodic",     "%d", priv->periodic?1:0,

@@ -34,13 +34,13 @@ const char *server_url = "tcp://localhost:3333";
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_h yev_event);
 
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_t *yev_loop;
-yev_event_t *yev_event_accept;
+yev_loop_h yev_loop;
+yev_event_h yev_event_accept;
 int result = 0;
 
 char *msg = "";
@@ -49,7 +49,7 @@ int fd = -1;
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_h yev_event)
 {
     if(!yev_event) {
         /*
@@ -59,10 +59,10 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
     }
 
     int ret = 0;
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_ACCEPT_TYPE:
             {
-                fd = yev_event->result;
+                fd = yev_get_result(yev_event);
 
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
@@ -82,16 +82,16 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             );
             break;
     }
-    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", msg,
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
-        "fd",           "%d", yev_event->fd,
-        "result",       "%d", yev_event->result,
-        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+        "fd",           "%d", yev_get_fd(yev_event),
+        "result",       "%d", yev_get_result(yev_event),
+        "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
         "p",            "%p", yev_event,
         "flag",         "%j", jn_flags,
         NULL
@@ -125,7 +125,7 @@ int do_test(void)
         yev_callback,
         0
     );
-    yev_setup_accept_event( // create the socket listening in yev_event->fd
+    yev_setup_accept_event( // create the socket listening in yev_get_fd(yev_event)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
@@ -280,7 +280,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }

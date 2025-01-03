@@ -157,7 +157,7 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE yev_loop_t *yev_loop;
+PRIVATE yev_loop_h yev_loop;
 
 /***************************************************************************
  *
@@ -194,7 +194,7 @@ PRIVATE int rt_disk_record_callback(
         }
         if(rows_appending >= MAX_KEYS * MAX_RECORDS) {
             if(arguments.client) {
-                yev_loop->running = 0;
+                yev_loop_reset_running(yev_loop);
             }
         }
     }
@@ -599,7 +599,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }

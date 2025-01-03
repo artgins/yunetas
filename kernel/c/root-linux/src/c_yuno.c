@@ -11,6 +11,7 @@
 #include <time.h>
 #include <libintl.h>
 #include <pwd.h>
+#include <errno.h>
 #include <grp.h>
 #include <locale.h>
 #include <unistd.h>
@@ -459,7 +460,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_loop_t *yev_loop;
+    yev_loop_h yev_loop;
 
     uint64_t last_cpu_ticks;
     uint64_t last_ms;
@@ -491,7 +492,7 @@ PRIVATE hgclass __gclass__ = 0;
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+PRIVATE int yev_loop_callback(yev_event_h yev_event) {
     if (!yev_event) {
         /*
          *  It's the timeout
@@ -4156,7 +4157,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
     if(gobj_get_yuno_must_die()) {
         JSON_DECREF(kw)
-        priv->yev_loop->running = FALSE;
+        yev_loop_reset_running(priv->yev_loop);
         return 0;
     }
     if(priv->timeout_restart > 0 && test_sectimer(priv->t_restart)) {
@@ -4167,7 +4168,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         );
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
-        priv->yev_loop->running = FALSE;
+        yev_loop_reset_running(priv->yev_loop);
         return 0;
     }
 
@@ -4184,7 +4185,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         if(priv->autokill_init >= priv->autokill) {
             priv->autokill = 0;
             gobj_trace_msg(gobj, "❌❌❌❌ SHUTDOWN ❌❌❌❌");
-            priv->yev_loop->running = FALSE;
+            yev_loop_reset_running(priv->yev_loop);
             JSON_DECREF(kw)
             return -1;
         }

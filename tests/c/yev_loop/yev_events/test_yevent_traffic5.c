@@ -43,15 +43,15 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_t *yev_loop;
-yev_event_t *yev_event_accept;
-yev_event_t *yev_event_connect;
+yev_loop_h yev_loop;
+yev_event_h yev_event_accept;
+yev_event_h yev_event_connect;
 int result = 0;
 
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
+PRIVATE int yev_loop_callback(yev_event_h yev_event) {
     if (!yev_event) {
         /*
          *  It's the timeout
@@ -64,7 +64,7 @@ PRIVATE int yev_loop_callback(yev_event_t *yev_event) {
 /***************************************************************************
  *  yev_loop callback   SERVER
  ***************************************************************************/
-PRIVATE int yev_server_callback(yev_event_t *yev_event)
+PRIVATE int yev_server_callback(yev_event_h yev_event)
 {
     static int rx_counter = 0;
 
@@ -78,7 +78,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     char *msg = "???";
     int ret = 0;
     yev_state_t yev_state = yev_get_state(yev_event);
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_ACCEPT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
@@ -111,9 +111,9 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
                      *  Response to the client
                      *  Get their callback and fd
                      */
-                    yev_event_t *yev_response = yev_create_write_event(
+                    yev_event_h yev_response = yev_create_write_event(
                         yev_loop,
-                        yev_event->callback,
+                        yev_get_callback(yev_event),
                         NULL,   // gobj
                         yev_get_fd(yev_event),
                         gbuffer_incref(gbuf_rx)
@@ -187,16 +187,16 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
     }
 
     if(yev_event) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", msg,
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "fd",           "%d", yev_get_fd(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
             NULL
@@ -210,7 +210,7 @@ PRIVATE int yev_server_callback(yev_event_t *yev_event)
 /***************************************************************************
  *  yev_loop callback   CLIENT
  ***************************************************************************/
-PRIVATE int yev_client_callback(yev_event_t *yev_event)
+PRIVATE int yev_client_callback(yev_event_h yev_event)
 {
     static int rx_counter = 0;
 
@@ -224,13 +224,13 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     char *msg = "???";
     int ret = 0;
     yev_state_t yev_state = yev_get_state(yev_event);
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_CONNECT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
                     msg = "Client: Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
-                    if(yev_event->result == -125) {
+                    if(yev_get_result(yev_event) == -125) {
                         msg = "Client: Connect canceled";
                     } else {
                         msg = "Client: Connection Refused";
@@ -308,16 +308,16 @@ PRIVATE int yev_client_callback(yev_event_t *yev_event)
     }
 
     if(yev_event) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", msg,
             "type",         "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_event->fd,
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "fd",           "%d", yev_get_fd(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
             NULL
@@ -352,7 +352,7 @@ int do_test(void)
         yev_server_callback,
         0
     );
-    yev_setup_accept_event( // create the socket listening in yev_event->fd
+    yev_setup_accept_event( // create the socket listening in yev_get_fd(yev_event)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
@@ -371,7 +371,7 @@ int do_test(void)
         yev_client_callback,
         0
     );
-    yev_setup_connect_event( // create the socket listening in yev_event->fd
+    yev_setup_connect_event( // create the socket listening in yev_get_fd(yev_event)
         yev_event_connect,
         server_url, // listen_url,
         NULL,   // src_url, only host:port
@@ -390,7 +390,7 @@ int do_test(void)
     /*----------------------------------------------------------*
      *  CLIENT: On client connected, set ready to read
      *---------------------------------------------------------*/
-    yev_event_t *yev_client_reader_msg = 0;
+    yev_event_h yev_client_reader_msg = 0;
     if(yev_get_state(yev_event_connect) == YEV_ST_IDLE) {
         /*
          *  Setup a reader yevent
@@ -400,7 +400,7 @@ int do_test(void)
             yev_loop,
             yev_client_callback,
             NULL,   // gobj
-            yev_event_connect->fd,
+            yev_get_fd(yev_event_connect),
             gbuf
         );
         yev_start_event(yev_client_reader_msg);
@@ -409,7 +409,7 @@ int do_test(void)
     /*------------------------------------------------*
      *  SERVER: On client connect, set ready to read
      *------------------------------------------------*/
-    yev_event_t *yev_server_reader_msg = 0;
+    yev_event_h yev_server_reader_msg = 0;
     if(yev_get_state(yev_event_accept) == YEV_ST_IDLE ||
             yev_get_state(yev_event_accept) == YEV_ST_RUNNING  // Can be RUNNING if re-armed
         ) {
@@ -445,12 +445,12 @@ int do_test(void)
             }
 
             gobj_info_msg(0, "client: send request %d",i+1);
-            yev_event_t * yev_client_msg = 0;
+            yev_event_h yev_client_msg = 0;
             yev_client_msg = yev_create_write_event(
                 yev_loop,
                 yev_client_callback,
                 NULL,   // gobj
-                yev_event_connect->fd,
+                yev_get_fd(yev_event_connect),
                 json2gbuf(0, json_sprintf(MESSAGE, i+1), JSON_ENCODE_ANY)
             );
             yev_start_event(yev_client_msg);
@@ -658,7 +658,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }

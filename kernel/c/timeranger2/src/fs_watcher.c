@@ -34,7 +34,7 @@ PRIVATE void fs_destroy_watcher_event(
     fs_event_t *fs_event
 );
 PRIVATE int yev_callback(
-    yev_event_t *yev_event
+    yev_event_h yev_event
 );
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
@@ -87,7 +87,7 @@ PRIVATE bits_table_t bits_table[] = {
  *
  ***************************************************************************/
 PUBLIC fs_event_t *fs_create_watcher_event(
-    yev_loop_t *yev_loop,
+    yev_loop_h yev_loop,
     const char *path,
     fs_flag_t fs_flag,
     fs_callback_t callback,
@@ -116,7 +116,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
         } else if(err == ENFILE) {
             serr = "The system limit on the total number of FILE DESCRIPTORS has been reached";
         }
-        gobj_log_critical(yev_loop->yuno?gobj:0, 0,
+        gobj_log_critical(yev_get_yuno(yev_loop)?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "inotify_init1() FAILED",
@@ -298,14 +298,14 @@ PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event)
  *
  ***************************************************************************/
 PRIVATE int yev_callback(
-    yev_event_t *yev_event
+    yev_event_h yev_event
 )
 {
-    fs_event_t *fs_event = yev_event->user_data;
+    fs_event_t *fs_event = yev_get_user_data(yev_event);
     hgobj gobj = fs_event->gobj;
 
     if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -313,25 +313,25 @@ PRIVATE int yev_callback(
             "msg2",         "%s", "💾💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
-            "result",       "%d", yev_event->result,
-            "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
             "flag",         "%j", jn_flags,
-            "fd",           "%d", yev_event->fd,
-            "gbuffer",      "%p", yev_event->gbuf,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
             "p",            "%p", yev_event,
             NULL
         );
         json_decref(jn_flags);
     }
-    switch(yev_event->type) {
+    switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
-                if(yev_event->result < 0) {
+                if(yev_get_result(yev_event) < 0) {
                     /*
                      *  Disconnected
                      */
                     if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
-                        if(yev_event->result != -ECANCELED) {
+                        if(yev_get_result(yev_event) != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -339,8 +339,8 @@ PRIVATE int yev_callback(
                                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                 "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                                "errno",        "%d", -yev_event->result,
-                                "strerror",     "%s", strerror(-yev_event->result),
+                                "errno",        "%d", -yev_get_result(yev_event),
+                                "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                                 "p",            "%p", yev_event,
                                 NULL
                             );
@@ -349,8 +349,8 @@ PRIVATE int yev_callback(
                     fs_destroy_watcher_event(fs_event);
 
                 } else {
-                    size_t len = gbuffer_leftbytes(yev_event->gbuf);
-                    char *buffer = gbuffer_cur_rd_pointer(yev_event->gbuf);
+                    size_t len = gbuffer_leftbytes(yev_get_gbuf(yev_event));
+                    char *buffer = gbuffer_cur_rd_pointer(yev_get_gbuf(yev_event));
                     char *ptr = buffer;
                     while (ptr < buffer + len) {
                         struct inotify_event *event = (struct inotify_event *) ptr;
@@ -365,8 +365,8 @@ PRIVATE int yev_callback(
                      *  Clear buffer
                      *  Re-arm read
                      */
-                    if(yev_event->gbuf) {
-                        gbuffer_clear(yev_event->gbuf);
+                    if(yev_get_gbuf(yev_event)) {
+                        gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
                 }

@@ -13,6 +13,7 @@
 ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include <kwid.h>
 #include "tr_treedb.h"

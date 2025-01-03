@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+#include <limits.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
@@ -35,7 +36,7 @@ PUBLIC void yuno_catch_signals(void);
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE yev_loop_t *yev_loop;
+PRIVATE yev_loop_h yev_loop;
 PRIVATE int global_result = 0;
 PRIVATE uint64_t leidos = 0;
 PRIVATE json_int_t counter_rowid = 0;
@@ -696,7 +697,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }

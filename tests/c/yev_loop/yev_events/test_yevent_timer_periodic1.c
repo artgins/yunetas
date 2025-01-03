@@ -21,13 +21,13 @@
  *              Prototypes
  ***************************************************************/
 PUBLIC void yuno_catch_signals(void);
-PRIVATE int yev_callback(yev_event_t *yev_event);
+PRIVATE int yev_callback(yev_event_h yev_event);
 
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_t *yev_loop;
-yev_event_t *yev_event_periodic;
+yev_loop_h yev_loop;
+yev_event_h yev_event_periodic;
 int times_periodic = 0;
 int result = 0;
 
@@ -35,15 +35,15 @@ int result = 0;
  *  Callback that will be executed when the timer period lapses.
  *  Posts the timer expiry event to the default event loop.
  ***************************************************************************/
-PRIVATE int yev_callback(yev_event_t *yev_event)
+PRIVATE int yev_callback(yev_event_h yev_event)
 {
     yev_state_t yev_state = yev_get_state(yev_event);
 
     times_periodic++;
 
     char msg[80];
-    if(yev_event->result<0) {
-        snprintf(msg, sizeof(msg), "%s", strerror(-yev_event->result));
+    if(yev_get_result(yev_event)<0) {
+        snprintf(msg, sizeof(msg), "%s", strerror(-yev_get_result(yev_event)));
     } else {
         if(yev_state == YEV_ST_IDLE) {
             snprintf(msg, sizeof(msg), "timeout got %d", times_periodic);
@@ -53,7 +53,7 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
             snprintf(msg, sizeof(msg), "BAD state %s", yev_get_state_name(yev_event));
         }
     }
-    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_event->flag);
+    json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
     gobj_log_warning(0, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -61,12 +61,12 @@ PRIVATE int yev_callback(yev_event_t *yev_event)
         "msg2",         "%s", "⏰⏰ ✅✅ timeout got",
         "type",         "%s", yev_event_type_name(yev_event),
         "state",        "%s", yev_get_state_name(yev_event),
-        "fd",           "%d", yev_event->fd,
-        "result",       "%d", yev_event->result,
-        "sres",         "%s", (yev_event->result<0)? strerror(-yev_event->result):"",
+        "fd",           "%d", yev_get_fd(yev_event),
+        "result",       "%d", yev_get_result(yev_event),
+        "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
         "p",            "%p", yev_event,
         "flag",         "%j", jn_flags,
-        "periodic",     "%d", (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)?1:0,
+        "periodic",     "%d", (yev_get_flag(yev_event) & YEV_FLAG_TIMER_PERIODIC)?1:0,
         NULL
     );
     json_decref(jn_flags);
@@ -242,7 +242,7 @@ PRIVATE void quit_sighandler(int sig)
 {
     static int xtimes_once = 0;
     xtimes_once++;
-    yev_loop->running = 0;
+    yev_loop_reset_running(yev_loop);
     if(xtimes_once > 1) {
         exit(-1);
     }
