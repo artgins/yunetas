@@ -44,6 +44,8 @@ foreach(test ${SRCS})
         libpcre2-8.a
         libbacktrace.a
         libcrypto.a
+
+        pthread dl  # used by openssl
     )
     target_link_options(${binary} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

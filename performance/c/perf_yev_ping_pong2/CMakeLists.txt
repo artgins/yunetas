@@ -42,6 +42,9 @@ target_link_libraries(${PROJECT_NAME}
     libpcre2-8.a
     libbacktrace.a
     libcrypto.a
+
+    pthread dl  # used by openssl
+
 )
 
 #if(ESP32_MODE)
