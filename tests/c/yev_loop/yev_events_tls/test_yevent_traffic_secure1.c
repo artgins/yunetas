@@ -170,7 +170,7 @@ int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
         yev_loop,
         yev_server_callback,
         NULL,   // gobj
-        yev_get_fd(yev_event),
+        yev_get_result(yev_event),
         gbuf  // owned
     );
     yev_start_event(yev_tx_msg);
@@ -582,7 +582,7 @@ int do_test(void)
         yev_server_callback,
         0
     );
-    yev_setup_accept_event( // create the socket listening in yev_event->fd
+    yev_setup_accept_event(
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
@@ -601,7 +601,7 @@ int do_test(void)
         yev_client_callback,
         0
     );
-    yev_setup_connect_event( // create the socket listening in yev_event->fd
+    yev_setup_connect_event(
         yev_event_connect,
         server_url, // listen_url,
         NULL,   // src_url, only host:port
