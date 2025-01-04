@@ -9,7 +9,7 @@
 ***********************************************************************/
 #include <string.h>
 #include <unistd.h>
-#include <linux/limits.h>
+#include <limits.h>
 
 #include <kwid.h>
 #include "yunetas_environment.h"

@@ -2405,19 +2405,19 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  New record always at the end
      *--------------------------------------------*/
-    off64_t __offset__ = 0;
+    off_t __offset__ = 0;
     if(content_fp >= 0) {
-        __offset__ = lseek64(content_fp, 0, SEEK_END);
+        __offset__ = lseek(content_fp, 0, SEEK_END);
         if(__offset__ < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot append record, lseek64() FAILED",
+                "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek64() FAILED");
+            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
             JSON_DECREF(jn_record)
             return -1;
         }
@@ -2501,17 +2501,17 @@ PUBLIC int tranger2_append_record(
     json_int_t relative_rowid = 0;
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);
     if(md2_fd >= 0) {
-        off64_t offset = lseek64(md2_fd, 0, SEEK_END);
+        off_t offset = lseek(md2_fd, 0, SEEK_END);
         if(offset < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot append record, lseek64() FAILED",
+                "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
                 "errno",        "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek64() FAILED");
+            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
             JSON_DECREF(jn_record)
             return -1;
         }
@@ -2664,8 +2664,8 @@ PRIVATE int get_md_record_for_wr(
 //        return -1;
 //    }
 //
-//    off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
-//    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+//    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
+//    off_t offset_ = lseek(fd, offset, SEEK_SET);
 //    if(offset != offset_) {
 //        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
 //            "function",     "%s", __FUNCTION__,
@@ -2733,8 +2733,8 @@ PRIVATE int rewrite_md_record_to_file(
 //        // Error already logged
 //        return -1;
 //    }
-////    off64_t offset = (off64_t) ((rowid-1) * sizeof(md2_record_t));
-////    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+////    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
+////    off_t offset_ = lseek(fd, offset, SEEK_SET);
 ////    if(offset != offset_) {
 ////        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
 ////            "function",     "%s", __FUNCTION__,
@@ -4746,7 +4746,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     /*
      *  Seek the last record
      */
-    off64_t offset = lseek64(fd, 0, SEEK_END);
+    off_t offset = lseek(fd, 0, SEEK_END);
     if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4769,12 +4769,12 @@ PRIVATE uint64_t load_first_and_last_record_md(
          *  Read last record (firstly to back the size of md2_record_t)
          */
         offset -= sizeof(md2_record_t);
-        off64_t offset2 = lseek64(fd, offset, SEEK_SET);
+        off_t offset2 = lseek(fd, offset, SEEK_SET);
         if(offset2 < 0 || offset2 != offset) {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Cannot read last record, lseek64() FAILED",
+                "msg",          "%s", "Cannot read last record, lseek() FAILED",
                 "errno",        "%s", strerror(errno),
                 NULL
             );
@@ -7160,8 +7160,8 @@ PRIVATE int read_md(
         return -1;
     }
 
-    off64_t offset = (off64_t) (rowid * sizeof(md2_record_t));
-    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+    off_t offset = (off_t) (rowid * sizeof(md2_record_t));
+    off_t offset_ = lseek(fd, offset, SEEK_SET);
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7314,8 +7314,8 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
 
-    off64_t offset = (off64_t)md_record_ex->__offset__;
-    off64_t offset_ = lseek64(fd, offset, SEEK_SET);
+    off_t offset = (off_t)md_record_ex->__offset__;
+    off_t offset_ = lseek(fd, offset, SEEK_SET);
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,

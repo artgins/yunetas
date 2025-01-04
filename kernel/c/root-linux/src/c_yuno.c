@@ -4114,9 +4114,9 @@ PRIVATE void load_stats(hgobj gobj)
      *      Mem
      *---------------------------------------*/
     {
-        struct statvfs64 st;
+        struct statvfs st;
 
-        if(statvfs64("/yuneta", &st)==0) {
+        if(statvfs("/yuneta", &st)==0) {
             int free_percent = (int)((st.f_bavail * 100)/st.f_blocks);
             uint64_t total_size = (uint64_t)st.f_frsize * st.f_blocks;
             total_size = total_size/(1024LL*1024LL*1024LL);
