@@ -45,7 +45,7 @@ target_link_libraries(${PROJECT_NAME}
     libcrypto.a
     libbacktrace.a
 
-    pthread.a dl.a  # used by openssl
+    pthread dl  # used by openssl
 )
 
 #if(ESP32_MODE)

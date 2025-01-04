@@ -43,7 +43,7 @@ target_link_libraries(${PROJECT_NAME}
     libbacktrace.a
     libcrypto.a
 
-    pthread.a dl.a  # used by openssl
+    pthread dl  # used by openssl
 
 )
 
