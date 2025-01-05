@@ -22,7 +22,7 @@ extern "C"{
 /**rst**
    Get api_tls_t
 **rst**/
-PUBLIC api_tls_t *openssl_api_tls(void);
+PUBLIC api_tls_t *mbed_api_tls(void);
 
 #ifdef __cplusplus
 }

@@ -957,7 +957,7 @@ PRIVATE int flush(hsskt sskt)
 /***************************************************************************
  *  Get api_tls_t
  ***************************************************************************/
-PUBLIC api_tls_t *openssl_api_tls(void)
+PUBLIC api_tls_t *mbed_api_tls(void)
 {
     return &api_tls;
 }

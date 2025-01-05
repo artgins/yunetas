@@ -10,6 +10,7 @@
 #include <kwid.h>
 #include "ytls.h"
 #include "tls/openssl.h"
+#include "tls/mbedtls.h"
 
 /***************************************************************
  *              Constants
