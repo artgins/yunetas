@@ -4,12 +4,12 @@
  *          Copyright (c) 2019 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <argp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <locale.h>
 #include <time.h>
 #include <signal.h>
+#include <limits.h>
 
 #include <gobj.h>
 #include <timeranger2.h>

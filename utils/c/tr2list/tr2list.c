@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
+#include <limits.h>
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
@@ -22,6 +22,7 @@
 #include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
+#include <argtable3.h>
 #include <timeranger2.h>
 #include <stacktrace_with_backtrace.h>
 #include <cpu.h>
@@ -47,8 +48,6 @@
 #define MIN_ARGS 1
 #define MAX_ARGS 1
 struct arguments {
-    char *args[MAX_ARGS+1];     /* positional args */
-
     char *path;
     char *database;
     char *topic;
@@ -83,178 +82,84 @@ struct arguments {
     int list_databases;
 };
 
-const char *argp_program_version = NAME " " VERSION;
-const char *argp_program_bug_address = SUPPORT;
+PRIVATE struct arguments arguments;
 
-/* Program documentation. */
-static char doc[] = DOC;
-
-/* A description of the arguments we accept. */
-static char args_doc[] = "PATH";
-
-/*
- *  The options we understand.
- *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
+/**
+ * Parse arguments using argtable3.
  */
-static struct argp_option options[] = {
-/*-name-----------------key-----arg-----------------flags---doc-----------------group */
-{0,                     0,      0,                  0,      "Database",         2},
-//{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
-{"recursive",           'r',    0,                  0,      "List recursively.",  2},
-{"print-local-time",    't',    0,                  0,      "Print in local time", 2},
+void parse_arguments(int argc, char **argv, struct arguments *arguments) {
+    struct arg_str *path = arg_str1(NULL, NULL, "PATH", "Database path (required)");
+    struct arg_lit *recursive = arg_lit0("r", "recursive", "List recursively.");
+    struct arg_lit *print_local_time = arg_lit0("t", "print-local-time", "Print in local time.");
+    struct arg_int *verbose = arg_int0("l", "verbose", "LEVEL", "Verbose level.");
+    struct arg_str *mode = arg_str0("m", "mode", "MODE", "Mode: form or table.");
+    struct arg_str *fields = arg_str0("f", "fields", "FIELDS", "Print only these fields.");
+    struct arg_lit *show_md2 = arg_lit0("d", "show-md2", "Show __md_tranger__ in records.");
+    struct arg_str *from_t = arg_str0(NULL, "from-t", "TIME", "From time.");
+    struct arg_str *to_t = arg_str0(NULL, "to-t", "TIME", "To time.");
+    struct arg_str *from_rowid = arg_str0(NULL, "from-rowid", "ROWID", "From rowid.");
+    struct arg_str *to_rowid = arg_str0(NULL, "to-rowid", "ROWID", "To rowid.");
+    struct arg_str *user_flag_mask_set = arg_str0(NULL, "user-flag-set", "MASK", "Mask of User Flag set.");
+    struct arg_str *user_flag_mask_notset = arg_str0(NULL, "user-flag-not-set", "MASK", "Mask of User Flag not set.");
+    struct arg_str *system_flag_mask_set = arg_str0(NULL, "system-flag-set", "MASK", "Mask of System Flag set.");
+    struct arg_str *system_flag_mask_notset = arg_str0(NULL, "system-flag-not-set", "MASK", "Mask of System Flag not set.");
+    struct arg_str *key = arg_str0(NULL, "key", "KEY", "Key.");
+    struct arg_str *notkey = arg_str0(NULL, "not-key", "KEY", "Not key.");
+    struct arg_str *from_tm = arg_str0(NULL, "from-tm", "TIME", "From message time.");
+    struct arg_str *to_tm = arg_str0(NULL, "to-tm", "TIME", "To message time.");
+    struct arg_str *rkey = arg_str0(NULL, "rkey", "RKEY", "Regular expression of Key.");
+    struct arg_str *filter = arg_str0(NULL, "filter", "FILTER", "Filter of fields in JSON dict string.");
+    struct arg_lit *list_databases = arg_lit0(NULL, "list-databases", "List databases.");
+    struct arg_end *end = arg_end(20);
 
-{0,                     0,      0,                  0,      "Presentation",     3},
-{"verbose",             'l',    "LEVEL",            0,      "Verbose level (empty=total, 0=metadata, 1=metadata, 2=metadata+path, 3=metadata+record)", 3},
-{"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
-{"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
-{"show_md2",            'd',    0,                  0,      "Show __md_tranger__ in records", 3},
+    void *argtable[] = {
+        path, recursive, print_local_time, verbose, mode, fields, show_md2,
+        from_t, to_t, from_rowid, to_rowid, user_flag_mask_set, user_flag_mask_notset,
+        system_flag_mask_set, system_flag_mask_notset, key, notkey, from_tm, to_tm,
+        rkey, filter, list_databases, end
+    };
 
-{0,                     0,      0,                  0,      "Search conditions", 4},
-{"from-t",              1,      "TIME",             0,      "From time.",       4},
-{"to-t",                2,      "TIME",             0,      "To time.",         4},
-{"from-rowid",          4,      "TIME",             0,      "From rowid.",      5},
-{"to-rowid",            5,      "TIME",             0,      "To rowid.",        5},
-
-{"user-flag-set",       9,      "MASK",             0,      "Mask of User Flag set.",   6},
-{"user-flag-not-set",   10,     "MASK",             0,      "Mask of User Flag not set.",6},
-
-{"system-flag-set",     13,     "MASK",             0,      "Mask of System Flag set.",   7},
-{"system-flag-not-set", 14,     "MASK",             0,      "Mask of System Flag not set.",7},
-
-{"key",                 15,     "KEY",              0,      "Key.",             9},
-{"not-key",             16,     "KEY",              0,      "Not key.",         9},
-
-{"from-tm",             17,     "TIME",             0,      "From msg time.",       10},
-{"to-tm",               18,     "TIME",             0,      "To msg time.",         10},
-
-{"rkey",                19,     "RKEY",             0,      "Regular expression of Key.", 11},
-{"filter",              20,     "FILTER",           0,      "Filter of fields in json dict string", 11},
-
-{0,                     0,      0,                  0,      "Print", 12},
-{"list-databases",      21,     0,                  0,      "List databases.",  12},
-
-{0}
-};
-
-static error_t parse_opt(int key, char *arg, struct argp_state *state)
-{
-    /*
-     *  Get the input argument from argp_parse,
-     *  which we know is a pointer to our arguments structure.
-     */
-    struct arguments *arguments_ = state->input;
-
-    switch (key) {
-    case 'c':
-        arguments_->topic= arg;
-        break;
-    case 'r':
-        arguments_->recursive = 1;
-        break;
-    case 'l':
-        if(arg) {
-            arguments_->verbose = atoi(arg);
-        }
-        break;
-    case 't':
-        arguments_->print_local_time = 1;
-        break;
-    case 'm':
-        arguments_->mode = arg;
-        break;
-    case 'f':
-        arguments_->fields = arg;
-        break;
-    case 'd':
-        arguments_->show_md2 = 1;
-        break;
-
-    case 1: // from_t
-        arguments_->from_t = arg;
-        break;
-    case 2: // to_t
-        arguments_->to_t = arg;
-        break;
-
-    case 4: // from_rowid
-        arguments_->from_rowid = arg;
-        break;
-    case 5: // to_rowid
-        arguments_->to_rowid = arg;
-        break;
-
-    case 9:
-        arguments_->user_flag_mask_set = arg;
-        break;
-    case 10:
-        arguments_->user_flag_mask_notset = arg;
-        break;
-
-    case 13:
-        arguments_->system_flag_mask_set = arg;
-        break;
-    case 14:
-        arguments_->system_flag_mask_notset = arg;
-        break;
-
-    case 15:
-        arguments_->key = arg;
-        break;
-    case 16:
-        arguments_->notkey = arg;
-        break;
-
-    case 17: // from_tm
-        arguments_->from_tm = arg;
-        break;
-    case 18: // to_tm
-        arguments_->to_tm = arg;
-        break;
-
-    case 19: // to_tm
-        arguments_->rkey = arg;
-        break;
-
-    case 20: // filter
-        arguments_->filter= arg;
-        break;
-
-    case 21:
-        arguments_->list_databases = 1;
-        break;
-
-    case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments_. */
-            argp_usage (state);
-        }
-        arguments_->args[state->arg_num] = arg;
-        break;
-
-    case ARGP_KEY_END:
-        if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments_. */
-            argp_usage (state);
-        }
-        break;
-
-    default:
-        return ARGP_ERR_UNKNOWN;
+    if (arg_nullcheck(argtable) != 0) {
+        fprintf(stderr, "Error: insufficient memory\n");
+        exit(1);
     }
-    return 0;
-}
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc,
-    0,
-    0,
-    0
-};
-struct arguments arguments;
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors > 0) {
+        arg_print_errors(stderr, end, argv[0]);
+        fprintf(stderr, "Usage: ");
+        arg_print_syntax(stderr, argtable, "\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        exit(1);
+    }
+
+    // Populate the arguments structure
+    arguments->path = strdup(*path->sval);
+    arguments->recursive = recursive->count > 0;
+    arguments->print_local_time = print_local_time->count > 0;
+    arguments->verbose = verbose->count > 0 ? *verbose->ival : -1;
+    arguments->mode = mode->count > 0 ? strdup(*mode->sval) : NULL;
+    arguments->fields = fields->count > 0 ? strdup(*fields->sval) : NULL;
+    arguments->show_md2 = show_md2->count > 0;
+    arguments->from_t = from_t->count > 0 ? strdup(*from_t->sval) : NULL;
+    arguments->to_t = to_t->count > 0 ? strdup(*to_t->sval) : NULL;
+    arguments->from_rowid = from_rowid->count > 0 ? strdup(*from_rowid->sval) : NULL;
+    arguments->to_rowid = to_rowid->count > 0 ? strdup(*to_rowid->sval) : NULL;
+    arguments->user_flag_mask_set = user_flag_mask_set->count > 0 ? strdup(*user_flag_mask_set->sval) : NULL;
+    arguments->user_flag_mask_notset = user_flag_mask_notset->count > 0 ? strdup(*user_flag_mask_notset->sval) : NULL;
+    arguments->system_flag_mask_set = system_flag_mask_set->count > 0 ? strdup(*system_flag_mask_set->sval) : NULL;
+    arguments->system_flag_mask_notset = system_flag_mask_notset->count > 0 ? strdup(*system_flag_mask_notset->sval) : NULL;
+    arguments->key = key->count > 0 ? strdup(*key->sval) : NULL;
+    arguments->notkey = notkey->count > 0 ? strdup(*notkey->sval) : NULL;
+    arguments->from_tm = from_tm->count > 0 ? strdup(*from_tm->sval) : NULL;
+    arguments->to_tm = to_tm->count > 0 ? strdup(*to_tm->sval) : NULL;
+    arguments->rkey = rkey->count > 0 ? strdup(*rkey->sval) : NULL;
+    arguments->filter = filter->count > 0 ? strdup(*filter->sval) : NULL;
+    arguments->list_databases = list_databases->count > 0;
+
+    // Free memory
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+}
 
 /***************************************************************************
  *              Prototypes
@@ -265,7 +170,6 @@ PRIVATE int list_topics(const char *path);
 /***************************************************************************
  *      Data
  ***************************************************************************/
-
 yev_loop_h yev_loop;
 int time2exit = 10;
 int total_counter = 0;
@@ -850,8 +754,7 @@ int main(int argc, char *argv[])
     /*
      *  Parse arguments
      */
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
-    arguments.path = arguments.args[0];
+    parse_arguments(argc, argv, &arguments);
 
     /*----------------------------------*
      *      Startup gobj system

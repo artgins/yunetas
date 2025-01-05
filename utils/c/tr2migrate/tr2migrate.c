@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
+#include <limits.h>
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
@@ -25,6 +25,7 @@
 #endif
 
 #include <gobj.h>
+#include <argtable3.h>
 #include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
@@ -62,72 +63,44 @@ struct arguments {
     char *destine;
 };
 
-const char *argp_program_version = NAME " " VERSION;
-const char *argp_program_bug_address = SUPPORT;
-
-/* Program documentation. */
-static char doc[] = DOC;
-
-/* A description of the arguments we accept. */
-static char args_doc[] = "PATH_TRANGER PATH_TRANGER2";
-
-/*
- *  The options we understand.
- *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
+/**
+ * Parse arguments using argtable3.
  */
-static struct argp_option options[] = {
-/*-name-----------------key-----arg-----------------flags---doc-----------------group */
-{"verbose",             'l',    "LEVEL",            0,      "Verbose", 0},
-{0}
-};
+void parse_arguments(int argc, char **argv, struct arguments *arguments) {
+    struct arg_str *paths = arg_strn(NULL, NULL, "PATH_TRANGER PATH_TRANGER2", MIN_ARGS, MAX_ARGS, "Source and destination paths (required)");
+    struct arg_int *verbose = arg_int0("l", "verbose", "LEVEL", "Verbose level");
+    struct arg_end *end = arg_end(20);
 
-static error_t parse_opt(int key, char *arg, struct argp_state *state)
-{
-    /*
-     *  Get the input argument from argp_parse,
-     *  which we know is a pointer to our arguments structure.
-     */
-    struct arguments *arguments_ = state->input;
+    void *argtable[] = {
+        paths, verbose, end
+    };
 
-    switch (key) {
-    case 'l':
-        if(arg) {
-            arguments_->verbose = atoi(arg);
-        }
-        break;
-
-    case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments_. */
-            argp_usage (state);
-        }
-        arguments_->args[state->arg_num] = arg;
-        break;
-
-    case ARGP_KEY_END:
-        if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments_. */
-            argp_usage (state);
-        }
-        break;
-
-    default:
-        return ARGP_ERR_UNKNOWN;
+    if (arg_nullcheck(argtable) != 0) {
+        fprintf(stderr, "Error: insufficient memory\n");
+        exit(1);
     }
-    return 0;
+
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors > 0) {
+        arg_print_errors(stderr, end, argv[0]);
+        fprintf(stderr, "Usage: ");
+        arg_print_syntax(stderr, argtable, "\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        exit(1);
+    }
+
+    // Populate the arguments structure
+    arguments->verbose = verbose->count > 0 ? *verbose->ival : -1;
+    if (paths->count >= MIN_ARGS) {
+        arguments->source = strdup(paths->sval[0]);
+        arguments->destine = strdup(paths->sval[1]);
+    }
+
+    // Free memory
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc,
-    0,
-    0,
-    0
-};
-struct arguments arguments;
+PRIVATE struct arguments arguments;
 
 /***************************************************************************
  *              Prototypes
@@ -585,9 +558,7 @@ int main(int argc, char *argv[])
     /*
      *  Parse arguments
      */
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
-    arguments.source = arguments.args[0];
-    arguments.destine = arguments.args[1];
+    parse_arguments(argc, argv, &arguments);
 
     /*----------------------------------*
      *      Startup gobj system

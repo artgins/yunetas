@@ -6,12 +6,11 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <stdio.h>
+#include <limits.h>
 #include <argp.h>
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
-#include <locale.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>

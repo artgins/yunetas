@@ -46,12 +46,14 @@
  ****************************************************************************/
 #include <string.h>
 #include <signal.h>
+#include <limits.h>
 
 #include <gobj.h>
 #include <timeranger2.h>
 #include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
 #include <kwid.h>
+#include <argtable3.h>
 #include <testing.h>
 
 #define APP     "test_topic_pkey_integer_iterator6"
@@ -70,8 +72,6 @@ PRIVATE int pinta_records = 0;
 /***************************************************************************
  *              Arguments
  ***************************************************************************/
-#include <argp.h>
-
 #define MIN_ARGS 0
 #define MAX_ARGS 0
 struct arguments {
@@ -80,74 +80,46 @@ struct arguments {
     int client;
     char *name;
 };
+PRIVATE struct arguments arguments = {0};
 
-const char *argp_program_version = APP " " VERSION;
-const char *argp_program_bug_address = SUPPORT;
-
-/* Program documentation. */
-static char doc[] = DOC;
-
-/* A description of the arguments we accept. */
-static char args_doc[] = "";
-
-/*
- *  The options we understand.
- *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
- */
-static struct argp_option options[] = {
-/*-name---------key-----arg---------flags---doc---------------------------------group */
-{"client",      'c',    0,          0,      "Run as client, default is master", 0},
-{"name",        'n',    "NAME",     0,      "Run as client opening list with this name", 0},
-{0}
-};
-
-static error_t parse_opt(int key, char *arg, struct argp_state *state)
+PRIVATE void parse_arguments(int argc, char **argv, struct arguments *arguments)
 {
-    /*
-     *  Get the input argument from argp_parse,
-     *  which we know is a pointer to our arguments structure.
-     */
-    struct arguments *arguments_ = state->input;
+    struct arg_lit *client = arg_lit0("c", "client", "Run as client, default is master");
+    struct arg_str *name = arg_str0("n", "name", "NAME", "Run as client opening list with this name");
+    struct arg_end *end = arg_end(20);
 
-    switch (key) {
-    case 'c':
-        arguments_->client = 1;
-        break;
-    case 'n':
-        arguments_->name= arg;
-        break;
-    case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments_. */
-            argp_usage (state);
-        }
-        arguments_->args[state->arg_num] = arg;
-        break;
+    void *argtable[] = {
+        client,
+        name,
+        end
+    };
 
-    case ARGP_KEY_END:
-        if (state->arg_num < MIN_ARGS) {
-            /* Not enough arguments_. */
-            argp_usage (state);
-        }
-        break;
-
-    default:
-        return ARGP_ERR_UNKNOWN;
+    if (arg_nullcheck(argtable) != 0) {
+        fprintf(stderr, "Error: insufficient memory\n");
+        exit(1);
     }
-    return 0;
-}
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc,
-    0,
-    0,
-    0
-};
-struct arguments arguments;
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors > 0) {
+        arg_print_errors(stderr, end, argv[0]);
+        fprintf(stderr, "Usage: ");
+        arg_print_syntax(stderr, argtable, "\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        exit(1);
+    }
+
+    // Populate the arguments structure
+    if (client->count > 0) {
+        arguments->client = 1;
+    }
+
+    if (name->count > 0) {
+        arguments->name = strdup(name->sval[0]);
+    }
+
+    // Free the memory allocated for argtable
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+}
 
 /***************************************************************
  *              Prototypes
@@ -464,17 +436,14 @@ int main(int argc, char *argv[])
     /*---------------------------------*
      *      Arguments
      *---------------------------------*/
-    memset(&arguments, 0, sizeof(arguments));
     /*
      *  Default values
      */
     arguments.client = 0;
     arguments.name = "it_by_disk";
 
-    /*
-     *  Parse arguments
-     */
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    // Parse the arguments
+    parse_arguments(argc, argv, &arguments);
 
     /*----------------------------------*
      *      Startup gobj system
