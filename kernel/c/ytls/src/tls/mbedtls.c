@@ -33,14 +33,16 @@ socket write of encrypted data.
 
 ***********************************************************************/
 #define OPENSSL_API_COMPAT 30100
-#include <openssl/ssl.h>
-#include <openssl/engine.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/error.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/pk.h>
 
 #include <kwid.h>
 #include "../ytls.h"
-#include "openssl.h"
+#include "mbedtls.h"
 
 /***************************************************************
  *              Constants
@@ -50,9 +52,15 @@ socket write of encrypted data.
  *              Structures
  ***************************************************************/
 typedef struct ytls_s {
-    api_tls_t *api_tls;     // HACK must be the first item
+    api_tls_t *api_tls;     // Must be the first item
     BOOL server;
-    SSL_CTX *ctx;
+    mbedtls_ssl_config conf;  // mbedTLS SSL configuration
+    mbedtls_x509_crt cert;    // Server certificate
+    mbedtls_pk_context pkey;  // Private key
+
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_context entropy;
+
     BOOL trace;
     size_t rx_buffer_size;
     hgobj gobj;
@@ -60,10 +68,7 @@ typedef struct ytls_s {
 
 typedef struct sskt_s {
     ytls_t *ytls;
-    SSL *ssl;
-    //BIO *internal_bio, *network_bio;
-    BIO *rbio; /* SSL reads from, we write to. */
-    BIO *wbio; /* SSL writes to, we read from. */
+    mbedtls_ssl_context ssl; // mbedTLS SSL context
     BOOL handshake_informed;
     int (*on_handshake_done_cb)(void *user_data, int error);
     int (*on_clear_data_cb)(void *user_data, gbuffer_t *gbuf);
@@ -72,6 +77,7 @@ typedef struct sskt_s {
     char last_error[256];
     int error;
     char rx_bf[16*1024];
+    gbuffer_t *encrypted_buffer;
 } sskt_t;
 
 /***************************************************************
@@ -130,216 +136,14 @@ PRIVATE BOOL __initialized__ = FALSE;
 /***************************************************************************
  *
  ***************************************************************************/
-static const char *ssl_msg_type(int ssl_ver, int msg)
-{
-    if(ssl_ver == SSL3_VERSION_MAJOR) {
-        switch(msg) {
-            case SSL3_MT_HELLO_REQUEST:
-                return "Hello request";
-            case SSL3_MT_CLIENT_HELLO:
-                return "Client hello";
-            case SSL3_MT_SERVER_HELLO:
-                return "Server hello";
-            case SSL3_MT_NEWSESSION_TICKET:
-                return "Newsession Ticket";
-            case SSL3_MT_CERTIFICATE:
-                return "Certificate";
-            case SSL3_MT_SERVER_KEY_EXCHANGE:
-                return "Server key exchange";
-            case SSL3_MT_CLIENT_KEY_EXCHANGE:
-                return "Client key exchange";
-            case SSL3_MT_CERTIFICATE_REQUEST:
-                return "Request CERT";
-            case SSL3_MT_SERVER_DONE:
-                return "Server finished";
-            case SSL3_MT_CERTIFICATE_VERIFY:
-                return "CERT verify";
-            case SSL3_MT_FINISHED:
-                return "Finished";
-            case SSL3_MT_CERTIFICATE_STATUS:
-                return "Certificate Status";
-            case SSL3_MT_ENCRYPTED_EXTENSIONS:
-                return "Encrypted Extensions";
-            case SSL3_MT_END_OF_EARLY_DATA:
-                return "End of early data";
-            case SSL3_MT_KEY_UPDATE:
-                return "Key update";
-            case SSL3_MT_NEXT_PROTO:
-                return "Next protocol";
-            case SSL3_MT_MESSAGE_HASH:
-                return "Message hash";
-        }
-    }
-    return "Unknown";
-}
-
-static const char *tls_rt_type(int type)
-{
-    switch(type) {
-    case SSL3_RT_HEADER:
-        return "TLS header";
-    case SSL3_RT_CHANGE_CIPHER_SPEC:
-        return "TLS change cipher";
-    case SSL3_RT_ALERT:
-        return "TLS alert";
-    case SSL3_RT_HANDSHAKE:
-        return "TLS handshake";
-    case SSL3_RT_APPLICATION_DATA:
-        return "TLS app data";
-    default:
-        return "TLS Unknown";
-    }
-}
-
-/*
- *  Our callback from the SSL/TLS layers.
- *  Copied from curl
- */
-PRIVATE void ssl_tls_trace(
-    int direction,
-    int ssl_ver,
-    int content_type,
-    const void *buf,
-    size_t len,
-    SSL *ssl,
-    void *userp
-)
-{
-    hgobj gobj = 0;
-    char unknown[32];
-    const char *verstr = NULL;
-
-    switch(ssl_ver) {
-    case SSL2_VERSION:
-        verstr = "SSLv2";
-        break;
-    case SSL3_VERSION:
-        verstr = "SSLv3";
-        break;
-    case TLS1_VERSION:
-        verstr = "TLSv1.0";
-        break;
-    case TLS1_1_VERSION:
-        verstr = "TLSv1.1";
-        break;
-    case TLS1_2_VERSION:
-        verstr = "TLSv1.2";
-        break;
-    case TLS1_3_VERSION:
-        verstr = "TLSv1.3";
-        break;
-    case 0:
-        break;
-    default:
-        snprintf(unknown, sizeof(unknown), "(%x)", ssl_ver);
-        verstr = unknown;
-        break;
-    }
-
-    /* Log progress for interesting records only (like Handshake or Alert), skip
-     * all raw record headers (content_type == SSL3_RT_HEADER or ssl_ver == 0).
-     * For TLS 1.3, skip notification of the decrypted inner Content Type.
-     */
-    if(ssl_ver
-#ifdef SSL3_RT_INNER_CONTENT_TYPE
-         && content_type != SSL3_RT_INNER_CONTENT_TYPE
-#endif
-        ) {
-        const char *msg_name, *tls_rt_name;
-        int msg_type;
-
-        /* the info given when the version is zero is not that useful for us */
-
-        ssl_ver >>= 8; /* check the upper 8 bits only below */
-
-        /* SSLv2 doesn't seem to have TLS record-type headers, so OpenSSL
-         * always pass-up content-type as 0. But the interesting message-type
-         * is at 'buf[0]'.
-         */
-        if(ssl_ver == SSL3_VERSION_MAJOR && content_type)
-            tls_rt_name = tls_rt_type(content_type);
-        else
-            tls_rt_name = "";
-
-        if(content_type == SSL3_RT_CHANGE_CIPHER_SPEC) {
-            msg_type = *(char *)buf;
-            msg_name = "Change cipher spec";
-        }
-        else if(content_type == SSL3_RT_ALERT) {
-            msg_type = (((char *)buf)[0] << 8) + ((char *)buf)[1];
-            msg_name = SSL_alert_desc_string_long(msg_type);
-        }
-        else {
-            msg_type = *(char *)buf;
-            msg_name = ssl_msg_type(ssl_ver, msg_type);
-        }
-
-        gobj_trace_dump(gobj, buf, len,
-            "%s (%s), %s, %s (%d), userp %p",
-            verstr, direction?"OUT":"IN",
-            tls_rt_name, msg_name, msg_type, userp
-        );
-    } else {
-        gobj_trace_dump(gobj, buf, len,
-            "%s ssl_ver %d, content_type %d, userp %p",
-            direction?"OUT":"IN", ssl_ver, content_type, userp
-        );
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE hytls init(
     hgobj gobj,
     json_t *jn_config,  // not owned
     BOOL server
 )
 {
-
-    /*--------------------------------*
-     *      Init OPENSSL
-     *--------------------------------*/
-    if(!__initialized__) {
-        __initialized__ = TRUE;
-        SSL_library_init();
-        OpenSSL_add_all_algorithms();
-    }
-    const SSL_METHOD *method = 0;
-    if(server) {
-        method = TLS_server_method();        /* Create new server-method instance */
-    } else {
-        method = TLS_client_method();        /* Create new client-method instance */
-    }
-    SSL_CTX *ctx = SSL_CTX_new(method);         /* Create new context */
-    if(!ctx) {
-        unsigned long err = ERR_get_error();
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH_ERROR,
-            "msg",          "%s", "SSL_CTX_new() FAILED",
-            "error",        "%s", ERR_error_string(err, NULL),
-            NULL
-        );
-        return 0;
-    }
-
-    /*--------------------------------*
-     *      Options
-     *  Lo dejaré tal cual nginx
-     *--------------------------------*/
-    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
-    /* only in 0.9.8m+ */
-    SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_TLSv1);
-    SSL_CTX_set_min_proto_version(ctx, 0);
-    SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-    SSL_CTX_set_read_ahead(ctx, 1);
-
-    /*--------------------------------*
-     *      Alloc memory
-     *--------------------------------*/
     ytls_t *ytls = GBMEM_MALLOC(sizeof(ytls_t));
-    if(!ytls) {
+    if (!ytls) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY_ERROR,
@@ -350,96 +154,105 @@ PRIVATE hytls init(
         return 0;
     }
 
-    ytls->api_tls = &api_tls;
-    ytls->server = server;
-    ytls->ctx = ctx;
-    ytls->gobj = gobj;
+    // Initialize mbedTLS structures
+    mbedtls_ssl_config_init(&ytls->conf);
+    mbedtls_x509_crt_init(&ytls->cert);
+    mbedtls_pk_init(&ytls->pkey);
+    mbedtls_ctr_drbg_init(&ytls->ctr_drbg);
+    mbedtls_entropy_init(&ytls->entropy);
 
-    /* the SSL trace callback is only used for verbose logging */
-    ytls->trace = kw_get_bool(gobj, jn_config, "trace", 0, KW_WILD_NUMBER);
-
-    if(ytls->trace) {
-        SSL_CTX_set_msg_callback(ytls->ctx, ssl_tls_trace);
-        SSL_CTX_set_msg_callback_arg(ytls->ctx, ytls);
-    }
-
-    const char *ssl_certificate = kw_get_str(gobj,
-        jn_config, "ssl_certificate", "", server?KW_REQUIRED:0
-    );
-    const char *ssl_certificate_key = kw_get_str(gobj,
-        jn_config, "ssl_certificate_key", "", server?KW_REQUIRED:0
-    );
-    const char *ssl_ciphers = kw_get_str(gobj,
-        jn_config,
-        "ssl_ciphers",
-        "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4",
-        0
-    );
-    ytls->rx_buffer_size = kw_get_int(gobj,jn_config, "rx_buffer_size", 32*1024, 0);
-
-    const char *ssl_trusted_certificate = kw_get_str(gobj,
-        jn_config, "ssl_trusted_certificate", "", 0
-    );
-    int ssl_verify_depth = kw_get_int(gobj,jn_config, "ssl_verify_depth", 1, 0);
-
-    if(SSL_CTX_set_cipher_list(ytls->ctx, ssl_ciphers)<0) {
-        unsigned long err = ERR_get_error();
+    // Seed the CTR-DRBG
+    const char *pers = "tls";
+    if (mbedtls_ctr_drbg_seed(
+        &ytls->ctr_drbg,
+        mbedtls_entropy_func,
+        &ytls->entropy,
+        (const unsigned char *)pers,
+        strlen(pers)
+    ) != 0) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "SSL_CTX_set_cipher_list() FAILED",
-            "error",        "%s", ERR_error_string(err, NULL),
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msg",              "%s", "mbedtls_ctr_drbg_seed() FAILED",
             NULL
         );
+        cleanup((hytls)ytls);
+        return 0;
     }
 
-    if(server) {
-        if(SSL_CTX_use_certificate_file(ytls->ctx, ssl_certificate, SSL_FILETYPE_PEM)!=1) {
-            unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "SSL_CTX_use_certificate_file() FAILED",
-                "error",        "%s", ERR_error_string(err, NULL),
-                "cert",         "%s", ssl_certificate,
-                NULL
-            );
-        }
-        if(SSL_CTX_use_PrivateKey_file(ytls->ctx, ssl_certificate_key, SSL_FILETYPE_PEM)!=1) {
-            unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "SSL_CTX_use_PrivateKey_file() FAILED",
-                "error",        "%s", ERR_error_string(err, NULL),
-                "cert",         "%s", ssl_certificate_key,
-                NULL
-            );
-        }
+    // Set default SSL configuration
+    if (mbedtls_ssl_config_defaults(
+        &ytls->conf,
+        server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT,
+        MBEDTLS_SSL_TRANSPORT_STREAM,
+        MBEDTLS_SSL_PRESET_DEFAULT
+    ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msg",              "%s", "mbedtls_ssl_config_defaults() FAILED",
+            NULL
+        );
+        cleanup((hytls)ytls);
+        return 0;
+    }
 
-        if(!empty_string(ssl_trusted_certificate)) {
-            SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
-            if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
-                unsigned long err = ERR_get_error();
-                gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
-                    "error",        "%s", ERR_error_string(err, NULL),
-                    "cert",         "%s", ssl_trusted_certificate,
-                    NULL
-                );
-            }
-        }
+    // Load certificates and keys
+    const char *ssl_certificate = kw_get_str(
+        gobj, jn_config, "ssl_certificate", "", server ? KW_REQUIRED : 0
+    );
+    const char *ssl_certificate_key = kw_get_str(
+        gobj, jn_config, "ssl_certificate_key", "", server ? KW_REQUIRED : 0
+    );
 
-        /*
-         * SSL_CTX_load_verify_locations() may leave errors in the error queue
-         * while returning success
-         */
-        ERR_clear_error();
+    if (mbedtls_x509_crt_parse_file(&ytls->cert, ssl_certificate) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
+            "cert",             "%s", ssl_certificate,
+            NULL
+        );
+        cleanup((hytls)ytls);
+        return 0;
+    }
 
-    } else {
-        // TODO SSL_set_tlsext_host_name : "yuneta.io"
+    if (mbedtls_pk_parse_keyfile(
+        &ytls->pkey,
+        ssl_certificate_key,
+        NULL,
+        mbedtls_ctr_drbg_random,
+        &ytls->ctr_drbg
+    ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
+            "cert_key",         "%s", ssl_certificate_key,
+            NULL
+        );
+        cleanup((hytls)ytls);
+        return 0;
+    }
+
+    mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
+
+    // Configure other parameters
+    ytls->server = server;
+    ytls->rx_buffer_size = kw_get_int(
+        gobj, jn_config, "rx_buffer_size", 32 * 1024, 0
+    );
+    ytls->trace = kw_get_bool(
+        gobj, jn_config, "trace", 0, KW_WILD_NUMBER
+    );
+    ytls->gobj = gobj;
+
+    if (ytls->trace) {
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msg",              "%s", "TLS initialized with tracing enabled.",
+            NULL
+        );
     }
 
     return (hytls)ytls;
@@ -450,16 +263,20 @@ PRIVATE hytls init(
  ***************************************************************************/
 PRIVATE void cleanup(hytls ytls_)
 {
-    ytls_t *ytls = ytls_;
-
-    if(ytls && ytls->ctx) {
-        SSL_CTX_free(ytls->ctx);
+    ytls_t *ytls = (ytls_t *)ytls_;
+    if (!ytls) {
+        return;
     }
 
-    /* Removes all digests and ciphers */
-    EVP_cleanup();
+    // Free mbedTLS structures
+    mbedtls_ssl_config_free(&ytls->conf);
+    mbedtls_x509_crt_free(&ytls->cert);
+    mbedtls_pk_free(&ytls->pkey);
+    mbedtls_ctr_drbg_free(&ytls->ctr_drbg);
+    mbedtls_entropy_free(&ytls->entropy);
 
-    GBMEM_FREE(ytls)
+    // Free the ytls structure itself
+    GBMEM_FREE(ytls);
 }
 
 /***************************************************************************
@@ -467,7 +284,48 @@ PRIVATE void cleanup(hytls ytls_)
  ***************************************************************************/
 PRIVATE const char *version(hytls ytls)
 {
-    return OpenSSL_version(OPENSSL_VERSION);
+    return MBEDTLS_VERSION_STRING;
+}
+
+static int mbedtls_ssl_send_callback(void *ctx, const unsigned char *buf, size_t len) {
+    sskt_t *sskt = (sskt_t *)ctx;
+
+    // Create a buffer for the encrypted data
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    if (!gbuf) {
+        return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Out of memory
+    }
+
+    // Copy the encrypted data into the buffer
+    char *dest = gbuffer_cur_wr_pointer(gbuf);
+    memcpy(dest, buf, len);
+    gbuffer_set_wr(gbuf, len);
+
+    // Invoke the callback to handle the encrypted data
+    if (sskt->on_encrypted_data_cb(sskt->user_data, gbuf) < 0) {
+        gbuffer_decref(gbuf);
+        return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
+    }
+
+    return (int)len; // Return the number of bytes processed
+}
+
+static int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) {
+    sskt_t *sskt = (sskt_t *)ctx;
+
+    // Check if there is encrypted data available
+    size_t available = gbuffer_chunk(sskt->encrypted_buffer);
+    if (available == 0) {
+        return MBEDTLS_ERR_SSL_WANT_READ; // No data available, try again later
+    }
+
+    // Read the encrypted data from the buffer
+    size_t to_read = (available < len) ? available : len;
+    const char *src = gbuffer_cur_rd_pointer(sskt->encrypted_buffer);
+    memcpy(buf, src, to_read);
+    gbuffer_get(sskt->encrypted_buffer, to_read);
+
+    return (int)to_read; // Return the number of bytes read
 }
 
 /***************************************************************************
@@ -481,16 +339,11 @@ PRIVATE hsskt new_secure_filter(
     void *user_data
 )
 {
-    ytls_t *ytls = ytls_;
-    hgobj gobj = ytls->gobj;
+    ytls_t *ytls = (ytls_t *)ytls_;
 
-    /*--------------------------------*
-     *      Alloc memory
-     *--------------------------------*/
     sskt_t *sskt = GBMEM_MALLOC(sizeof(sskt_t));
-    if(!sskt) {
-        gobj_log_error(gobj, 0,
-            "gobj",             "%s", __FILE__,
+    if (!sskt) {
+        gobj_log_error(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY_ERROR,
             "msg",              "%s", "no memory for sizeof(sskt_t)",
@@ -500,53 +353,38 @@ PRIVATE hsskt new_secure_filter(
         return 0;
     }
 
+    // Initialize the mbedTLS SSL context
+    mbedtls_ssl_init(&sskt->ssl);
+
+    if (mbedtls_ssl_setup(&sskt->ssl, &ytls->conf) != 0) {
+        gobj_log_error(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msg",              "%s", "mbedtls_ssl_setup() FAILED",
+            NULL
+        );
+        GBMEM_FREE(sskt);
+        return 0;
+    }
+
+    // Set user-defined callbacks and user data
     sskt->ytls = ytls;
     sskt->on_handshake_done_cb = on_handshake_done_cb;
     sskt->on_clear_data_cb = on_clear_data_cb;
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
     sskt->user_data = user_data;
 
-    sskt->ssl = SSL_new(ytls->ctx);
-    if(!sskt->ssl) {
-        sskt->error = ERR_get_error();
-        ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "SSL_new() FAILED",
-            "error",        "%d", (int)sskt->error,
-            "serror",       "%s", sskt->last_error,
-            NULL
-        );
-        GBMEM_FREE(sskt)
-        return 0;
-    }
+    // Initialize encrypted data buffer
+    sskt->encrypted_buffer = gbuffer_create(32 * 1024, 32 * 1024);
 
-    if(ytls->trace) {
-        SSL_set_msg_callback(sskt->ssl, ssl_tls_trace);
-        SSL_set_msg_callback_arg(sskt->ssl, ytls);
-    } else {
-        SSL_set_msg_callback(sskt->ssl, 0);
-    }
-
-    if(ytls->server) {
-        SSL_set_accept_state(sskt->ssl);
-    } else {
-        SSL_set_connect_state(sskt->ssl);
-    }
-
-// Esto jode?    SSL_set_options(sskt->ssl, SSL_OP_NO_RENEGOTIATION); // New to openssl 1.1.1
-
-    sskt->rbio = BIO_new(BIO_s_mem());
-    sskt->wbio = BIO_new(BIO_s_mem());
-
-    SSL_set_bio(sskt->ssl, sskt->rbio, sskt->wbio);
-
-    if(do_handshake(sskt)<0) {
-        SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
-        GBMEM_FREE(sskt)
-        return 0;
-    }
+    // Set BIO callbacks for mbedTLS
+    mbedtls_ssl_set_bio(
+        &sskt->ssl,
+        sskt,
+        mbedtls_ssl_send_callback,  // Function to send data
+        mbedtls_ssl_recv_callback,  // Function to receive data
+        NULL                        // Function for receive timeout (optional)
+    );
 
     return sskt;
 }
@@ -556,9 +394,21 @@ PRIVATE hsskt new_secure_filter(
  ***************************************************************************/
 PRIVATE void shutdown_sskt(hsskt sskt_)
 {
-    sskt_t *sskt = sskt_;
+    sskt_t *sskt = (sskt_t *)sskt_;
 
-    SSL_shutdown(sskt->ssl);
+    // Perform a proper SSL/TLS shutdown
+    int ret = mbedtls_ssl_close_notify(&sskt->ssl);
+    if (ret < 0) {
+        gobj_log_error(sskt->ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+            "msg",              "%s", "mbedtls_ssl_close_notify() FAILED",
+            "error",            "%d", ret,
+            NULL
+        );
+    }
+
+    // Flush any remaining encrypted data
     flush_encrypted_data(sskt);
 }
 
@@ -567,31 +417,64 @@ PRIVATE void shutdown_sskt(hsskt sskt_)
  ***************************************************************************/
 PRIVATE void free_secure_filter(hsskt sskt_)
 {
-    sskt_t *sskt = sskt_;
+    sskt_t *sskt = (sskt_t *)sskt_;
 
-    SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
-    GBMEM_FREE(sskt)
+    // Free the mbedTLS SSL context
+    mbedtls_ssl_free(&sskt->ssl);
+
+    // Free the encrypted buffer if it exists
+    if (sskt->encrypted_buffer) {
+        gbuffer_decref(sskt->encrypted_buffer);
+    }
+
+    // Free the sskt structure itself
+    GBMEM_FREE(sskt);
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
+static void mbedtls_debug_callback(
+    void *ctx,
+    int level,
+    const char *file,
+    int line,
+    const char *str)
+{
+    ytls_t *ytls = (ytls_t *)ctx;
+
+    // Log the debug message
+    gobj_log_info(ytls->gobj, 0,
+        "level",          "%d", level,
+        "file",           "%s", file,
+        "line",           "%d", line,
+        "msg",            "%s", str,
+        NULL
+    );
+}
+
 PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
-    sskt_t *sskt = sskt_;
-    sskt->ytls->trace = set?TRUE:FALSE;
+    sskt_t *sskt = (sskt_t *)sskt_;
+    ytls_t *ytls = sskt->ytls;
+    ytls->trace = set ? TRUE : FALSE;
 
-    if(sskt->ytls->trace) {
-        SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
-        SSL_CTX_set_msg_callback_arg(sskt->ytls->ctx, sskt->ytls);
-        if(sskt->ssl) {
-            SSL_set_msg_callback(sskt->ssl, ssl_tls_trace);
-            SSL_set_msg_callback_arg(sskt->ssl, sskt->ytls);
-        }
-
+    if (ytls->trace) {
+        // Enable debug callback
+        mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
+        gobj_log_info(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msg",              "%s", "TLS tracing enabled.",
+            NULL
+        );
     } else {
-        SSL_CTX_set_msg_callback(sskt->ytls->ctx, 0);
-        SSL_set_msg_callback(sskt->ssl, 0);
+        // Disable debug callback
+        mbedtls_ssl_conf_dbg(&ytls->conf, NULL, NULL);
+        gobj_log_info(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msg",              "%s", "TLS tracing disabled.",
+            NULL
+        );
     }
 }
 
@@ -600,46 +483,38 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
  ***************************************************************************/
 PRIVATE int do_handshake(hsskt sskt_)
 {
-    sskt_t *sskt = sskt_;
+    sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
-    if(sskt->ytls->trace) {
+    if (sskt->ytls->trace) {
         gobj_trace_msg(gobj, "------- do_handshake, userp %p", sskt->user_data);
     }
 
-    int ret = SSL_do_handshake(sskt->ssl);
-    if(ret <= 0)  {
-        /*
-        - return 0
-            The TLS/SSL handshake was not successful but was shut down controlled
-            and by the specifications of the TLS/SSL protocol.
-            Call SSL_get_error() with the return value ret to find out the reason.
+    int ret = mbedtls_ssl_handshake(&sskt->ssl);
 
-        - return < 0
-            The TLS/SSL handshake was not successful because a fatal error occurred
-            either at the protocol level or a connection failure occurred.
-            The shutdown was not clean.
-            It can also occur if action is needed to continue the operation for non-blocking BIOs.
-            Call SSL_get_error() with the return value ret to find out the reason.
-        */
-        int detail = SSL_get_error(sskt->ssl, ret);
-        switch(detail) {
-        case SSL_ERROR_WANT_READ:
-        case SSL_ERROR_WANT_WRITE:
-            if(sskt->ytls->trace) {
-                gobj_trace_msg(gobj, "------- encrypt_data: %s, userp %p",
-                    ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
+    if (ret != 0) {
+        if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+            if (sskt->ytls->trace) {
+                gobj_trace_msg(gobj, "------- handshake: %s, userp %p",
+                    ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
                     sskt->user_data
                 );
             }
             flush_encrypted_data(sskt);
             flush_clear_data(sskt);
-            break;
+            return 1; // Indicate that the handshake is still ongoing
+        } else {
+            char error_buf[256];
+            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                "msg",              "%s", "TLS handshake failed",
+                "error_code",       "%d", ret,
+                "error_message",    "%s", error_buf,
+                NULL
+            );
 
-        default:
-            sskt->error = ERR_get_error();
-            ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-            gobj_log_set_last_message("%s", sskt->last_error);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;
         }
@@ -647,17 +522,9 @@ PRIVATE int do_handshake(hsskt sskt_)
 
     flush_encrypted_data(sskt);
 
-    BOOL handshake_end = SSL_is_init_finished(sskt->ssl);
-    if(ret==1 || handshake_end) { // Viene los dos a la vez
-        /*
-        - return 1
-            The TLS/SSL handshake was successfully completed,
-            a TLS/SSL connection has been established.
-        */
-        if(!sskt->handshake_informed) {
-            sskt->handshake_informed = TRUE;
-            sskt->on_handshake_done_cb(sskt->user_data, 0);
-        }
+    if (!sskt->handshake_informed) {
+        sskt->handshake_informed = TRUE;
+        sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
     }
 
     return 0;
@@ -670,42 +537,48 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
 
-    if(sskt->ytls->trace) {
+    if (sskt->ytls->trace) {
         gobj_trace_msg(gobj, "------- flush_encrypted_data(), userp %p", sskt->user_data);
     }
-    /*
-    BIO_read() return
-    All these functions return either the amount of data successfully read or written
-    (if the return value is positive)
-    or that no data was successfully read or written if the result is 0 or -1.
-    If the return value is -2 then the operation is not implemented in the specific BIO type.
-
-    A 0 or -1 return is not necessarily an indication of an error.
-    In particular when the source/sink is non-blocking or of a certain type
-    it may merely be an indication that no data is currently available and
-    that the application should retry the operation later.
-    */
 
     int pending;
-    while((pending = BIO_pending(sskt->wbio))>0) {
+    while ((pending = mbedtls_ssl_get_bytes_avail(&sskt->ssl)) > 0) {
         gbuffer_t *gbuf = gbuffer_create(pending, pending);
-        if(!gbuf) {
+        if (!gbuf) {
             gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "No memory for BIO_pending",
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MEMORY_ERROR,
+                "msg",              "%s", "No memory for pending encrypted data",
                 NULL
             );
             return -1;
         }
+
         char *p = gbuffer_cur_wr_pointer(gbuf);
-        const int ret = BIO_read(sskt->wbio, p, pending);
-        if(sskt->ytls->trace) {
-            gobj_trace_msg(gobj, "------- flush_encrypted_data() %d, userp %p", ret, sskt->user_data);
-        }
-        if(ret > 0) {
+        int ret = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, pending);
+        if (ret > 0) {
             gbuffer_set_wr(gbuf, ret);
             sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
+        } else {
+            gbuffer_decref(gbuf);
+            if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (sskt->ytls->trace) {
+                    gobj_trace_msg(gobj, "------- flush_encrypted_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
+                }
+                return 1; // Indicate need for more I/O
+            } else {
+                char error_buf[256];
+                mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",              "%s", "Error reading encrypted data",
+                    "error_code",       "%d", ret,
+                    "error_message",    "%s", error_buf,
+                    NULL
+                );
+                return -1;
+            }
         }
     }
 
@@ -718,71 +591,64 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
 PRIVATE int encrypt_data(
     hsskt sskt_,
     gbuffer_t *gbuf // owned
-)
-{
-    sskt_t *sskt = sskt_;
+) {
+    sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
-    if(!SSL_is_init_finished(sskt->ssl)) {
+    if (mbedtls_ssl_handshake(&sskt->ssl)!=0) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "TLS handshake PENDING",
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msg",              "%s", "TLS handshake PENDING",
             NULL
         );
-        GBUFFER_DECREF(gbuf)
+        GBUFFER_DECREF(gbuf);
         return -1;
     }
 
     size_t len;
-    while(sskt->ssl && (len = gbuffer_chunk(gbuf))>0) {
-        const char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
-        const int written = SSL_write(sskt->ssl, p, len);
-        if(written <= 0) {
-            const int ret = SSL_get_error(sskt->ssl, written);
-            switch(ret) {
-            case SSL_ERROR_WANT_READ:
-            case SSL_ERROR_WANT_WRITE:
-                if(sskt->ytls->trace) {
-                    gobj_trace_msg(gobj, "------- encrypt_data: %s, userp %p",
-                        ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
-                        sskt->user_data
-                    );
+    while ((len = gbuffer_chunk(gbuf)) > 0) {
+        const char *p = gbuffer_cur_rd_pointer(gbuf); // Don't pop data, be sure it's written
+        int written = mbedtls_ssl_write(&sskt->ssl, (const unsigned char *)p, len);
+
+        if (written <= 0) {
+            if (written == MBEDTLS_ERR_SSL_WANT_READ || written == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (sskt->ytls->trace) {
+                    gobj_trace_msg(gobj, "------- encrypt_data: WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
                 }
                 flush_encrypted_data(sskt);
                 flush_clear_data(sskt);
                 continue;
-
-            default:
-                sskt->error = ERR_get_error();
-                ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
+            } else {
+                char error_buf[256];
+                mbedtls_strerror(written, error_buf, sizeof(error_buf));
                 gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "SSL_write() FAILED",
-                    "ret",          "%d", (int)ret,
-                    "error",        "%d", (int)sskt->error,
-                    "serror",       "%s", sskt->last_error,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",              "%s", "mbedtls_ssl_write() FAILED",
+                    "error_code",       "%d", written,
+                    "error_message",    "%s", error_buf,
                     NULL
                 );
-                GBUFFER_DECREF(gbuf)
+                GBUFFER_DECREF(gbuf);
                 return -1;
             }
-            break;
         }
-        gbuffer_get(gbuf, written);    // Pop data
 
-        if(sskt->ytls->trace) {
-            gobj_trace_dump(gobj, p, len, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
+        gbuffer_get(gbuf, written); // Pop data
+
+        if (sskt->ytls->trace) {
+            gobj_trace_dump(gobj, p, written, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
         }
-        gbuffer_get(gbuf, written);    // Pop data
-        if(flush_encrypted_data(sskt)<0) {
+
+        if (flush_encrypted_data(sskt) < 0) {
             // Error already logged
-            GBUFFER_DECREF(gbuf)
+            GBUFFER_DECREF(gbuf);
             return -1;
         }
     }
-    GBUFFER_DECREF(gbuf)
+
+    GBUFFER_DECREF(gbuf);
     return 0;
 }
 
@@ -793,42 +659,60 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
     int ret = 0;
-    if(sskt->ytls->trace) {
+
+    if (sskt->ytls->trace) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
-    while(sskt->ssl) {
+
+    while (true) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
+        if (!gbuf) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MEMORY_ERROR,
+                "msg",              "%s", "Failed to create gbuffer",
+                NULL
+            );
+            return -1;
+        }
+
         char *p = gbuffer_cur_wr_pointer(gbuf);
-        int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
-        if(sskt->ytls->trace) {
+        int nread = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, sskt->ytls->rx_buffer_size);
+
+        if (sskt->ytls->trace) {
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
         }
-        if(nread <= 0) {
-            sskt->error = ERR_get_error();
-            if(sskt->error < 0) {
-                ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
+
+        if (nread > 0) {
+            gbuffer_set_wr(gbuf, nread);
+            ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
+        } else {
+            gbuffer_decref(gbuf);
+
+            if (nread == MBEDTLS_ERR_SSL_WANT_READ || nread == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (sskt->ytls->trace) {
+                    gobj_trace_msg(gobj, "------- flush_clear_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
+                }
+                break; // No more data available at this moment
+            } else if (nread < 0) {
+                char error_buf[256];
+                mbedtls_strerror(nread, error_buf, sizeof(error_buf));
                 gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "SSL_read() FAILED",
-                    "ret",          "%d", (int)nread,
-                    "error",        "%d", (int)sskt->error,
-                    "serror",       "%s", sskt->last_error,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",              "%s", "mbedtls_ssl_read() FAILED",
+                    "error_code",       "%d", nread,
+                    "error_message",    "%s", error_buf,
                     NULL
                 );
-                GBUFFER_DECREF(gbuf)
                 return -1111; // Mark as TLS error
             } else {
-                // no more data
-                GBUFFER_DECREF(gbuf)
+                // No more data
                 break;
             }
         }
-
-        // Callback clear data
-        gbuffer_set_wr(gbuf, nread);
-        ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
     }
+
     return ret;
 }
 
@@ -839,55 +723,63 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 PRIVATE int decrypt_data(
     hsskt sskt_,
     gbuffer_t *gbuf // owned
-)
-{
-    sskt_t *sskt = sskt_;
+) {
+    sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
     size_t len;
-    while((len = gbuffer_chunk(gbuf))>0) {
-        char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
+    while ((len = gbuffer_chunk(gbuf)) > 0) {
+        const unsigned char *p = (const unsigned char *)gbuffer_cur_rd_pointer(gbuf); // Don't pop data, be sure it's written
 
-        int written = BIO_write(sskt->rbio, p, len);
-        if(written < 0) {
-            sskt->error = ERR_get_error();
-            ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "BIO_write() FAILED",
-                "ret",          "%d", (int)written,
-                "error",        "%d", (int)sskt->error,
-                "serror",       "%s", sskt->last_error,
-                NULL
-            );
-            GBUFFER_DECREF(gbuf)
-            return -1111; // Mark as TLS error
+        int written = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, len);
+        if (written < 0) {
+            if (written == MBEDTLS_ERR_SSL_WANT_READ || written == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (sskt->ytls->trace) {
+                    gobj_trace_msg(gobj, "------- decrypt_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
+                }
+                continue; // Retry on WANT_READ or WANT_WRITE
+            } else {
+                char error_buf[256];
+                mbedtls_strerror(written, error_buf, sizeof(error_buf));
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",              "%s", "mbedtls_ssl_read() FAILED",
+                    "error_code",       "%d", written,
+                    "error_message",    "%s", error_buf,
+                    NULL
+                );
+                GBUFFER_DECREF(gbuf);
+                return -1111; // Mark as TLS error
+            }
         }
 
-        gbuffer_get(gbuf, written);    // Pop data
+        gbuffer_get(gbuf, written); // Pop data
 
-        if(sskt->ytls->trace) {
-            gobj_trace_dump(gobj, p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
+        if (sskt->ytls->trace) {
+            gobj_trace_dump(gobj, (char *)p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
         }
-        if(!SSL_is_init_finished(sskt->ssl)) {
-            if(do_handshake(sskt)<0) {
+
+        if (mbedtls_ssl_handshake(&sskt->ssl)!=0) {
+            if (do_handshake(sskt) < 0) {
                 // Error already logged
-                GBUFFER_DECREF(gbuf)
+                GBUFFER_DECREF(gbuf);
                 return -1111; // Mark as TLS error
             }
         } else {
             int ret = flush_clear_data(sskt);
-            if(ret < 0) {
+            if (ret < 0) {
                 // Error already logged
-                GBUFFER_DECREF(gbuf)
+                GBUFFER_DECREF(gbuf);
                 return ret;
             }
         }
     }
-    GBUFFER_DECREF(gbuf)
+
+    GBUFFER_DECREF(gbuf);
     return 0;
 }
+
 
 /***************************************************************************
  *
