@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <limits.h>
+#include <argp.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -32,7 +33,6 @@
 #include "ydaemon.h"
 #include "c_authz.h"        // the grandmother
 #include "c_yuno.h"         // the grandmother
-#include "argtable3.h"
 #include "entry_point.h"
 
 /***************************************************************************
@@ -100,22 +100,6 @@ BOOL DEBUG_MEMORY = FALSE;
 /***************************************************************************
  *      Structures
  ***************************************************************************/
-
-/***************************************************************************
- *      Prototypes
- ***************************************************************************/
-PRIVATE void daemon_catch_signals(void);
-PRIVATE void process(
-    const char *process_name,
-    const char *work_dir,
-    const char *domain_dir,
-    void (*cleaning_fn)(void)
-);
-
-
-/***************************************************************************
- *                      argp setup
- ***************************************************************************/
 /* Used by main to communicate with parse_opt. */
 struct arguments {
     int start;
@@ -129,76 +113,106 @@ struct arguments {
     int verbose_log;
 };
 
-/**
- * Parse arguments using argtable3.
- */
-void parse_arguments(int argc, char **argv, struct arguments *arguments) {
-    struct arg_lit *start = arg_lit0("S", "start", "Start the yuno (as daemon)");
-    struct arg_lit *stop = arg_lit0("K", "stop", "Stop the yuno (as daemon)");
-    struct arg_file *config_file = arg_file0("f", "config-file", "FILE", "Load settings from JSON config file or [files]");
-    struct arg_lit *print_config = arg_lit0("p", "print-config", "Print the final JSON config");
-    struct arg_lit *print_verbose_config = arg_lit0("P", "print-verbose-config", "Print verbose JSON config");
-    struct arg_lit *print_role = arg_lit0("r", "print-role", "Print the basic yuno's information");
-    struct arg_lit *version = arg_lit0("v", "version", "Print yuno version");
-    struct arg_lit *yuneta_version_lit = arg_lit0("V", "yuneta-version", "Print yuneta version");
-    struct arg_int *verbose_log = arg_int0("l", "verbose-log", "LEVEL", "Verbose log level");
-    struct arg_str *parameter_config = arg_str0(NULL, NULL, "[{json config}]", "Optional JSON configuration parameter");
-    struct arg_lit *help = arg_lit0("h", "help", "Display this help and exit");
-    struct arg_end *end = arg_end(20);
+/***************************************************************************
+ *      Prototypes
+ ***************************************************************************/
+PRIVATE void daemon_catch_signals(void);
+PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state);
+PRIVATE void process(
+    const char *process_name,
+    const char *work_dir,
+    const char *domain_dir,
+    void (*cleaning_fn)(void)
+);
 
-    void *argtable[] = {
-        start, stop, config_file, print_config, print_verbose_config,
-        print_role, version, yuneta_version_lit, verbose_log, parameter_config, help, end
-    };
 
-    if (arg_nullcheck(argtable) != 0) {
-        fprintf(stderr, "Error: insufficient memory\n");
-        exit(1);
-    }
+/***************************************************************************
+ *                      argp setup
+ ***************************************************************************/
+const char *argp_program_bug_address;                               // Public for argp
+const char *argp_program_version = __argp_program_version__;        // Public for argp
 
-    int nerrors = arg_parse(argc, argv, argtable);
+/* A description of the arguments we accept. */
+PRIVATE char args_doc[] = "[{json config}]";
 
-    if (help->count > 0) {
-        printf("Usage: %s [options] [{json config}]\n", argv[0]);
-        printf("\nOptions:\n");
-        arg_print_glossary(stdout, argtable, "  %-25s %s\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+/* The options we understand. */
+PRIVATE struct argp_option options[] = {
+{"start",                   'S',    0,      0,  "Start the yuno (as daemon)",   0},
+{"stop",                    'K',    0,      0,  "Stop the yuno (as daemon)",    0},
+{"config-file",             'f',    "FILE", 0,  "Load settings from json config file or [files]", 0},
+{"print-config",            'p',    0,      0,  "Print the final json config", 0},
+{"print-verbose-config",    'P',    0,      0,  "Print verbose json config", 0},
+{"print-role",              'r',    0,      0,  "Print the basic yuno's information", 0},
+{"version",                 'v',    0,      0,  "Print yuno version", 0},
+{"yuneta-version",          'V',    0,      0,  "Print yuneta version", 0},
+{"verbose-log",             'l',    "LEVEL",0,  "Verbose log level", 0},
+{0}
+};
+
+/* Our argp parser. */
+PRIVATE struct argp argp = {
+    options,
+    parse_opt,
+    args_doc,
+    __app_doc__,
+    0, 0, 0
+};
+
+/***************************************************************************
+ *      argp parser
+ ***************************************************************************/
+PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
+{
+    /*
+     *  Get the input argument from argp_parse,
+     *  which we know is a pointer to our arguments structure.
+     */
+    struct arguments *arguments = state->input;
+
+    switch (key) {
+    case 'S':
+        arguments->start = 1;
+        break;
+    case 'K':
+        arguments->stop = 1;
+        break;
+    case 'v':
+        printf("%s\n", argp_program_version);
         exit(0);
-    }
-
-    if (version->count > 0) {
-        printf("%s\n", __argp_program_version__);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        exit(0);
-    }
-
-    if (yuneta_version_lit->count > 0) {
+    case 'V':
         printf("%s\n", YUNETA_VERSION);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         exit(0);
+    case 'f':
+        arguments->config_json_file = arg;
+        arguments->use_config_file = 1;
+        break;
+    case 'p':
+        arguments->print_final_config = 1;
+        break;
+    case 'r':
+        arguments->print_role = 1;
+        break;
+    case 'P':
+        arguments->print_verbose_config = 1;
+        break;
+    case 'l':
+        if(arg) {
+            arguments->verbose_log = atoi(arg);
+        }
+        break;
+
+    case ARGP_KEY_ARG:
+        if (state->arg_num >= 1) {
+            /* Too many arguments. */
+            argp_usage (state);
+        }
+        arguments->parameter_config = arg;
+        break;
+
+    default:
+        return ARGP_ERR_UNKNOWN;
     }
-
-    if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        fprintf(stderr, "Usage: ");
-        arg_print_syntax(stderr, argtable, "\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        exit(1);
-    }
-
-    // Populate the arguments structure
-    arguments->start = start->count > 0;
-    arguments->stop = stop->count > 0;
-    arguments->use_config_file = config_file->count > 0;
-    arguments->config_json_file = config_file->count > 0 ? strdup(config_file->filename[0]) : NULL;
-    arguments->print_final_config = print_config->count > 0;
-    arguments->print_verbose_config = print_verbose_config->count > 0;
-    arguments->print_role = print_role->count > 0;
-    arguments->verbose_log = verbose_log->count > 0 ? *verbose_log->ival : -1;
-    arguments->parameter_config = parameter_config->count > 0 ? strdup(*parameter_config->sval) : NULL;
-
-    // Free memory allocated by argtable
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 /***************************************************************************
@@ -385,6 +399,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         APP_VERSION,
         APP_DATETIME
     );
+    argp_program_bug_address = APP_SUPPORT;
     strncpy(__yuno_version__, APP_VERSION, sizeof(__yuno_version__)-1);
     strncpy(__app_name__, APP_NAME, sizeof(__app_name__)-1);
     strncpy(__app_datetime__, APP_DATETIME, sizeof(__app_datetime__)-1);
@@ -419,7 +434,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *          Parse input arguments
      *------------------------------------------------*/
     struct arguments arguments = {0};
-    parse_arguments(argc, argv, &arguments);
+    argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
     if(arguments.stop) {
         daemon_shutdown(process_name);

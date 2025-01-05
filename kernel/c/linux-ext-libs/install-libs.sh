@@ -75,10 +75,16 @@ cd ../..
 #------------------------------------------
 echo "===================== libbacktrace ======================="
 cd build/libbacktrace
-
-./configure --prefix="${YUNETA_INSTALL_PREFIX}"
-make
 make install
+cd ../..
+
+#------------------------------------------
+#   argp-standalone
+#------------------------------------------
+echo "===================== ARGP-STANDALONE ======================="
+cd build/argp-standalone
+make install
+cd ..
 cd ../..
 
 

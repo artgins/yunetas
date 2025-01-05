@@ -177,6 +177,22 @@ make
 make install
 cd ../..
 
+#------------------------------------------
+#   argp-standalone
+#------------------------------------------
+echo "===================== ARGP-STANDALONE ======================="
+cd build/argp-standalone
+mkdir -p build
+cd build
+
+git checkout "$TAG_ARGP_STANDALONE"
+
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
+make
+make install
+cd ..
+cd ../..
+
 
 
 # Fix these old dependencies, the new cause errors. NEWS: it seems that works with last version
