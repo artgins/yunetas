@@ -14,7 +14,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <limits.h>
-#include <argp.h>
+#include <argp-standalone.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>

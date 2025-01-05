@@ -34,6 +34,7 @@ foreach(test ${SRCS})
     target_link_libraries(${binary}
         libyunetas-c_prot.a
         libyunetas-core-linux.a
+        libargp-standalone.a
         libtimeranger2.a
         libyev_loop.a
         libytls.a

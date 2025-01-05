@@ -70,7 +70,7 @@ PRIVATE int pinta_records = 0;
 /***************************************************************************
  *              Arguments
  ***************************************************************************/
-#include <argp.h>
+#include <argp-standalone.h>
 
 #define MIN_ARGS 0
 #define MAX_ARGS 0
