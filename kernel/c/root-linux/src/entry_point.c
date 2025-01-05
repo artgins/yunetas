@@ -14,7 +14,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include <limits.h>
-#include <argp.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -33,6 +32,7 @@
 #include "ydaemon.h"
 #include "c_authz.h"        // the grandmother
 #include "c_yuno.h"         // the grandmother
+#include "argtable3.h"
 #include "entry_point.h"
 
 /***************************************************************************
@@ -117,7 +117,6 @@ struct arguments {
  *      Prototypes
  ***************************************************************************/
 PRIVATE void daemon_catch_signals(void);
-PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state);
 PRIVATE void process(
     const char *process_name,
     const char *work_dir,
@@ -129,6 +128,54 @@ PRIVATE void process(
 /***************************************************************************
  *                      argp setup
  ***************************************************************************/
+// Global argtable array for simplicity
+PRIVATE void *argtable[10];
+PRIVATE struct arg_lit *start;
+PRIVATE struct arg_lit *stop;
+PRIVATE struct arg_file *config_file;
+PRIVATE struct arg_lit *print_config;
+PRIVATE struct arg_lit *print_verbose_config;
+PRIVATE struct arg_lit *print_role;
+PRIVATE struct arg_lit *version;
+PRIVATE struct arg_lit *yuneta_version;
+PRIVATE struct arg_int *verbose_log;
+PRIVATE struct arg_str *parameter_config;
+PRIVATE struct arg_end *end;
+
+PRIVATE void setup_argtable(void)
+{
+    start = arg_lit0(           "S", "start",       "Start the yuno (as daemon)");
+    stop = arg_lit0(            "K", "stop",        "Stop the yuno (as daemon)");
+    config_file = arg_file0(    "f", "config-file", "FILE", "Load settings from json config file or [files]");
+    print_config = arg_lit0(    "p", "print-config", "Print the final json config");
+    print_verbose_config = arg_lit0("P", "print-verbose-config", "Print verbose json config");
+    print_role = arg_lit0(      "r", "print-role", "Print the basic yuno's information");
+    version = arg_lit0(         "v", "version", "Print yuno version");
+    yuneta_version = arg_lit0(  "V", "yuneta-version", "Print yuneta version");
+    verbose_log = arg_int0(     "l", "verbose-log", "LEVEL", "Verbose log level");
+    parameter_config = arg_strn(NULL, NULL, "[{json config}]", 0, 1, "Optional JSON config parameter");
+    end = arg_end(20);
+
+    argtable[0] = start;
+    argtable[1] = stop;
+    argtable[2] = config_file;
+    argtable[3] = print_config;
+    argtable[4] = print_verbose_config;
+    argtable[5] = print_role;
+    argtable[6] = version;
+    argtable[7] = yuneta_version;
+    argtable[8] = verbose_log;
+    argtable[9] = parameter_config;
+    argtable[10] = end;
+
+    if (arg_nullcheck(argtable) != 0) {
+        fprintf(stderr, "Error: insufficient memory\n");
+        exit(1);
+    }
+}
+
+#ifdef PEPE
+PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state);
 const char *argp_program_bug_address;                               // Public for argp
 const char *argp_program_version = __argp_program_version__;        // Public for argp
 
@@ -157,10 +204,12 @@ PRIVATE struct argp argp = {
     __app_doc__,
     0, 0, 0
 };
+#endif
 
 /***************************************************************************
  *      argp parser
  ***************************************************************************/
+#ifdef PEPE
 PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
     /*
@@ -213,6 +262,57 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
         return ARGP_ERR_UNKNOWN;
     }
     return 0;
+}
+#endif
+
+PRIVATE void parse_arguments(int argc, char **argv, struct arguments *arguments)
+{
+    int nerrors = arg_parse(argc, argv, argtable);
+    if (nerrors > 0) {
+        arg_print_errors(stderr, end, argv[0]);
+        fprintf(stderr, "Usage: ");
+        arg_print_syntax(stderr, argtable, "\n");
+        exit(1);
+    }
+
+    if (start->count > 0) {
+        arguments->start = 1;
+    }
+    if (stop->count > 0) {
+        arguments->stop = 1;
+    }
+    if (print_config->count > 0) {
+        arguments->print_final_config = 1;
+    }
+    if (print_verbose_config->count > 0) {
+        arguments->print_verbose_config = 1;
+    }
+    if (print_role->count > 0) {
+        arguments->print_role = 1;
+    }
+
+    if (version->count > 0) {
+        printf("%s\n", __argp_program_version__);
+        exit(0);
+    }
+
+    if (yuneta_version->count > 0) {
+        printf("%s\n", YUNETA_VERSION);
+        exit(0);
+    }
+
+    if (verbose_log->count > 0) {
+        arguments->verbose_log = verbose_log->ival[0];
+    }
+
+    if (config_file->count > 0) {
+        arguments->config_json_file = config_file->filename[0];
+        arguments->use_config_file = 1;
+    }
+
+    if (parameter_config->count > 0) {
+        arguments->parameter_config = parameter_config->sval[0];
+    }
 }
 
 /***************************************************************************
@@ -399,7 +499,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         APP_VERSION,
         APP_DATETIME
     );
-    argp_program_bug_address = APP_SUPPORT;
     strncpy(__yuno_version__, APP_VERSION, sizeof(__yuno_version__)-1);
     strncpy(__app_name__, APP_NAME, sizeof(__app_name__)-1);
     strncpy(__app_datetime__, APP_DATETIME, sizeof(__app_datetime__)-1);
@@ -434,7 +533,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *          Parse input arguments
      *------------------------------------------------*/
     struct arguments arguments = {0};
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    setup_argtable();
+    parse_arguments(argc, argv, &arguments);
 
     if(arguments.stop) {
         daemon_shutdown(process_name);
@@ -795,6 +895,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         }
         process(get_process_name(), work_dir, domain_dir, cleaning_fn);
     }
+
+    // Free the memory allocated for argtable
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     return gobj_get_exit_code();
 }
