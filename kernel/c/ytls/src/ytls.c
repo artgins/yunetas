@@ -47,6 +47,9 @@ PUBLIC hytls ytls_init(
         CASES("openssl")
             api_tls = openssl_api_tls();
             break;
+        CASES("mbedtls")
+            api_tls = mbed_api_tls();
+        break;
         DEFAULTS
             break;
     } SWITCHS_END;

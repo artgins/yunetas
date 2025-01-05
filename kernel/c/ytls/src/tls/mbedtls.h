@@ -1,10 +1,9 @@
 /****************************************************************************
  *          MBEDTLS.H
  *
- *          OpenSSL-specific code for the TLS/SSL layer
+ *          Mbed-TLS specific code for the TLS/SSL layer
  *
- *          Copyright (c) 2018 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
