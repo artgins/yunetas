@@ -85,12 +85,14 @@ PRIVATE struct arguments arguments = {0};
 PRIVATE void parse_arguments(int argc, char **argv, struct arguments *arguments)
 {
     struct arg_lit *client = arg_lit0("c", "client", "Run as client, default is master");
-    struct arg_str *name = arg_str0("n", "name", "NAME", "Run as client opening list with this name");
+    struct arg_str *name = arg_str0("n", "name", "APP", "Run as client opening list with this name");
+    struct arg_lit *help = arg_lit0("h", "help", "Display this help and exit");
     struct arg_end *end = arg_end(20);
 
     void *argtable[] = {
         client,
         name,
+        help,
         end
     };
 
@@ -100,6 +102,17 @@ PRIVATE void parse_arguments(int argc, char **argv, struct arguments *arguments)
     }
 
     int nerrors = arg_parse(argc, argv, argtable);
+
+    if (help->count > 0) {
+        printf("%s %s\n\n%s\n\n", APP, VERSION, DOC);
+        printf("Usage: ");
+        arg_print_syntax(stdout, argtable, "\n");
+        printf("\nOptions:\n");
+        arg_print_glossary(stdout, argtable, "  %-25s %s\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        exit(0);
+    }
+
     if (nerrors > 0) {
         arg_print_errors(stderr, end, argv[0]);
         fprintf(stderr, "Usage: ");

@@ -31,7 +31,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "tr2list"
+#define APP         "tr2list"
 #define DOC         "List messages of TimeRanger2 database.\n Examples TIME:\n  1.seconds (minutes,hours,days,weeks,months,years)"
 
 #define VERSION     "1.0" // __ghelpers_version__
@@ -110,13 +110,14 @@ void parse_arguments(int argc, char **argv, struct arguments *arguments) {
     struct arg_str *rkey = arg_str0(NULL, "rkey", "RKEY", "Regular expression of Key.");
     struct arg_str *filter = arg_str0(NULL, "filter", "FILTER", "Filter of fields in JSON dict string.");
     struct arg_lit *list_databases = arg_lit0(NULL, "list-databases", "List databases.");
+    struct arg_lit *help = arg_lit0("h", "help", "Display this help and exit");
     struct arg_end *end = arg_end(20);
 
     void *argtable[] = {
         path, recursive, print_local_time, verbose, mode, fields, show_md2,
         from_t, to_t, from_rowid, to_rowid, user_flag_mask_set, user_flag_mask_notset,
         system_flag_mask_set, system_flag_mask_notset, key, notkey, from_tm, to_tm,
-        rkey, filter, list_databases, end
+        rkey, filter, list_databases, help, end
     };
 
     if (arg_nullcheck(argtable) != 0) {
@@ -125,6 +126,17 @@ void parse_arguments(int argc, char **argv, struct arguments *arguments) {
     }
 
     int nerrors = arg_parse(argc, argv, argtable);
+
+    if (help->count > 0) {
+        printf("%s %s\n\n%s\n\n", APP, VERSION, DOC);
+        printf("Usage: ");
+        arg_print_syntax(stdout, argtable, "\n");
+        printf("\nOptions:\n");
+        arg_print_glossary(stdout, argtable, "  %-25s %s\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        exit(0);
+    }
+
     if (nerrors > 0) {
         arg_print_errors(stderr, end, argv[0]);
         fprintf(stderr, "Usage: ");
