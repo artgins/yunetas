@@ -1,5 +1,5 @@
 /****************************************************************************
- *          OPENSSL.H
+ *          MBEDTLS.H
  *
  *          OpenSSL-specific code for the TLS/SSL layer
  *

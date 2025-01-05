@@ -23,6 +23,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 set (SRCS
     src/ytls.c
     src/tls/openssl.c
+    src/tls/mbedtls.c
 )
 
 
