@@ -9,30 +9,38 @@
 Flow of encrypted & unencrypted bytes
 -------------------------------------
 
-This diagram shows how the read and write memory BIO's (rbio & wbio) are
-associated with the socket read and write respectively.  On the inbound flow
-(data into the program) bytes are read from the socket and copied into the rbio
-via BIO_write.  This represents the the transfer of encrypted data into the SSL
-object. The unencrypted data is then obtained through calling SSL_read.  The
-reverse happens on the outbound flow to convey unencrypted user data into a
-socket write of encrypted data.
+In mbedTLS, the data flow can be implemented similarly using a pair of buffers
+to simulate the behavior of OpenSSL's BIO layers.
+Instead of BIO, mbedTLS allows you to use the mbedtls_ssl_set_bio function
+to set custom read and write callbacks.
+Here's how the schema translates to mbedTLS:
+
+  +------+                                      +-----+
+  |......|--> read(fd) --> custom_recv_cb()  -->|.....|--> mbedtls_ssl_read()  --> IN
+  |......|                                      |.....|
+  |.sock.|                                      |.SSL.|
+  |......|                                      |.....|
+  |......|<-- write(fd) <-- custom_send_cb() <--|.....|<-- mbedtls_ssl_write() <-- OUT
+  +------+                                      +-----+
+
+          |                                    |       |                     |
+          |<---------------------------------->|       |<------------------->|
+          |         encrypted bytes            |       |  unencrypted bytes  |
 
 
-  +------+                                    +-----+
-  |......|--> read(fd) --> BIO_write(rbio) -->|.....|--> SSL_read(ssl)  --> IN
-  |......|                                    |.....|
-  |.sock.|                                    |.SSL.|
-  |......|                                    |.....|
-  |......|<-- write(fd) <-- BIO_read(wbio) <--|.....|<-- SSL_write(ssl) <-- OUT
-  +------+                                    +-----+
+    Custom Callbacks (custom_recv_cb, custom_send_cb):
+        These simulate the role of BIO in OpenSSL. The custom_recv_cb reads encrypted bytes (from a socket or another source) and feeds them into mbedTLS. The custom_send_cb takes encrypted data produced by mbedTLS and writes it to a socket or other transport layer.
 
-          |                                  |       |                     |
-          |<-------------------------------->|       |<------------------->|
-          |         encrypted bytes          |       |  unencrypted bytes  |
+    Encrypted Data Flow:
+        The custom_recv_cb reads data from the socket and feeds it to mbedtls_ssl_read, which decrypts it.
+        mbedtls_ssl_write encrypts data and passes it to custom_send_cb for transmission.
+
+    Unencrypted Data Flow:
+        Unencrypted application data is passed to mbedtls_ssl_write for encryption and transmission.
+        Decrypted data is received from mbedtls_ssl_read and passed to the application.
 
 
 ***********************************************************************/
-#define OPENSSL_API_COMPAT 30100
 #include <mbedtls/ssl.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
@@ -77,7 +85,7 @@ typedef struct sskt_s {
     char last_error[256];
     int error;
     char rx_bf[16*1024];
-    gbuffer_t *encrypted_buffer;
+    gbuffer_t *encrypted_buffer; // TODO review
 } sskt_t;
 
 /***************************************************************
@@ -131,7 +139,6 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE BOOL __initialized__ = FALSE;
 
 /***************************************************************************
  *
