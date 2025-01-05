@@ -44,10 +44,10 @@ PUBLIC hytls ytls_init(
 
     const char *tls_library = kw_get_str(gobj, jn_config, "library", "openssl", 0);
     SWITCHS(tls_library) {
-        CASES("openssl")
+        ICASES("openssl")
             api_tls = openssl_api_tls();
             break;
-        CASES("mbedtls")
+        ICASES("mbedtls")
             api_tls = mbed_api_tls();
         break;
         DEFAULTS
