@@ -7,6 +7,7 @@
  *              Copyright (c) 2024, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
+#include <yuneta_config.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -19,9 +20,12 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <syslog.h>
+#include <errno.h>
 
-#ifdef __linux__
-#include <openssl/rand.h>
+#ifdef ESP_PLATFORM
+#include "esp_system.h" // For esp_fill_random()
+#elif __linux__
+#include <sys/random.h> // For getrandom()
 #endif
 
 #include <arpa/inet.h>   // For htonl and htons
@@ -4913,14 +4917,13 @@ PUBLIC const char *get_hostname(void)
 }
 
 /***************************************************************************
- *  Create a random uuid
+ *  Create a cryptographically secure UUID without OpenSSL or mbedTLS
  ***************************************************************************/
-PUBLIC int create_uuid(char *bf, int bfsize)
-{
-    if(bfsize > 0) {
+PUBLIC int create_uuid(char *bf, int bfsize) {
+    if (bfsize > 0) {
         *bf = 0;
     }
-    if(bfsize < 37) {
+    if (bfsize < 37) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -4930,9 +4933,152 @@ PUBLIC int create_uuid(char *bf, int bfsize)
         return -1;
     }
 
-#ifdef __linux__
     unsigned char uuid[16];
-    RAND_bytes(uuid, 16);       // depends of openssl
+
+#ifdef ESP_PLATFORM
+    // Use ESP-IDF's built-in cryptographically secure random function
+    esp_fill_random(uuid, sizeof(uuid));
+#elif __linux__
+    // Use getrandom() for cryptographic random bytes
+    ssize_t ret = getrandom(uuid, sizeof(uuid), 0);
+    if (ret != sizeof(uuid)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_RUNTIME_ERROR,
+            "msg",      "%s", "getrandom failed",
+            "errno",    "%d", errno,
+            NULL
+        );
+        return -1;
+    }
+#else
+    #error "No secure random generator available for this platform."
+#endif
+
+    // Set the version to 4 (randomly generated UUID)
+    uuid[6] = (uuid[6] & 0x0F) | 0x40;
+    // Set the variant to DCE 1.1
+    uuid[8] = (uuid[8] & 0x3F) | 0x80;
+
+    // Format the UUID
+    snprintf(bf, bfsize,
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        uuid[0], uuid[1], uuid[2], uuid[3],
+        uuid[4], uuid[5],
+        uuid[6], uuid[7],
+        uuid[8], uuid[9],
+        uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
+    );
+
+    return 0;
+}
+
+
+    // PUBLIC int create_uuid(char *bf, int bfsize)
+// {
+//     if(bfsize > 0) {
+//         *bf = 0;
+//     }
+//     if(bfsize < 37) {
+//         gobj_log_error(0, LOG_OPT_TRACE_STACK,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msg",          "%s", "buffer TOO small",
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+// #ifdef __linux__
+//     unsigned char uuid[16];
+//     RAND_bytes(uuid, 16);       // depends of openssl
+//
+//     // Set the version to 4 (randomly generated UUID)
+//     uuid[6] = (uuid[6] & 0x0F) | 0x40;
+//     // Set the variant to DCE 1.1
+//     uuid[8] = (uuid[8] & 0x3F) | 0x80;
+//
+//     snprintf(bf, bfsize,
+//         "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+//         uuid[0], uuid[1], uuid[2], uuid[3],
+//         uuid[4], uuid[5],
+//         uuid[6], uuid[7],
+//         uuid[8], uuid[9],
+//         uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
+//     );
+// #else
+//     #error "What S.O.?"
+// #endif
+//
+//     return 0;
+// }
+
+/***************************************************************************
+ *  Create a random UUID
+ ***************************************************************************/
+PUBLIC int create_uuid(char *bf, int bfsize) {
+    if (bfsize > 0) {
+        *bf = 0;
+    }
+    if (bfsize < 37) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "buffer TOO small",
+            NULL
+        );
+        return -1;
+    }
+
+    unsigned char uuid[16];
+
+#if defined(CONFIG_YTLS_WITH_OPENSSL)
+    if (RAND_bytes(uuid, sizeof(uuid)) != 1) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_RUNTIME_ERROR,
+            "msg",      "%s", "OpenSSL RAND_bytes failed",
+            NULL
+        );
+        return -1;
+    }
+#elif defined(CONFIG_YTLS_WITH_MBEDTLS)
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0) != 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_RUNTIME_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_seed failed",
+            NULL
+        );
+        mbedtls_entropy_free(&entropy);
+        return -1;
+    }
+
+    if (mbedtls_ctr_drbg_random(&ctr_drbg, uuid, sizeof(uuid)) != 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_RUNTIME_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_random failed",
+            NULL
+        );
+        mbedtls_ctr_drbg_free(&ctr_drbg);
+        mbedtls_entropy_free(&entropy);
+        return -1;
+    }
+
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+#elif defined(ESP_PLATFORM)
+    esp_fill_random(uuid, sizeof(uuid));
+#else
+    #error "No cryptographic library defined. Define CONFIG_YTLS_WITH_OPENSSL, CONFIG_YTLS_WITH_MBEDTLS, or ensure ESP_PLATFORM is defined."
+#endif
 
     // Set the version to 4 (randomly generated UUID)
     uuid[6] = (uuid[6] & 0x0F) | 0x40;
@@ -4947,9 +5093,6 @@ PUBLIC int create_uuid(char *bf, int bfsize)
         uuid[8], uuid[9],
         uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
     );
-#else
-    #error "What S.O.?"
-#endif
 
     return 0;
 }

@@ -23,6 +23,33 @@ option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
 
 #-----------------------------------------------------#
+#  Convert .config of Kconfig in .h
+#-----------------------------------------------------#
+function(kconfig2include FILE_H_CONTENT CONFIG_LINES)
+    foreach(line ${CONFIG_LINES})
+        if(line MATCHES "^#.*" OR line MATCHES "^$")
+            # Skip comments and empty lines
+        else()
+            # Extract configuration key and value
+            string(REPLACE "=" ";" CONFIG_PAIR ${line})
+            list(GET CONFIG_PAIR 0 CONFIG_KEY)
+            list(GET CONFIG_PAIR 1 CONFIG_VALUE)
+            # Remove possible quotes from string values
+            string(REPLACE "\"" "" CONFIG_VALUE ${CONFIG_VALUE})
+
+            # Append the configuration to the header content
+            if("${CONFIG_VALUE}" STREQUAL "y")
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} 1\n" PARENT_SCOPE)
+            elseif("${CONFIG_VALUE}" MATCHES "^[0-9]+$")
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n" PARENT_SCOPE)
+            else()
+                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n" PARENT_SCOPE)
+            endif()
+        endif()
+    endforeach()
+endfunction()
+
+#-----------------------------------------------------#
 #   Check if not exist .config
 #-----------------------------------------------------#
 # Specify the path to the .config file
@@ -54,7 +81,7 @@ endif()
 #   Generate yuneta_config.h from .config (Kconfig)
 #-----------------------------------------------------#
 set(FILE_H_CONTENT
-[=[
+    [=[
 /*
  *  Yuneta Configuration
  *  Automatically generated file. DO NOT EDIT.
@@ -78,7 +105,7 @@ file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${FILE_H_CONTENT})
 #   TODO debe ser generado en menuconfig
 #-----------------------------------------------------#
 set(FILE_H_CONTENT
-[=[
+    [=[
 /*
  *  Yuneta Version
  *  Automatically generated file. DO NOT EDIT.

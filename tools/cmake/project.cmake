@@ -67,6 +67,9 @@ endif()
 #MESSAGE(STATUS "COMPILER_ID ${CMAKE_C_COMPILER_ID}")
 #MESSAGE(STATUS "COMPILER ${CMAKE_C_COMPILER}")
 
+#----------------------------------------#
+#   Libraries
+#----------------------------------------#
 set(YUNETAS_KERNEL_LIBS
     libyunetas-core-linux.a
     libargp-standalone.a
@@ -113,28 +116,3 @@ if (CONFIG_DEBUG_WITH_BACKTRACE)
 else()
     set(DEBUG_LIBS "")
 endif()
-
-
-function(kconfig2include FILE_H_CONTENT CONFIG_LINES)
-    foreach(line ${CONFIG_LINES})
-        if(line MATCHES "^#.*" OR line MATCHES "^$")
-            # Skip comments and empty lines
-        else()
-            # Extract configuration key and value
-            string(REPLACE "=" ";" CONFIG_PAIR ${line})
-            list(GET CONFIG_PAIR 0 CONFIG_KEY)
-            list(GET CONFIG_PAIR 1 CONFIG_VALUE)
-            # Remove possible quotes from string values
-            string(REPLACE "\"" "" CONFIG_VALUE ${CONFIG_VALUE})
-
-            # Append the configuration to the header content
-            if("${CONFIG_VALUE}" STREQUAL "y")
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} 1\n" PARENT_SCOPE)
-            elseif("${CONFIG_VALUE}" MATCHES "^[0-9]+$")
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n" PARENT_SCOPE)
-            else()
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n" PARENT_SCOPE)
-            endif()
-        endif()
-    endforeach()
-endfunction()

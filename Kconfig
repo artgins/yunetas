@@ -29,6 +29,7 @@ menu "TLS Library Selection"
 
 config YTLS_WITH_MBEDTLS
     bool "Use Mbed-TLS library"
+    default y
     help
         Add mbed-tls as a TLS library to the YTLS API.
 
