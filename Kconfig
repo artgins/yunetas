@@ -1,9 +1,12 @@
-#
-# General configuration options
-#
+#------------------------------------------------#
+#       General configuration options
+#------------------------------------------------#
 
 mainmenu "Yunetas Kernel Configuration"
 
+#------------------------------#
+#   Compiler
+#------------------------------#
 choice
     prompt "Compiler Selection"
     default USE_COMPILER_GCC
@@ -25,6 +28,9 @@ config USE_COMPILER_MUSL
 
 endchoice
 
+#------------------------------#
+#   TLS libraries
+#------------------------------#
 menu "TLS Library Selection"
 
 config YTLS_WITH_MBEDTLS
@@ -40,6 +46,22 @@ config YTLS_WITH_OPENSSL
 
 endmenu
 
+#------------------------------#
+#   Debug
+#------------------------------#
+menu "Debug Options"
+
+config DEBUG_WITH_BACKTRACE
+    bool "Use backtrace library"
+    default y
+    help
+        Use backtrace library to print stack trace
+
+endmenu
+
+#------------------------------#
+#   Modules
+#------------------------------#
 menu "Modules"
 source "modules/c/Kconfig"
 endmenu

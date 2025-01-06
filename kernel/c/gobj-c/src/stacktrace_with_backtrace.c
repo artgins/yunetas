@@ -33,6 +33,8 @@ struct pass_data {
     void *h;
 };
 
+#if CONFIG_DEBUG_WITH_BACKTRACE
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -77,15 +79,17 @@ PRIVATE int full_callback(
     }
     return 0;
 }
+#endif
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h) {
+PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
+{
+#if CONFIG_DEBUG_WITH_BACKTRACE
     if(!initialized) {
         return;
     }
-
     struct pass_data {
         loghandler_fwrite_fn_t fwrite_fn;
         void *h;
@@ -98,6 +102,7 @@ PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void
     fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
 
     backtrace_full(state, 0, full_callback, error_callback, &data);
+#endif
 }
 
 /***************************************************************************
@@ -105,6 +110,7 @@ PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void
  ***************************************************************************/
 PUBLIC int init_backtrace_with_backtrace(const char *program)
 {
+#if CONFIG_DEBUG_WITH_BACKTRACE
     if(!initialized) {
         // Initialize the backtrace state
         state = backtrace_create_state(program, 1, error_callback, NULL);
@@ -121,6 +127,7 @@ PUBLIC int init_backtrace_with_backtrace(const char *program)
         initialized = TRUE;
     }
     snprintf(program_name, sizeof(program_name), "%s", program?program:"");
+#endif
     return 0;
 }
 
