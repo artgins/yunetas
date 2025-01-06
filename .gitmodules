@@ -1,13 +1,3 @@
-
-[submodule "kernel/c/linux-ext-libs/jansson-artgins"]
-	path = kernel/c/linux-ext-libs/jansson-artgins
-	url = https://github.com/artgins/jansson-artgins.git
-[submodule "modules/js/w2ui-artgins"]
-	path = modules/js/w2ui-artgins
-	url = https://github.com/artgins/w2ui-artgins.git
-[submodule "tools/web-skeleton3"]
-	path = tools/web-skeleton3
-	url = https://github.com/artgins/web-skeleton3.git
 [submodule "yunos/gui_yunetas.js"]
 	path = yunos/gui_yunetas.js
 	url = https://github.com/artgins/gui_yunetas.js.git
