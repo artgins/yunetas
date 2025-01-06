@@ -85,7 +85,7 @@ set(FILE_H_CONTENT
 /*
  *  Yuneta Configuration
  *  Automatically generated file. DO NOT EDIT.
- *  Use 'kconfig-mconf Kconfig' or 'kconfig-nconf Kconfig' in Yuneta source code directory.
+ *  Use 'menuconfig' in Yuneta source code directory.
  *
  *  Copyright (c) 2024, ArtGins
  */

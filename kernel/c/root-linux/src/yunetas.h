@@ -16,6 +16,7 @@ extern "C"{
  *  core
  */
 #include <yuneta_version.h>
+#include <yuneta_config.h>
 #include <gobj.h>
 
 #include <ansi_escape_codes.h>
