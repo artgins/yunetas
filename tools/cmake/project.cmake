@@ -67,6 +67,54 @@ endif()
 #MESSAGE(STATUS "COMPILER_ID ${CMAKE_C_COMPILER_ID}")
 #MESSAGE(STATUS "COMPILER ${CMAKE_C_COMPILER}")
 
+set(YUNETAS_KERNEL_LIBS
+    libyunetas-core-linux.a
+    libargp-standalone.a
+    libtimeranger2.a
+    libyev_loop.a
+    libytls.a
+    libyunetas-gobj.a
+)
+
+set(YUNETAS_EXTERNAL_LIBS
+    libjansson.a
+    liburing.a
+    libpcre2-8.a
+)
+
+set(YUNETAS_PCRE_LIBS
+    libpcre2-8.a
+)
+
+if (CONFIG_YTLS_WITH_OPENSSL)
+    set(OPENSSL_LIBS
+        libssl.a
+        libcrypto.a
+        pthread dl
+    )
+else()
+    set(OPENSSL_LIBS "")
+endif()
+
+if (CONFIG_YTLS_WITH_MBEDTLS)
+    set(MBEDTLS_LIBS
+        libmbedtls.a
+        libmbedx509.a
+        libmbedcrypto.a
+    )
+else()
+    set(MBEDTLS_LIBS "")
+endif()
+
+if (CONFIG_DEBUG_WITH_BACKTRACE)
+    set(DEBUG_LIBS
+        libbacktrace.a
+    )
+else()
+    set(DEBUG_LIBS "")
+endif()
+
+
 function(kconfig2include FILE_H_CONTENT CONFIG_LINES)
     foreach(line ${CONFIG_LINES})
         if(line MATCHES "^#.*" OR line MATCHES "^$")

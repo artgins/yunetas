@@ -4,4 +4,41 @@
 
 mainmenu "Yunetas Kernel Configuration"
 
-source "Kconfig.yunetas"
+choice
+    prompt "Compiler Selection"
+    default USE_COMPILER_GCC
+
+config USE_COMPILER_GCC
+    bool "Use GCC compiler"
+    help
+        Select this option to use GCC as the compiler.
+
+config USE_COMPILER_CLANG
+    bool "Use Clang compiler"
+    help
+        Select this option to use Clang as the compiler.
+
+config USE_COMPILER_MUSL
+    bool "Use Musl compiler"
+    help
+        Select this option to use Musl as the compiler.
+
+endchoice
+
+menu "TLS Library Selection"
+
+config YTLS_WITH_MBEDTLS
+    bool "Use Mbed-TLS library"
+    help
+        Add mbed-tls as a TLS library to the YTLS API.
+
+config YTLS_WITH_OPENSSL
+    bool "Use OpenSSL library"
+    help
+        Add OpenSSL as a TLS library to the YTLS API.
+
+endmenu
+
+menu "Modules"
+source "modules/c/Kconfig"
+endmenu

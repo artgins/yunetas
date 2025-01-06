@@ -1,9 +1,0 @@
-menu "Yunetas Configuration"
-
-source "Kconfig.compiler"
-
-menu "Modules"
-source "modules/c/Kconfig"
-endmenu
-
-endmenu
