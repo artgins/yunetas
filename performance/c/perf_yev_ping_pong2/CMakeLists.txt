@@ -31,21 +31,12 @@ SET (YUNO_HDRS
 add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    libyunetas-core-linux.a
-    libargp-standalone.a
-    libtimeranger2.a
-    libyev_loop.a
-    libytls.a
-    libyunetas-gobj.a
-
-    libjansson.a
-    liburing.a
-    libpcre2-8.a
-    libbacktrace.a
-    libcrypto.a
-
-    pthread dl  # used by openssl
-
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
 )
 
 #if(ESP32_MODE)

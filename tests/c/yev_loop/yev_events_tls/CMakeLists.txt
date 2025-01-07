@@ -31,23 +31,12 @@ foreach(test ${SRCS})
     add_executable(${binary} "${test}.c")
 
     target_link_libraries(${binary}
-        libyunetas-c_prot.a
-        libyunetas-core-linux.a
-        libargp-standalone.a
-        libtimeranger2.a
-        libyev_loop.a
-        libytls.a
-        libyunetas-gobj.a
-
-        libjansson.a
-        liburing.a
-        libpcre2-8.a
-
-        libssl.a
-        libcrypto.a
-        libbacktrace.a
-
-        pthread dl  # used by openssl
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
     )
     add_test("${current_directory_name}/${test}" ${binary})
 
