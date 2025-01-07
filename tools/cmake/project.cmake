@@ -134,6 +134,7 @@ set(YUNETAS_PCRE_LIBS
 
 if (CONFIG_YTLS_USE_OPENSSL)
     set(OPENSSL_LIBS
+        libjwt.a
         libssl.a
         libcrypto.a
         pthread dl
@@ -144,6 +145,7 @@ endif()
 
 if (CONFIG_YTLS_USE_MBEDTLS)
     set(MBEDTLS_LIBS
+        libjwt.a
         libmbedtls.a
         libmbedx509.a
         libmbedcrypto.a
