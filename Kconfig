@@ -35,12 +35,12 @@ menu "TLS Library Selection"
 
 config YTLS_USE_MBEDTLS
     bool "Use Mbed-TLS library"
-    default y
     help
         Add mbed-tls as a TLS library to the YTLS API.
 
 config YTLS_USE_OPENSSL
     bool "Use OpenSSL library"
+    default y
     help
         Add OpenSSL as a TLS library to the YTLS API.
 
