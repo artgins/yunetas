@@ -98,26 +98,17 @@ Steps to install and create a virtual environment:
     echo '' >> ~/.bashrc
     source ~/.bashrc
     ```
+
+## Install `yunetas`
+
+``` shell
+pip install yunetas
+```
+
+
 :::
 
 ::::
-
-
-
-Here is a reference to  {ref}`python-packages`
-
-(python-packages)=
-## Python Packages
-
-- Install python packages:
-
-    ``` shell
-    pip install cement
-    pip install plumbum
-    pip install fastapi
-    pip install "uvicorn[standard]"
-    pip install "typer[all]"
-    ```
 
 ## Clone
 
@@ -147,10 +138,6 @@ Go to the yunetas directory in your project and activate:
 ## Install additional Python dependencies
 
 Install additional Python dependencies (`scripts` directory will be added to path):
-
-    # this don't work
-    cd ./scripts
-    pip install -r requirements.txt
 
     # use this
     pipx install kconfiglib
