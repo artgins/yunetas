@@ -181,27 +181,19 @@ Firstly, install dependencies:
 
 
 
-To build and install, with debug and tests:
+To build and install:
 
     cd ~/yunetaprojects/yunetas
-    mkdir build 
-    cd build
-    cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-    ninja
-    ninja install
-    ctest    # to run tests
+    yunetas init-debug # or init-prod
+    yunetas build
 
 
-To build without debug:
+To test:
 
-    mkdir build && cd build
-    cmake -GNinja ..
-    ninja
-    ninja install
-    ctest    # to run tests
+    yunetas test
 
 By default, the installation directory of include files,
-libraries and binaries is ``/yuneta/development/outputs/``
+libraries and binaries will be in ``/yuneta/development/outputs/``
 
 [pipx]:     https://pipx.pypa.io/stable/installation/
 [yunetas]:  https://pypi.org/project/yunetas/
