@@ -22,117 +22,15 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
 
-#-----------------------------------------------------#
-#  Convert .config of Kconfig in .h
-#-----------------------------------------------------#
-function(kconfig2include FILE_H_CONTENT CONFIG_LINES)
-    foreach(line ${CONFIG_LINES})
-        if(line MATCHES "^#.*" OR line MATCHES "^$")
-            # Skip comments and empty lines
-        else()
-            # Extract configuration key and value
-            string(REPLACE "=" ";" CONFIG_PAIR ${line})
-            list(GET CONFIG_PAIR 0 CONFIG_KEY)
-            list(GET CONFIG_PAIR 1 CONFIG_VALUE)
-            # Remove possible quotes from string values
-            string(REPLACE "\"" "" CONFIG_VALUE ${CONFIG_VALUE})
-
-            # Append the configuration to the header content
-            if("${CONFIG_VALUE}" STREQUAL "y")
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} 1\n" PARENT_SCOPE)
-            elseif("${CONFIG_VALUE}" MATCHES "^[0-9]+$")
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} ${CONFIG_VALUE}\n" PARENT_SCOPE)
-            else()
-                set(FILE_H_CONTENT "${FILE_H_CONTENT}#define ${CONFIG_KEY} \"${CONFIG_VALUE}\"\n" PARENT_SCOPE)
-            endif()
-        endif()
-    endforeach()
-endfunction()
-
-#-----------------------------------------------------#
-#   Check if not exist .config
-#-----------------------------------------------------#
-# Specify the path to the .config file
-set(CONFIG_FILE "${CMAKE_SOURCE_DIR}/.config")
-set(KCONFIG_COMMAND "menuconfig")
-
-if(NOT EXISTS ${CONFIG_FILE})
-    # The .config file does not exist
-    # Run a Kconfig command to create or configure the .config file.
-    # For example, using `make menuconfig` or a similar command to generate the .config
-    message(STATUS "No .config file found, generating default configuration...")
-
-    # Execute a command in the source directory
-    execute_process(
-        COMMAND "${KCONFIG_COMMAND}"
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    )
-
-    # Check if the .config file was successfully created
-    if(EXISTS ${CONFIG_FILE})
-        message(STATUS "default .config file successfully created.")
-    else()
-        message(FATAL_ERROR "Failed to create ${CONFIG_FILE} file.\n In upper directory execute manually:\n   ${KCONFIG_COMMAND}\n or other kconfig-? command (See README.rst)")
-        exit()
-    endif()
-endif()
-
-#-----------------------------------------------------#
-#   Generate yuneta_config.h from .config (Kconfig)
-#-----------------------------------------------------#
-set(FILE_H_CONTENT
-    [=[
-/*
- *  Yuneta Configuration
- *  Automatically generated file. DO NOT EDIT.
- *  Use 'menuconfig' in Yuneta source code directory.
- *
- *  Copyright (c) 2024, ArtGins
- */
-#pragma once
-
-]=]
-)
-
-# Read file and append definitions to FILE_H_CONTENT
-file(STRINGS ${CONFIG_FILE} CONFIG_LINES)
-kconfig2include("${FILE_H_CONTENT}" "${CONFIG_LINES}")
-# Write the content to .h
-file(WRITE ${INC_DEST_DIR}/yuneta_config.h ${FILE_H_CONTENT})
-
-#-----------------------------------------------------#
-#   Generate yuneta_version.h from YUNETA_VERSION
-#   TODO debe ser generado en menuconfig
-#-----------------------------------------------------#
-set(FILE_H_CONTENT
-    [=[
-/*
- *  Yuneta Version
- *  Automatically generated file. DO NOT EDIT.
- *  Set version in YUNETA_VERSION file
- *
- *  Copyright (c) 2024, ArtGins
- */
-#pragma once
-
-]=]
-)
-
-# Read file and append definitions to FILE_H_CONTENT
-file(STRINGS ${CMAKE_SOURCE_DIR}/YUNETA_VERSION CONFIG_LINES)
-kconfig2include("${FILE_H_CONTENT}" "${CONFIG_LINES}")
-# Write the content to .h
-file(WRITE ${INC_DEST_DIR}/yuneta_version.h ${FILE_H_CONTENT})
-
 ##############################################
 #   Source
 ##############################################
 add_subdirectory(kernel/c/gobj-c)
 add_subdirectory(kernel/c/ytls)
 add_subdirectory(kernel/c/yev_loop)
+add_subdirectory(kernel/c/timeranger2)
 add_subdirectory(kernel/c/root-linux)
 add_subdirectory(kernel/c/root-esp32)
-add_subdirectory(kernel/c/timeranger2)
 add_subdirectory(modules/c/c_prot)
 add_subdirectory(utils/c)
 #add_subdirectory(yunos/c)
