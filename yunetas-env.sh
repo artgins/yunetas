@@ -8,7 +8,7 @@ else
     name=$(basename "$0")
 fi
 
-if [ "$name" "==" "yunetas-env.sh" ]; then
+if [ "$name" == "yunetas-env.sh" ]; then
     echo "Source this file (do NOT execute it!) to set the Yunetas Kernel environment."
     echo "Usage: source yunetas-env.sh"
     exit
@@ -19,21 +19,74 @@ if [ ! -f "./YUNETA_VERSION" ]; then
     exit
 fi
 
-# You can further customize your environment by creating a bash script called
-# .yunetasrc in your home directory. It will be automatically
-# run (if it exists) by this script.
+# Save the original prompt and PATH (only if not already saved)
+if [[ -z "${ORIGINAL_PS1-}" ]]; then
+    ORIGINAL_PS1="${PS1-}"
+    export ORIGINAL_PS1
+fi
 
-# identify OS source tree root directory
-export YUNETAS_BASE=$( builtin cd "$( dirname "$dir" )" > /dev/null && pwd ${pwd_opt})
+if [[ -z "${ORIGINAL_PATH-}" ]]; then
+    ORIGINAL_PATH="${PATH}"
+    export ORIGINAL_PATH
+fi
+
+# Identify OS source tree root directory
+builtin cd "$( dirname "$dir" )" > /dev/null
+YUNETAS_BASE=$(pwd ${pwd_opt})
+export YUNETAS_BASE
 unset pwd_opt
 
+# Add /yuneta/bin to PATH with top priority
+yuneta_bin_path="/yuneta/bin"
+if ! echo "${PATH}" | grep -q "^${yuneta_bin_path}"; then
+    PATH=${yuneta_bin_path}:${PATH}
+    export PATH
+    echo "Added '/yuneta/bin' to PATH with top priority."
+fi
+
+# Add scripts to PATH
 scripts_path=${YUNETAS_BASE}/scripts
 if ! echo "${PATH}" | grep -q "${scripts_path}"; then
-    export PATH=${scripts_path}:${PATH}
+    PATH=${scripts_path}:${PATH}
+    export PATH
 fi
 unset scripts_path
 
-# enable custom environment settings
+# Enable custom environment settings
 yunetas_answer_file=~/.yunetasrc
-[ -f ${yunetas_answer_file} ] &&  . ${yunetas_answer_file}
+if [ -f "${yunetas_answer_file}" ]; then
+    . "${yunetas_answer_file}"
+fi
 unset yunetas_answer_file
+
+# Change the shell prompt to include "(yunetas)"
+if [[ -n "${PS1-}" ]]; then
+    PS1="(yunetas) ${PS1}"
+    export PS1
+fi
+
+# Inform the user
+echo "Yunetas environment activated."
+echo "To deactivate, run: deactivate_yunetas"
+
+# Function to deactivate the environment
+deactivate_yunetas() {
+    echo "Deactivating Yunetas environment..."
+
+    # Restore the original prompt and PATH
+    if [[ -n "${ORIGINAL_PS1-}" ]]; then
+        PS1="${ORIGINAL_PS1}"
+        export PS1
+        unset ORIGINAL_PS1
+    fi
+
+    if [[ -n "${ORIGINAL_PATH-}" ]]; then
+        PATH="${ORIGINAL_PATH}"
+        export PATH
+        unset ORIGINAL_PATH
+    fi
+
+    # Unset Yunetas-specific environment variables
+    unset YUNETAS_BASE
+    echo "Yunetas environment deactivated."
+}
