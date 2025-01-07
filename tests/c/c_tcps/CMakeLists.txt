@@ -31,6 +31,8 @@ SET(COMMON
     common/c_teston.c
 )
 
+MESSAGE(STATUS "COMPILER ${MBEDTLS_LIBS}")
+
 ##############################################
 #   Tests
 ##############################################

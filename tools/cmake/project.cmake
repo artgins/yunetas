@@ -11,6 +11,49 @@ if("${YUNETAS_BASE_DIR}" STREQUAL "")
 endif()
 
 #--------------------------------------------------#
+#   Include .config file
+#--------------------------------------------------#
+set(CONFIG_FILE ${YUNETAS_BASE_DIR}/.config)
+
+if(EXISTS ${CONFIG_FILE})
+    message(STATUS "Loading Kconfig-style variables from ${CONFIG_FILE}")
+
+    # Read the file line by line
+    file(READ ${CONFIG_FILE} CONFIG_CONTENTS)
+    string(REPLACE "\n" ";" CONFIG_LINES ${CONFIG_CONTENTS})
+
+    foreach(LINE ${CONFIG_LINES})
+        string(STRIP "${LINE}" LINE) # Remove leading/trailing whitespace
+
+        # Skip comments and empty lines
+        if(LINE MATCHES "^#.*" OR LINE STREQUAL "")
+            continue()
+        endif()
+
+        # Parse KEY=VALUE pairs
+        if(LINE MATCHES "([^=]+)=(.*)")
+            set(KEY "${CMAKE_MATCH_1}")
+            set(VALUE "${CMAKE_MATCH_2}")
+
+            # Handle special cases for values
+            if(VALUE STREQUAL "y") # Convert 'y' to 1
+                set(VALUE 1)
+            elseif(VALUE STREQUAL "n") # Convert 'n' to 0
+                set(VALUE 0)
+            elseif(VALUE MATCHES "^\".*\"$") # Remove quotes from strings
+                string(SUBSTRING ${VALUE} 1 -1 VALUE)
+            endif()
+
+            # Set the variable in CMake
+            set(${KEY} ${VALUE})
+            message(STATUS "Loaded: ${KEY} = ${VALUE}")
+        endif()
+    endforeach()
+else()
+    message(FATAL_ERROR ".config file not found at ${CONFIG_FILE}")
+endif()
+
+#--------------------------------------------------#
 #   Get the parent of YUNETAS_BASE
 #   where the project code can be
 #   and where the output of yunetas is installed
@@ -89,7 +132,7 @@ set(YUNETAS_PCRE_LIBS
     libpcre2-8.a
 )
 
-if (CONFIG_YTLS_WITH_OPENSSL)
+if (CONFIG_YTLS_USE_OPENSSL)
     set(OPENSSL_LIBS
         libssl.a
         libcrypto.a
@@ -99,7 +142,7 @@ else()
     set(OPENSSL_LIBS "")
 endif()
 
-if (CONFIG_YTLS_WITH_MBEDTLS)
+if (CONFIG_YTLS_USE_MBEDTLS)
     set(MBEDTLS_LIBS
         libmbedtls.a
         libmbedx509.a

@@ -41,6 +41,10 @@ Here's how the schema translates to mbedTLS:
 
 
 ***********************************************************************/
+#include <yuneta_config.h>
+
+#ifdef CONFIG_YTLS_USE_MBEDTLS
+
 #include <mbedtls/ssl.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
@@ -827,3 +831,5 @@ PUBLIC api_tls_t *mbed_api_tls(void)
 {
     return &api_tls;
 }
+
+#endif /* CONFIG_YTLS_USE_MBEDTLS */
