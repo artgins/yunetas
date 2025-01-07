@@ -16,7 +16,7 @@ endif()
 set(CONFIG_FILE ${YUNETAS_BASE_DIR}/.config)
 
 if(EXISTS ${CONFIG_FILE})
-    message(STATUS "Loading Kconfig-style variables from ${CONFIG_FILE}")
+    message(STATUS "${PROJECT_NAME}: Loading Kconfig-style variables from ${CONFIG_FILE}")
 
     # Read the file line by line
     file(READ ${CONFIG_FILE} CONFIG_CONTENTS)
