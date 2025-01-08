@@ -46,7 +46,6 @@ On Linux:
 - Ubuntu 23.04 or above:
 
     ``` shell
-    sudo apt update
     sudo apt install pipx
     pipx ensurepath
     ```
