@@ -7,7 +7,7 @@
 
 ## Install system dependencies
 
-Use `apt` to install the required dependencies
+Install the C dependencies:
 
     sudo apt -y install --no-install-recommends \
       git mercurial make cmake ninja-build \
