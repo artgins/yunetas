@@ -7,11 +7,6 @@ if ! command -v ldconfig >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v meson >/dev/null 2>&1; then
-    echo "meson is not available in PATH. Exiting. Run 'sudo apt install meson'"
-    exit 1
-fi
-
 if ! command -v ninja >/dev/null 2>&1; then
     echo "ninja is not available in PATH. Exiting. Run 'sudo apt install ninja-build'"
     exit 1
