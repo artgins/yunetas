@@ -9,11 +9,27 @@
 
 Use `apt` to install the required dependencies
 
-    sudo apt install --no-install-recommends \
+    sudo apt -y install --no-install-recommends \
       git mercurial make cmake ninja-build \
       gcc musl musl-dev musl-tools clang \
-      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-      libjansson-dev libpcre2-dev perl dos2unix liburing-dev
+      python3-dev python3-pip python3-setuptools \
+      python3-tk python3-wheel python3-venv \
+      libjansson-dev libpcre2-dev perl dos2unix liburing-dev \
+      kconfig-frontends telnet pipx 
+
+    pipx install kconfiglib
+
+<details>
+<summary>Why these dependencies?</summary>
+<pre>
+  libjansson-dev          # required for libjwt
+  libpcre2-dev            # required by openresty
+  perl dos2unix mercurial # required by openresty
+  pipx kconfiglib         # used by yunetas, configuration tool
+  kconfig-frontends       # used by yunetas, other configuration tool
+  telnet                  # required by tests
+</pre>
+</details>
 
 ## Install `yunetas`
 
@@ -134,13 +150,6 @@ Go to the yunetas directory in your project and activate:
     cd ~/yunetaprojects/yunetas
     source yunetas-env.sh
 
-
-## Install additional Python dependencies
-
-Install additional Python dependencies (`scripts` directory will be added to path):
-
-    # use this
-    pipx install kconfiglib
 
 ## Configure .bashrc
 
