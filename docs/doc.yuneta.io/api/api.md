@@ -2,6 +2,87 @@
 
 ## Start up functions
 
+## `add`
+
+Add two numbers.
+
+### Parameters
+- `a` (_int or float_): The first number.
+- `b` (_int or float_): The second number.
+
+### Returns
+- _int or float_: The sum of the numbers.
+
+### Examples
+
+```python
+from my_module import add
+
+result = add(5, 3)
+```
+
+## Function Documentation
+
+### Description
+
+This function performs a complex calculation involving matrix operations and returns the result.
+
+### Parameters
+
+- `matrix_a`: Input matrix A
+- `matrix_b`: Input matrix B
+- `result_matrix`: Output matrix storing the result
+
+### Returns
+
+The function returns the calculated result matrix.
+
+### Implementation Details
+
+The function uses optimized algorithms and SIMD instructions to perform fast matrix multiplication.
+
+## Usage Example
+
+**C Function:** `my_function(int a, int b)`
+
+This function adds two integers together.
+
+* **Args:**
+    * `a`: The first integer.
+    * `b`: The second integer.
+
+* **Returns:**
+    * The sum of `a` and `b`.
+
+**Example:**
+
+```c
+#include <stdio.h>
+
+int my_function(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    int result = my_function(5, 3);
+    printf("The sum is: %d\n", result);
+    return 0;
+}
+```
+
+| Attribute                    | Type          | Description                               |
+|------------------------------|---------------|-------------------------------------------|
+| `assignee_ids`               | integer array | IDs of the users to assign the issue to. Premium and Ultimate only. |
+| `confidential`               | boolean       | Whether the issue is confidential or not. |
+| `title`                      | string        | Title of the issue.                       |
+
+| Attribute     | Type   | Required | Description |
+|---------------|--------|----------|-------------|
+| `widget_name` | string | No       | [Deprecated](https://link-to-issue) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
+
+
+> - `widget_name` [deprecated](https://link-to-issue) in GitLab 14.7.
+
 # Sample Document
 
 This is some introductory text.  

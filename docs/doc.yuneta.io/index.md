@@ -74,7 +74,5 @@ CHANGELOG
 :caption: Api reference
 :maxdepth: 2
 
-TODO
+api/api.md
 ```
-
-[//]: # (api/api.md)
