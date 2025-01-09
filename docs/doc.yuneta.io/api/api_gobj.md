@@ -16,47 +16,46 @@ This API provides the prototypes, structures, enums, and macros needed to work w
   - JSON system based on the [`Jansson`](http://jansson.readthedocs.io/en/latest/) library.
 
 
-## Start up functions
+# Start up functions
 
-### `gobj_start_up`
+## `gobj_start_up`
 
 Initialize a Yuno instance.
 
 This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
 
-```{caution} *gobj_start_up()* is entry point to Yuno
-The `gobj_start_up()` function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`gobj_end()`](#gobj-end), should be called to properly terminate and exit Yuno.
+```{caution}
+The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`gobj_end()`](#gobj-end), should be called to properly terminate and exit Yuno.
 ```
 
-<details>
-  <summary>Click to see more details</summary>
-
-Here is the `detailed` text that’s hidden by default.  
-You can add **formatted text**, or even images and code blocks if you like!
-</details>
+**Prototypes**
 
 ``````{tab-set}
 `````{tab-item} C
 
 ````C
-printf("A code block with a caption.");
-
-`````
-
-`````{tab-item} Python
-````python
-
-print("A code block with a caption.")
-
+PUBLIC int gobj_start_up(       /* Initialize the yuno */
+    int                         argc,
+    char                        *argv[],
+    json_t                      *jn_global_settings, /* NOT owned */
+    startup_persistent_attrs_t  startup_persistent_attrs,
+    end_persistent_attrs_t      end_persistent_attrs,
+    load_persistent_attrs_t     load_persistent_attrs,
+    save_persistent_attrs_t     save_persistent_attrs,
+    remove_persistent_attrs_t   remove_persistent_attrs,
+    list_persistent_attrs_t     list_persistent_attrs,
+    json_function_t             global_command_parser,
+    json_function_t             global_stats_parser,
+    authz_checker_fn            global_authz_checker,
+    authenticate_parser_fn      global_authenticate_parser,
+    size_t                      max_block,            /* largest memory block */
+    size_t                      max_system_memory     /* maximum system memory */
+);
 ````
-`````
-
-``````
-
 
 **Parameters**
 
-```{list-table}
+````{list-table}
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -107,7 +106,7 @@ print("A code block with a caption.")
 * - `max_system_memory`
   - `size_t`
   - The total memory limit for the system, in bytes.
-```
+````
 
 
 **Return Value**
@@ -115,5 +114,41 @@ print("A code block with a caption.")
 - **`0`**: Success.
 - **`< 0`**: Indicates an error during initialization.
 
+`````
 
-### `gobj_end`
+`````{tab-item} JS
+````JS
+xxx
+````
+`````
+
+``````
+
+
+
+
+
+
+
+```````{dropdown} Examples
+
+``````{tab-set}
+`````{tab-item} C
+
+````C
+printf("A code block with a caption.");
+
+`````
+
+`````{tab-item} Python
+````python
+
+print("A code block with a caption.")
+
+````
+`````
+
+``````
+```````
+
+## `gobj_end`

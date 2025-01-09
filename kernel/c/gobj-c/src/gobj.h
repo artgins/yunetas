@@ -1140,22 +1140,22 @@ GOBJ_DECLARE_STATE(ST_CLOSED);
 /*---------------------------------*
  *      Start up functions
  *---------------------------------*/
-PUBLIC int gobj_start_up(                   /* Initialize the yuno */
-    int argc,
-    char *argv[],
-    json_t *jn_global_settings,             /* NOT owned */
-    startup_persistent_attrs_t startup_persistent_attrs,
-    end_persistent_attrs_t end_persistent_attrs,
-    load_persistent_attrs_t load_persistent_attrs,
-    save_persistent_attrs_t save_persistent_attrs,
-    remove_persistent_attrs_t remove_persistent_attrs,
-    list_persistent_attrs_t list_persistent_attrs,
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser,
-    authz_checker_fn global_authz_checker,
-    authenticate_parser_fn global_authenticate_parser,
-    size_t max_block,                       /* largest memory block */
-    size_t max_system_memory                /* maximum system memory */
+PUBLIC int gobj_start_up(       /* Initialize the yuno */
+    int                         argc,
+    char                        *argv[],
+    json_t                      *jn_global_settings, /* NOT owned */
+    startup_persistent_attrs_t  startup_persistent_attrs,
+    end_persistent_attrs_t      end_persistent_attrs,
+    load_persistent_attrs_t     load_persistent_attrs,
+    save_persistent_attrs_t     save_persistent_attrs,
+    remove_persistent_attrs_t   remove_persistent_attrs,
+    list_persistent_attrs_t     list_persistent_attrs,
+    json_function_t             global_command_parser,
+    json_function_t             global_stats_parser,
+    authz_checker_fn            global_authz_checker,
+    authenticate_parser_fn      global_authenticate_parser,
+    size_t                      max_block,            /* largest memory block */
+    size_t                      max_system_memory     /* maximum system memory */
 );
 
 /*
