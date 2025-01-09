@@ -1,6 +1,396 @@
 # Api Reference
 
+# `gobj`
+
+The main file for the Yuneta framework. It defines the GObj (Generic Object) API, which includes the GObj system, event-driven architecture, finite state machines, hierarchical object trees, and additional utilities.
+
+This API provides the prototypes, structures, enums, and macros needed to work with the Yuneta framework's GObj system.
+
+- **GObj Features**:
+  - Event-driven model using input/output events.
+  - Simple finite state machine to manage object states.
+  - Hierarchical organization of GObjs forming a tree structure (Yuno).
+  - Communication between objects through events (key-value messages).
+  - Built-in logging, buffering, and JSON handling.
+- **Internal Systems**:
+  - Log system.
+  - Buffer system.
+  - JSON system based on the `jansson` library.
+
+
+
 ## Start up functions
+
+# `gobj_start_up`
+
+Initialize a Yuno instance.
+
+This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
+
+## Prototypes
+
+**C Prototype**
+
+```c
+int gobj_start_up(
+    int argc,
+    char *argv[],
+    json_t *jn_global_settings,             /* NOT owned */
+    int (*startup_persistent_attrs)(void),
+    void (*end_persistent_attrs)(void),
+    int (*load_persistent_attrs)(
+        hgobj gobj,
+        json_t *keys  // owned
+    ),
+    int (*save_persistent_attrs)(
+        hgobj gobj,
+        json_t *keys  // owned
+    ),
+    int (*remove_persistent_attrs)(
+        hgobj gobj,
+        json_t *keys  // owned
+    ),
+    json_t * (*list_persistent_attrs)(
+        hgobj gobj,
+        json_t *keys  // owned
+    ),
+    json_function_t global_command_parser,
+    json_function_t global_stats_parser,
+    authz_checker_fn global_authz_checker,
+    authenticate_parser_fn global_authenticate_parser,
+    size_t max_block,                       /* largest memory block */
+    size_t max_system_memory                /* maximum system memory */
+);
+```
+
+**Python Prototype**
+
+```python
+def gobj_start_up(
+    argc: int,
+    argv: list[str],
+    jn_global_settings: dict,
+    startup_persistent_attrs: Callable[[], int],
+    end_persistent_attrs: Callable[[], None],
+    load_persistent_attrs: Callable[[hgobj, dict], int],
+    save_persistent_attrs: Callable[[hgobj, dict], int],
+    remove_persistent_attrs: Callable[[hgobj, dict], int],
+    list_persistent_attrs: Callable[[hgobj, dict], dict],
+    global_command_parser: Callable[..., dict] = None,
+    global_stats_parser: Callable[..., dict] = None,
+    global_authz_checker: Callable[..., bool] = None,
+    global_authenticate_parser: Callable[..., dict] = None,
+    max_block: int = 1024,
+    max_system_memory: int = 1048576
+) -> int:
+    """
+    Initialize a Yuno instance.
+    """
+```
+
+**JavaScript Prototype**
+
+```javascript
+function gobj_start_up(
+    argc,                        // Number of arguments (int)
+    argv,                        // Array of argument strings (Array<string>)
+    jn_global_settings,          // Global settings object (Object)
+    startup_persistent_attrs,    // Function to initialize persistent attributes (Function: () => int)
+    end_persistent_attrs,        // Function to deinitialize persistent attributes (Function: () => void)
+    load_persistent_attrs,       // Function to load persistent attributes (Function: (hgobj, Object) => int)
+    save_persistent_attrs,       // Function to save persistent attributes (Function: (hgobj, Object) => int)
+    remove_persistent_attrs,     // Function to remove persistent attributes (Function: (hgobj, Object) => int)
+    list_persistent_attrs,       // Function to list persistent attributes (Function: (hgobj, Object) => Object)
+    global_command_parser = null, // Function for global command parsing (Optional Function)
+    global_stats_parser = null,   // Function for global stats parsing (Optional Function)
+    global_authz_checker = null,  // Function for global authorization checking (Optional Function)
+    global_authenticate_parser = null, // Function for global authentication parsing (Optional Function)
+    max_block = 1024,             // Maximum block size (int, default: 1024)
+    max_system_memory = 1048576   // Maximum system memory (int, default: 1048576)
+) {
+    // Initialize a Yuno instance
+    return 0; // 0 indicates success, negative values indicate errors
+}
+```
+
+## Parameters
+
+- **\`argc\`**:
+  \- **C**: `int`
+  \- **Python**: `int`
+  \- **JavaScript**: `int`
+
+  Number of arguments passed to the application.
+
+- **\`argv\`**:
+  \- **C**: `char *argv[]`
+  \- **Python**: `list[str]`
+  \- **JavaScript**: `Array<string>`
+
+  Array of argument strings.
+
+- **\`jn_global_settings\`**:
+  \- **C**: `json_t *`
+  \- **Python**: `dict`
+  \- **JavaScript**: `Object`
+
+  JSON object containing global settings for the Yuno.
+
+- **\`startup_persistent_attrs\`**:
+  \- **C**: `int (*startup_persistent_attrs)(void)`
+  \- **Python**: `Callable[[], int]`
+  \- **JavaScript**: `Function: () => int`
+
+  Callback to initialize the persistent attributes system.
+
+- **\`end_persistent_attrs\`**:
+  \- **C**: `void (*end_persistent_attrs)(void)`
+  \- **Python**: `Callable[[], None]`
+  \- **JavaScript**: `Function: () => void`
+
+  Callback to deinitialize the persistent attributes system.
+
+- **\`load_persistent_attrs\`**:
+  \- **C**: `int (*load_persistent_attrs)(hgobj, json_t *keys)`
+  \- **Python**: `Callable[[hgobj, dict], int]`
+  \- **JavaScript**: `Function: (hgobj, Object) => int`
+
+  Callback to load persistent attributes.
+
+- **\`save_persistent_attrs\`**:
+  \- **C**: `int (*save_persistent_attrs)(hgobj, json_t *keys)`
+  \- **Python**: `Callable[[hgobj, dict], int]`
+  \- **JavaScript**: `Function: (hgobj, Object) => int`
+
+  Callback to save persistent attributes.
+
+- **\`remove_persistent_attrs\`**:
+  \- **C**: `int (*remove_persistent_attrs)(hgobj, json_t *keys)`
+  \- **Python**: `Callable[[hgobj, dict], int]`
+  \- **JavaScript**: `Function: (hgobj, Object) => int`
+
+  Callback to remove persistent attributes.
+
+- **\`list_persistent_attrs\`**:
+  \- **C**: `json_t * (*list_persistent_attrs)(hgobj, json_t *keys)`
+  \- **Python**: `Callable[[hgobj, dict], dict]`
+  \- **JavaScript**: `Function: (hgobj, Object) => Object`
+
+  Callback to list persistent attributes.
+
+- **Other Parameters**:
+  \- Refer to individual prototypes for additional details.
+
+## Return Value
+
+- **\`0\`**: Success.
+- **Negative value**: Indicates an error during initialization.
+
+## Behavior
+
+1. **Initialization**:
+   Configures the Yuno with provided global settings and command-line arguments.
+2. **Persistent Attributes**:
+   Invokes callbacks to handle persistent attributes, including loading, saving, removing, and listing.
+3. **Global Parsers**:
+   Sets up parsers for commands, statistics, and authorization/authentication handlers.
+4. **Memory Management**:
+   Allocates memory based on specified maximum block size and total system memory.
+
+## Example
+
+Refer to the following example in C. Python and JavaScript implementations would follow their respective prototype conventions.
+
+```c
+int startup_persistent_attrs(void) {
+    // Initialize persistent attributes system.
+    return 0;
+}
+
+void end_persistent_attrs(void) {
+    // Cleanup persistent attributes system.
+}
+
+int load_attrs(hgobj gobj, json_t *keys) {
+    // Load attributes for the given gobj.
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    json_t *settings = json_pack("{s:i}", "example_setting", 42);
+
+    int result = gobj_start_up(
+        argc,
+        argv,
+        settings,
+        startup_persistent_attrs,
+        end_persistent_attrs,
+        load_attrs,
+        NULL,  // Save function not required in this example
+        NULL,  // Remove function not required in this example
+        NULL,  // List function not required in this example
+        NULL,  // Command parser
+        NULL,  // Stats parser
+        NULL,  // Authz checker
+        NULL,  // Authenticate parser
+        1024,  // Max block size
+        1048576  // Max system memory
+    );
+
+    if (result < 0) {
+        fprintf(stderr, "Failed to initialize Yuno.\n");
+        return -1;
+    }
+
+    // Proceed with application logic...
+    return 0;
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+## `gobj_start_up`
+
+**Initialize a Yuno instance.**
+
+This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
+
+**Parameters**
+
+- **`argc`** (`int`):  
+  Number of arguments passed to the application.
+
+- **`argv`** (`list`):  
+  Array of argument strings.
+
+- **`jn_global_settings`** (`json_t *`):  
+  JSON object containing global settings for the Yuno (not owned by the function).
+
+- **`startup_persistent_attrs`** (`function`):  
+  Callback to initialize the persistent attributes system.
+
+- **`end_persistent_attrs`** (`function`):  
+  Callback to deinitialize the persistent attributes system.
+
+- **`load_persistent_attrs`** (`function`):  
+  Callback to load persistent attributes for a GObj.  
+  Takes two parameters:
+  - `hgobj gobj`: The GObj for which attributes are to be loaded.
+  - `json_t *keys`: JSON object representing the keys to load.
+
+- **`save_persistent_attrs`** (`function`):  
+  Callback to save persistent attributes for a GObj.  
+  Takes two parameters:
+  - `hgobj gobj`: The GObj for which attributes are to be saved.
+  - `json_t *keys`: JSON object representing the keys to save.
+
+- **`remove_persistent_attrs`** (`function`):  
+  Callback to remove persistent attributes for a GObj.  
+  Takes two parameters:
+  - `hgobj gobj`: The GObj for which attributes are to be removed.
+  - `json_t *keys`: JSON object representing the keys to remove.
+
+- **`list_persistent_attrs`** (`function`):  
+  Callback to list persistent attributes for a GObj.  
+  Takes two parameters:
+  - `hgobj gobj`: The GObj for which attributes are to be listed.
+  - `json_t *keys`: JSON object representing the keys to list.
+
+- **`global_command_parser`** (`json_function_t`):  
+  Global command parser function.
+
+- **`global_stats_parser`** (`json_function_t`):  
+  Global statistics parser function.
+
+- **`global_authz_checker`** (`authz_checker_fn`):  
+  Function to verify global authorization.
+
+- **`global_authenticate_parser`** (`authenticate_parser_fn`):  
+  Function to parse and handle global authentication requests.
+
+- **`max_block`** (`size_t`):  
+  Maximum size of memory blocks that can be allocated.
+
+- **`max_system_memory`** (`size_t`):  
+  Maximum memory that the system can allocate.
+
+### Return Value
+
+- `0`: Success.
+- Negative value: Indicates an error during initialization.
+
+### Behavior
+
+1. **Initialization**:  
+   Configures the Yuno with provided global settings and command-line arguments.
+
+2. **Persistent Attributes**:  
+   Invokes callbacks to handle persistent attributes, including loading, saving, removing, and listing.
+
+3. **Global Parsers**:  
+   Sets up parsers for commands, statistics, and authorization/authentication handlers.
+
+4. **Memory Management**:  
+   Allocates memory based on specified maximum block size and total system memory.
+
+### Example
+
+```c
+int startup_persistent_attrs(void) {
+    // Initialize persistent attributes system.
+    return 0;
+}
+
+void end_persistent_attrs(void) {
+    // Cleanup persistent attributes system.
+}
+
+int load_attrs(hgobj gobj, json_t *keys) {
+    // Load attributes for the given gobj.
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    json_t *settings = json_pack("{s:i}", "example_setting", 42);
+
+    int result = gobj_start_up(
+        argc,
+        argv,
+        settings,
+        startup_persistent_attrs,
+        end_persistent_attrs,
+        load_attrs,
+        NULL,  // Save function not required in this example
+        NULL,  // Remove function not required in this example
+        NULL,  // List function not required in this example
+        NULL,  // Command parser
+        NULL,  // Stats parser
+        NULL,  // Authz checker
+        NULL,  // Authenticate parser
+        1024,  // Max block size
+        1048576  // Max system memory
+    );
+
+    if (result < 0) {
+        fprintf(stderr, "Failed to initialize Yuno.\n");
+        return -1;
+    }
+
+    // Proceed with application logic...
+    return 0;
+}
+```
+
 
 ## `add`
 
@@ -70,16 +460,15 @@ int main() {
 }
 ```
 
-| Attribute                    | Type          | Description                               |
-|------------------------------|---------------|-------------------------------------------|
-| `assignee_ids`               | integer array | IDs of the users to assign the issue to. Premium and Ultimate only. |
-| `confidential`               | boolean       | Whether the issue is confidential or not. |
-| `title`                      | string        | Title of the issue.                       |
+| Attribute      | Type          | Description                                                         |
+|----------------|---------------|---------------------------------------------------------------------|
+| `assignee_ids` | integer array | IDs of the users to assign the issue to. Premium and Ultimate only. |
+| `confidential` | boolean       | Whether the issue is confidential or not.                           |
+| `title`        | string        | Title of the issue.                                                 |
 
-| Attribute     | Type   | Required | Description |
-|---------------|--------|----------|-------------|
+| Attribute     | Type   | Required | Description                                                                                                                             |
+|---------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | `widget_name` | string | No       | [Deprecated](https://link-to-issue) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
-
 
 > - `widget_name` [deprecated](https://link-to-issue) in GitLab 14.7.
 
@@ -133,7 +522,7 @@ To provide expandable details, use Sphinx's `dropdown` directive:
 ```{dropdown} Click to see more details
 Here is the detailed text that’s hidden by default.  
 You can include **formatted text**, images, or code blocks:
-
+```
 
 
 
@@ -157,3 +546,54 @@ You can include **formatted text**, images, or code blocks:
 
 ```python
 html_theme = "sphinx_book_theme"
+```
+
+## Constants and Macros
+
+```{eval-rst}
+.. list-table::
+   :header-rows: 1
+
+   * - Name
+     - Description
+   * - ``PRIVATE``
+     - Defines a static function or variable with file scope.
+   * - ``PUBLIC``
+     - Defines a function or variable with external linkage.
+   * - ``BOOL``
+     - Boolean type (`true` or `false`).
+   * - ``MIN(a, b)``
+     - Returns the smaller of `a` and `b`.
+   * - ``MAX(a, b)``
+     - Returns the larger of `a` and `b`.
+   * - ``ARRAY_SIZE(a)``
+     - Returns the number of elements in array `a`.
+```
+
+
+# Glossary
+
+- **[`PRIVATE`](#private)**: Defines a static function or variable with file scope.
+- **[`PUBLIC`](#public)**: Defines a function or variable with external linkage.
+- **[`BOOL`](#bool)**: Boolean type (`true` or `false`).
+- **[`MIN(a, b)`](#min)**: Returns the smaller of `a` and `b`.
+- **[`MAX(a, b)`](#max)**: Returns the larger of `a` and `b`.
+- **[`ARRAY_SIZE(a)`](#array-size)**: Returns the number of elements in array `a`.
+
+## PRIVATE
+Defines a static function or variable with file scope.
+
+## PUBLIC
+Defines a function or variable with external linkage.
+
+## BOOL
+Boolean type (`true` or `false`).
+
+## MIN
+Returns the smaller of `a` and `b`.
+
+## MAX
+Returns the larger of `a` and `b`.
+
+## ARRAY_SIZE
+Returns the number of elements in array `a`.
