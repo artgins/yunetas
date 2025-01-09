@@ -1,15 +1,13 @@
-# Start up functions
+# Template functions
 
 <!-- ============================================================== -->
-## `gobj_start_up`
+## `function_name`
 <!-- ============================================================== -->
 
-Initialize a Yuno instance.
-
-This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
+Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
 
 ```{caution}
-The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`#gobj-end`](#gobj-end), should be called to properly terminate and exit Yuno.
+The [`function_name()`](#function-name) bla bla bla bla.
 ```
 
 <!------------------------------------------------------------>
@@ -19,6 +17,9 @@ The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yu
 ``````{tab-set}
 
 
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
 
 `````{tab-item} C
 
@@ -29,23 +30,7 @@ The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yu
 **Prototype**
 
 ````C
-PUBLIC int gobj_start_up(       /* Initialize the yuno */
-    int                         argc,
-    char                        *argv[],
-    json_t                      *jn_global_settings, /* NOT owned */
-    startup_persistent_attrs_t  startup_persistent_attrs,
-    end_persistent_attrs_t      end_persistent_attrs,
-    load_persistent_attrs_t     load_persistent_attrs,
-    save_persistent_attrs_t     save_persistent_attrs,
-    remove_persistent_attrs_t   remove_persistent_attrs,
-    list_persistent_attrs_t     list_persistent_attrs,
-    json_function_t             global_command_parser,
-    json_function_t             global_stats_parser,
-    authz_checker_fn            global_authz_checker,
-    authenticate_parser_fn      global_authenticate_parser,
-    size_t                      max_block,            /* largest memory block */
-    size_t                      max_system_memory     /* maximum system memory */
-);
+TODO
 ````
 
 <!---------------------------------------------------->
@@ -60,51 +45,9 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
 * - Key
   - Type
   - Description
-* - `argc`
-  - `int`
-  - Number of command-line arguments passed to the program.
-* - `argv`
-  - `char *[]`
-  - Array of command-line arguments.
-* - `jn_global_settings`
-  - `json_t *`
-  - A JSON object containing global configuration settings. This parameter is *not owned* by the function and should not be modified or freed.
-* - `startup_persistent_attrs`
-  - `startup_persistent_attrs_t`
-  - Function pointer to initialize persistent attributes.
-* - `end_persistent_attrs`
-  - `end_persistent_attrs_t`
-  - Function pointer to clean up persistent attributes.
-* - `load_persistent_attrs`
-  - `load_persistent_attrs_t`
-  - Function pointer to load persistent attributes from storage.
-* - `save_persistent_attrs`
-  - `save_persistent_attrs_t`
-  - Function pointer to save persistent attributes to storage.
-* - `remove_persistent_attrs`
-  - `remove_persistent_attrs_t`
-  - Function pointer to delete persistent attributes.
-* - `list_persistent_attrs`
-  - `list_persistent_attrs_t`
-  - Function pointer to list all persistent attributes.
-* - `global_command_parser`
-  - `json_function_t`
-  - Function pointer to handle global command parsing (in JSON format).
-* - `global_stats_parser`
-  - `json_function_t`
-  - Function pointer to handle global statistics parsing (in JSON format).
-* - `global_authz_checker`
-  - `authz_checker_fn`
-  - Function pointer to perform global authorization checks.
-* - `global_authenticate_parser`
-  - `authenticate_parser_fn`
-  - Function pointer to parse and handle global authentication.
-* - `max_block`
-  - `size_t`
-  - The maximum allowed size for memory blocks, in bytes.
-* - `max_system_memory`
-  - `size_t`
-  - The total memory limit for the system, in bytes.
+* - `XXX`
+  - `xxx`
+  - Xxx xx xxx xxxx.
 ````
 
 <!---------------------------------------------------->
@@ -118,6 +61,9 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
 
 `````
 
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
 
 `````{tab-item} JS
 
@@ -159,6 +105,9 @@ TODO
 
 `````
 
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
 
 `````{tab-item} Python
 
@@ -171,7 +120,6 @@ TODO
 ````Python
 TODO
 ````
-
 <!---------------------------------------------------->
 <!--                Python Parameters               -->
 <!---------------------------------------------------->
@@ -245,8 +193,3 @@ TODO
 
 ``````
 ```````
-
-
-<!-- ============================================================== -->
-## `gobj_end`
-<!-- ============================================================== -->
