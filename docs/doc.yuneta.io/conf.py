@@ -39,6 +39,7 @@ extensions = [
     "sphinxext.opengraph",
     "sphinxcontrib.youtube",
     "sphinx_thebe",
+    "sphinx_tabs.tabs",
     "sphinxcontrib.bibtex",
     "sphinxcontrib.mermaid",
 ]

@@ -561,3 +561,49 @@ Returns the larger of `a` and `b`.
 
 ## ARRAY_SIZE
 Returns the number of elements in array `a`.
+
+
+
+
+```{code-block} python
+:caption: python.py
+:linenos:
+
+print("A code block with a caption and line numbers.")
+print("A code block with a caption and line numbers.")
+print("A code block with a caption and line numbers.")
+```
+
+
+```python
+print("A regular code block")
+print("A regular code block")
+print("A regular code block")
+```
+
+You can also provide captions with code blocks, which will be displayed right above the code.
+For example, the following code:
+
+``````{tab-set}
+`````{tab-item} rST
+
+````rst
+.. code-block:: python
+    :caption: python.py
+
+    print("A code block with a caption.")
+````
+
+`````
+
+`````{tab-item} Markdown
+````md
+```{code-block} python
+:caption: python.py
+
+print("A code block with a caption.")
+```
+````
+`````
+
+``````

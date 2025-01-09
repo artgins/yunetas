@@ -63,7 +63,7 @@ Versions in C, Python and Javascript.
 
 ```{toctree}
 :maxdepth: 1
-:caption: Getting Started
+:caption: Get Started
 
 installation
 activating

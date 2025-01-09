@@ -82,20 +82,21 @@ Install [sphinx] and [sphinx-book-theme]
 
 
 - In some virtual environment, install [sphinx], [sphinx-book-theme] 
--
-    ``` shell
-    pip install sphinx sphinx-book-theme myst-parser \
-        ablog myst_nb numpydoc matplotlib \
-        sphinx_design \
-        sphinx_copybutton \
-        sphinx_examples \
-        sphinx_togglebutton \
-        sphinxext.opengraph \
-        sphinxcontrib.youtube \
-        sphinx_thebe \
-        sphinxcontrib.bibtex \
-        sphinxcontrib.mermaid
-    ```
+  -
+      ``` shell
+      pip install sphinx sphinx-book-theme myst-parser \
+          ablog myst_nb numpydoc matplotlib \
+          sphinx_design \
+          sphinx_copybutton \
+          sphinx_examples \
+          sphinx_togglebutton \
+          sphinxext.opengraph \
+          sphinxcontrib.youtube \
+          sphinx_thebe \
+          sphinx-tabs \
+          sphinxcontrib.bibtex \
+          sphinxcontrib.mermaid
+      ```
 
 Some included utils extensions:
   - [ablog](https://ablog.readthedocs.io/en/stable/)
