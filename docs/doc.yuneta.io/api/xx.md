@@ -1,31 +1,4 @@
-# Api Reference
 
-# `gobj`
-
-The main file for the Yuneta framework. It defines the GObj (Generic Object) API, which includes the GObj system, event-driven architecture, finite state machines, hierarchical object trees, and additional utilities.
-
-This API provides the prototypes, structures, enums, and macros needed to work with the Yuneta framework's GObj system.
-
-- **GObj Features**:
-  - Event-driven model using input/output events.
-  - Simple finite state machine to manage object states.
-  - Hierarchical organization of GObjs forming a tree structure (Yuno).
-  - Communication between objects through events (key-value messages).
-  - Built-in logging, buffering, and JSON handling.
-- **Internal Systems**:
-  - Log system.
-  - Buffer system.
-  - JSON system based on the `jansson` library.
-
-
-
-## Start up functions
-
-# `gobj_start_up`
-
-Initialize a Yuno instance.
-
-This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
 
 ## Prototypes
 
@@ -460,15 +433,6 @@ int main() {
 }
 ```
 
-| Attribute      | Type          | Description                                                         |
-|----------------|---------------|---------------------------------------------------------------------|
-| `assignee_ids` | integer array | IDs of the users to assign the issue to. Premium and Ultimate only. |
-| `confidential` | boolean       | Whether the issue is confidential or not.                           |
-| `title`        | string        | Title of the issue.                                                 |
-
-| Attribute     | Type   | Required | Description                                                                                                                             |
-|---------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `widget_name` | string | No       | [Deprecated](https://link-to-issue) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
 
 > - `widget_name` [deprecated](https://link-to-issue) in GitLab 14.7.
 

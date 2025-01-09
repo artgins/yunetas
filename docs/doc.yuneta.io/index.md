@@ -63,7 +63,7 @@ Versions in C, Python and Javascript.
 
 ```{toctree}
 :maxdepth: 1
-:caption: Documentation
+:caption: Getting Started
 
 installation
 activating
@@ -71,8 +71,17 @@ CHANGELOG
 ```
 
 ```{toctree}
+:caption: Philosophy
+:maxdepth: 2
+
+philosophy/philosophy.md
+
+```
+
+```{toctree}
 :caption: Api reference
 :maxdepth: 2
 
-api/api.md
+api/api_gobj.md
+
 ```
