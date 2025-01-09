@@ -14,9 +14,6 @@ This API provides the prototypes, structures, enums, and macros needed to work w
   - Log system.
   - Buffer system.
   - JSON system based on the [`Jansson`](http://jansson.readthedocs.io/en/latest/) library.
-  - JSON system based on the <a href="http://jansson.readthedocs.io/en/latest/" target="_blank">`Jansson`</a> library.
-
-
 
 
 ## Start up functions

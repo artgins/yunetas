@@ -537,6 +537,27 @@ typedef const char *gobj_lmethod_t;     /**< unique pointer that exposes local m
 typedef void *hgclass;
 typedef void *hgobj;
 
+
+typedef int (*startup_persistent_attrs_t)(void);
+typedef void (*end_persistent_attrs_t)(void);
+typedef int (*load_persistent_attrs_t)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+typedef int (*save_persistent_attrs_t)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+typedef int (*remove_persistent_attrs_t)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+typedef json_t * (*list_persistent_attrs_t)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+
+
 /***************************************************************
  *              DL_LIST Structures
  ***************************************************************/
@@ -1123,29 +1144,16 @@ PUBLIC int gobj_start_up(                   /* Initialize the yuno */
     int argc,
     char *argv[],
     json_t *jn_global_settings,             /* NOT owned */
-    int (*startup_persistent_attrs)(void),
-    void (*end_persistent_attrs)(void),
-    int (*load_persistent_attrs)(
-        hgobj gobj,
-        json_t *keys  // owned
-    ),
-    int (*save_persistent_attrs)(
-        hgobj gobj,
-        json_t *keys  // owned
-    ),
-    int (*remove_persistent_attrs)(
-        hgobj gobj,
-        json_t *keys  // owned
-    ),
-    json_t * (*list_persistent_attrs)(
-        hgobj gobj,
-        json_t *keys  // owned
-    ),
+    startup_persistent_attrs_t startup_persistent_attrs,
+    end_persistent_attrs_t end_persistent_attrs,
+    load_persistent_attrs_t load_persistent_attrs,
+    save_persistent_attrs_t save_persistent_attrs,
+    remove_persistent_attrs_t remove_persistent_attrs,
+    list_persistent_attrs_t list_persistent_attrs,
     json_function_t global_command_parser,
     json_function_t global_stats_parser,
     authz_checker_fn global_authz_checker,
     authenticate_parser_fn global_authenticate_parser,
-
     size_t max_block,                       /* largest memory block */
     size_t max_system_memory                /* maximum system memory */
 );
