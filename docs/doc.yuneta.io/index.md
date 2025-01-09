@@ -80,8 +80,8 @@ philosophy/philosophy.md
 
 ```{toctree}
 :caption: Api reference
-:maxdepth: 2
+:maxdepth: 3
 
-api/api_gobj.md
+api/api.md
 
 ```

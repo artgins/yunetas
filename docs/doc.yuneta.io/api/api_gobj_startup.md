@@ -1,21 +1,3 @@
-# GObj Api
-
-The main file for the Yuneta framework. It defines the GObj (Generic Object) API, which includes the GObj system, event-driven architecture, finite state machines, hierarchical object trees, and additional utilities.
-
-This API provides the prototypes, structures, enums, and macros needed to work with the Yuneta framework's GObj system.
-
-- **GObj Features**:
-  - Event-driven model using input/output events.
-  - Simple finite state machine to manage object states.
-  - Hierarchical organization of GObjs forming a tree structure (Yuno).
-  - Communication between objects through events (key-value messages).
-  - Built-in logging, buffering, and JSON handling.
-- **Internal Systems**:
-  - Log system.
-  - Buffer system.
-  - JSON system based on the [`Jansson`](http://jansson.readthedocs.io/en/latest/) library.
-
-
 # Start up functions
 
 ## `gobj_start_up`
@@ -28,10 +10,11 @@ This function prepares a Yuno for operation by setting global configurations, ha
 The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`gobj_end()`](#gobj-end), should be called to properly terminate and exit Yuno.
 ```
 
-**Prototypes**
-
 ``````{tab-set}
+
 `````{tab-item} C
+
+**Prototype**
 
 ````C
 PUBLIC int gobj_start_up(       /* Initialize the yuno */
@@ -108,7 +91,6 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
   - The total memory limit for the system, in bytes.
 ````
 
-
 **Return Value**
 
 - **`0`**: Success.
@@ -117,34 +99,82 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
 `````
 
 `````{tab-item} JS
+
+**Prototype**
+
 ````JS
-xxx
+TODO
 ````
+
+**Parameters**
+
+````{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+* - `argc`
+  - `int`
+  - Number of command-line arguments passed to the program.
+````
+
+**Return Value**
+
+- **`0`**: Success.
+- **`< 0`**: Indicates an error during initialization.
+
+`````
+
+`````{tab-item} Python
+
+**Prototype**
+
+````Python
+TODO
+````
+
+**Parameters**
+
+````{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+* - `argc`
+  - `int`
+  - Number of command-line arguments passed to the program.
+
+````
+
+**Return Value**
+
+- **`0`**: Success.
+- **`< 0`**: Indicates an error during initialization.
+
 `````
 
 ``````
-
-
-
-
-
 
 
 ```````{dropdown} Examples
 
 ``````{tab-set}
 `````{tab-item} C
-
 ````C
-printf("A code block with a caption.");
+// TODO
+`````
 
+`````{tab-item} JS
+````python
+// TODO
+````
 `````
 
 `````{tab-item} Python
 ````python
-
-print("A code block with a caption.")
-
+# TODO
 ````
 `````
 
