@@ -19,6 +19,6 @@ This API provides the prototypes, structures, enums, and macros needed to work w
 :caption:
 :maxdepth: 3
 
-api_gobj_startup
+api_template
 
 ```
