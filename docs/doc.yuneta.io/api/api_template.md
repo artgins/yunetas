@@ -4,11 +4,9 @@
 ## `function_name`
 <!-- ============================================================== -->
 
-Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
+TODO C Function summary
 
-```{caution}
-The [`function_name()`](#function-name) bla bla bla bla.
-```
+TODO Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +27,7 @@ The [`function_name()`](#function-name) bla bla bla bla.
 **Prototype**
 
 ````C
-TODO
+TODO C prototype
 ````
 
 <!---------------------------------------------------->
@@ -48,6 +46,7 @@ TODO
   - `xxx`
   - Xxx xx xxx xxxx.
 ````
+TODO add C arguments of the function to the table
 
 <!---------------------------------------------------->
 <!--                C Return                        -->
@@ -55,6 +54,8 @@ TODO
 
 **Return Value**
 
+TODO C return
+ 
 - **`0`**: Success.
 - **`< 0`**: Indicates an error during initialization.
 
@@ -77,7 +78,7 @@ TODO
 **Prototype**
 
 ````JS
-TODO
+TODO JS prototype
 ````
 
 <!---------------------------------------------------->
@@ -96,12 +97,15 @@ TODO
   - `xxx`
   - Xxx xx xxx xxxx.
 ````
+TODO add JS arguments of the function to the table
 
 <!---------------------------------------------------->
 <!--                JS Return                       -->
 <!---------------------------------------------------->
 
 **Return Value**
+
+TODO JS return
 
 - **`0`**: Success.
 - **`< 0`**: Indicates an error during initialization.
@@ -125,7 +129,7 @@ TODO
 **Prototype**
 
 ````Python
-TODO
+TODO Pyton prototype
 ````
 <!---------------------------------------------------->
 <!--                Python Parameters               -->
@@ -144,12 +148,15 @@ TODO
   - Xxx xx xxx xxxx.
 
 ````
+TODO add Python arguments of the function to the table
 
 <!---------------------------------------------------->
 <!--                Python Return                   -->
 <!---------------------------------------------------->
 
 **Return Value**
+
+TODO C return
 
 - **`0`**: Success.
 - **`< 0`**: Indicates an error during initialization.
@@ -181,7 +188,7 @@ TODO
 <!---------------------------------------------------->
 
 ````C
-// TODO
+// TODO C examples
 ````
 
 <!--====================================================-->
@@ -201,7 +208,7 @@ TODO
 <!---------------------------------------------------->
 
 ````JS
-// TODO
+// TODO JS examples
 ````
 
 <!--====================================================-->
@@ -221,7 +228,7 @@ TODO
 <!---------------------------------------------------->
 
 ````python
-# TODO
+# TODO Python examples
 ````
 
 <!--====================================================-->
