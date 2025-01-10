@@ -12,7 +12,7 @@ from pathlib import Path
 
 project = 'Yuneta Simplified'
 copyright = '2024, ArtGins'
-# author = 'ArtGins'
+author = 'ArtGins'
 release = '7.0.0'
 show_authors = False
 master_doc = "index"
