@@ -16,10 +16,12 @@ This API provides the prototypes, structures, enums, and macros needed to work w
     - JSON system based on the [`Jansson`](http://jansson.readthedocs.io/en/latest/) library.
 
 
+---
+
 ## Start up functions
 
 ```{toctree}
-:caption: 
+:caption: Functions
 :maxdepth: 2
 
 api_gobj_start_up

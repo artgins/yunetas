@@ -1,7 +1,6 @@
-# Template functions
-
 <!-- ============================================================== -->
-## `function_name`
+(function-name)=
+# `function_name`
 <!-- ============================================================== -->
 
 TODO C Function summary
