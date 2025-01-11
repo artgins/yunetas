@@ -57,10 +57,6 @@ Versions in C, Python and Javascript.
 - [openresty](https://openresty.org/)
 
 
-[//]: # (# Contents)
-
-[//]: # (Here is a reference to  {ref}`python-packages`)
-
 ```{toctree}
 :maxdepth: 1
 :caption: Get Started
@@ -79,9 +75,11 @@ philosophy/philosophy.md
 ```
 
 ```{toctree}
-:caption: Api reference
+:caption: Api Reference
 :maxdepth: 3
 
-api/api.md
+api/api_gobj
+api/api_kwid
+api/api_glossary
 
 ```

@@ -1,39 +1,63 @@
-# C Structures
+# Glossary
 
-## json_t
-The `json_t` type is part of the [Jansson](https://jansson.readthedocs.io/) library, used for representing JSON data in C. It provides a flexible way to work with JSON objects, arrays, and primitives such as strings and numbers.
+```{glossary}
+:sorted:
 
----
+PRIVATE
+    Defines a static function or variable with file scope.
+
+PUBLIC
+    Defines a function or variable with external linkage.
+
+BOOL
+    Boolean type (`true` or `false`).
+
+MIN
+    Returns the smaller of `a` and `b`.
+
+MAX
+    Returns the larger of `a` and `b`.
+
+ARRAY_SIZE
+    Returns the number of elements in array `a`.
+
+json_t
+    The `json_t` type is part of the [Jansson](https://jansson.readthedocs.io/) library, used for representing JSON data in C. It provides a flexible way to work with JSON objects, arrays, and primitives such as strings and numbers.
+
+
+```
+
+
 
 ## persistent_attrs_t
 The `persistent_attrs_t` structure contains function pointers for managing persistent attributes of a Yuno instance. This allows the user to handle attributes in storage or memory during the lifecycle of a Yuno.
 
 ```c
 typedef struct {
-    startup_persistent_attrs_t startup;  /**< Function to initialize persistent attributes */
-    end_persistent_attrs_t end;          /**< Function to finalize persistent attributes */
-    load_persistent_attrs_t load;        /**< Function to load persistent attributes */
-    save_persistent_attrs_t save;        /**< Function to save persistent attributes */
-    remove_persistent_attrs_t remove;    /**< Function to remove persistent attributes */
-    list_persistent_attrs_t list;        /**< Function to list persistent attributes */
+    startup_persistent_attrs_t  startup_persistent_attrs;
+    end_persistent_attrs_t      end_persistent_attrs;
+    load_persistent_attrs_t     load_persistent_attrs;
+    save_persistent_attrs_t     save_persistent_attrs;
+    remove_persistent_attrs_t   remove_persistent_attrs;
+    list_persistent_attrs_t     list_persistent_attrs;
 } persistent_attrs_t;
 ```
 
 **Fields**
-- **`startup`**: Initializes persistent attributes.
-- **`end`**: Cleans up persistent attributes.
-- **`load`**: Loads persistent attributes from storage.
-- **`save`**: Saves persistent attributes to storage.
-- **`remove`**: Deletes persistent attributes.
-- **`list`**: Lists all persistent attributes.
+- **`startup_persistent_attrs`**: Initializes persistent attributes.
+- **`end_persistent_attrs`**: Cleans up persistent attributes.
+- **`load_persistent_attrs`**: Loads persistent attributes from storage.
+- **`save_persistent_attrs`**: Saves persistent attributes to storage.
+- **`remove_persistent_attrs`**: Deletes persistent attributes.
+- **`list_persistent_attrs`**: Lists all persistent attributes.
 
 ---
 
-## json_function_t
-The `json_function_t` is a function pointer type used for processing JSON objects in global command or stats parsers. It takes in JSON data and optional parameters to perform custom parsing or processing tasks.
+## json_function_fn
+The `json_function_fn` is a function pointer type used for processing JSON objects in global command or stats parsers. It takes in JSON data and optional parameters to perform custom parsing or processing tasks.
 
 ```c
-typedef json_t *(*json_function_t)(
+typedef json_t *(*json_function_fn)(
     void *param1,
     const char *something,
     json_t *kw, // Owned

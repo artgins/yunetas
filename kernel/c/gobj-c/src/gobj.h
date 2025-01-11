@@ -538,11 +538,14 @@ typedef void *hgclass;
 typedef void *hgobj;
 
 
-typedef int (*startup_persistent_attrs_t)(void);
-typedef void (*end_persistent_attrs_t)(void);
-typedef int (*load_persistent_attrs_t)(
+/*
+ *  Prototypes of functions to manage persistent attributes
+ */
+typedef int (*startup_persistent_attrs_t)(void);    // Initialize the database
+typedef void (*end_persistent_attrs_t)(void);       // End the database
+typedef int (*load_persistent_attrs_t)(             // Load the persistent attrs of gobj
     hgobj gobj,
-    json_t *keys  // owned
+    json_t *keys  // owned, if null load all persistent attrs, else, load
 );
 typedef int (*save_persistent_attrs_t)(
     hgobj gobj,
@@ -1141,12 +1144,12 @@ GOBJ_DECLARE_STATE(ST_CLOSED);
  *      Start up functions
  *---------------------------------*/
 typedef struct {
-    startup_persistent_attrs_t startup;  /**< Function to initialize persistent attributes */
-    end_persistent_attrs_t end;          /**< Function to finalize persistent attributes */
-    load_persistent_attrs_t load;        /**< Function to load persistent attributes */
-    save_persistent_attrs_t save;        /**< Function to save persistent attributes */
-    remove_persistent_attrs_t remove;    /**< Function to remove persistent attributes */
-    list_persistent_attrs_t list;        /**< Function to list persistent attributes */
+    startup_persistent_attrs_t  startup_persistent_attrs;
+    end_persistent_attrs_t      end_persistent_attrs;
+    load_persistent_attrs_t     load_persistent_attrs;
+    save_persistent_attrs_t     save_persistent_attrs;
+    remove_persistent_attrs_t   remove_persistent_attrs;
+    list_persistent_attrs_t     list_persistent_attrs;
 } persistent_attrs_t;
 
 PUBLIC int gobj_start_up(       /* Initialize the yuno */
@@ -1154,8 +1157,8 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
     char                        *argv[],                /* pass main() arguments */
     json_t                      *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
-    json_function_fn             global_command_parser,  /* if NULL, use internal command parser */
-    json_function_fn             global_stats_parser,    /* if NULL, use internal stats parser */
+    json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
+    json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
     authz_checker_fn            global_authz_checker,   /* authentication checker function */
     authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
