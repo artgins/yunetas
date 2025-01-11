@@ -12,11 +12,13 @@ Top folders:
 - [](#yunos)         Yunos
 
 
+(docs)=
 ## `docs`
 
 - `doc.yuneta.io`: YunetaS Documentation built with [sphinx],  [sphinx-book-theme] and [MyST Markdown].
 
 
+(kernel)=
 ## `kernel`
 
 - `C`:
@@ -66,6 +68,7 @@ Top folders:
         Module with several protocols
 
 
+(performance)=
 ## `performance`
 
 - `C`:
@@ -79,6 +82,7 @@ Top folders:
         Other performance test of yev_loop library
 
 
+(tests)=
 ## `tests`
 
 Tests.
@@ -95,6 +99,7 @@ Tests.
     - `yev_loop`:
 
 
+(tools)=
 ## `tools`
 
 
@@ -102,6 +107,7 @@ Tests.
     Auxiliary tools: cmake files,...
 
 
+(utils)=
 ## `utils`
 
 Utilities (CLI's)
@@ -114,6 +120,7 @@ Utilities (CLI's)
     - `tr2migrate`
 
 
+(yunos)=
 ## `yunos`
 
 Full applications or utilities built with yunetas
