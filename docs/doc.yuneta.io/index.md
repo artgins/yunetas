@@ -78,8 +78,8 @@ philosophy/philosophy.md
 :caption: Api Reference
 :maxdepth: 3
 
-api/api_gobj
-api/api_kwid
-api/api_glossary
+api/gobj
+api/kwid
+api/glossary
 
 ```
