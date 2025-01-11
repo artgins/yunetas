@@ -1,6 +1,6 @@
 # Folders
 
-Top folders:
+The Yuneta SDK is structured in next top folders:
 
 - [](#docs):         Documentation of Yunetas
 - [](#kernel):       Kernel in several languages

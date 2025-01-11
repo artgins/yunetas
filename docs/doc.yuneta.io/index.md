@@ -40,21 +40,11 @@ The messages (encrypted or plain text) circulating within the Yuneta system can 
 
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
-[//]: # (Versions in[C]&#40;https://en.wikipedia.org/wiki/C_&#40;programming_language&#41;&#41;, [Python]&#40;https://www.python.org/&#41; and Javascript.)
+Versions in C, partially in JavaScript. Todo in Python.
 
-Versions in C, Python and Javascript.
+---
 
-**Dependencies**: development for C and Linux:
-- [Jansson](http://jansson.readthedocs.io/en/latest/)
-- [libjwt](https://github.com/benmcollins/libjwt)
-- [liburing](https://github.com/axboe/liburing)
-- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) (future)
-- [openssl](https://www.openssl.org/)
-- [pcre2](https://github.com/PCRE2Project/pcre2)
-
-**Dependencies**: deploy for Linux: 
-- [nginx](https://nginx.org)
-- [openresty](https://openresty.org/)
+# Index
 
 
 ```{toctree}
@@ -68,7 +58,7 @@ CHANGELOG
 
 ```{toctree}
 :caption: Philosophy
-:maxdepth: 2
+:maxdepth: 1
 
 philosophy/philosophy.md
 
@@ -76,7 +66,7 @@ philosophy/philosophy.md
 
 ```{toctree}
 :caption: Guides
-:maxdepth: 2
+:maxdepth: 1
 
 guide/folders.md
 guide/persistent_attrs.md
@@ -86,7 +76,7 @@ guide/authz.md
 
 ```{toctree}
 :caption: Api Reference
-:maxdepth: 3
+:maxdepth: 2
 
 api/gobj
 api/kwid

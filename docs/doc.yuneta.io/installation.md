@@ -5,6 +5,21 @@
 
 - python 3.7+
 
+
+**Dependencies** for C and Linux:
+- [Jansson](http://jansson.readthedocs.io/en/latest/)
+- [libjwt](https://github.com/benmcollins/libjwt)
+- [liburing](https://github.com/axboe/liburing)
+- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) (future)
+- [openssl](https://www.openssl.org/)
+- [pcre2](https://github.com/PCRE2Project/pcre2)
+
+**Dependencies** for deploying in Linux: 
+- [nginx](https://nginx.org)
+- [openresty](https://openresty.org/)
+
+
+
 ## Install system dependencies
 
 Install the C dependencies:
