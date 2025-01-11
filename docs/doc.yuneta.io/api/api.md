@@ -20,6 +20,7 @@ This API provides the prototypes, structures, enums, and macros needed to work w
 :maxdepth: 3
 
 api_gobj_startup
+api_c_structures
 api_template
 
 ```

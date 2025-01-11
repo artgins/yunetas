@@ -83,8 +83,8 @@ PRIVATE int (*__save_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_s
 PRIVATE int (*__remove_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_remove_persistent_attrs;
 PRIVATE json_t * (*__list_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_list_persistent_attrs;
 
-PRIVATE json_function_t __command_parser_fn__ = command_parser;
-PRIVATE json_function_t __stats_parser_fn__ = stats_parser;
+PRIVATE json_function_fn __command_parser_fn__ = command_parser;
+PRIVATE json_function_fn __stats_parser_fn__ = stats_parser;
 
 PRIVATE authz_checker_fn __authz_checker_fn__ = authz_checker;
 PRIVATE authenticate_parser_fn __authenticate_parser_fn__ = authenticate_parser;
@@ -310,8 +310,8 @@ PRIVATE const char *get_process_name(void)
  ***************************************************************************/
 PUBLIC int yuneta_setup(
     const persistent_attrs_t    *persistent_attrs,      // default internal dbsimple
-    json_function_t             command_parser,         // default internal command_parser
-    json_function_t             stats_parser,           // default internal stats_parser
+    json_function_fn             command_parser,         // default internal command_parser
+    json_function_fn             stats_parser,           // default internal stats_parser
     authz_checker_fn            authz_checker,          // default Monoclass C_AUTHZ
     authenticate_parser_fn      authenticate_parser,    // default Monoclass C_AUTHZ
     size_t                      mem_max_block,

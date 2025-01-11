@@ -69,22 +69,29 @@ PUBLIC int gobj_start_up(
   - Array of command-line arguments.
 * - `jn_global_settings`
   - `json_t *`
-  - A JSON object containing global configuration settings. This parameter is *not owned* by the function and should not be modified or freed.
+  - A JSON object containing global configuration settings. This parameter is **not owned** by the function, meaning it should not be freed or modified. See {ref}`json_t`.
 * - `persistent_attrs`
-  - `const persistent_attrs_t *`
-  - Structure containing function pointers for managing persistent attributes.
+  - `persistent_attrs_t`
+  - A structure containing function pointers for managing persistent attributes. Includes:
+      - `startup`: Initializes persistent attributes.
+      - `end`: Cleans up persistent attributes.
+      - `load`: Loads persistent attributes from storage.
+      - `save`: Saves persistent attributes to storage.
+      - `remove`: Deletes persistent attributes from storage.
+      - `list`: Lists all persistent attributes.
+    See {ref}`persistent_attrs_t`.
 * - `global_command_parser`
   - `json_function_t`
-  - Function pointer for handling global command parsing (in JSON format). If `NULL`, the internal parser is used.
+  - A function pointer for handling global command parsing in JSON format. If `NULL`, the internal command parser is used. See {ref}`json_function_t`.
 * - `global_stats_parser`
   - `json_function_t`
-  - Function pointer for handling global statistics parsing (in JSON format). If `NULL`, the internal parser is used.
+  - A function pointer for handling global statistics parsing in JSON format. If `NULL`, the internal statistics parser is used. See {ref}`json_function_t`.
 * - `global_authz_checker`
   - `authz_checker_fn`
-  - Function pointer for performing global authorization checks.
+  - A function pointer for performing global authorization checks. See {ref}`authz_checker_fn`.
 * - `global_authenticate_parser`
   - `authenticate_parser_fn`
-  - Function pointer for parsing and handling global authentication.
+  - A function pointer for parsing and handling global authentication requests. See {ref}`authenticate_parser_fn`.
 * - `mem_max_block`
   - `size_t`
   - Maximum size of memory blocks, in bytes. Default is `16M`.
@@ -93,7 +100,7 @@ PUBLIC int gobj_start_up(
   - Total memory limit for the system, in bytes. Default is `64M`.
 * - `use_own_system_memory`
   - `BOOL`
-  - Flag indicating whether to use the internal memory manager. Default is `FALSE`. {warning}` Own system manager NOT IMPLEMENTED`
+  - Flag indicating whether to use the internal memory manager.
 * - `mem_min_block`
   - `size_t`
   - Minimum size of memory blocks, used only if `use_own_system_memory` is `TRUE`. Default is `512`.

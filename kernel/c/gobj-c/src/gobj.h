@@ -498,7 +498,7 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
 /*
  *  Generic json function
  */
-typedef json_t *(*json_function_t)(
+typedef json_t *(*json_function_fn)(
     void *param1,
     const char *something,
     json_t *kw, // Owned
@@ -514,7 +514,7 @@ typedef struct sdata_desc_s {
     const char *header;
     const int fillspace;
     const char *description;
-    const json_function_t json_fn;
+    const json_function_fn json_fn;
     const struct sdata_desc_s *schema;
     const char *authpth;
 } sdata_desc_t;
@@ -975,8 +975,8 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_subscription_deleted_fn mt_subscription_deleted;    // refcount: 1 on the last subscription of this event.
     mt_child_added_fn mt_child_added;     // called when the child is built, just after mt_create call.
     mt_child_removed_fn mt_child_removed;   // called when the child is almost live
-    json_function_t mt_stats;           // must return a webix json object 0 if asynchronous response, like all below. HACK match the stats's prefix only.
-    json_function_t mt_command_parser;  // User command parser. Preference over gclass.command_table. Return webix. HACK must implement AUTHZ
+    json_function_fn mt_stats;           // must return a webix json object 0 if asynchronous response, like all below. HACK match the stats's prefix only.
+    json_function_fn mt_command_parser;  // User command parser. Preference over gclass.command_table. Return webix. HACK must implement AUTHZ
     gobj_action_fn mt_inject_event;     // Won't use the static built-in gclass machine? process yourself your events.
     mt_create_resource_fn mt_create_resource;
     mt_list_resource_fn mt_list_resource; // Can return an iter or a json, depends of gclass
@@ -1154,8 +1154,8 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
     char                        *argv[],                /* pass main() arguments */
     json_t                      *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
-    json_function_t             global_command_parser,  /* if NULL, use internal command parser */
-    json_function_t             global_stats_parser,    /* if NULL, use internal stats parser */
+    json_function_fn             global_command_parser,  /* if NULL, use internal command parser */
+    json_function_fn             global_stats_parser,    /* if NULL, use internal stats parser */
     authz_checker_fn            global_authz_checker,   /* authentication checker function */
     authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
