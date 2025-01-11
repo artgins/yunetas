@@ -1,3 +1,13 @@
 :root {
   /*--sd-color-primary: #f37726;*/
 }
+
+.danger {
+    color: red;
+    font-weight: bold;
+}
+
+.warning {
+    color: orange;
+    font-weight: bold;
+}

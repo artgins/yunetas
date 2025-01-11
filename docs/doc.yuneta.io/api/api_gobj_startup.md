@@ -43,10 +43,9 @@ PUBLIC int gobj_start_up(
     authenticate_parser_fn      global_authenticate_parser,
     size_t                      mem_max_block,
     size_t                      mem_max_system_memory,
-    BOOL                        use_own_system_memory,
-    // Below parameters are used only in internal memory manager:
-    size_t                      mem_min_block,
-    size_t                      mem_superblock
+    BOOL                        use_own_system_memory, // NOT implemented
+    size_t                      mem_min_block,  // used only in internal memory manager
+    size_t                      mem_superblock  // used only in internal memory manager
 );
 ````
 
@@ -94,7 +93,7 @@ PUBLIC int gobj_start_up(
   - Total memory limit for the system, in bytes. Default is `64M`.
 * - `use_own_system_memory`
   - `BOOL`
-  - Flag indicating whether to use the internal memory manager. Default is `FALSE`.
+  - Flag indicating whether to use the internal memory manager. Default is `FALSE`. {warning}` Own system manager NOT IMPLEMENTED`
 * - `mem_min_block`
   - `size_t`
   - Minimum size of memory blocks, used only if `use_own_system_memory` is `TRUE`. Default is `512`.

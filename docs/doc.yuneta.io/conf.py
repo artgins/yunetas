@@ -9,6 +9,8 @@
 import os
 from urllib.request import urlopen
 from pathlib import Path
+from docutils.parsers.rst import roles
+from docutils import nodes
 
 project = 'Yuneta Simplified'
 copyright = '2024, ArtGins'
@@ -210,3 +212,17 @@ def setup(app):
             "https://assets.readthedocs.org/static/javascript/readthedocs-doc-embed.js",
             priority=501,
         )
+
+def danger_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    node = nodes.inline(text, text)
+    node['classes'].append('danger')
+    return [node], []
+
+roles.register_local_role('danger', danger_role)
+
+def warning_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    node = nodes.inline(text, text)
+    node['classes'].append('warning')
+    return [node], []
+
+roles.register_local_role('warning', warning_role)
