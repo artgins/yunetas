@@ -62,6 +62,7 @@ nitpick_ignore = [
 suppress_warnings = ["myst.domains", "ref.ref"]
 
 numfig = True
+# html_use_index = True
 
 myst_enable_extensions = [
     "dollarmath",

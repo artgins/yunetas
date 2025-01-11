@@ -90,6 +90,13 @@ guide/authz.md
 
 api/gobj
 api/kwid
-api/glossary
+
+```
+
+```{toctree}
+:caption: Glossary 
+:maxdepth: 2
+
+glossary
 
 ```
