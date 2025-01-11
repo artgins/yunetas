@@ -9,7 +9,7 @@ Initialize a Yuno instance.
 This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
 
 ```{caution}
-The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`#gobj-end`](#gobj-end), should be called to properly terminate and exit Yuno.
+The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [`gobj-end()`](#gobj-end), should be called to properly terminate and exit Yuno.
 ```
 
 <!------------------------------------------------------------>
@@ -32,22 +32,21 @@ The [`gobj_start_up()`](#gobj-start-up) function serves as the entry point to Yu
 **Prototype**
 
 ````C
-PUBLIC int gobj_start_up(       /* Initialize the yuno */
+PUBLIC int gobj_start_up(      
     int                         argc,
     char                        *argv[],
-    json_t                      *jn_global_settings, /* NOT owned */
-    startup_persistent_attrs_t  startup_persistent_attrs,
-    end_persistent_attrs_t      end_persistent_attrs,
-    load_persistent_attrs_t     load_persistent_attrs,
-    save_persistent_attrs_t     save_persistent_attrs,
-    remove_persistent_attrs_t   remove_persistent_attrs,
-    list_persistent_attrs_t     list_persistent_attrs,
-    json_function_t             global_command_parser,
+    json_t                      *jn_global_settings,    /* NOT owned */
+    const persistent_attrs_t    *persistent_attrs,
+    json_function_t             global_command_parser,  
     json_function_t             global_stats_parser,
     authz_checker_fn            global_authz_checker,
     authenticate_parser_fn      global_authenticate_parser,
-    size_t                      max_block,            /* largest memory block */
-    size_t                      max_system_memory     /* maximum system memory */
+    size_t                      mem_max_block,
+    size_t                      mem_max_system_memory,
+    BOOL                        use_own_system_memory,
+    // Below parameters are used only in internal memory manager:
+    size_t                      mem_min_block,
+    size_t                      mem_superblock
 );
 ````
 
@@ -72,42 +71,36 @@ PUBLIC int gobj_start_up(       /* Initialize the yuno */
 * - `jn_global_settings`
   - `json_t *`
   - A JSON object containing global configuration settings. This parameter is *not owned* by the function and should not be modified or freed.
-* - `startup_persistent_attrs`
-  - `startup_persistent_attrs_t`
-  - Function pointer to initialize persistent attributes.
-* - `end_persistent_attrs`
-  - `end_persistent_attrs_t`
-  - Function pointer to clean up persistent attributes.
-* - `load_persistent_attrs`
-  - `load_persistent_attrs_t`
-  - Function pointer to load persistent attributes from storage.
-* - `save_persistent_attrs`
-  - `save_persistent_attrs_t`
-  - Function pointer to save persistent attributes to storage.
-* - `remove_persistent_attrs`
-  - `remove_persistent_attrs_t`
-  - Function pointer to delete persistent attributes.
-* - `list_persistent_attrs`
-  - `list_persistent_attrs_t`
-  - Function pointer to list all persistent attributes.
+* - `persistent_attrs`
+  - `const persistent_attrs_t *`
+  - Structure containing function pointers for managing persistent attributes.
 * - `global_command_parser`
   - `json_function_t`
-  - Function pointer to handle global command parsing (in JSON format).
+  - Function pointer for handling global command parsing (in JSON format). If `NULL`, the internal parser is used.
 * - `global_stats_parser`
   - `json_function_t`
-  - Function pointer to handle global statistics parsing (in JSON format).
+  - Function pointer for handling global statistics parsing (in JSON format). If `NULL`, the internal parser is used.
 * - `global_authz_checker`
   - `authz_checker_fn`
-  - Function pointer to perform global authorization checks.
+  - Function pointer for performing global authorization checks.
 * - `global_authenticate_parser`
   - `authenticate_parser_fn`
-  - Function pointer to parse and handle global authentication.
-* - `max_block`
+  - Function pointer for parsing and handling global authentication.
+* - `mem_max_block`
   - `size_t`
-  - The maximum allowed size for memory blocks, in bytes.
-* - `max_system_memory`
+  - Maximum size of memory blocks, in bytes. Default is `16M`.
+* - `mem_max_system_memory`
   - `size_t`
-  - The total memory limit for the system, in bytes.
+  - Total memory limit for the system, in bytes. Default is `64M`.
+* - `use_own_system_memory`
+  - `BOOL`
+  - Flag indicating whether to use the internal memory manager. Default is `FALSE`.
+* - `mem_min_block`
+  - `size_t`
+  - Minimum size of memory blocks, used only if `use_own_system_memory` is `TRUE`. Default is `512`.
+* - `mem_superblock`
+  - `size_t`
+  - Size of superblocks, used only if `use_own_system_memory` is `TRUE`. Default is `16M`.
 ````
 
 <!---------------------------------------------------->
@@ -295,8 +288,3 @@ TODO
 ``````
 
 ```````
-
-
-<!-- ============================================================== -->
-## `gobj_end`
-<!-- ============================================================== -->

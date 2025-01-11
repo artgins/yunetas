@@ -232,18 +232,16 @@ int main(int argc, char *argv[])
         argc,
         argv,
         NULL,   // jn_global_settings
-        NULL,   // startup_persistent_attrs
-        NULL,   // end_persistent_attrs
-        NULL,   // load_persistent_attrs
-        NULL,   // save_persistent_attrs
-        NULL,   // remove_persistent_attrs
-        NULL,   // list_persistent_attrs
+        NULL,   // persistent_attrs
         NULL,   // global_command_parser
         NULL,   // global_stats_parser
         NULL,   // global_authz_checker
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
-        0       // max_system_memory, maximum system memory
+        0,      // max_system_memory, maximum system memory
+        FALSE,
+        0,
+        0
     );
 
     yuno_catch_signals();

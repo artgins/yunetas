@@ -534,34 +534,20 @@ PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj, gobj_event_t event)
  *  Initialize the yuno
  ***************************************************************************/
 PUBLIC int gobj_start_up(
-    int argc_,
-    char *argv_[],
-    json_t *jn_global_settings,     // NOT owned
-    int (*startup_persistent_attrs)(void),
-    void (*end_persistent_attrs)(void),
-    int (*load_persistent_attrs)(
-        hgobj gobj,
-        json_t *attrs  // owned
-    ),
-    int (*save_persistent_attrs)(
-        hgobj gobj,
-        json_t *attrs  // owned
-    ),
-    int (*remove_persistent_attrs)(
-        hgobj gobj,
-        json_t *attrs  // owned
-    ),
-    json_t * (*list_persistent_attrs)(
-        hgobj gobj,
-        json_t *attrs  // owned
-    ),
-    json_function_t global_command_parser,
-    json_function_t global_stats_parser,
-    authz_checker_fn global_authz_checker,
-    authenticate_parser_fn global_authenticate_parser,
-
-    size_t max_block,                       /* largest memory block */
-    size_t max_system_memory                /* maximum system memory */
+    int                         argc_,                  /* pass main() arguments */
+    char                        *argv_[],               /* pass main() arguments */
+    json_t                      *jn_global_settings,    /* NOT owned */
+    const persistent_attrs_t    *persistent_attrs,
+    json_function_t             global_command_parser,  /* if NULL, use internal command parser */
+    json_function_t             global_stats_parser,    /* if NULL, use internal stats parser */
+    authz_checker_fn            global_authz_checker,   /* authentication checker function */
+    authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
+    size_t                      mem_max_block,          /* largest memory block, default 16M */
+    size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
+    BOOL                        use_own_system_memory,  /* Use internal memory manager */
+    // Below parameters are used only in internal memory manager:
+    size_t                      mem_min_block,          /* smaller memory block, default 512 */
+    size_t                      mem_superblock          /* superblock, default 16M */
 ) {
     if(__initialized__) {
         return -1;
@@ -573,17 +559,24 @@ PUBLIC int gobj_start_up(
         atexit_registered = 1;
     }
 
+    /*
+     *  TODO: To use in internal memory manager
+     */
+    (void)use_own_system_memory;
+    (void)mem_min_block;
+    (void)mem_superblock;
+
     glog_init();
 
     __shutdowning__ = 0;
     __jn_global_settings__ =  json_deep_copy(jn_global_settings);
 
-    __global_startup_persistent_attrs_fn__ = startup_persistent_attrs;
-    __global_end_persistent_attrs_fn__ = end_persistent_attrs;
-    __global_load_persistent_attrs_fn__ = load_persistent_attrs;
-    __global_save_persistent_attrs_fn__ = save_persistent_attrs;
-    __global_remove_persistent_attrs_fn__ = remove_persistent_attrs;
-    __global_list_persistent_attrs_fn__ = list_persistent_attrs;
+    __global_startup_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->startup:NULL;
+    __global_end_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->end:NULL;
+    __global_load_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->load:NULL;
+    __global_save_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->save:NULL;
+    __global_remove_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->remove:NULL;
+    __global_list_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->list:NULL;
     __global_command_parser_fn__ = global_command_parser;
     __global_stats_parser_fn__ = global_stats_parser;
     __global_authz_checker_fn__ = global_authz_checker;
@@ -619,20 +612,11 @@ PUBLIC int gobj_start_up(
 
     dl_init(&dl_trans_filter, 0);
 
-    /*
-     *  Chequea schema treedb, exit si falla.
-     */
-    //helper_quote2doublequote(treedb_schema_gobjs);
-    //jn_treedb_schema_gobjs = legalstring2json(treedb_schema_gobjs, TRUE);
-    //if(!jn_treedb_schema_gobjs) {
-    //    exit(-1);
-    //}
-
-    if(max_block) {
-        __max_block__ = max_block;
+    if(mem_max_block) {
+        __max_block__ = mem_max_block;
     }
-    if(max_system_memory) {
-        __max_system_memory__ = max_system_memory;
+    if(mem_max_system_memory) {
+        __max_system_memory__ = mem_max_system_memory;
     }
 
     kw_add_binary_type(

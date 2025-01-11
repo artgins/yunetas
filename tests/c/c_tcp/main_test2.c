@@ -305,22 +305,16 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        NULL,       // startup_persistent_attrs, default internal dbsimple
-        NULL,       // end_persistent_attrs,        "
-        NULL,       // load_persistent_attrs,       "
-        NULL,       // save_persistent_attrs,       "
-        NULL,       // remove_persistent_attrs,     "
-        NULL,       // list_persistent_attrs,       "
+        NULL,       // persistent_attrs, default internal dbsimple
         NULL,       // command_parser, default internal command_parser
         NULL,       // stats_parser, default internal stats_parser
         NULL,       // authz_checker, default Monoclass C_AUTHZ
         NULL,       // authenticate_parser, default Monoclass C_AUTHZ
-        USE_OWN_SYSTEM_MEMORY,
-        MEM_MIN_BLOCK,
-        MEM_MAX_BLOCK,
-        MEM_SUPERBLOCK,
-        MEM_MAX_SYSTEM_MEMORY,
-        DEBUG_MEMORY
+        0,
+        0,
+        FALSE,
+        0,
+        0
     );
 
     result += yuneta_entry_point(
