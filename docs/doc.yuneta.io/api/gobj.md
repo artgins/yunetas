@@ -1,3 +1,4 @@
+(GObj)=
 # GObj
 
 The main api for the Yuneta framework. It defines the GObj (Generic Object) API, which includes the GObj system, event-driven architecture, finite state machines, hierarchical object trees, and additional utilities.

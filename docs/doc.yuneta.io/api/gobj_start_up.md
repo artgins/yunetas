@@ -70,17 +70,11 @@ PUBLIC int gobj_start_up(
   - Array of command-line arguments.
 * - `jn_global_settings`
   - `json_t *`
-  - A JSON object containing global configuration settings. This parameter is **not owned** by the function, meaning it should not be freed or modified. See {ref}`json_t`.
+  - A JSON object containing global configuration settings. This parameter is **not owned** by the function, meaning it should not be freed.
 * - `persistent_attrs`
   - `persistent_attrs_t`
-  - A structure containing function pointers for managing persistent attributes. Includes:
-      - `startup`: Initializes persistent attributes.
-      - `end`: Cleans up persistent attributes.
-      - `load`: Loads persistent attributes from storage.
-      - `save`: Saves persistent attributes to storage.
-      - `remove`: Deletes persistent attributes from storage.
-      - `list`: Lists all persistent attributes.
-    See {ref}`persistent_attrs_t`.
+  - A structure containing function pointers for managing persistent attributes. 
+    See [](#Persistent Attributes).
 * - `global_command_parser`
   - `json_function_t`
   - A function pointer for handling global command parsing in JSON format. If `NULL`, the internal command parser is used. See {ref}`json_function_t`.

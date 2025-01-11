@@ -75,6 +75,16 @@ philosophy/philosophy.md
 ```
 
 ```{toctree}
+:caption: Guides
+:maxdepth: 2
+
+guide/folders.md
+guide/persistent_attrs.md
+guide/authz.md
+
+```
+
+```{toctree}
 :caption: Api Reference
 :maxdepth: 3
 

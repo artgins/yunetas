@@ -3,8 +3,7 @@ How to build documentation
 
 This: Directory of documentations.
 
-The documentations of this directory is building with [sphinx]
-and the nice [sphinx-book-theme].
+The documentation is built with [sphinx],  [sphinx-book-theme] and [MyST Markdown]
 
 It has been tested in Kubuntu 23.04.
 
@@ -130,3 +129,4 @@ Compile the documentation
 [venv]:     https://docs.python.org/3/library/venv.html
 [conda]:    https://docs.anaconda.com/free/miniconda/#miniconda
 [sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/
+[MyST Markdown]: https://mystmd.org/guide
