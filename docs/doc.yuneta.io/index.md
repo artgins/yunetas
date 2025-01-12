@@ -68,6 +68,7 @@ philosophy/philosophy.md
 :caption: Guides
 :maxdepth: 1
 
+guide/basic_concepts.md
 guide/folders.md
 guide/persistent_attrs.md
 guide/authz.md
