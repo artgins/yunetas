@@ -1,4 +1,4 @@
-# Folders
+# SDK Directory
 
 The Yuneta SDK is structured in next top folders:
 
@@ -9,7 +9,7 @@ The Yuneta SDK is structured in next top folders:
 - [](#tests)         Tests
 - [](#tools)         Compilation or building tools
 - [](#utils)         Utilities for Yunetas
-- [](#yunos)         Yunos
+- [](#yunos)         Yunos supplied by the SDK
 
 
 (docs)=

@@ -45,7 +45,7 @@ json_function_fn
 
     - Returns a `json_t` object as the result of the processing.
 
-gobj
+gobjx
     A `gobj` (Generic Object) is an **instance** of a  [](#gclass) (Generic Class) within the Yuneta framework. It is a modular, reusable, and event-driven component that encapsulates data, behavior, and state.
 
 ```
