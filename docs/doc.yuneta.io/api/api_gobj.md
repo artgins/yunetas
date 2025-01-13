@@ -7,8 +7,14 @@
 gobj_start_up.md
 gobj_end.md
 
-gclass_create.md
-
 gobj_exec_internal_method.md
+
+```
+
+```{toctree}
+:caption: GClass functions
+:maxdepth: 2
+
+gclass_create.md
 
 ```
