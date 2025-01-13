@@ -1,4 +1,4 @@
-# Basic Concepts
+# **Basic Concepts**
 
 # **What is Yuneta?**
 

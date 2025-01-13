@@ -1,4 +1,4 @@
-# Changelog
+# **Changelog**
 
 ## v7.0.0 -- 2024-??-??
 
@@ -23,4 +23,3 @@
 ### Other merged PRs
 
 ### Contributors to this release
-

@@ -1,4 +1,5 @@
-# SDK Directory
+(folders)=
+# **Directories**
 
 The Yuneta SDK is structured into the following top folders:
 

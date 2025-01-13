@@ -1,5 +1,5 @@
 (Persistent Attributes)=
-# Persistent Attributes
+# **Persistent Attributes**
 
 ## persistent_attrs_t
 The `persistent_attrs_t` structure contains function pointers for managing persistent attributes of a Yuno instance. This allows the user to handle attributes in storage or memory during the lifecycle of a Yuno.

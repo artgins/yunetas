@@ -1,4 +1,4 @@
-# Activating Yunetas
+# **Activating Yunetas**
 
 Once Yunetas is installed, activate it to begin working on your projects.
 

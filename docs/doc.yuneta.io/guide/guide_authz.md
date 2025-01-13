@@ -1,4 +1,5 @@
-# Authz
+(authz)=
+# **Authz**
 
 ## authz_checker_fn
 The `authz_checker_fn` is a function pointer type used for checking authorization rules. It evaluates whether a given operation is authorized based on the provided parameters.

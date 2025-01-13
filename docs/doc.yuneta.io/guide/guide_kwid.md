@@ -1,5 +1,5 @@
 (kwid)=
-# Kwid
+# **Kwid**
 
 ## Overview of `kwid`
 
