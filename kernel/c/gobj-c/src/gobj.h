@@ -1145,18 +1145,18 @@ GOBJ_DECLARE_STATE(ST_CLOSED);
  *      Start up functions
  *---------------------------------*/
 typedef struct {
-    startup_persistent_attrs_t  startup_persistent_attrs;
-    end_persistent_attrs_t      end_persistent_attrs;
-    load_persistent_attrs_t     load_persistent_attrs;
-    save_persistent_attrs_t     save_persistent_attrs;
-    remove_persistent_attrs_t   remove_persistent_attrs;
-    list_persistent_attrs_t     list_persistent_attrs;
+    startup_persistent_attrs_t  startup;
+    end_persistent_attrs_t      end;
+    load_persistent_attrs_t     load;
+    save_persistent_attrs_t     save;
+    remove_persistent_attrs_t   remove;
+    list_persistent_attrs_t     list;
 } persistent_attrs_t;
 
 PUBLIC int gobj_start_up(       /* Initialize the yuno */
     int                         argc,                   /* pass main() arguments */
     char                        *argv[],                /* pass main() arguments */
-    json_t                      *jn_global_settings,    /* NOT owned */
+    const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
     json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */

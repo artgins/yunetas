@@ -536,10 +536,10 @@ PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj, gobj_event_t event)
 PUBLIC int gobj_start_up(
     int                         argc_,                  /* pass main() arguments */
     char                        *argv_[],               /* pass main() arguments */
-    json_t                      *jn_global_settings,    /* NOT owned */
+    const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
-    json_function_fn             global_command_parser,  /* if NULL, use internal command parser */
-    json_function_fn             global_stats_parser,    /* if NULL, use internal stats parser */
+    json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
+    json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
     authz_checker_fn            global_authz_checker,   /* authentication checker function */
     authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
