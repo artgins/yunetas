@@ -63,46 +63,68 @@ PUBLIC int gobj_start_up(
 * - Key
   - Type
   - Description
+
 * - `argc`
   - `int`
-  - Copy argument `argc` of *main()*.
+  - Argument `argc` of *main()*.
+
 * - `argv`
   - `char *[]`
-  - Copy argument `argv` of *main()*.
+  - Argument `argv` of *main()*.
+
 * - `jn_global_settings`
-  - `json_t *`
-  - A JSON object containing global configuration settings. This parameter is **not owned** by the function, meaning it should not be freed.
+  - [`json_t *`](json_t)
+  - A JSON object containing global configuration settings. 
+    This parameter is **not owned** by the function.
+    See [](global_settings).
+
 * - `persistent_attrs`
   - [`persistent_attrs_t`](persistent_attrs_t)
-  - A structure containing function pointers for managing persistent attributes. 
+  - A structure containing database functions for managing persistent attributes. 
     See [](persistent_attrs_t).
+
 * - `global_command_parser`
-  - `json_function_t`
-  - A function pointer for handling global command parsing in JSON format. If `NULL`, the internal command parser is used. See {ref}`json_function_t`.
+  - [`json_function_fn`](json_function_fn)
+  - A function pointer for handling global command parsing. If `NULL`, the internal command parser is used. See [](command_parser).
+
 * - `global_stats_parser`
-  - `json_function_t`
-  - A function pointer for handling global statistics parsing in JSON format. If `NULL`, the internal statistics parser is used. See {ref}`json_function_t`.
+  - [`json_function_fn`](json_function_fn)
+  - A function pointer for handling global statistics parsing. If `NULL`, the internal statistics parser is used. See [](stats_parser).
+
 * - `global_authz_checker`
   - `authz_checker_fn`
   - A function pointer for performing global authorization checks. See {ref}`authz_checker_fn`.
+
 * - `global_authenticate_parser`
   - `authenticate_parser_fn`
   - A function pointer for parsing and handling global authentication requests. See {ref}`authenticate_parser_fn`.
+
 * - `mem_max_block`
   - `size_t`
   - Maximum size of memory blocks, in bytes. Default is `16M`.
+  Customize in your [](yuno). 
+  Allocating a bigger block will cause the exit and re-launch of the [](yuno).
+
 * - `mem_max_system_memory`
   - `size_t`
   - Total memory limit for the system, in bytes. Default is `64M`.
+  Customize in your [](yuno). 
+  Allocating a bigger block will cause the exit and re-launch of the [](yuno).
+
 * - `use_own_system_memory`
   - `BOOL`
   - Flag indicating whether to use the internal memory manager.
+
 * - `mem_min_block`
   - `size_t`
   - Minimum size of memory blocks, used only if `use_own_system_memory` is `TRUE`. Default is `512`.
+  {warning}`NOT IMPLEMENTED`.
+
 * - `mem_superblock`
   - `size_t`
   - Size of superblocks, used only if `use_own_system_memory` is `TRUE`. Default is `16M`.
+  {warning}`NOT IMPLEMENTED`.
+
 ````
 
 <!---------------------------------------------------->

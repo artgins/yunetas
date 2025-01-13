@@ -74,6 +74,9 @@ guide/guide_gobj.md
 guide/guide_kwid.md
 guide/folders.md
 guide/persistent_attrs.md
+guide/parser_command.md
+guide/parser_stats.md
+guide/settings.md
 guide/guide_authz.md
 
 ```
@@ -82,8 +85,8 @@ guide/guide_authz.md
 :caption: API Reference
 :maxdepth: 2
 
-api/gobj.md
-api/kwid.md
+api/api_gobj.md
+api/api_kwid.md
 
 ```
 
