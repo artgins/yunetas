@@ -32,11 +32,12 @@ The [](gobj_start_up()) function serves as the entry point to Yuno and must be i
 
 **Prototype**
 
+
 ````C
-PUBLIC int gobj_start_up(      
+PUBLIC int gobj_start_up(
     int                         argc,
     char                        *argv[],
-    json_t                      *jn_global_settings,    /* NOT owned */
+    const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_t             global_command_parser,  
     json_function_t             global_stats_parser,
@@ -64,17 +65,17 @@ PUBLIC int gobj_start_up(
   - Description
 * - `argc`
   - `int`
-  - Number of command-line arguments passed to the program.
+  - Copy argument `argc` of *main()*.
 * - `argv`
   - `char *[]`
-  - Array of command-line arguments.
+  - Copy argument `argv` of *main()*.
 * - `jn_global_settings`
   - `json_t *`
   - A JSON object containing global configuration settings. This parameter is **not owned** by the function, meaning it should not be freed.
 * - `persistent_attrs`
-  - `persistent_attrs_t`
+  - [`persistent_attrs_t`](persistent_attrs_t)
   - A structure containing function pointers for managing persistent attributes. 
-    See [](Persistent Attributes).
+    See [](persistent_attrs_t).
 * - `global_command_parser`
   - `json_function_t`
   - A function pointer for handling global command parsing in JSON format. If `NULL`, the internal command parser is used. See {ref}`json_function_t`.

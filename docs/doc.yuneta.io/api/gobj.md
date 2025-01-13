@@ -5,4 +5,6 @@
 gobj_start_up.md
 gobj_end.md
 
+gclass_create.md
+
 ```
