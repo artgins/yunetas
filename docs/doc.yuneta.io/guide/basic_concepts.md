@@ -4,7 +4,7 @@
 
 Yuneta is a **function-based development framework** that implements an independent **class system**, abstracted from the programming language. Using functions, classes are created with a core and interface composed of three primary elements: `attributes`, `commands`, and `messages`.
 
-Yuneta's architecture, centered around [`gclass`](#gclass), [`gobj`](#gobj), and [`yuno`](#yuno), allows developers to create powerful, event-driven, and scalable applications tailored to complex systems.
+Yuneta's architecture, centered around [`gclass`](gclass), [`gobj`](gobj), and [`yuno`](yuno), allows developers to create powerful, event-driven, and scalable applications tailored to complex systems.
 
 ---
 
@@ -12,7 +12,7 @@ Yuneta's architecture, centered around [`gclass`](#gclass), [`gobj`](#gobj), and
 
 ### **1. Class System**
 - Yuneta's class system operates independently of language-specific class definitions, ensuring compatibility across different programming environments.
-- Classes ( [`gclass`](#gclass)) define the structure, behavior, and interaction model of reusable components.
+- Classes ( [`gclass`](gclass)) define the structure, behavior, and interaction model of reusable components.
 
 ### **2. Interaction Model of GClasses and Gobjs**
 The interaction or **interface** of a gclass or gobj is based primarily on the  `attributes`, `commands`, and `messages` defined by the gclass:
@@ -72,11 +72,10 @@ Yuneta is suited for:
 
 ---
 
-(gclass)=
 # `gclass`
-A `gclass` (Generic Class) is the **template or blueprint** for creating gobjs. It defines the structure, behavior, and lifecycle of gobjs. Unlike traditional classes in languages like C, Python, or JavaScript, a gclass is implemented manually using the [](#gclass_create()) function, as Yuneta is a function-based development framework.
+A `gclass` (Generic Class) is the **template or blueprint** for creating gobjs. It defines the structure, behavior, and lifecycle of gobjs. Unlike traditional classes in languages like C, Python, or JavaScript, a gclass is implemented manually using the [](gclass_create()) function, as Yuneta is a function-based development framework.
 
-A `gclass` provides a complete definition of the structure, behavior, and lifecycle of [`gobjs`](#gobj). By combining attributes, commands, events, states, and lifecycle methods, it establishes a powerful and flexible framework for developing event-driven, modular systems.
+A `gclass` provides a complete definition of the structure, behavior, and lifecycle of [`gobjs`](gobj). By combining attributes, commands, events, states, and lifecycle methods, it establishes a powerful and flexible framework for developing event-driven, modular systems.
 
 ```{figure} ../_static/gclass_diagram.svg
 ---
@@ -102,7 +101,7 @@ target: ../_static/gclass_diagram.svg
 
     - `gmt`: Global Methods Table, a table of class methods executed by Yuneta's framework during specific lifecycle events.
 
-    - `lmt`: Local Methods Table, A table of private methods that can be explicitly invoked by users using [](#gobj_exec_internal_method()). Should only be used when necessary. The natural interface for interacting with gobjs is through events, commands, and attributes.
+    - `lmt`: Local Methods Table, A table of private methods that can be explicitly invoked by users using [](gobj_exec_internal_method()). Should only be used when necessary. The natural interface for interacting with gobjs is through events, commands, and attributes.
 
     - `tattr_desc`: Attribute Table, defines the attributes of the gclass. See [](attributes). Attributes form a crucial part of the gobj's interface. They configure the gobj and can dynamically modify its behavior at runtime. Changes to attributes can trigger monitoring or additional actions.
 
@@ -117,9 +116,8 @@ target: ../_static/gclass_diagram.svg
     - `gclass_flag`: A modifier for the gclass. Its behavior is defined by the [](gclass_flag_t) type.
       May specify flags that alter class-level behavior, such as enabling or disabling specific features.
 
-(gobj)=
 # `gobj`
-A `gobj` (Generic Object) is an **instance** of a  [](#gclass) (Generic Class) within the Yuneta framework. It is a modular, reusable, and event-driven component that encapsulates data, behavior, and state.
+A `gobj` (Generic Object) is an **instance** of a  [](gclass) (Generic Class) within the Yuneta framework. It is a modular, reusable, and event-driven component that encapsulates data, behavior, and state.
 
 ## **Key Features of a gobj**:
 1. **Event-Driven Design**:

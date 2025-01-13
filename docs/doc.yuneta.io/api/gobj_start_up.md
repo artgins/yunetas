@@ -7,10 +7,10 @@ Initialize a Yuno instance.
 
 This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
 
-To properly terminate the Yuno, call the function [](#gobj_end()).
+To properly terminate the Yuno, call the function [](gobj_end()).
 
 ```{tip}
-The [](#gobj_start_up()) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [](#gobj_end()), should be called to properly terminate and exit Yuno.
+The [](gobj_start_up()) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [](#gobj_end()), should be called to properly terminate and exit Yuno.
 ```
 
 <!------------------------------------------------------------>
@@ -74,7 +74,7 @@ PUBLIC int gobj_start_up(
 * - `persistent_attrs`
   - `persistent_attrs_t`
   - A structure containing function pointers for managing persistent attributes. 
-    See [](#Persistent Attributes).
+    See [](Persistent Attributes).
 * - `global_command_parser`
   - `json_function_t`
   - A function pointer for handling global command parsing in JSON format. If `NULL`, the internal command parser is used. See {ref}`json_function_t`.

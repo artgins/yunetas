@@ -80,6 +80,7 @@ guide/authz.md
 :caption: API Reference
 :maxdepth: 2
 
+api/gclass.md
 api/gobj.md
 api/kwid.md
 
