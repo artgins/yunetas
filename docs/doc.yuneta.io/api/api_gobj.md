@@ -7,4 +7,6 @@ gobj_end.md
 
 gclass_create.md
 
+gobj_exec_internal_method.md
+
 ```

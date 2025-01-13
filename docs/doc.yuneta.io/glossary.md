@@ -92,10 +92,6 @@ authentication_parser_fn
 
     - Returns a JSON object with the authentication result, typically including a success status and user details.
 
-
-gobj
-    A `gobj` (Generic Object) is an **instance** of a  [](gclass) (Generic Class) within the Yuneta framework. It is a modular, reusable, and event-driven component that encapsulates data, behavior, and state.
-
 re-launch
 
     In Yuneta, all yunos inherently support running as daemons. When operating in daemon mode, they are protected against unexpected termination through an internal mechanism:
