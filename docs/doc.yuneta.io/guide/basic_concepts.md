@@ -63,25 +63,6 @@ The interaction or **interface** of a gclass or gobj is based primarily on the  
 
 ---
 
-## **Yuneta Philosophy**
-
-1. **Code Reflects a Vision**:
-   - Each system represents a philosophy and a way to approach challenges.
-
-2. **Interaction through Events**:
-   - Without events, "nothing happens." Events and their consequences drive progress.
-
-3. **Time and Data**:
-   - Yuneta collects and organizes data based on time and events, creating a chronological understanding of systems.
-
-4. **Hierarchy and Subscriptions**:
-   - Components are hierarchically organized, and events are published and subscribed to within authorized scopes.
-
-5. **Scalability and Adaptability**:
-   - Repetition and consistency of actions lead to success, making Yuneta ideal for large-scale systems.
-
----
-
 ## **Applications of Yuneta**
 Yuneta is suited for:
 - **IoT**: Managing interconnected devices and sensors.
