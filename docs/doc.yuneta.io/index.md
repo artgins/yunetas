@@ -77,17 +77,16 @@ guide/authz.md
 ```
 
 ```{toctree}
-:caption: Api Reference
+:caption: API Reference
 :maxdepth: 2
 
-api/gobj.md
-api/kwid.md
+api/api.md
 
 ```
 
 ```{toctree}
 :caption: Glossary 
-:maxdepth: 2
+:maxdepth: 1
 
 glossary
 
