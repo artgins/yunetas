@@ -1,6 +1,3 @@
-# **kwid**
-
-
 ```{toctree}
 :caption: Kwid
 :maxdepth: 2

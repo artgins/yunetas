@@ -1,7 +1,3 @@
-(gobj)=
-# **gobj**
-
-
 ```{toctree}
 :caption: Start up functions
 :maxdepth: 2

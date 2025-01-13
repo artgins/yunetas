@@ -1,7 +1,3 @@
-(gclass)=
-# **gclass**
-
-
 ```{toctree}
 :caption: GClass Functions
 :maxdepth: 2

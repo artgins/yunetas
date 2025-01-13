@@ -69,10 +69,12 @@ philosophy/philosophy.md
 :maxdepth: 1
 
 guide/basic_concepts.md
-guide/lib_kwid.md
+guide/guide_gclass.md
+guide/guide_gobj.md
+guide/guide_kwid.md
 guide/folders.md
 guide/persistent_attrs.md
-guide/authz.md
+guide/guide_authz.md
 
 ```
 
