@@ -934,13 +934,13 @@ typedef int (*mt_state_changed_fn)(
     json_t *kw
 );
 
-typedef BOOL (*authz_checker_fn)(
+typedef BOOL (*authorization_checker_fn)(
     hgobj gobj,
     const char *authz,
     json_t *kw,
     hgobj src
 );
-typedef json_t *(*authenticate_parser_fn)(
+typedef json_t *(*authentication_parser_fn)(
     hgobj gobj,
     json_t *kw,
     hgobj src
@@ -1003,7 +1003,7 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_publish_event_fn mt_publish_event;  // Return -1 (broke), 0 continue without publish, 1 continue and publish
     mt_publication_pre_filter_fn mt_publication_pre_filter; // Return -1,0,1
     mt_publication_filter_fn mt_publication_filter; // Return -1,0,1
-    authz_checker_fn mt_authz_checker;
+    authorization_checker_fn mt_authz_checker;
     future_method_fn mt_future39;
     mt_create_node_fn mt_create_node;
     mt_update_node_fn mt_update_node;
@@ -1153,15 +1153,15 @@ typedef struct {
     list_persistent_attrs_t     list;
 } persistent_attrs_t;
 
-PUBLIC int gobj_start_up(       /* Initialize the yuno */
+PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     int                         argc,                   /* pass main() arguments */
     char                        *argv[],                /* pass main() arguments */
     const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
     json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
-    authz_checker_fn            global_authz_checker,   /* authentication checker function */
-    authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
+    authorization_checker_fn    global_authorization_checker,   /* authorization checker function */
+    authentication_parser_fn      global_authentication_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
     size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
     BOOL                        use_own_system_memory,  /* Use internal memory manager */

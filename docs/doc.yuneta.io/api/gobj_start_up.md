@@ -34,18 +34,18 @@ The [](gobj_start_up()) function serves as the entry point to Yuno and must be i
 
 
 ````C
-PUBLIC int gobj_start_up(
+PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     int                         argc,
     char                        *argv[],
     const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
-    json_function_t             global_command_parser,  
-    json_function_t             global_stats_parser,
-    authz_checker_fn            global_authz_checker,
-    authenticate_parser_fn      global_authenticate_parser,
+    json_function_fn            global_command_parser,
+    json_function_fn            global_stats_parser,
+    authorization_checker_fn    global_authorization_checker,
+    authentication_parser_fn    global_authentication_parser,
     size_t                      mem_max_block,
     size_t                      mem_max_system_memory,
-    BOOL                        use_own_system_memory, // NOT implemented
+    BOOL                        use_own_system_memory,
     size_t                      mem_min_block,  // used only in internal memory manager
     size_t                      mem_superblock  // used only in internal memory manager
 );
@@ -91,13 +91,15 @@ PUBLIC int gobj_start_up(
   - [`json_function_fn`](json_function_fn)
   - A function pointer for handling global statistics parsing. If `NULL`, the internal statistics parser is used. See [](stats_parser).
 
-* - `global_authz_checker`
-  - `authz_checker_fn`
-  - A function pointer for performing global authorization checks. See {ref}`authz_checker_fn`.
+* - `global_authorization_checker`
+  - [](authorization_checker_fn)
+  - A function pointer for performing global authorization checks.
+  See [](checker_authorization).
 
-* - `global_authenticate_parser`
-  - `authenticate_parser_fn`
-  - A function pointer for parsing and handling global authentication requests. See {ref}`authenticate_parser_fn`.
+* - `global_authentication_parser`
+  - [](authentication_parser_fn)
+  - A function pointer for parsing and handling global authentication requests. 
+  See [](parser_authentication).
 
 * - `mem_max_block`
   - `size_t`

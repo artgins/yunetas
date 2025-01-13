@@ -1,11 +1,12 @@
 (authz)=
 # **Authz**
 
-## authz_checker_fn
+(authorization_checker_fn)=
+## authorization_checker_fn
 The `authz_checker_fn` is a function pointer type used for checking authorization rules. It evaluates whether a given operation is authorized based on the provided parameters.
 
 ```c
-typedef BOOL (*authz_checker_fn)(
+typedef BOOL (*authorization_checker_fn)(
     hgobj gobj,
     const char *authz,
     json_t *kw,
@@ -25,6 +26,7 @@ typedef BOOL (*authz_checker_fn)(
 
 ---
 
+(authenticate_parser_fn)=
 ## authenticate_parser_fn
 The `authenticate_parser_fn` is a function pointer type used for parsing and handling authentication requests. It validates user credentials and provides a response in JSON format.
 

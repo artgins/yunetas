@@ -346,8 +346,8 @@ PRIVATE json_t * (*__global_stats_parser_fn__)(
     json_t *kw,
     hgobj src
 ) = 0;
-PRIVATE authz_checker_fn __global_authz_checker_fn__ = 0;
-PRIVATE authenticate_parser_fn __global_authenticate_parser_fn__ = 0;
+PRIVATE authorization_checker_fn __global_authorization_checker_fn__ = 0;
+PRIVATE authentication_parser_fn __global_authentication_parser_fn__ = 0;
 
 PRIVATE json_t *__jn_global_settings__ = 0;
 PRIVATE int (*__global_startup_persistent_attrs_fn__)(void) = 0;
@@ -540,8 +540,8 @@ PUBLIC int gobj_start_up(
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
     json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
-    authz_checker_fn            global_authz_checker,   /* authentication checker function */
-    authenticate_parser_fn      global_authenticate_parser, /* authentication parser function */
+    authorization_checker_fn    global_authorization_checker, /* authorization checker function */
+    authentication_parser_fn    global_authentication_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
     size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
     BOOL                        use_own_system_memory,  /* Use internal memory manager */
@@ -579,8 +579,8 @@ PUBLIC int gobj_start_up(
     __global_list_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->list:NULL;
     __global_command_parser_fn__ = global_command_parser;
     __global_stats_parser_fn__ = global_stats_parser;
-    __global_authz_checker_fn__ = global_authz_checker;
-    __global_authenticate_parser_fn__ = global_authenticate_parser;
+    __global_authorization_checker_fn__ = global_authorization_checker;
+    __global_authentication_parser_fn__ = global_authentication_parser;
 
     if(__global_startup_persistent_attrs_fn__) {
         __global_startup_persistent_attrs_fn__();
@@ -7670,7 +7670,7 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
     /*-----------------------------------------------*
      *  Then use the global authzs parser
      *-----------------------------------------------*/
-    if(!__global_authenticate_parser_fn__) {
+    if(!__global_authentication_parser_fn__) {
 #ifdef __linux__
         struct passwd *pw = getpwuid(getuid());
 
@@ -7692,7 +7692,7 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
 #endif
     }
 
-    return __global_authenticate_parser_fn__(gobj, kw, src);
+    return __global_authentication_parser_fn__(gobj, kw, src);
 }
 
 /****************************************************************************
@@ -7768,8 +7768,8 @@ PUBLIC BOOL gobj_user_has_authz(
     /*-----------------------------------------------*
      *  Then use the global authz checker
      *-----------------------------------------------*/
-    if(__global_authz_checker_fn__) {
-        BOOL has_permission = __global_authz_checker_fn__(gobj, authz, kw, src);
+    if(__global_authorization_checker_fn__) {
+        BOOL has_permission = __global_authorization_checker_fn__(gobj, authz, kw, src);
         if(__trace_gobj_authzs__(gobj)) {
             gobj_trace_json(gobj, kw,
                 "global authzs 🔑🔑 %s => %s",
