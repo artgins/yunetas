@@ -78,15 +78,13 @@ A `gclass` (Generic Class) is the **template or blueprint** for creating gobjs. 
 
 A `gclass` provides a complete definition of the structure, behavior, and lifecycle of [`gobjs`](#gobj). By combining attributes, commands, events, states, and lifecycle methods, it establishes a powerful and flexible framework for developing event-driven, modular systems.
 
-```{figure} ../images/gclass_diagram.svg
+```{figure} ../_static/gclass_diagram.svg
 ---
 alt: gclass_diagram
 name: gclass_diagram
+target: ../_static/gclass_diagram.svg
 ---
-[Click to view larger](../images/gclass_diagram.svg)
 ```
-
-[![gclass_diagram](../images/gclass_diagram.svg)](../images/gclass_diagram.svg)
 
 ## **Key Features of a Gclass**:
 1. **Independent Implementation**:
