@@ -3,9 +3,7 @@
 # `gobj_end()`
 <!-- ============================================================== -->
 
-TODO C Function summary
-
-TODO Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
+De-initialize the gobj's system, free resources.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,37 +24,8 @@ TODO Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
 **Prototype**
 
 ````C
-TODO C prototype
+PUBLIC void gobj_end(void);
 ````
-
-<!---------------------------------------------------->
-<!--                C Parameters                    -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-````
-TODO add C arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                C Return                        -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO C return
- 
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
