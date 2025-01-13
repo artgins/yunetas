@@ -90,9 +90,9 @@ extern "C"{
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #endif
 
-/*
- *  Macros to assign attr data to priv data.
- */
+/***************************************************************
+ *   Macros to assign attr data to priv data.
+ ***************************************************************/
 #define IF_EQ_SET_PRIV(__name__, __func__) \
     if(strcmp(path, #__name__)==0) {\
         priv->__name__ = __func__(gobj, #__name__);
@@ -106,8 +106,8 @@ extern "C"{
     priv->__name__ = __func__(gobj, #__name__);
 
 /***********************************************************************
- *  Macros of switch for strings, copied from:
- *  https://gist.github.com/HoX/abfe15c40f2d9daebc35
+ *  Macros of switch for strings
+ *  copied from https://gist.github.com/HoX/abfe15c40f2d9daebc35
 
 Example:
 
@@ -144,8 +144,8 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
  ***********************************************************************/
+
 /** Begin a switch for the string x */
 #define SWITCHS(x) \
     { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); bool __done = false; bool __cont = false; \
@@ -171,6 +171,9 @@ int main(int argc, char **argv) {
 /** Close the switchs */
 #define SWITCHS_END } while ( 0 ); regfree(&__regex); }
 
+/***************************************************************
+ *  inline functions
+ ***************************************************************/
 static inline BOOL empty_string(const char *str)
 {
     return (str && *str)?0:1;
@@ -287,7 +290,7 @@ typedef int  (*loghandler_fwrite_fn_t)(void *h, int priority, const char *format
 typedef void (*show_backtrace_fn_t)(loghandler_fwrite_fn_t fwrite_fn, void *h);
 
 /***************************************************************
- *              SData
+ *              SData - Structured Data
  ***************************************************************/
 typedef enum {
     DTP_STRING = 1,
@@ -309,19 +312,19 @@ typedef enum {
 //#define ASN_DOUBLE      DTP_REAL
 //#define ASN_INTEGER64   DTP_INTEGER
 //#define ASN_UNSIGNED64  DTP_INTEGER
-//#define ASN_JSON        DTP_JSON
-#define DTP_SCHEMA      DTP_POINTER
 //#define ASN_POINTER     DTP_POINTER
+//#define ASN_JSON        DTP_JSON
 
-#define DTP_IS_STRING(type) ((type) == DTP_STRING)
-#define DTP_IS_BOOLEAN(type) ((type) == DTP_BOOLEAN)
-#define DTP_IS_INTEGER(type) ((type) == DTP_INTEGER)
-#define DTP_IS_REAL(type) ((type) == DTP_REAL)
-#define DTP_IS_LIST(type) ((type) == DTP_LIST)
-#define DTP_IS_DICT(type) ((type) == DTP_DICT)
-#define DTP_IS_JSON(type) ((type) == DTP_JSON)
-#define DTP_IS_POINTER(type) ((type) == DTP_POINTER)
-#define DTP_IS_SCHEMA(type) ((type) == DTP_SCHEMA)
+#define DTP_IS_STRING(type)     ((type) == DTP_STRING)
+#define DTP_IS_BOOLEAN(type)    ((type) == DTP_BOOLEAN)
+#define DTP_IS_INTEGER(type)    ((type) == DTP_INTEGER)
+#define DTP_IS_REAL(type)       ((type) == DTP_REAL)
+#define DTP_IS_LIST(type)       ((type) == DTP_LIST)
+#define DTP_IS_DICT(type)       ((type) == DTP_DICT)
+#define DTP_IS_JSON(type)       ((type) == DTP_JSON)
+#define DTP_IS_POINTER(type)    ((type) == DTP_POINTER)
+#define DTP_IS_SCHEMA(type)     ((type) == DTP_SCHEMA)
+#define DTP_SCHEMA              DTP_POINTER
 
 #define DTP_IS_NUMBER(type)     \
     (DTP_IS_INTEGER(type) ||    \
@@ -537,7 +540,6 @@ typedef const char *gobj_lmethod_t;     /**< unique pointer that exposes local m
 typedef void *hgclass;
 typedef void *hgobj;
 
-
 /*
  *  Prototypes of functions to manage persistent attributes
  */
@@ -559,7 +561,6 @@ typedef json_t * (*list_persistent_attrs_t)(
     hgobj gobj,
     json_t *keys  // owned
 );
-
 
 /***************************************************************
  *              DL_LIST Structures
