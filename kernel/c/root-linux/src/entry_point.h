@@ -25,8 +25,8 @@ PUBLIC int yuneta_setup(
     const persistent_attrs_t    *persistent_attrs,      // default internal dbsimple
     json_function_fn            command_parser,         // default internal command_parser
     json_function_fn            stats_parser,           // default internal stats_parser
-    authz_checker_fn            authz_checker,          // default Monoclass C_AUTHZ
-    authenticate_parser_fn      authenticate_parser,    // default Monoclass C_AUTHZ
+    authorization_checker_fn    authz_checker,          // default Monoclass C_AUTHZ
+    authentication_parser_fn    authenticate_parser,    // default Monoclass C_AUTHZ
     size_t                      mem_max_block,
     size_t                      mem_max_system_memory,
     BOOL                        use_own_system_memory,

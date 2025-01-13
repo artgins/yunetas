@@ -1161,7 +1161,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
     json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
     authorization_checker_fn    global_authorization_checker,   /* authorization checker function */
-    authentication_parser_fn      global_authentication_parser, /* authentication parser function */
+    authentication_parser_fn    global_authentication_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
     size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
     BOOL                        use_own_system_memory,  /* Use internal memory manager */

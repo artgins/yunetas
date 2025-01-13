@@ -103,15 +103,15 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
 
 * - `mem_max_block`
   - `size_t`
-  - Maximum size of memory blocks, in bytes. Default is `16M`.
-  Customize in your [](yuno). 
-  Allocating a bigger block will cause the exit and [`re-launch`](re-launch) of the [](yuno).
+  - Specifies the maximum size of a single memory block, in bytes. The default value is `16M`.  
+    This value can be customized in your [](yuno).  
+    Attempting to allocate a memory block larger than this limit will cause the yuno to **exit** and trigger a [`re-launch`](re-launch).
 
 * - `mem_max_system_memory`
   - `size_t`
-  - Total memory limit for the system, in bytes. Default is `64M`.
-  Customize in your [](yuno). 
-  Allocating a bigger block will cause the exit and [`re-launch`](re-launch) of the [](yuno).
+  - Specifies the total memory limit for the system, in bytes. The default value is `64M`.  
+    This value can be customized in your [](yuno).  
+    If the total memory usage exceeds this limit, the yuno will **exit** and trigger a [`re-launch`](re-launch).
 
 * - `use_own_system_memory`
   - `BOOL`

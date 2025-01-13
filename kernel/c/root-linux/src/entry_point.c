@@ -86,8 +86,8 @@ PRIVATE json_t * (*__list_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) =
 PRIVATE json_function_fn __command_parser_fn__ = command_parser;
 PRIVATE json_function_fn __stats_parser_fn__ = stats_parser;
 
-PRIVATE authz_checker_fn __authz_checker_fn__ = authz_checker;
-PRIVATE authenticate_parser_fn __authenticate_parser_fn__ = authenticate_parser;
+PRIVATE authorization_checker_fn __authz_checker_fn__ = authz_checker;
+PRIVATE authentication_parser_fn __authenticate_parser_fn__ = authenticate_parser;
 
 uint64_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
 uint64_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
@@ -310,10 +310,10 @@ PRIVATE const char *get_process_name(void)
  ***************************************************************************/
 PUBLIC int yuneta_setup(
     const persistent_attrs_t    *persistent_attrs,      // default internal dbsimple
-    json_function_fn             command_parser,         // default internal command_parser
-    json_function_fn             stats_parser,           // default internal stats_parser
-    authz_checker_fn            authz_checker,          // default Monoclass C_AUTHZ
-    authenticate_parser_fn      authenticate_parser,    // default Monoclass C_AUTHZ
+    json_function_fn            command_parser,         // default internal command_parser
+    json_function_fn            stats_parser,           // default internal stats_parser
+    authorization_checker_fn    authz_checker,          // default Monoclass C_AUTHZ
+    authentication_parser_fn    authenticate_parser,    // default Monoclass C_AUTHZ
     size_t                      mem_max_block,
     size_t                      mem_max_system_memory,
     BOOL                        use_own_system_memory,
