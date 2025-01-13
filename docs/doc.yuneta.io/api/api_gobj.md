@@ -1,5 +1,7 @@
+# gobj api
+
 ```{toctree}
-:caption: Start up functions
+:caption: Startup functions
 :maxdepth: 2
 
 gobj_start_up.md
