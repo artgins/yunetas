@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(function_name)=
-# `function_name`
+(kw_get_str)=
+# `kw_get_str`
 <!-- ============================================================== -->
 
 TODO C Function summary
@@ -54,7 +54,7 @@ TODO add C arguments of the function to the table
 **Return Value**
 
 TODO C return
- 
+
 - **`0`**: Success.
 - **`< 0`**: Indicates an error during initialization.
 

@@ -69,6 +69,7 @@ philosophy/philosophy.md
 :maxdepth: 1
 
 guide/basic_concepts.md
+guide/lib_kwid.md
 guide/folders.md
 guide/persistent_attrs.md
 guide/authz.md
@@ -79,8 +80,8 @@ guide/authz.md
 :caption: Api Reference
 :maxdepth: 2
 
-api/gobj
-api/kwid
+api/gobj.md
+api/kwid.md
 
 ```
 

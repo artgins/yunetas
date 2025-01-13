@@ -2,8 +2,8 @@
 :caption: Start up functions
 :maxdepth: 2
 
-gobj_start_up
-gobj_end
+gobj_start_up.md
+gobj_end.md
 
 ```
 
@@ -11,6 +11,6 @@ gobj_end
 :caption: GClass Functions
 :maxdepth: 2
 
-gclass_create
+gclass_create.md
 
 ```
