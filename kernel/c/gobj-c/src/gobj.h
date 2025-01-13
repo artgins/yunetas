@@ -47,8 +47,8 @@
 #include <regex.h>
 #include <inttypes.h>
 #include <jansson.h>
-#include <yuneta_config.h>      // create dependency
-#include <yuneta_version.h>     // create dependency
+#include <yuneta_config.h>      // don't remove, to create dependency
+#include <yuneta_version.h>     // don't remove, to create dependency
 
 #ifdef __cplusplus
 extern "C"{
