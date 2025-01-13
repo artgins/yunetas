@@ -10,7 +10,7 @@ This function prepares a Yuno for operation by setting global configurations, ha
 To properly terminate the Yuno, call the function [](gobj_end()).
 
 ```{tip}
-The [](gobj_start_up()) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [](#gobj_end()), should be called to properly terminate and exit Yuno.
+The [](gobj_start_up()) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [](gobj_end()), should be called to properly terminate and exit Yuno.
 ```
 
 <!------------------------------------------------------------>

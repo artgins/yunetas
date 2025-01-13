@@ -2,14 +2,14 @@
 
 The Yuneta SDK is structured into the following top folders:
 
-- [docs](#docs):         Documentation of Yuneta.
-- [kernel](#kernel):     Kernel in several languages.
-- [modules](#modules):   Modules in several languages.
-- [performance](#performance): Performance tests.
-- [tests](#tests):       Tests.
-- [tools](#tools):       Compilation or building tools.
-- [utils](#utils):       Utilities for Yuneta.
-- [yunos](#yunos):       Yunos supplied by the SDK.
+- [docs](docs):         Documentation of Yuneta.
+- [kernel](kernel):     Kernel in several languages.
+- [modules](modules):   Modules in several languages.
+- [performance](performance): Performance tests.
+- [tests](tests):       Tests.
+- [tools](tools):       Compilation or building tools.
+- [utils](utils):       Utilities for Yuneta.
+- [yunos](yunos):       Yunos supplied by the SDK.
 
 ---
 
