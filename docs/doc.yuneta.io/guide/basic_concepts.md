@@ -84,18 +84,28 @@ A `gclass` provides a complete definition of the structure, behavior, and lifecy
 
 2. **Components of a Gclass**:
     - `gclass_name`: A unique identifier for the gclass. It must be distinct across all gclasses in the system.
+
     - `event_types`: A list of events supported by the gclass. Each event is defined with a name and associated flags. Events, along with commands and attributes, form the primary interface of a gobj. Events define how a gobj interacts with other gobjs and responds to external stimuli.
+
     - `states`: A simple finite state machine (FSM) defining:
         - States of the gobj.
         - Events supported in each state.
         - State transitions triggered by specific events.
+
     - `gmt`: Global Methods Table, a table of class methods executed by Yuneta's framework during specific lifecycle events.
+
     - `lmt`: Local Methods Table, A table of private methods that can be explicitly invoked by users using `gobj_exec_internal_method()`. Should only be used when necessary. The natural interface for interacting with gobjs is through events, commands, and attributes.
+
     - `tattr_desc`: Attribute Table, defines the attributes of the gclass. See [](attributes). Attributes form a crucial part of the gobj's interface. They configure the gobj and can dynamically modify its behavior at runtime. Changes to attributes can trigger monitoring or additional actions.
+
     - `priv_size`: Specifies the size of private data for the gobj. A memory buffer of this size is allocated for each gobj instance to store its private data (in C).
+
     - `authz_table`: Authorization Table, defines access restrictions for specific actions or commands based on user permissions. Enhances security by controlling access to sensitive operations.
+
     - `command_table`: Defines commands supported by the gclass. Commands can include parameters and operate independently of the FSM. Commands are parsed using an internal parser, which can be replaced in `gobj_start_up()` with a custom parser. Commands are a key part of the gobj's interface, allowing external systems or users to interact with the gobj directly.
+
     - `s_user_trace_level`: Defines trace levels for the gclass. These trace levels can be dynamically activated during runtime to log the activity and behavior of gobjs. Facilitates debugging and monitoring of gobj operations.
+
     - `gclass_flag`: A modifier for the gclass. Its behavior is defined by the `gclass_flag_t` type.
       May specify flags that alter class-level behavior, such as enabling or disabling specific features.
 
