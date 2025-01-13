@@ -92,30 +92,31 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
   - A function pointer for handling global statistics parsing. If `NULL`, the internal statistics parser is used. See [](stats_parser).
 
 * - `global_authorization_checker`
-  - [](authorization_checker_fn)
+  - [`authorization_checker_fn`](authorization_checker_fn)
   - A function pointer for performing global authorization checks.
-  See [](checker_authorization).
+  See [](authorization_checker).
 
 * - `global_authentication_parser`
-  - [](authentication_parser_fn)
+  - [`authentication_parser_fn`](authentication_parser_fn)
   - A function pointer for parsing and handling global authentication requests. 
-  See [](parser_authentication).
+  See [](authentication_parser).
 
 * - `mem_max_block`
   - `size_t`
   - Maximum size of memory blocks, in bytes. Default is `16M`.
   Customize in your [](yuno). 
-  Allocating a bigger block will cause the exit and re-launch of the [](yuno).
+  Allocating a bigger block will cause the exit and [`re-launch`](re-launch) of the [](yuno).
 
 * - `mem_max_system_memory`
   - `size_t`
   - Total memory limit for the system, in bytes. Default is `64M`.
   Customize in your [](yuno). 
-  Allocating a bigger block will cause the exit and re-launch of the [](yuno).
+  Allocating a bigger block will cause the exit and [`re-launch`](re-launch) of the [](yuno).
 
 * - `use_own_system_memory`
   - `BOOL`
   - Flag indicating whether to use the internal memory manager.
+   Default is `false`. {warning}`NOT IMPLEMENTED`
 
 * - `mem_min_block`
   - `size_t`
