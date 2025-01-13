@@ -149,7 +149,6 @@ Pre-supplied full applications or utilities built with Yuneta.
 - `tui_yunetas.py`:
   Text-based User Interface (TUI) for managing Yuneta.
 
----
 
 [sphinx]: https://www.sphinx-doc.org/
 [sphinx-book-theme]: https://sphinx-book-theme.readthedocs.io/en/stable/
