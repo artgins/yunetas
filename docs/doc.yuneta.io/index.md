@@ -86,22 +86,22 @@ guide/guide_authz.md
 :caption: GObj API
 :maxdepth: 3
 
-api/api_gobj_startup.md
-api/api_gobj_gclass.md
-api/api_gobj_creation.md
-api/api_gobj_attrs.md
-api/api_gobj_op.md
-api/api_gobj_events_state.md
-api/api_gobj_publish.md
-api/api_gobj_authz.md
-api/api_gobj_info.md
-api/api_gobj_stats.md
-api/api_gobj_node.md
-api/api_gobj_memory.md
-api/api_gobj_log.md
-api/api_gobj_trace.md
-api/api_gobj_gbuffer.md
-api/api_gobj_dl.md
+api/gobj/api_gobj_startup.md
+api/gobj/api_gobj_gclass.md
+api/gobj/api_gobj_creation.md
+api/gobj/api_gobj_attrs.md
+api/gobj/api_gobj_op.md
+api/gobj/api_gobj_events_state.md
+api/gobj/api_gobj_publish.md
+api/gobj/api_gobj_authz.md
+api/gobj/api_gobj_info.md
+api/gobj/api_gobj_stats.md
+api/gobj/api_gobj_node.md
+api/gobj/api_gobj_memory.md
+api/gobj/api_gobj_log.md
+api/gobj/api_gobj_trace.md
+api/gobj/api_gobj_gbuffer.md
+api/gobj/api_gobj_dl.md
 
 ```
 
