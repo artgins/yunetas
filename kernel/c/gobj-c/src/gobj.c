@@ -748,50 +748,6 @@ PUBLIC void gobj_end(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * gobj_gclass_register(void)
-{
-    json_t *jn_register = json_array();
-
-    gclass_t *gclass = dl_first(&dl_gclass);
-    while(gclass) {
-        json_t *jn_gclass = json_object();
-        json_object_set_new(
-            jn_gclass,
-            "gclass",
-            json_string(gclass->gclass_name)
-        );
-        json_object_set_new(
-            jn_gclass,
-            "instances",
-            json_integer(gclass->instances)
-        );
-
-        json_array_append_new(jn_register, jn_gclass);
-        gclass = dl_next(gclass);
-    }
-
-    return jn_register;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
-{
-    gclass_t *gclass = dl_first(&dl_gclass);
-    while(gclass) {
-        if(strcmp(gclass_name, gclass->gclass_name)==0) {
-            return gclass;
-        }
-        gclass = dl_next(gclass);
-    }
-
-    return NULL;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC hgclass gclass_create(
     gclass_name_t gclass_name,
     event_type_t *event_types,
@@ -1160,6 +1116,50 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
     return gclass->gclass_name;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t * gobj_gclass_register(void)
+{
+    json_t *jn_register = json_array();
+
+    gclass_t *gclass = dl_first(&dl_gclass);
+    while(gclass) {
+        json_t *jn_gclass = json_object();
+        json_object_set_new(
+            jn_gclass,
+            "gclass",
+            json_string(gclass->gclass_name)
+        );
+        json_object_set_new(
+            jn_gclass,
+            "instances",
+            json_integer(gclass->instances)
+        );
+
+        json_array_append_new(jn_register, jn_gclass);
+        gclass = dl_next(gclass);
+    }
+
+    return jn_register;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
+{
+    gclass_t *gclass = dl_first(&dl_gclass);
+    while(gclass) {
+        if(strcmp(gclass_name, gclass->gclass_name)==0) {
+            return gclass;
+        }
+        gclass = dl_next(gclass);
+    }
+
+    return NULL;
 }
 
 /***************************************************************************
