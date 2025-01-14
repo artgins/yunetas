@@ -51,39 +51,51 @@ PUBLIC hgclass gclass_create(
 * - Key
   - Type
   - Description
+
 * - `gclass_name`
-  - `gclass_name_t`
+  - [`gclass_name_t`](gclass_name_t)
   - The unique name of the GClass being created.
+
 * - `event_types`
-  - `event_type_t *`
+  - [`event_type_t *`](event_type_t)
   - Pointer to the table of events supported by the GClass, defining input and output events.
+
 * - `states`
-  - `states_t *`
+  - [`states_t *`](states_t)
   - Pointer to the finite state machine (FSM) definition for the GClass, specifying states and transitions.
+
 * - `gmt`
-  - `const GMETHODS *`
+  - [`const GMETHODS *`](GMETHODS)
   - Pointer to the table of global methods for the GClass, implementing its core behavior.
+
 * - `lmt`
-  - `const LMETHOD *`
+  - [`const LMETHOD *`](LMETHOD)
   - Pointer to the table of internal methods for the GClass, invoked explicitly as needed (optional).
+
 * - `tattr_desc`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - Pointer to the table defining the GClass attributes (type, name, flags, default value, and description).
+
 * - `priv_size`
   - `size_t`
   - The size of the private data buffer allocated for each GObj instance of the GClass.
+
 * - `authz_table`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - Pointer to the table defining authorization rules for the GClass (optional).
+
 * - `command_table`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - Pointer to the table defining commands available in the GClass (optional).
+
 * - `s_user_trace_level`
-  - `const trace_level_t *`
+  - [`const trace_level_t *`](trace_level_t)
   - Pointer to the table of trace levels for monitoring and debugging the GClass (optional).
+
 * - `gclass_flag`
-  - `gclass_flag_t`
+  - [`gclass_flag_t`](gclass_flag_t)
   - Flags modifying the GClass behavior (e.g., `gcflag_manual_start`, `gcflag_singleton`).
+
 ````
 
 <!---------------------------------------------------->

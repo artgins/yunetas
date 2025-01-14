@@ -94,6 +94,44 @@ hgobj
     typedef void *hgobj;
     ```
 
+states_t
+    ```C
+    typedef struct states_s {
+        gobj_state_t state_name;
+        ev_action_t *state;
+    } states_t;
+    ```
+
+ev_action_t
+    ```C
+    typedef struct {
+        gobj_event_t event;
+        gobj_action_fn action;
+        gobj_state_t next_state;
+    } ev_action_t;
+    ```
+
+gobj_action_fn
+    ```C
+    typedef int (*gobj_action_fn)(
+        hgobj gobj,
+        gobj_event_t event,
+        json_t *kw,
+        hgobj src
+    );
+    ```
+
+event_type_t
+
+    ```C
+    typedef struct event_type_s {
+        gobj_event_t event;
+        event_flag_t event_flag;
+    } event_type_t;
+    ```
+
+
+
 authorization_checker_fn
 
     The `authorization_checker_fn` is a function pointer type used for checking authorization rules. It evaluates whether a given operation is authorized based on the provided parameters.
