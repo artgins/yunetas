@@ -165,6 +165,14 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_subscribe_event",
+    "gobj_unsubscribe_event",
+    "gobj_unsubscribe_list",
+    "gobj_find_subscriptions",
+    "gobj_find_subscribings",
+    "gobj_list_subscriptions",
+    "gobj_publish_event",
+
 ]
 
 # Loop through the list of names and create a file for each

@@ -165,6 +165,17 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_set_allocators",
+    "gobj_get_allocators",
+    "gobj_malloc_func",
+    "gobj_realloc_func",
+    "gobj_calloc_func",
+    "gobj_free_func",
+    "gobj_strndup",
+    "gobj_strdup",
+    "gobj_get_maximum_block",
+    "print_track_mem",
+    "set_memory_check_list",
 ]
 
 # Loop through the list of names and create a file for each

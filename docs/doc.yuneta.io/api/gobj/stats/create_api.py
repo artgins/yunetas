@@ -165,6 +165,11 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_set_stat",
+    "gobj_incr_stat",
+    "gobj_decr_stat",
+    "gobj_get_stat",
+    "gobj_jn_stats",
 ]
 
 # Loop through the list of names and create a file for each

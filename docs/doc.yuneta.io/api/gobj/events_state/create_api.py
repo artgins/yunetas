@@ -165,6 +165,14 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_send_event",
+    "gobj_change_state",
+    "gobj_current_state",
+    "gobj_in_this_state",
+    "gobj_has_event",
+    "gobj_has_output_event",
+    "gobj_event_type",
+    "gobj_event_type_by_name",
 ]
 
 # Loop through the list of names and create a file for each

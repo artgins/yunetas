@@ -165,6 +165,53 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_yuno",
+    "gobj_yuno_name",
+    "gobj_yuno_role",
+    "gobj_yuno_id",
+    "gobj_yuno_tag",
+    "gobj_yuno_role_plus_name",
+    "gobj_yuno_realm_id",
+    "gobj_yuno_realm_owner",
+    "gobj_yuno_realm_role",
+    "gobj_yuno_realm_name",
+    "gobj_yuno_realm_env",
+    "gobj_yuno_node_owner",
+    "gobj_name",
+    "gobj_gclass_name",
+    "gobj_gclass",
+    "gobj_full_name",
+    "gobj_short_name",
+    "gobj_global_variables",
+    "gobj_priv_data",
+    "gobj_parent",
+    "gobj_is_destroying",
+    "gobj_is_running",
+    "gobj_is_playing",
+    "gobj_is_service",
+    "gobj_is_disabled",
+    "gobj_is_volatil",
+    "gobj_set_volatil",
+    "gobj_is_pure_child",
+
+    "gobj_typeof_gclass",
+    "gobj_typeof_inherited_gclass",
+    "get_max_system_memory",
+    "get_cur_system_memory",
+
+    "gclass_command_desc",
+    "gobj_command_desc",
+
+    "get_sdata_flag_table",
+    "get_sdata_flag_desc",
+
+    "get_attrs_schema",
+
+    "gclass2json",
+
+    "gobj2json",
+    "view_gobj_tree",
+
 ]
 
 # Loop through the list of names and create a file for each

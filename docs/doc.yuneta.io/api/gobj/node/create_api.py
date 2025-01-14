@@ -165,6 +165,28 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_treedbs",
+    "gobj_treedb_topics",
+    "gobj_topic_desc",
+    "gobj_topic_links",
+    "gobj_topic_hooks",
+    "gobj_topic_size",
+    "gobj_create_node",
+    "gobj_update_node",
+    "gobj_delete_node",
+    "gobj_link_nodes",
+    "gobj_unlink_nodes",
+    "gobj_get_node",
+    "gobj_list_nodes",
+    "gobj_list_instances",
+    "gobj_node_parents",
+    "gobj_node_childs",
+    "gobj_topic_jtree",
+    "gobj_node_tree",
+    "gobj_shoot_snap",
+    "gobj_activate_snap",
+    "gobj_list_snaps",
+
 ]
 
 # Loop through the list of names and create a file for each

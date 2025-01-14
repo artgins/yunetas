@@ -165,6 +165,39 @@ template = Template("""
 
 # List of names
 names = [
+    "gobj_repr_global_trace_levels",
+    "gobj_repr_gclass_trace_levels",
+    "gobj_trace_level_list",
+    "gobj_get_global_trace_level",
+    "gobj_get_gclass_trace_level",
+    "gobj_get_gclass_trace_no_level",
+    "gobj_get_gobj_trace_level",
+    "gobj_get_gobj_trace_no_level",
+
+    "gobj_get_gclass_trace_level_list",
+    "gobj_get_gclass_trace_no_level_list",
+    "gobj_get_gobj_trace_level_tree",
+    "gobj_get_gobj_trace_no_level_tree",
+
+    "gobj_trace_level",
+    "gobj_trace_no_level",
+    "is_level_tracing",
+    "is_level_not_tracing",
+
+    "gobj_set_gobj_trace",
+    "gobj_set_gclass_trace",
+    "gobj_set_deep_tracing",
+    "gobj_get_deep_tracing",
+    "gobj_set_global_trace",
+    "gobj_set_global_no_trace",
+    "gobj_load_trace_filter",
+    "gobj_add_trace_filter",
+    "gobj_remove_trace_filter",
+    "gobj_get_trace_filter",
+
+    "gobj_set_gclass_no_trace",
+    "gobj_set_gobj_no_trace",
+    "trace_machine",
 ]
 
 # Loop through the list of names and create a file for each

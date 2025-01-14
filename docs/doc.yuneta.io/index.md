@@ -93,6 +93,7 @@ api/api_gobj_attrs.md
 api/api_gobj_op.md
 api/api_gobj_events_state.md
 api/api_gobj_publish.md
+api/api_gobj_authz.md
 api/api_gobj_info.md
 api/api_gobj_stats.md
 api/api_gobj_node.md
