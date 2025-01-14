@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(gobj_end())=
-# `gobj_end()`
+(gclass_add_ev_action())=
+# `gclass_add_ev_action()`
 <!-- ============================================================== -->
 
 De-initialize the gobj's system, free resources.
@@ -24,7 +24,7 @@ De-initialize the gobj's system, free resources.
 **Prototype**
 
 ````C
-PUBLIC void gobj_end(void);
+PUBLIC void gclass_add_ev_action(void);
 ````
 
 <!--====================================================-->

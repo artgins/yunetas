@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(gobj_end())=
-# `gobj_end()`
+(gclass_unregister())=
+# `gclass_unregister()`
 <!-- ============================================================== -->
 
 De-initialize the gobj's system, free resources.
@@ -24,7 +24,7 @@ De-initialize the gobj's system, free resources.
 **Prototype**
 
 ````C
-PUBLIC void gobj_end(void);
+PUBLIC void gclass_unregister(void);
 ````
 
 <!--====================================================-->

@@ -1121,7 +1121,7 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * gclass_get_register(void)
+PUBLIC json_t * gclass_gclass_register(void)
 {
     json_t *jn_register = json_array();
 
@@ -1315,7 +1315,7 @@ PUBLIC hgobj gobj_service_factory(
             "gclass",       "%s", gclass_name,
             NULL
         );
-        json_t *jn_gclasses = gclass_get_register();
+        json_t *jn_gclasses = gclass_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
         gobj_trace_json(0, jn_service_config, "gclass NOT FOUND");
@@ -1501,7 +1501,7 @@ PUBLIC hgobj gobj_create_gobj(
             "gobj_name",    "%s", gobj_name,
             NULL
         );
-        json_t *jn_gclasses = gclass_get_register();
+        json_t *jn_gclasses = gclass_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
         JSON_DECREF(kw)
@@ -1690,7 +1690,7 @@ PUBLIC hgobj gobj_create_tree0(
             "name",         "%s", name?name:"",
             NULL
         );
-        json_t *jn_gclasses = gclass_get_register();
+        json_t *jn_gclasses = gclass_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
         JSON_DECREF(jn_tree)

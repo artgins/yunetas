@@ -809,7 +809,7 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
         0,
         0,
         0,
-        gclass_get_register()
+        gclass_gclass_register()
     );
     JSON_DECREF(kw)
     return jn_response;
