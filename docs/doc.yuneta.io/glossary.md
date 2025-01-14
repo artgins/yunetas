@@ -95,6 +95,8 @@ hgobj
     ```
 
 states_t
+
+    In C:
     ```C
     typedef struct states_s {
         gobj_state_t state_name;
@@ -103,6 +105,8 @@ states_t
     ```
 
 ev_action_t
+
+    In C:
     ```C
     typedef struct {
         gobj_event_t event;
@@ -112,6 +116,8 @@ ev_action_t
     ```
 
 gobj_action_fn
+
+    In C:
     ```C
     typedef int (*gobj_action_fn)(
         hgobj gobj,
@@ -123,6 +129,7 @@ gobj_action_fn
 
 event_type_t
 
+    In C:
     ```C
     typedef struct event_type_s {
         gobj_event_t event;
@@ -130,6 +137,16 @@ event_type_t
     } event_type_t;
     ```
 
+trace_level_t
+    `trace_level_t` is used to describe trace levels
+
+    In C:
+    ```C
+    typedef struct {
+        const char *name;
+        const char *description;
+    } trace_level_t;
+    ```
 
 
 authorization_checker_fn

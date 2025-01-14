@@ -106,7 +106,7 @@ PUBLIC hgclass gclass_create(
 
 **Return Value**
 
-- Returns a handle to the created GClass (hgclass).
+- Returns a handle to the created GClass [](hgclass).
 
 
 <!--====================================================-->

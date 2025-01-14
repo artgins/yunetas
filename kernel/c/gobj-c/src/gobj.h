@@ -1037,11 +1037,6 @@ typedef struct {
     const char *description;
 } trace_level_t;
 
-typedef struct {
-    const char *name;
-    const char *description;
-} authz_level_t;
-
 typedef enum { // HACK strict ascendant value!, strings in gclass_flag_names
     gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start. TODO do same with stop
     gcflag_no_check_output_events   = 0x0002,   // When publishing don't check events in output_event_list.
