@@ -193,22 +193,16 @@ names = [
     "gobj_is_volatil",
     "gobj_set_volatil",
     "gobj_is_pure_child",
-
     "gobj_typeof_gclass",
     "gobj_typeof_inherited_gclass",
     "get_max_system_memory",
     "get_cur_system_memory",
-
     "gclass_command_desc",
     "gobj_command_desc",
-
     "get_sdata_flag_table",
     "get_sdata_flag_desc",
-
     "get_attrs_schema",
-
     "gclass2json",
-
     "gobj2json",
     "view_gobj_tree",
 
