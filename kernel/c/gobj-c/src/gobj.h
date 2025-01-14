@@ -303,17 +303,6 @@ typedef enum {
     DTP_POINTER
 } data_type_t;
 
-// TODO backward compatibility: migrate old ASN_* to new DTP_*
-//#define ASN_OCTET_STR   DTP_STRING
-//#define ASN_BOOLEAN     DTP_BOOLEAN
-//#define ASN_INTEGER     DTP_INTEGER
-//#define ASN_UNSIGNED    DTP_INTEGER
-//#define ASN_COUNTER64   DTP_INTEGER
-//#define ASN_DOUBLE      DTP_REAL
-//#define ASN_INTEGER64   DTP_INTEGER
-//#define ASN_UNSIGNED64  DTP_INTEGER
-//#define ASN_POINTER     DTP_POINTER
-//#define ASN_JSON        DTP_JSON
 
 #define DTP_IS_STRING(type)     ((type) == DTP_STRING)
 #define DTP_IS_BOOLEAN(type)    ((type) == DTP_BOOLEAN)
