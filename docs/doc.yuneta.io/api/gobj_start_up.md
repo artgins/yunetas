@@ -3,15 +3,29 @@
 # `gobj_start_up()`
 <!-- ============================================================== -->
 
-Initialize a Yuno instance.
+The `gobj_start_up()` function initializes the GObj system and prepares the [](yuno) for operation. It applies global configurations, sets up memory management, and integrates key components like command parsing, statistics handling, and user authentication.
 
-This function prepares a Yuno for operation by setting global configurations, handling persistent attributes, and configuring memory management. It serves as the entry point for starting a Yuno instance.
+### Key Features:
+1. **Global Settings**:
+   Accepts a JSON object [](global_settings) that defines configuration attributes for classes and objects in the Yuno. These attributes are applied to each GObj upon creation.
 
-To properly terminate the Yuno, call the function [](gobj_end()).
+2. **Persistent Attributes**:
+   Uses database functions [](persistent_attrs_t) to store and retrieve persistent attributes marked in Gobjs.
 
-```{tip}
-The [](gobj_start_up()) function serves as the entry point to Yuno and must be invoked before utilizing any other GObj functionalities. Similarly, its counterpart, [](gobj_end()), should be called to properly terminate and exit Yuno.
-```
+3. **Custom Parsers**:
+   - **Command Parser**: Parses commands for Gobjs. Defaults to a built-in parser if `NULL`. See [](command_parser).
+   - **Statistics Parser**: Handles GObj statistics requests, linked to attributes flagged with `SDF_STATS`. Defaults to a built-in function if `NULL`. See [](stats_parser).
+
+4. **User Management**:
+   - **Authorization Checker**: Validates user permissions for commands, attributes, and events. See [](authorization_checker).
+   - **Authentication Parser**: Authenticates users with a built-in or custom function. See [](authentication_parser).
+
+5. **Memory Management**:
+   Configures limits for memory block size (`mem_max_block`) and total system memory (`mem_max_system_memory`). Exceeding these limits triggers a Yuno **exit** and [](re-launch).
+
+### Usage:
+`gobj_start_up()` must be called before using any GObj functionalities. To terminate properly, use its counterpart, [`gobj_end()`](gobj_end).
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -40,7 +54,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,
-    json_function_fn            global_stats_parser,
+    json_function_fn            global_statistics_parser,
     authorization_checker_fn    global_authorization_checker,
     authentication_parser_fn    global_authentication_parser,
     size_t                      mem_max_block,
@@ -80,14 +94,14 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
 
 * - `persistent_attrs`
   - [`persistent_attrs_t`](persistent_attrs_t)
-  - A structure containing database functions for managing persistent attributes. 
+  - A structure containing database functions for managing persistent attributes of gobjs. 
     See [](persistent_attrs_t).
 
 * - `global_command_parser`
   - [`json_function_fn`](json_function_fn)
   - A function pointer for handling global command parsing. If `NULL`, the internal command parser is used. See [](command_parser).
 
-* - `global_stats_parser`
+* - `global_statistics_parser`
   - [`json_function_fn`](json_function_fn)
   - A function pointer for handling global statistics parsing. If `NULL`, the internal statistics parser is used. See [](stats_parser).
 

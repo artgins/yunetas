@@ -1159,7 +1159,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
-    json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
+    json_function_fn            global_statistics_parser,    /* if NULL, use internal stats parser */
     authorization_checker_fn    global_authorization_checker,   /* authorization checker function */
     authentication_parser_fn    global_authentication_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */

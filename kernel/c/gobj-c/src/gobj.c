@@ -539,7 +539,7 @@ PUBLIC int gobj_start_up(
     const json_t                *jn_global_settings,    /* NOT owned */
     const persistent_attrs_t    *persistent_attrs,
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
-    json_function_fn            global_stats_parser,    /* if NULL, use internal stats parser */
+    json_function_fn            global_statistics_parser, /* if NULL, use internal stats parser */
     authorization_checker_fn    global_authorization_checker, /* authorization checker function */
     authentication_parser_fn    global_authentication_parser, /* authentication parser function */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
@@ -578,7 +578,7 @@ PUBLIC int gobj_start_up(
     __global_remove_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->remove:NULL;
     __global_list_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->list:NULL;
     __global_command_parser_fn__ = global_command_parser;
-    __global_stats_parser_fn__ = global_stats_parser;
+    __global_stats_parser_fn__ = global_statistics_parser;
     __global_authorization_checker_fn__ = global_authorization_checker;
     __global_authentication_parser_fn__ = global_authentication_parser;
 
