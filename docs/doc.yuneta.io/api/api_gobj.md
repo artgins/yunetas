@@ -1,4 +1,4 @@
-# **gobj api**
+# GObj API
 
 ```{toctree}
 :caption: Startup functions
