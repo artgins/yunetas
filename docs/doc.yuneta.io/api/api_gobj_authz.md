@@ -1,7 +1,7 @@
-# Authz
+# Authz functions
 
 ```{toctree}
-:caption: Authz
+:caption: Authz functions
 :maxdepth: 2
 
 gobj/authz/gobj_authenticate.md
