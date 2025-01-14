@@ -46,6 +46,53 @@ json_function_fn
     - Returns a `json_t` object as the result of the processing.
 
 
+gclass_name_t
+    Unique pointer that exposes gclass names, defined as:
+
+    In C:
+    ```C
+    typedef const char *gclass_name_t;
+    ```
+
+gobj_state_t
+    Unique pointer that exposes state names, defined as:
+
+    In C:
+    ```C
+    typedef const char *gobj_state_t;
+    ```
+
+gobj_event_t
+    Unique pointer that exposes event names, defined as:
+
+    In C:
+    ```C
+    typedef const char *gobj_event_t;
+    ```
+
+gobj_lmethod_t
+    Unique pointer that exposes local methods names, defined as:
+
+    In C:
+    ```C
+    typedef const char *gobj_lmethod_t;
+    ```
+
+hgclass
+    Handler of a gclass, defined as:
+
+    In C:
+    ```C
+    typedef void *hgclass;
+    ```
+
+hgobj
+    Handler of a gobj, defines as:
+
+    In C:
+    ```C
+    typedef void *hgobj;
+    ```
 
 authorization_checker_fn
 

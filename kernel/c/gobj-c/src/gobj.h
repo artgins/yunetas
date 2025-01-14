@@ -526,8 +526,8 @@ typedef const char *gobj_state_t;       /**< unique pointer that exposes states 
 typedef const char *gobj_event_t;       /**< unique pointer that exposes events */
 typedef const char *gobj_lmethod_t;     /**< unique pointer that exposes local methods */
 
-typedef void *hgclass;
-typedef void *hgobj;
+typedef void *hgclass;      /* handler of a gclass */
+typedef void *hgobj;        /* handler of a gobj */
 
 /*
  *  Prototypes of functions to manage persistent attributes
