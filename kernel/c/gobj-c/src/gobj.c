@@ -776,34 +776,6 @@ PUBLIC json_t * gobj_gclass_register(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_service_register(void)
-{
-    json_t *jn_register = json_array();
-
-    const char *key; json_t *jn_service;
-    json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
-        json_t *jn_srv = json_object();
-
-        json_object_set_new(
-            jn_srv,
-            "gclass",
-            json_string(gobj_gclass_name(gobj))
-        );
-        json_object_set_new(
-            jn_srv,
-            "service",
-            json_string(key)
-        );
-        json_array_append_new(jn_register, jn_srv);
-    }
-
-    return jn_register;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
 {
     gclass_t *gclass = dl_first(&dl_gclass);
@@ -1219,7 +1191,7 @@ PRIVATE int add_event_type(
 
 
                     /*---------------------------------*
-                     *      GObj create functions
+                     *      GObj creation functions
                      *---------------------------------*/
 
 
@@ -1275,6 +1247,34 @@ PUBLIC json_t *kw_apply_json_config_variables(
         return 0;
     }
     return kw_new;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_service_register(void)
+{
+    json_t *jn_register = json_array();
+
+    const char *key; json_t *jn_service;
+    json_object_foreach(__jn_services__, key, jn_service) {
+        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        json_t *jn_srv = json_object();
+
+        json_object_set_new(
+            jn_srv,
+            "gclass",
+            json_string(gobj_gclass_name(gobj))
+        );
+        json_object_set_new(
+            jn_srv,
+            "service",
+            json_string(key)
+        );
+        json_array_append_new(jn_register, jn_srv);
+    }
+
+    return jn_register;
 }
 
 /***************************************************************************
