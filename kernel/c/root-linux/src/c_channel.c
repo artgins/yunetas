@@ -33,7 +33,6 @@
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
-//TODO queue tx
 
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
