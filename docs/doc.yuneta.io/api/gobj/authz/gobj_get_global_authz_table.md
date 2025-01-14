@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_get_global_authz_table}())=
-# `{gobj_get_global_authz_table}()`
+(gobj_get_global_authz_table())=
+# `gobj_get_global_authz_table()`
 <!-- ============================================================== -->
 
 

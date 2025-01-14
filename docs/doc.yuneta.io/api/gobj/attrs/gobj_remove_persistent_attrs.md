@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_remove_persistent_attrs}())=
-# `{gobj_remove_persistent_attrs}()`
+(gobj_remove_persistent_attrs())=
+# `gobj_remove_persistent_attrs()`
 <!-- ============================================================== -->
 
 

@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_find_service_by_gclass}())=
-# `{gobj_find_service_by_gclass}()`
+(gobj_find_service_by_gclass())=
+# `gobj_find_service_by_gclass()`
 <!-- ============================================================== -->
 
 

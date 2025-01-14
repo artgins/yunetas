@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_typeof_inherited_gclass}())=
-# `{gobj_typeof_inherited_gclass}()`
+(gobj_typeof_inherited_gclass())=
+# `gobj_typeof_inherited_gclass()`
 <!-- ============================================================== -->
 
 

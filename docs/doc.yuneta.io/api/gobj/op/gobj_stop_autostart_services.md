@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_stop_autostart_services}())=
-# `{gobj_stop_autostart_services}()`
+(gobj_stop_autostart_services())=
+# `gobj_stop_autostart_services()`
 <!-- ============================================================== -->
 
 

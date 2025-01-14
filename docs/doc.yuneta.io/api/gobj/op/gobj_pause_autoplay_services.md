@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_pause_autoplay_services}())=
-# `{gobj_pause_autoplay_services}()`
+(gobj_pause_autoplay_services())=
+# `gobj_pause_autoplay_services()`
 <!-- ============================================================== -->
 
 

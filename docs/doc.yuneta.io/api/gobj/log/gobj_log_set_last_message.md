@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_log_set_last_message}())=
-# `{gobj_log_set_last_message}()`
+(gobj_log_set_last_message())=
+# `gobj_log_set_last_message()`
 <!-- ============================================================== -->
 
 

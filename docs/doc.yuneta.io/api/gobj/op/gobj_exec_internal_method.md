@@ -1,11 +1,11 @@
+
+
 <!-- ============================================================== -->
 (gobj_exec_internal_method())=
 # `gobj_exec_internal_method()`
 <!-- ============================================================== -->
 
-TODO C Function summary
 
-TODO Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -19,44 +19,18 @@ TODO Bla bla bla bla bla bla bla bla bla bla bla bla bla bla bla
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-TODO C prototype
-````
-
-<!---------------------------------------------------->
-<!--                C Parameters                    -->
-<!---------------------------------------------------->
+```C
+```
 
 **Parameters**
 
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-````
-TODO add C arguments of the function to the table
 
-<!---------------------------------------------------->
-<!--                C Return                        -->
-<!---------------------------------------------------->
+---
 
 **Return Value**
 
-TODO C return
- 
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -77,37 +51,8 @@ TODO C return
 **Prototype**
 
 ````JS
-TODO JS prototype
+// Not applicable in JS
 ````
-
-<!---------------------------------------------------->
-<!--                JS Parameters                   -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-````
-TODO add JS arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                JS Return                       -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO JS return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    EndTab JS                       -->
@@ -128,37 +73,8 @@ TODO JS return
 **Prototype**
 
 ````Python
-TODO Pyton prototype
+# Not applicable in Python
 ````
-<!---------------------------------------------------->
-<!--                Python Parameters               -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-
-````
-TODO add Python arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                Python Return                   -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO C return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    End Tab Python                   -->
@@ -239,3 +155,4 @@ TODO C return
 ``````
 
 ```````
+

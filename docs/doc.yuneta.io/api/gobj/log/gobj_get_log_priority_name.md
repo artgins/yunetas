@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_get_log_priority_name}())=
-# `{gobj_get_log_priority_name}()`
+(gobj_get_log_priority_name())=
+# `gobj_get_log_priority_name()`
 <!-- ============================================================== -->
 
 

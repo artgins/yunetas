@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_reset_volatil_attrs}())=
-# `{gobj_reset_volatil_attrs}()`
+(gobj_reset_volatil_attrs())=
+# `gobj_reset_volatil_attrs()`
 <!-- ============================================================== -->
 
 

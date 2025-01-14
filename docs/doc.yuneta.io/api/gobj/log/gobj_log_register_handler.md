@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_log_register_handler}())=
-# `{gobj_log_register_handler}()`
+(gobj_log_register_handler())=
+# `gobj_log_register_handler()`
 <!-- ============================================================== -->
 
 

@@ -6,8 +6,8 @@ import os
 template = Template("""
 
 <!-- ============================================================== -->
-({$_name_}())=
-# `{$_name_}()`
+($_name_())=
+# `$_name_()`
 <!-- ============================================================== -->
 
 
@@ -165,7 +165,7 @@ template = Template("""
 
 # List of names
 names = [
-    "glog_init"
+    "glog_init",
     "glog_end",
     "gobj_log_register_handler",
     "gobj_log_exist_handler",

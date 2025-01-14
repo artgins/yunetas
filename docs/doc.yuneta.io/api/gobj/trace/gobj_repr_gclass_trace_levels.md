@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_repr_gclass_trace_levels}())=
-# `{gobj_repr_gclass_trace_levels}()`
+(gobj_repr_gclass_trace_levels())=
+# `gobj_repr_gclass_trace_levels()`
 <!-- ============================================================== -->
 
 

@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_repr_global_trace_levels}())=
-# `{gobj_repr_global_trace_levels}()`
+(gobj_repr_global_trace_levels())=
+# `gobj_repr_global_trace_levels()`
 <!-- ============================================================== -->
 
 

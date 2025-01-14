@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_walk_gobj_childs_tree}())=
-# `{gobj_walk_gobj_childs_tree}()`
+(gobj_walk_gobj_childs_tree())=
+# `gobj_walk_gobj_childs_tree()`
 <!-- ============================================================== -->
 
 

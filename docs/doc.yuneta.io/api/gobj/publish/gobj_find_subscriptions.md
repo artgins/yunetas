@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_find_subscriptions}())=
-# `{gobj_find_subscriptions}()`
+(gobj_find_subscriptions())=
+# `gobj_find_subscriptions()`
 <!-- ============================================================== -->
 
 

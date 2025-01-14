@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_get_gobj_trace_no_level_tree}())=
-# `{gobj_get_gobj_trace_no_level_tree}()`
+(gobj_get_gobj_trace_no_level_tree())=
+# `gobj_get_gobj_trace_no_level_tree()`
 <!-- ============================================================== -->
 
 

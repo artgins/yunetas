@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_remove_trace_filter}())=
-# `{gobj_remove_trace_filter}()`
+(gobj_remove_trace_filter())=
+# `gobj_remove_trace_filter()`
 <!-- ============================================================== -->
 
 

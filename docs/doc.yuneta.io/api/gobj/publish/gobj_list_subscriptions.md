@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-({gobj_list_subscriptions}())=
-# `{gobj_list_subscriptions}()`
+(gobj_list_subscriptions())=
+# `gobj_list_subscriptions()`
 <!-- ============================================================== -->
 
 
