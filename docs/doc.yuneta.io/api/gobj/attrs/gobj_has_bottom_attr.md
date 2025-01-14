@@ -26,26 +26,11 @@
 
 **Parameters**
 
-:::{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to which the state is being added.
-* - `state_name`
-  - [`gobj_state_t`](gobj_state_t)
-  - The name of the state to add to the FSM.
-:::
 
 ---
 
 **Return Value**
 
-- `0`: The state was successfully added.
-- `-1`: The state could not be added (e.g., if it already exists).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

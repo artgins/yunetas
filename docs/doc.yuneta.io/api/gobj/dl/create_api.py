@@ -31,26 +31,11 @@ template = Template("""
 
 **Parameters**
 
-:::{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to which the state is being added.
-* - `state_name`
-  - [`gobj_state_t`](gobj_state_t)
-  - The name of the state to add to the FSM.
-:::
 
 ---
 
 **Return Value**
 
-- `0`: The state was successfully added.
-- `-1`: The state could not be added (e.g., if it already exists).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,6 +165,17 @@ template = Template("""
 
 # List of names
 names = [
+    "dl_init",
+    "dl_first",
+    "dl_last",
+    "dl_next",
+    "dl_prev",
+    "dl_insert",
+    "dl_add",
+    "dl_find",
+    "dl_delete",
+    "dl_flush",
+    "dl_size",
 ]
 
 # Loop through the list of names and create a file for each
