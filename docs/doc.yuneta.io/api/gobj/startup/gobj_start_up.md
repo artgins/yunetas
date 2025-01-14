@@ -24,7 +24,7 @@ The `gobj_start_up()` function initializes the GObj system and prepares the [](y
    Configures limits for memory block size (`mem_max_block`) and total system memory (`mem_max_system_memory`). Exceeding these limits triggers a Yuno **exit** and [](re-launch).
 
 **Usage:**
-`gobj_start_up()` must be called before using any GObj functionalities. To terminate properly, use its counterpart, [`gobj_end()`](gobj_end).
+`gobj_start_up()` must be called before using any GObj functionalities. To terminate properly, use its counterpart, [`gobj_end()`](gobj_end.md).
 
 ---
 
