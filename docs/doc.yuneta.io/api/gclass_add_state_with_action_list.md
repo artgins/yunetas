@@ -23,13 +23,13 @@ Adds a new state to the finite state machine (FSM) of a GClass, along with a lis
 
 **Prototype**
 
-:::C
+```C
 PUBLIC int gclass_add_state_with_action_list(
     hgclass         gclass,
     gobj_state_t    state_name,
     ev_action_t     *ev_action_list
 );
-:::
+```
 
 **Parameters**
 

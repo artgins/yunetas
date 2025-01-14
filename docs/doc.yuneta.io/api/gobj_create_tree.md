@@ -1,9 +1,10 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_create_tree())=
+# `gobj_create_tree()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Parses a hierarchical tree configuration and creates a GObj tree.  
+This function builds a parent-child hierarchy of Gobjs based on the provided configuration.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +18,13 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+PUBLIC hgobj gobj_create_tree(
+    hgobj        parent,
+    const char   *tree_config,
+    const char   *json_config_variables
 );
 ```
 
@@ -38,16 +37,24 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `parent`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj under which the tree is created. If `NULL`, the tree is created at the root level.
+
+* - `tree_config`
+  - `const char *`
+  - A JSON string or configuration file that defines the structure and attributes of the GObj tree.
+
+* - `json_config_variables`
+  - `const char *`
+  - A JSON string specifying additional variables or overrides for the `tree_config`.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+- Returns the handle ([`hgobj`](hgobj)) to the root of the created GObj tree.  
+- Returns `NULL` if the creation fails.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -19,11 +19,11 @@ Unregisters a previously registered GClass, removing it from the system.
 
 **Prototype**
 
-:::C
+```C
 PUBLIC void gclass_unregister(
     hgclass gclass
 );
-:::
+```
 
 **Parameters**
 

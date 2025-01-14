@@ -1,9 +1,10 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_create_volatil())=
+# `gobj_create_volatil()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Creates a new GObj instance configured as volatile.  
+Volatile Gobjs are short-lived objects that are automatically destroyed after completing their purpose.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,16 +18,11 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
-);
+#define gobj_create_volatil(name, gclass, kw, parent) \
+    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_volatil)
 ```
 
 **Parameters**
@@ -38,16 +34,28 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
+* - `name`
+  - `const char *`
+  - The name of the volatile GObj to be created.
+
+* - `gclass`
   - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+  - The name of the GClass from which the GObj will be instantiated.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
+
+* - `parent`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj under which the volatile GObj will be created. If `NULL`, the GObj is created without a parent.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+- Returns the handle ([`hgobj`](hgobj)) to the created volatile GObj.  
+- Returns `NULL` if the creation fails.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

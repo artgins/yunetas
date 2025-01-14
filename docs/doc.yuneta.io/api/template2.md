@@ -5,9 +5,9 @@ Describe the function
 
 **Prototype**
 
-:::C
+```C
 PUBLIC void sample_function(int exit_code);
-:::
+```
 
 **Parameters**
 

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_service_register())=
+# `gobj_service_register()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Retrieves a list of all registered services in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,16 +17,10 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
-);
+PUBLIC json_t *gobj_service_register(void);
 ```
 
 **Parameters**
@@ -38,16 +32,19 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+- Returns a JSON array ([`json_t`](json_t)) containing details of registered services.  
+  Each entry in the array includes:
+  - `gclass`: The name of the GClass the service belongs to.
+  - `service`: The name of the service.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

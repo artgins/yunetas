@@ -1,9 +1,10 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_destroy_childs())=
+# `gobj_destroy_childs()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Destroys all child Gobjs of the specified parent GObj.  
+This function ensures that the parent GObj is cleared of all its descendants while properly releasing resources and maintaining hierarchy integrity.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +18,11 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+PUBLIC void gobj_destroy_childs(
+    hgobj gobj
 );
 ```
 
@@ -38,16 +35,15 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj whose child Gobjs will be destroyed.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+    This function does not return a value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

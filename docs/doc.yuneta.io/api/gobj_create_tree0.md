@@ -1,9 +1,11 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_create_tree0())=
+# `gobj_create_tree0()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Creates a GObj tree using a hierarchical JSON structure.  
+This function directly uses the provided JSON object to build a parent-child hierarchy of Gobjs.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +19,12 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+PUBLIC hgobj gobj_create_tree0(
+    hgobj    parent,
+    json_t   *jn_tree
 );
 ```
 
@@ -38,16 +37,21 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `parent`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj under which the tree is created. If `NULL`, the tree is created at the root level.
+
+* - `jn_tree`
+  - [`json_t *`](json_t)
+  - JSON object that defines the GObj tree structure.  
+    This includes attributes for each GObj, its children, and configuration flags such as `autostart`, `service`, or `pure_child`.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+- Returns the handle ([`hgobj`](hgobj)) to the root of the created GObj tree.  
+- Returns `NULL` if the creation fails.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

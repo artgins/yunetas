@@ -19,9 +19,9 @@ Retrieves a list of all registered GClasses in the system.
 
 **Prototype**
 
-:::C
+```C
 PUBLIC json_t *gclass_gclass_register(void);
-:::
+```
 
 **Parameters**
 

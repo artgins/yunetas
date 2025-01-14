@@ -1,9 +1,11 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_destroy())=
+# `gobj_destroy()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+
+Destroys a specified GObj, releasing its resources and unlinking it from its parent and children.  
+This function ensures the proper cleanup of the GObj's memory and any associated resources.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,19 +19,13 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+PUBLIC void gobj_destroy(
+    hgobj gobj
 );
 ```
-
-**Parameters**
 
 :::{list-table}
 :widths: 10 5 40
@@ -38,16 +34,15 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be destroyed.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+    This function does not return a value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

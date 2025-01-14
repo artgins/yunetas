@@ -23,12 +23,12 @@ Finds a public event by its name in a GClass.
 
 **Prototype**
 
-:::C
+```C
 PUBLIC gobj_event_t gclass_find_public_event(
     const char      *event,
     BOOL            verbose
 );
-:::
+```
 
 **Parameters**
 

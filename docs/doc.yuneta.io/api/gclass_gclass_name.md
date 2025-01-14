@@ -19,11 +19,11 @@ Retrieves the name of a specified GClass.
 
 **Prototype**
 
-:::C
+```C
 PUBLIC gclass_name_t gclass_gclass_name(
     hgclass gclass
 );
-:::
+```
 
 **Parameters**
 

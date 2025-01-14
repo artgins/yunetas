@@ -9,7 +9,13 @@ PUBLIC
     Defines a function or variable with external linkage.
 
 BOOL
-    Boolean type (`true` or `false`).
+    Boolean type (`TRUE` or `FALSE`).
+
+TRUE
+    `0`
+
+FALSE
+    `0`
 
 MIN
     Returns the smaller of `a` and `b`.

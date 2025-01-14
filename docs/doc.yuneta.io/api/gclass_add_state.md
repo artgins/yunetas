@@ -19,12 +19,12 @@ Adds a new state to the finite state machine (FSM) of a GClass.
 
 **Prototype**
 
-:::C
+```C
 PUBLIC int gclass_add_state(
     hgclass gclass,
     gobj_state_t state_name
 );
-:::
+```
 
 **Parameters**
 

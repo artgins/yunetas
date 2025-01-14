@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
-# `gclass_find_by_name()`
+(gobj_service_factory())=
+# `gobj_service_factory()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Creates a service GObj using the specified configuration. This is typically used in the entry point to initialize and run services.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,12 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+PUBLIC hgobj gobj_service_factory(
+    const char  *name,
+    json_t      *jn_service_config // owned
 );
 ```
 
@@ -38,16 +35,20 @@ PUBLIC hgclass gclass_find_by_name(
   - Type
   - Description
 
-* - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
+* - `name`
+  - `const char *`
+  - The name of the service GObj to be created.
+
+* - `jn_service_config`
+  - [`json_t *`](json_t)
+  - JSON configuration for the service, specifying attributes and initialization parameters. This parameter is owned by the function.
 
 :::
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+- Returns the handle ([`hgobj`](hgobj)) to the created service GObj.  
+- Returns `NULL` if the creation fails.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
