@@ -3,7 +3,7 @@
 # `gclass_add_ev_action()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Adds an event-action pair to a specific state in the finite state machine (FSM) of a GClass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,8 +24,51 @@ De-initialize the gobj's system, free resources.
 **Prototype**
 
 ````C
-PUBLIC void gclass_add_ev_action(void);
+PUBLIC int gclass_add_ev_action(
+    hgclass         gclass,
+    gobj_state_t    state_name,
+    gobj_event_t    event,
+    gobj_action_fn  action,
+    gobj_state_t    next_state
+);
 ````
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass to which the event-action pair is being added.
+
+* - `state_name`
+  - [`gobj_state_t`](gobj_state_t)
+  - The name of the state where the event-action pair will be added.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event that triggers the specified action.
+
+* - `action`
+  - [`gobj_action_fn`](gobj_action_fn)
+  - The function to execute when the event occurs.
+
+* - `next_state`
+  - [`gobj_state_t`](gobj_state_t)
+  - The next state to transition to after the action is executed. If no transition is required, set this to `NULL` or `0`.
+
+:::
+
+**Return Value**
+
+- `0`: The event-action pair was successfully added.  
+- `-1`: The event-action pair could not be added (e.g., if the state does not exist).
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

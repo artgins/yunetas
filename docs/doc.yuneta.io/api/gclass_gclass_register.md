@@ -3,7 +3,7 @@
 # `gclass_gclass_register()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Retrieves a list of all registered GClasses in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,33 @@ De-initialize the gobj's system, free resources.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gclass_gclass_register(void);
-````
+:::C
+PUBLIC json_t *gclass_gclass_register(void);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+
+:::
+
+**Return Value**
+
+- Returns a JSON object ([`json_t`](json_t)) containing the list of registered GClasses.  
+  Each entry in the list includes:
+  - `gclass_name`: The name of the GClass.
+  - Additional metadata, if available.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

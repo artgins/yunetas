@@ -3,7 +3,7 @@
 # `gclass_gclass_name()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Retrieves the name of a specified GClass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,33 @@ De-initialize the gobj's system, free resources.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gclass_gclass_name(void);
-````
+:::C
+PUBLIC gclass_name_t gclass_gclass_name(
+    hgclass gclass
+);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - The handle to the GClass whose name is being retrieved.
+
+:::
+
+**Return Value**
+
+- Returns the name of the GClass as [`gclass_name_t`](gclass_name_t).
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

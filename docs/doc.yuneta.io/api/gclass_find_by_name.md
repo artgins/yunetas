@@ -3,7 +3,7 @@
 # `gclass_find_by_name()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Finds a GClass by its unique name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,9 +23,31 @@ De-initialize the gobj's system, free resources.
 
 **Prototype**
 
-````C
-PUBLIC void gclass_find_by_name(void);
-````
+:::C
+PUBLIC hgclass gclass_find_by_name(
+    gclass_name_t    gclass_name
+);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass_name`
+  - [`gclass_name_t`](gclass_name_t)
+  - The name of the GClass to search for.
+
+:::
+
+**Return Value**
+
+-  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
+- Returns `NULL` if the GClass with the specified name does not exist.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

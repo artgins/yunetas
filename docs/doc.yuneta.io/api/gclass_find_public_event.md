@@ -3,7 +3,7 @@
 # `gclass_find_public_event()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Finds a public event by its name in a GClass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,9 +23,37 @@ De-initialize the gobj's system, free resources.
 
 **Prototype**
 
-````C
-PUBLIC void gclass_find_public_event(void);
-````
+:::C
+PUBLIC gobj_event_t gclass_find_public_event(
+    const char      *event,
+    BOOL            verbose
+);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `event`
+  - `const char *`
+  - The name of the public event to search for.
+
+* - `verbose`
+  - [`BOOL`](BOOL)
+  - If `TRUE`, logs details about the search process. If `FALSE`, remains silent during the search.
+
+:::
+
+**Return Value**
+
+- Returns the event identifier ([`gobj_event_t`](gobj_event_t)) if the event is found.  
+- Returns `NULL` if the event does not exist.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

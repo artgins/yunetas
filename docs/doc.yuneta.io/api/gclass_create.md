@@ -3,7 +3,7 @@
 # `gclass_create()`
 <!-- ============================================================== -->
 
-Creates and initializes a GClass, defining its core structure, behavior, and configuration.
+Creates and register a GClass, defining its core structure, behavior, and configuration.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->

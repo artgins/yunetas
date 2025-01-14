@@ -3,7 +3,7 @@
 # `gclass_unregister()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Unregisters a previously registered GClass, removing it from the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,32 @@ De-initialize the gobj's system, free resources.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gclass_unregister(void);
-````
+:::C
+PUBLIC void gclass_unregister(
+    hgclass gclass
+);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - The handle to the GClass to be unregistered.
+
+:::
+
+**Return Value**
+
+    This function does not return a value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

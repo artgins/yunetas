@@ -3,7 +3,7 @@
 # `gclass_add_state_with_action_list()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Adds a new state to the finite state machine (FSM) of a GClass, along with a list of event-action pairs for that state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,9 +23,41 @@ De-initialize the gobj's system, free resources.
 
 **Prototype**
 
-````C
-PUBLIC void gclass_add_state_with_action_list(void);
-````
+:::C
+PUBLIC int gclass_add_state_with_action_list(
+    hgclass         gclass,
+    gobj_state_t    state_name,
+    ev_action_t     *ev_action_list
+);
+:::
+
+**Parameters**
+
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass to which the state is being added.
+
+* - `state_name`
+  - [`gobj_state_t`](gobj_state_t)
+  - The name of the state to add to the FSM.
+
+* - `ev_action_list`
+  - [`ev_action_t *`](ev_action_t)
+  - A pointer to the list of event-action pairs to associate with the state. Each entry specifies an event, the corresponding action function, and an optional next state.
+
+:::
+
+**Return Value**
+
+- `0`: The state and its event-action list were successfully added.  
+- `-1`: The state could not be added (e.g., if it already exists or due to invalid input).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
