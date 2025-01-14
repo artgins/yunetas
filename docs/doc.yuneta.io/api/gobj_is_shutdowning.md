@@ -3,7 +3,9 @@
 # `gobj_is_shutdowning()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+Check if the Yuno is currently in the process of shutting down.
+
+Determines whether the Yuno is in the process of shutting down. This function is typically used to check the system state during operations that might be interrupted by a shutdown process.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,6 +29,11 @@ De-initialize the gobj's system, free resources.
 PUBLIC void gobj_is_shutdowning(void);
 ````
 
+**Return Value**
+
+- TRUE: The Yuno is currently shutting down.
+- FALSE: The Yuno is not in the process of shutting down.
+
 <!--====================================================-->
 <!--                    End Tab C                       -->
 <!--====================================================-->
@@ -46,37 +53,8 @@ PUBLIC void gobj_is_shutdowning(void);
 **Prototype**
 
 ````JS
-TODO JS prototype
+// Not applicable in JS
 ````
-
-<!---------------------------------------------------->
-<!--                JS Parameters                   -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-````
-TODO add JS arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                JS Return                       -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO JS return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    EndTab JS                       -->
@@ -97,38 +75,8 @@ TODO JS return
 **Prototype**
 
 ````Python
-TODO Pyton prototype
+# Not applicable in Python
 ````
-<!---------------------------------------------------->
-<!--                Python Parameters               -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-
-````
-TODO add Python arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                Python Return                   -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO C return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
-
 <!--====================================================-->
 <!--                    End Tab Python                   -->
 <!--====================================================-->

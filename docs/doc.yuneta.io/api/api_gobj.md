@@ -1,4 +1,4 @@
-# gobj api
+# **gobj api**
 
 ```{toctree}
 :caption: Startup functions
@@ -15,6 +15,7 @@ gobj_get_exit_code.md
 
 ```
 
+---
 
 ```{toctree}
 :caption: GClass functions

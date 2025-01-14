@@ -1,4 +1,4 @@
-# kwid api
+# **kwid api**
 
 ```{toctree}
 :caption: kwid functions

@@ -46,37 +46,8 @@ PUBLIC void gobj_end(void);
 **Prototype**
 
 ````JS
-TODO JS prototype
+// Not applicable in JS
 ````
-
-<!---------------------------------------------------->
-<!--                JS Parameters                   -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-````
-TODO add JS arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                JS Return                       -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO JS return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    EndTab JS                       -->
@@ -97,37 +68,8 @@ TODO JS return
 **Prototype**
 
 ````Python
-TODO Pyton prototype
+# Not applicable in Python
 ````
-<!---------------------------------------------------->
-<!--                Python Parameters               -->
-<!---------------------------------------------------->
-
-**Parameters**
-
-````{list-table}
-:widths: 10 5 40
-:header-rows: 1
-* - Key
-  - Type
-  - Description
-* - `XXX`
-  - `xxx`
-  - Xxx xx xxx xxxx.
-
-````
-TODO add Python arguments of the function to the table
-
-<!---------------------------------------------------->
-<!--                Python Return                   -->
-<!---------------------------------------------------->
-
-**Return Value**
-
-TODO C return
-
-- **`0`**: Success.
-- **`< 0`**: Indicates an error during initialization.
 
 <!--====================================================-->
 <!--                    End Tab Python                   -->
