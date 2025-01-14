@@ -1203,7 +1203,7 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 
-PUBLIC json_t *gobj_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
+PUBLIC json_t *gclass_get_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 
 
