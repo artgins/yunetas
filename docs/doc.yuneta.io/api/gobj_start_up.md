@@ -5,7 +5,7 @@
 
 The `gobj_start_up()` function initializes the GObj system and prepares the [](yuno) for operation. It applies global configurations, sets up memory management, and integrates key components like command parsing, statistics handling, and user authentication.
 
-### Key Features:
+**Key Features:**
 1. **Global Settings**:
    Accepts a JSON object [](global_settings) that defines configuration attributes for classes and objects in the Yuno. These attributes are applied to each GObj upon creation.
 
@@ -23,9 +23,10 @@ The `gobj_start_up()` function initializes the GObj system and prepares the [](y
 5. **Memory Management**:
    Configures limits for memory block size (`mem_max_block`) and total system memory (`mem_max_system_memory`). Exceeding these limits triggers a Yuno **exit** and [](re-launch).
 
-### Usage:
+**Usage:**
 `gobj_start_up()` must be called before using any GObj functionalities. To terminate properly, use its counterpart, [`gobj_end()`](gobj_end).
 
+---
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->

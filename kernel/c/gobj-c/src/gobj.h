@@ -1175,8 +1175,11 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
  *      you MUST use gobj_set_yuno_must_die() to stop the yuno, don't use gobj_shutdown()
  */
 PUBLIC void gobj_shutdown(void); /* Shutdown the yuno (In yunos use gobj_set_yuno_must_die()) */
-
 PUBLIC BOOL gobj_is_shutdowning(void);  /* Check if yuno is shutdowning */
+PUBLIC void gobj_set_yuno_must_die(void);
+PUBLIC BOOL gobj_get_yuno_must_die(void);
+PUBLIC void gobj_set_exit_code(int exit_code);
+PUBLIC int gobj_get_exit_code(void);
 PUBLIC void gobj_end(void);             /* De-initialize the gobj's system */
 
 /*---------------------------------*
@@ -1475,11 +1478,6 @@ PUBLIC int gobj_enable(hgobj gobj); // exec own mt_enable() or gobj_start_tree()
 PUBLIC int gobj_disable(hgobj gobj); // exec own mt_disable() or gobj_stop_tree()
 
 PUBLIC int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
-
-PUBLIC void gobj_set_yuno_must_die(void);
-PUBLIC BOOL gobj_get_yuno_must_die(void);
-PUBLIC void gobj_set_exit_code(int exit_code);
-PUBLIC int gobj_get_exit_code(void);
 
 PUBLIC int gobj_autostart_services(void);
 PUBLIC int gobj_autoplay_services(void);
