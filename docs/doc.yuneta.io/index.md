@@ -83,13 +83,35 @@ guide/guide_authz.md
 ```
 
 ```{toctree}
-:caption: API Reference
-:maxdepth: 2
+:caption: GObj API
+:maxdepth: 3
 
-api/api_gobj.md
+api/api_gobj_startup.md
+api/api_gobj_gclass.md
+api/api_gobj_creation.md
+api/api_gobj_attrs.md
+api/api_gobj_op.md
+api/api_gobj_events_state.md
+api/api_gobj_publish.md
+api/api_gobj_info.md
+api/api_gobj_stats.md
+api/api_gobj_node.md
+api/api_gobj_memory.md
+api/api_gobj_log.md
+api/api_gobj_trace.md
+api/api_gobj_gbuffer.md
+api/api_gobj_dl.md
+
+```
+
+```{toctree}
+:caption: Kwid API
+:maxdepth: 3
+
 api/api_kwid.md
 
 ```
+
 
 ```{toctree}
 :caption: Glossary 

@@ -1,4 +1,4 @@
-# GObj API
+# GObj Startup functions
 
 ```{toctree}
 :caption: Startup functions
@@ -15,7 +15,7 @@ gobj/startup/gobj_get_exit_code.md
 
 ```
 
----
+# GObj GClass functions
 
 ```{toctree}
 :caption: GClass functions
@@ -33,6 +33,8 @@ gobj/gclass/gclass_unregister.md
 ```
 
 ---
+
+# GObj creation functions
 
 ```{toctree}
 :caption: GObj creation functions
@@ -57,6 +59,8 @@ gobj/creation/gobj_destroy_childs.md
 
 ---
 
+# Attribute functions
+
 ```{toctree}
 :caption: Attribute functions
 :maxdepth: 2
@@ -65,6 +69,8 @@ gobj/creation/gobj_destroy_childs.md
 ```
 
 ---
+
+# Other functions
 
 ```{toctree}
 :caption: Other functions
