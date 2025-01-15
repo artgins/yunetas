@@ -28,6 +28,8 @@ PUBLIC json_t *gobj_read_attr(
 );
 ```
 
+Reads the value of a specific attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

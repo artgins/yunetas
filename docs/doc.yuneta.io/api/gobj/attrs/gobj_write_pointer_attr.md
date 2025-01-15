@@ -29,6 +29,8 @@ PUBLIC int gobj_write_pointer_attr(
 );
 ```
 
+Updates the value of a pointer attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

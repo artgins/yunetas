@@ -29,6 +29,8 @@ PUBLIC int gobj_write_str_attr(
 );
 ```
 
+Updates the value of a string attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

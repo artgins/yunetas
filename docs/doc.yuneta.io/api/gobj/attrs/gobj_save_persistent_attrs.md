@@ -28,6 +28,8 @@ PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
 );
 ```
 
+Saves the persistent attributes of a GObj to the configured backend storage.
+
 **Parameters**
 
 :::{list-table}

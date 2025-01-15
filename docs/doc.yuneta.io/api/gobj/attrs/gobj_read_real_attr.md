@@ -28,6 +28,8 @@ PUBLIC double gobj_read_real_attr(
 );
 ```
 
+Reads the value of a real (floating-point) attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

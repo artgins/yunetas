@@ -29,6 +29,8 @@ PUBLIC json_t *gobj_hsdata2(
 );
 ```
 
+Retrieves extended structured data (sdata) associated with a GObj.
+
 **Parameters**
 
 :::{list-table}

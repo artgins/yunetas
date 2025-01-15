@@ -28,6 +28,8 @@ PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
 );
 ```
 
+Lists the persistent attributes of a GObj.
+
 **Parameters**
 
 :::{list-table}

@@ -28,6 +28,8 @@ PUBLIC const char *gobj_read_str_attr(
 );
 ```
 
+Reads the value of a string attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

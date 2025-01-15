@@ -28,6 +28,8 @@ PUBLIC BOOL gobj_is_readable_attr(
 );
 ```
 
+Checks if a specific attribute in a GObj is readable.
+
 **Parameters**
 
 :::{list-table}

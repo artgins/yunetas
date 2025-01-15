@@ -27,6 +27,8 @@ PUBLIC const sdata_desc_t *gclass_authz_desc(
 );
 ```
 
+Retrieves the authorization description table for a GClass.
+
 **Parameters**
 
 :::{list-table}

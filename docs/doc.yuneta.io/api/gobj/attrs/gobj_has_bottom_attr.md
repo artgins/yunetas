@@ -28,6 +28,8 @@ PUBLIC BOOL gobj_has_bottom_attr(
 );
 ```
 
+Checks if an attribute exists in the bottom (child) hierarchy of a GObj.
+
 **Parameters**
 
 :::{list-table}

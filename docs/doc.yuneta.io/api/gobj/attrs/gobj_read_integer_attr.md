@@ -28,6 +28,8 @@ PUBLIC json_int_t gobj_read_integer_attr(
 );
 ```
 
+Reads the value of an integer attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

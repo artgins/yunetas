@@ -28,6 +28,8 @@ PUBLIC BOOL gobj_read_bool_attr(
 );
 ```
 
+Reads the value of a boolean attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

@@ -29,6 +29,8 @@ PUBLIC int gobj_write_real_attr(
 );
 ```
 
+Updates the value of a real (floating-point) attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

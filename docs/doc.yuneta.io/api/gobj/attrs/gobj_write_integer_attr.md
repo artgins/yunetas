@@ -29,6 +29,8 @@ PUBLIC int gobj_write_integer_attr(
 );
 ```
 
+Updates the value of an integer attribute in a GObj.
+
 **Parameters**
 
 :::{list-table}

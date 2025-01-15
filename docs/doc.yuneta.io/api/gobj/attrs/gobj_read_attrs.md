@@ -29,6 +29,8 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
 );
 ```
 
+Reads the values of all readable attributes in a GObj.
+
 **Parameters**
 
 :::{list-table}

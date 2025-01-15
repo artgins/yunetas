@@ -29,6 +29,8 @@ PUBLIC int gobj_write_user_data(
 );
 ```
 
+Writes user-defined data to a GObj.
+
 **Parameters**
 
 :::{list-table}

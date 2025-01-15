@@ -28,6 +28,8 @@ PUBLIC BOOL gobj_has_attr(
 );
 ```
 
+Checks if a specific attribute exists in a GObj instance.
+
 **Parameters**
 
 :::{list-table}

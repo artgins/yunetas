@@ -27,6 +27,8 @@ PUBLIC int gobj_reset_volatil_attrs(
 );
 ```
 
+Resets the volatile attributes of a GObj.
+
 **Parameters**
 
 :::{list-table}

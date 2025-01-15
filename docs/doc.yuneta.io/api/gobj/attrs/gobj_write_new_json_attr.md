@@ -29,6 +29,8 @@ PUBLIC int gobj_write_new_json_attr(
 );
 ```
 
+Updates the value of a JSON attribute in a GObj, transferring ownership of the value.
+
 **Parameters**
 
 :::{list-table}

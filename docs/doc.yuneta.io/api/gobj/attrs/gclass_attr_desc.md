@@ -29,6 +29,8 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(
 );
 ```
 
+Retrieves the description of attributes defined in a GClass.
+
 **Parameters**
 
 :::{list-table}

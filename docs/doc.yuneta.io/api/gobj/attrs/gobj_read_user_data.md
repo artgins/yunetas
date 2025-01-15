@@ -28,6 +28,8 @@ PUBLIC json_t *gobj_read_user_data(
 );
 ```
 
+Reads user-defined data from a GObj.
+
 **Parameters**
 
 :::{list-table}

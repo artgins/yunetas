@@ -28,6 +28,8 @@ PUBLIC BOOL gobj_is_writable_attr(
 );
 ```
 
+Checks if a specific attribute in a GObj is writable.
+
 **Parameters**
 
 :::{list-table}
