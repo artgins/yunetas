@@ -26,13 +26,25 @@ PUBLIC json_t *gobj_hsdata(
     hgobj       gobj
 );
 ```
-
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose sdata (structured data) is being retrieved.
+
+:::
 
 **Return Value**
+
+- Returns a pointer to the sdata of the GObj.
+- Returns `NULL` if the GObj is invalid or has no associated sdata.
 
 
 <!--====================================================-->

@@ -30,10 +30,27 @@ PUBLIC BOOL gobj_is_readable_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute is being checked.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute to check.
+
+:::
 
 **Return Value**
+
+- `TRUE`: The attribute is readable.
+- `FALSE`: The attribute is not readable or does not exist.
 
 
 <!--====================================================-->

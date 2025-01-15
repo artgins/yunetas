@@ -30,10 +30,27 @@ PUBLIC BOOL gclass_has_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass to be checked.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute to check.
+
+:::
 
 **Return Value**
+
+- `TRUE`: The attribute exists in the GClass.
+- `FALSE`: The attribute does not exist or the GClass is invalid.
 
 
 <!--====================================================-->

@@ -31,11 +31,31 @@ PUBLIC int gobj_write_user_data(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose user data is being written.
+
+* - `key`
+  - `const char *`
+  - The key identifying the user data field to be written.
+
+* - `value`
+  - `void *`
+  - Pointer to the new value for the specified user data field.
+
+:::
 
 **Return Value**
 
+- `0`: The user data was successfully updated.  
+- `-1`: An error occurred (e.g., the key does not exist or the operation is invalid).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

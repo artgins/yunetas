@@ -31,10 +31,23 @@ PUBLIC json_t *gobj_hsdata2(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose extended structured data (sdata) is being retrieved.
+
+:::
 
 **Return Value**
+
+- Returns a pointer to the extended sdata of the GObj.
+- Returns `NULL` if the GObj is invalid or has no extended sdata.
 
 
 <!--====================================================-->

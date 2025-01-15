@@ -30,11 +30,27 @@ PUBLIC BOOL gobj_read_bool_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the boolean attribute to read.
+
+:::
 
 **Return Value**
 
+- Returns the value of the boolean attribute (`TRUE` or `FALSE`).
+- Returns `FALSE` if the attribute does not exist or is unreadable.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

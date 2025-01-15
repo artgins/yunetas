@@ -30,10 +30,23 @@ PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose persistent attributes are being listed.
+
+:::
 
 **Return Value**
+
+- Returns a JSON object ([`json_t`](json_t)) containing the persistent attributes of the GObj.
+- Returns `NULL` if the GObj is invalid or has no persistent attributes.
 
 
 <!--====================================================-->

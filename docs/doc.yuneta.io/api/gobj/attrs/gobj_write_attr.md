@@ -31,11 +31,31 @@ PUBLIC int gobj_write_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute is being written.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute to write.
+
+* - `value`
+  - `const void *`
+  - Pointer to the new value of the attribute.
+
+:::
 
 **Return Value**
 
+- `0`: The attribute was successfully updated.
+- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

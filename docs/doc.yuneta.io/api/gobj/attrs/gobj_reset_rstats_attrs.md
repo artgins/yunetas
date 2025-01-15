@@ -29,10 +29,23 @@ PUBLIC int gobj_reset_rstats_attrs(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose resettable statistics attributes (rstats) are being reset.
+
+:::
 
 **Return Value**
+
+- `0`: The rstats attributes were successfully reset.
+- `-1`: An error occurred during the reset process.
 
 
 <!--====================================================-->

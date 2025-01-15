@@ -30,11 +30,27 @@ PUBLIC void *gobj_read_pointer_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose pointer attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the pointer attribute to read.
+
+:::
 
 **Return Value**
 
+- Returns a pointer to the attribute value.
+- Returns `NULL` if the attribute does not exist or is unreadable.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

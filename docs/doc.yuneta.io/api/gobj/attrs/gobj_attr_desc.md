@@ -31,11 +31,23 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attributes' description is being retrieved.
+
+:::
 
 **Return Value**
 
+- Returns a pointer to the attribute description table ([`sdata_desc_t`](sdata_desc_t)).
+- Returns `NULL` if no attributes are defined or the GObj is invalid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

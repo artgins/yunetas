@@ -30,10 +30,27 @@ PUBLIC const char *gobj_read_str_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose string attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the string attribute to read.
+
+:::
 
 **Return Value**
+
+- Returns a pointer to the string attribute value.
+- Returns `NULL` if the attribute does not exist or is unreadable.
 
 
 <!--====================================================-->

@@ -32,11 +32,27 @@ PUBLIC int gobj_write_attrs(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attributes are being written.
+
+* - `values`
+  - [`json_t *`](json_t)
+  - A JSON object containing key-value pairs for multiple attributes to update.
+
+:::
 
 **Return Value**
 
+- `0`: All attributes were successfully updated.
+- `-1`: An error occurred during the update.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

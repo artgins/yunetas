@@ -29,11 +29,23 @@ PUBLIC int gobj_reset_volatil_attrs(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose volatile attributes are being reset.
+
+:::
 
 **Return Value**
 
+- `0`: The volatile attributes were successfully reset.
+- `-1`: An error occurred during the reset process.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

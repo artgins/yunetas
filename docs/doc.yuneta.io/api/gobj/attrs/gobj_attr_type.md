@@ -30,10 +30,27 @@ PUBLIC data_type_t gobj_attr_type(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute type is being retrieved.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute.
+
+:::
 
 **Return Value**
+
+- Returns the type of the attribute as an integer.
+- Returns `-1` if the attribute does not exist or the GObj is invalid.
 
 
 <!--====================================================-->

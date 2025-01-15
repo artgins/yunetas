@@ -30,10 +30,28 @@ PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose persistent attributes are being saved.
+
+* - `backend_name`
+  - `const char *`
+  - The name of the backend where the persistent attributes will be saved.
+    If `NULL`, the default backend is used.
+
+:::
 
 **Return Value**
+
+- `0`: The persistent attributes were successfully saved.
+- `-1`: An error occurred during the save process.
 
 
 <!--====================================================-->

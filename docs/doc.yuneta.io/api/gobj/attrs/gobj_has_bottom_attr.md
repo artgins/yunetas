@@ -30,11 +30,27 @@ PUBLIC BOOL gobj_has_bottom_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj being checked.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute to check.
+
+:::
 
 **Return Value**
 
+- `TRUE`: The attribute exists in the bottom (child) hierarchy of the GObj.
+- `FALSE`: The attribute does not exist or the GObj is invalid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

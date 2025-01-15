@@ -31,11 +31,31 @@ PUBLIC int gobj_write_new_json_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose JSON attribute is being written.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the JSON attribute to write.
+
+* - `value`
+  - [`json_t *`](json_t)
+  - The new value for the JSON attribute. Ownership of this parameter is transferred to the function.
+
+:::
 
 **Return Value**
 
+- `0`: The JSON attribute was successfully updated.
+- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

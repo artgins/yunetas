@@ -27,13 +27,25 @@ PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
     json_t      *jn_attrs  // owned
 );
 ```
-
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose persistent attributes are being removed.
+
+:::
 
 **Return Value**
+
+- `0`: Persistent attributes were successfully removed.
+- `-1`: An error occurred during the removal process.
 
 
 <!--====================================================-->

@@ -31,11 +31,31 @@ PUBLIC int gobj_write_bool_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose boolean attribute is being written.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the boolean attribute to write.
+
+* - `value`
+  - `BOOL`
+  - The new value for the attribute (`TRUE` or `FALSE`).
+
+:::
 
 **Return Value**
 
+- `0`: The boolean attribute was successfully updated.
+- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -30,11 +30,27 @@ PUBLIC BOOL gobj_has_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be checked.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the attribute to check.
+
+:::
 
 **Return Value**
 
+- `TRUE`: The attribute exists in the GObj.
+- `FALSE`: The attribute does not exist or the GObj is invalid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

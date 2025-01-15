@@ -30,11 +30,27 @@ PUBLIC json_t *gobj_read_user_data(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose user data is being read.
+
+* - `key`
+  - `const char *`
+  - The key identifying the user data field to be read.
+
+:::
 
 **Return Value**
 
+- Returns a pointer to the value associated with the specified user data key.
+- Returns `NULL` if the key does not exist or the GObj is invalid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

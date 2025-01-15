@@ -30,11 +30,27 @@ PUBLIC json_int_t gobj_read_integer_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the integer attribute to read.
+
+:::
 
 **Return Value**
 
+- Returns the value of the integer attribute.
+- Returns `0` if the attribute does not exist or is unreadable.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

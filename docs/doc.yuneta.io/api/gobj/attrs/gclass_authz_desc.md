@@ -29,10 +29,23 @@ PUBLIC const sdata_desc_t *gclass_authz_desc(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass whose authorization descriptions are being retrieved.
+
+:::
 
 **Return Value**
+
+- Returns a pointer to the authorization description table ([`sdata_desc_t`](sdata_desc_t)).
+- Returns `NULL` if no authorization table is defined or the GClass is invalid.
 
 
 <!--====================================================-->

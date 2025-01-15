@@ -30,11 +30,27 @@ PUBLIC json_t *gobj_read_json_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the JSON attribute to read.
+
+:::
 
 **Return Value**
 
+- Returns a JSON object ([`json_t`](json_t)) containing the attribute value.
+- Returns `NULL` if the attribute does not exist or is unreadable.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -31,10 +31,23 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose attributes are being read.
+
+:::
 
 **Return Value**
+
+- Returns a JSON object ([`json_t`](json_t)) containing all readable attributes of the GObj.
+- Returns `NULL` if the GObj is invalid or has no readable attributes.
 
 
 <!--====================================================-->

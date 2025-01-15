@@ -30,11 +30,27 @@ PUBLIC double gobj_read_real_attr(
 
 **Parameters**
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
----
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose real (floating-point) attribute is being read.
+
+* - `attr_name`
+  - `const char *`
+  - The name of the real attribute to read.
+
+:::
 
 **Return Value**
 
+- Returns the value of the real attribute as a `double`.
+- Returns `0.0` if the attribute does not exist or is unreadable.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
