@@ -746,7 +746,7 @@ PUBLIC int get_url_schema(
 );
 
 /*------------------------------------*
- *      Debug/Testing
+ *      Debug
  *------------------------------------*/
 int init_backtrace_with_backtrace(const char *program);
 void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
