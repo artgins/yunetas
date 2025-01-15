@@ -5,7 +5,7 @@
 # `gobj_read_user_data()`
 <!-- ============================================================== -->
 
-
+Reads user-defined data from a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC json_t *gobj_read_user_data(
     const char  *name  // If empty, return all user record
 );
 ```
-
-Reads user-defined data from a GObj.
 
 **Parameters**
 

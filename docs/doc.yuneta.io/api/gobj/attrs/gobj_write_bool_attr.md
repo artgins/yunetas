@@ -5,6 +5,8 @@
 # `gobj_write_bool_attr()`
 <!-- ============================================================== -->
 
+Updates the value of a boolean attribute in a GObj.
+
 
 
 <!------------------------------------------------------------>
@@ -28,8 +30,6 @@ PUBLIC int gobj_write_bool_attr(
     BOOL        value
 );
 ```
-
-Updates the value of a boolean attribute in a GObj.
 
 **Parameters**
 

@@ -5,6 +5,7 @@
 # `gobj_write_attrs()`
 <!-- ============================================================== -->
 
+Updates multiple attributes in a GObj using key-value pairs.
 
 
 <!------------------------------------------------------------>
@@ -29,8 +30,6 @@ PUBLIC int gobj_write_attrs(
     hgobj       src
 );
 ```
-
-Updates multiple attributes in a GObj using key-value pairs.
 
 **Parameters**
 

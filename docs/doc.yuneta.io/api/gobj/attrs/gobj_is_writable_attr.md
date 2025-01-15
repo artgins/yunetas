@@ -5,7 +5,7 @@
 # `gobj_is_writable_attr()`
 <!-- ============================================================== -->
 
-
+Checks if a specific attribute in a GObj is writable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC BOOL gobj_is_writable_attr(
     const char  *name
 );
 ```
-
-Checks if a specific attribute in a GObj is writable.
 
 **Parameters**
 

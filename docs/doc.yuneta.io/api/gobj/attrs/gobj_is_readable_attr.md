@@ -5,7 +5,7 @@
 # `gobj_is_readable_attr()`
 <!-- ============================================================== -->
 
-
+Checks if a specific attribute in a GObj is readable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC BOOL gobj_is_readable_attr(
     const char  *name
 );
 ```
-
-Checks if a specific attribute in a GObj is readable.
 
 **Parameters**
 

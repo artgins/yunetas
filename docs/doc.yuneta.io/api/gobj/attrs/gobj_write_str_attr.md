@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Updates the value of a string attribute in a GObj.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +30,6 @@ PUBLIC int gobj_write_str_attr(
     const char  *value
 );
 ```
-
-Updates the value of a string attribute in a GObj.
 
 **Parameters**
 

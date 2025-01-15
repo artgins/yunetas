@@ -5,7 +5,7 @@
 # `gclass_has_attr()`
 <!-- ============================================================== -->
 
-
+Checks if a specific attribute exists in a GClass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC BOOL gclass_has_attr(
     const char  *name
 );
 ```
-
-Checks if a specific attribute exists in a GClass.
 
 **Parameters**
 

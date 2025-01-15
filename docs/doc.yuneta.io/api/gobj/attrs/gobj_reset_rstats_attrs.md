@@ -5,7 +5,7 @@
 # `gobj_reset_rstats_attrs()`
 <!-- ============================================================== -->
 
-
+Resets the resettable statistics attributes (rstats) of a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,8 +26,6 @@ PUBLIC int gobj_reset_rstats_attrs(
     hgobj       gobj
 );
 ```
-
-Resets the resettable statistics attributes (rstats) of a GObj.
 
 **Parameters**
 

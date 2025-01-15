@@ -5,7 +5,7 @@
 # `gobj_read_pointer_attr()`
 <!-- ============================================================== -->
 
-
+Reads the value of a pointer attribute in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC void *gobj_read_pointer_attr(
     const char  *name
 );
 ```
-
-Reads the value of a pointer attribute in a GObj.
 
 **Parameters**
 

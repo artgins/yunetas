@@ -5,7 +5,7 @@
 # `gobj_save_persistent_attrs()`
 <!-- ============================================================== -->
 
-
+Saves the persistent attributes of a GObj to the configured backend storage.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
     json_t      *jn_attrs  // owned
 );
 ```
-
-Saves the persistent attributes of a GObj to the configured backend storage.
 
 **Parameters**
 

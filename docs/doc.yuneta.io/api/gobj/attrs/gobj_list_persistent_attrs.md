@@ -6,6 +6,7 @@
 <!-- ============================================================== -->
 
 
+Lists the persistent attributes of a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +28,6 @@ PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
     json_t      *jn_attrs  // owned
 );
 ```
-
-Lists the persistent attributes of a GObj.
 
 **Parameters**
 

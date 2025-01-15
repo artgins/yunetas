@@ -5,6 +5,8 @@
 # `gobj_write_json_attr()`
 <!-- ============================================================== -->
 
+Updates the value of a JSON attribute in a GObj.
+
 
 
 <!------------------------------------------------------------>
@@ -28,8 +30,6 @@ PUBLIC int gobj_write_json_attr(
     json_t      *value
 );
 ```
-
-Updates the value of a JSON attribute in a GObj.
 
 **Parameters**
 

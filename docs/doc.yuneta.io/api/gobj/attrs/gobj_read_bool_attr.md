@@ -5,7 +5,7 @@
 # `gobj_read_bool_attr()`
 <!-- ============================================================== -->
 
-
+Reads the value of a boolean attribute in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC BOOL gobj_read_bool_attr(
     const char  *name
 );
 ```
-
-Reads the value of a boolean attribute in a GObj.
 
 **Parameters**
 

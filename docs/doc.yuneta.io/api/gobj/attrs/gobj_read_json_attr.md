@@ -5,7 +5,7 @@
 # `gobj_read_json_attr()`
 <!-- ============================================================== -->
 
-
+Reads the value of a JSON attribute in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC json_t *gobj_read_json_attr(
     const char  *name
 );
 ```
-
-Reads the value of a JSON attribute in a GObj.
 
 **Parameters**
 

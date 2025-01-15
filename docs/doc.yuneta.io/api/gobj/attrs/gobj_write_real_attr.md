@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Updates the value of a real (floating-point) attribute in a GObj.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +30,6 @@ PUBLIC int gobj_write_real_attr(
     double      value
 );
 ```
-
-Updates the value of a real (floating-point) attribute in a GObj.
 
 **Parameters**
 

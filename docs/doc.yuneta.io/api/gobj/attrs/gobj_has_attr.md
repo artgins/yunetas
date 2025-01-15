@@ -5,7 +5,7 @@
 # `gobj_has_attr()`
 <!-- ============================================================== -->
 
-
+Checks if a specific attribute exists in a GObj instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC BOOL gobj_has_attr(
     const char  *name
 );
 ```
-
-Checks if a specific attribute exists in a GObj instance.
 
 **Parameters**
 

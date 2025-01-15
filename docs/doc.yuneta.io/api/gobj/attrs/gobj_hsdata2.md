@@ -5,7 +5,7 @@
 # `gobj_hsdata2()`
 <!-- ============================================================== -->
 
-
+Retrieves extended structured data (sdata) associated with a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +28,6 @@ PUBLIC json_t *gobj_hsdata2(
     BOOL        verbose
 );
 ```
-
-Retrieves extended structured data (sdata) associated with a GObj.
 
 **Parameters**
 

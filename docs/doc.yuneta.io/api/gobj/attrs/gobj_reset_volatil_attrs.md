@@ -5,7 +5,7 @@
 # `gobj_reset_volatil_attrs()`
 <!-- ============================================================== -->
 
-
+Resets the volatile attributes of a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,8 +26,6 @@ PUBLIC int gobj_reset_volatil_attrs(
     hgobj       gobj
 );
 ```
-
-Resets the volatile attributes of a GObj.
 
 **Parameters**
 

@@ -5,7 +5,7 @@
 # `gobj_read_attrs()`
 <!-- ============================================================== -->
 
-
+Reads the values of all readable attributes in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +28,6 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
     hgobj       src
 );
 ```
-
-Reads the values of all readable attributes in a GObj.
 
 **Parameters**
 

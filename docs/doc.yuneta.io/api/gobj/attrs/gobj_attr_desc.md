@@ -5,7 +5,7 @@
 # `gobj_attr_desc()`
 <!-- ============================================================== -->
 
-
+Retrieves the description of attributes for a specific GObj instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +28,6 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(
     BOOL        verbose
 );
 ```
-
-Retrieves the description of attributes for a specific GObj instance.
 
 **Parameters**
 

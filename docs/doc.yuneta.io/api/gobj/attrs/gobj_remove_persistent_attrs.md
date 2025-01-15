@@ -5,7 +5,7 @@
 # `gobj_remove_persistent_attrs()`
 <!-- ============================================================== -->
 
-
+Removes the persistent attributes of a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
     json_t      *jn_attrs  // owned
 );
 ```
-
-Removes the persistent attributes of a GObj.
 
 **Parameters**
 

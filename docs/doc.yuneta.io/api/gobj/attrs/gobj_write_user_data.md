@@ -5,6 +5,7 @@
 # `gobj_write_user_data()`
 <!-- ============================================================== -->
 
+Writes user-defined data to a GObj.
 
 
 <!------------------------------------------------------------>
@@ -28,8 +29,6 @@ PUBLIC int gobj_write_user_data(
     json_t      *value  // owned
 );
 ```
-
-Writes user-defined data to a GObj.
 
 **Parameters**
 

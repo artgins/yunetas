@@ -5,7 +5,7 @@
 # `gobj_read_str_attr()`
 <!-- ============================================================== -->
 
-
+Reads the value of a string attribute in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC const char *gobj_read_str_attr(
     const char  *name
 );
 ```
-
-Reads the value of a string attribute in a GObj.
 
 **Parameters**
 

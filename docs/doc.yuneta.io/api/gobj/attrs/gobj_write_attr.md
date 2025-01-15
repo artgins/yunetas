@@ -5,7 +5,7 @@
 # `gobj_write_attr()`
 <!-- ============================================================== -->
 
-
+Updates the value of a specific attribute in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,8 +28,6 @@ PUBLIC int gobj_write_attr(
     json_t      *value
 );
 ```
-
-Updates the value of a specific attribute in a GObj.
 
 **Parameters**
 

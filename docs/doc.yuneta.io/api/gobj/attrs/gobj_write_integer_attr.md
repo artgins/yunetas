@@ -5,6 +5,8 @@
 # `gobj_write_integer_attr()`
 <!-- ============================================================== -->
 
+Updates the value of an integer attribute in a GObj.
+
 
 
 <!------------------------------------------------------------>
@@ -28,8 +30,6 @@ PUBLIC int gobj_write_integer_attr(
     json_int_t  value
 );
 ```
-
-Updates the value of an integer attribute in a GObj.
 
 **Parameters**
 

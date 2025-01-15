@@ -5,7 +5,7 @@
 # `gobj_attr_type()`
 <!-- ============================================================== -->
 
-
+Retrieves the type of a specified attribute for a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,8 +27,6 @@ PUBLIC data_type_t gobj_attr_type(
     const char  *name
 );
 ```
-
-Retrieves the type of a specified attribute for a GObj.
 
 **Parameters**
 
