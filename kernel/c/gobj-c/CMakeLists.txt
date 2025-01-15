@@ -21,7 +21,6 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     src/00_http_parser.c
-    src/ghttp_parser.c
     src/gobj.c
     src/glog.c
     src/istream.c
@@ -39,7 +38,6 @@ set (SRCS
 set (HDRS
     src/ansi_escape_codes.h
     src/00_http_parser.h
-    src/ghttp_parser.h
     src/gobj.h
     src/istream.h
     src/log_udp_handler.h

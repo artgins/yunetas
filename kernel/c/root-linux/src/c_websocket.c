@@ -14,9 +14,7 @@
 
 #include <yuneta_version.h>
 #include <helpers.h>
-#include <ghttp_parser.h>
 #include <istream.h>
-#include "msg_ievent.h"
 #include "sha1.h"
 #include "c_timer.h"
 #include "c_tcp.h"
