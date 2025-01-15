@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC json_t *gobj_read_user_data(
+    hgobj       gobj,
+    const char  *name  // If empty, return all user record
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC double gobj_read_real_attr(
+    hgobj       gobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

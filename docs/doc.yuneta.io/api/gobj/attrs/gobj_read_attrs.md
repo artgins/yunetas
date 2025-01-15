@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC json_t *gobj_read_attrs( // Return is yours!
+    hgobj       gobj,
+    sdata_flag_t include_flag,
+    hgobj       src
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

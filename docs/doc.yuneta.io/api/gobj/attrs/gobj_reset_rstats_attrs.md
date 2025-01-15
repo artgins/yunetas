@@ -22,6 +22,9 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_reset_rstats_attrs(
+    hgobj       gobj
+);
 ```
 
 **Parameters**
@@ -155,4 +158,3 @@
 ``````
 
 ```````
-

@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_write_str_attr(
+    hgobj       gobj,
+    const char  *name,
+    const char  *value
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

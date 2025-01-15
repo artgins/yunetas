@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC data_type_t gobj_attr_type(
+    hgobj       gobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

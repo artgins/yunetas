@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_write_pointer_attr(
+    hgobj       gobj,
+    const char  *name,
+    void        *value
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

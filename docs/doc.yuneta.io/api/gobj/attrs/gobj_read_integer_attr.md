@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC json_int_t gobj_read_integer_attr(
+    hgobj       gobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

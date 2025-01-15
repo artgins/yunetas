@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC BOOL gclass_has_attr(
+    hgclass     gclass,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

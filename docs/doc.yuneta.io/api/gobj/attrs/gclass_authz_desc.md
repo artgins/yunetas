@@ -22,6 +22,9 @@
 **Prototype**
 
 ```C
+PUBLIC const sdata_desc_t *gclass_authz_desc(
+    hgclass     gclass
+);
 ```
 
 **Parameters**
@@ -155,4 +158,3 @@
 ``````
 
 ```````
-

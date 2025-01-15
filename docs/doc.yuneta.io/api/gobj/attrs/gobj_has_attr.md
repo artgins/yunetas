@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC BOOL gobj_has_attr(
+    hgobj       hgobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

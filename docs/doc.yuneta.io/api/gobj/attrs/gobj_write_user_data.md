@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_write_user_data(
+    hgobj       gobj,
+    const char  *name,
+    json_t      *value  // owned
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC const sdata_desc_t *gclass_attr_desc(
+    hgclass     gclass,
+    const char  *attr,
+    BOOL        verbose
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

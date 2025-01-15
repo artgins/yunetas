@@ -22,6 +22,12 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_write_attrs(
+    hgobj       gobj,
+    json_t      *kw,  // owned
+    sdata_flag_t flag,
+    hgobj       src
+);
 ```
 
 **Parameters**
@@ -155,4 +161,3 @@
 ``````
 
 ```````
-

@@ -22,6 +22,11 @@
 **Prototype**
 
 ```C
+PUBLIC json_t *gobj_hsdata2(
+    hgobj       gobj,
+    const char  *name,
+    BOOL        verbose
+);
 ```
 
 **Parameters**
@@ -155,4 +160,3 @@
 ``````
 
 ```````
-

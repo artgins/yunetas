@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
+    hgobj       gobj,
+    json_t      *jn_attrs  // owned
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

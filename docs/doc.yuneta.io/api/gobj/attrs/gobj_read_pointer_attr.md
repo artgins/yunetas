@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC void *gobj_read_pointer_attr(
+    hgobj       gobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-

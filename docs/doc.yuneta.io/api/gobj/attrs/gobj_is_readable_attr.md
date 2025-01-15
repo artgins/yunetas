@@ -22,6 +22,10 @@
 **Prototype**
 
 ```C
+PUBLIC BOOL gobj_is_readable_attr(
+    hgobj       gobj,
+    const char  *name
+);
 ```
 
 **Parameters**
@@ -155,4 +159,3 @@
 ``````
 
 ```````
-
