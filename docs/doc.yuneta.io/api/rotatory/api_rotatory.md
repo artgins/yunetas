@@ -1,0 +1,18 @@
+# Rotatory API
+
+```{toctree}
+:caption: Rotatory functions
+:maxdepth: 2
+
+rotatory_start_up.md
+rotatory_end.md
+rotatory_open.md
+rotatory_close.md
+rotatory_write.md
+rotatory_fwrite.md
+rotatory_trunk.md
+rotatory_flush.md
+rotatory_path
+
+
+```
