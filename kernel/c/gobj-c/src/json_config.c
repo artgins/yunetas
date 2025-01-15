@@ -16,7 +16,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 
-#include "replace_string.h"
+#include "helpers.h"
 #include "json_config.h"
 
 // From jannson_private.h

@@ -142,6 +142,9 @@ PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
 **rst**/
 PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
 
+// WARNING use **free()** to deallocated the returned string.
+char *replace_string(const char *str, const char *old, const char *snew);
+
 /*------------------------------------*
  *          Json
  *------------------------------------*/
