@@ -716,3 +716,26 @@ PUBLIC void comm_prot_free(void);
  *      Daemons
  *------------------------------------*/
 PUBLIC int launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...); // Return pid of daemon
+
+/*------------------------------------*
+ *      Parse url
+ *------------------------------------*/
+PUBLIC int parse_url(
+    hgobj gobj,
+    const char *uri,
+    char *schema, size_t schema_size,
+    char *host, size_t host_size,
+    char *port, size_t port_size,
+    char *path, size_t path_size,
+    char *query, size_t query_size,
+    BOOL no_schema // only host:port
+);
+
+/**rst**
+   Get the schema of an url
+**rst**/
+PUBLIC int get_url_schema(
+    hgobj gobj,
+    const char *uri,
+    char *schema, size_t schema_size
+);
