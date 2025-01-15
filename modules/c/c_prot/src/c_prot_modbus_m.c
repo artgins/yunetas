@@ -58,7 +58,6 @@ Example of modbus configuration:
 #include <string.h>
 #include <arpa/inet.h>
 #include <c_timer.h>
-#include <istream.h>
 #include <kwid.h>
 #include <helpers.h>
 #include "c_prot_modbus_m.h"

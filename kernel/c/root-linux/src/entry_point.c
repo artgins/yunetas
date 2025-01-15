@@ -575,7 +575,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                         KW_GET(max_megas_rotatoryfile_size, max_megas_rotatoryfile_size, kw_get_int)
                         KW_GET(min_free_disk_percentage, min_free_disk_percentage, kw_get_int)
 
-                        hrotatory_t hr = rotatory_open(
+                        hrotatory_h hr = rotatory_open(
                             path,
                             bf_size,
                             max_megas_rotatoryfile_size,
