@@ -14,11 +14,6 @@
 #include "gobj.h"
 
 
-/*
- *  Dependencies
- */
-
-
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -27,7 +22,7 @@ extern "C"{
  *     Prototypes
  *****************************************************************/
 /*------------------------------------*
- *      Directory/Files
+ *  ### File System
  *------------------------------------*/
 PUBLIC int newdir(const char *path, int permission);
 PUBLIC int newfile(const char *path, int permission, BOOL overwrite);
@@ -52,7 +47,7 @@ PUBLIC int rmrdir(const char *root_dir);
 PUBLIC int rmrcontentdir(const char *root_dir);
 
 /*------------------------------------*
- *          Strings
+ *  ### Strings
  *------------------------------------*/
 PUBLIC char *delete_right_char(char *s, char x);
 PUBLIC char *delete_left_char(char *s, char x);
@@ -147,7 +142,7 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
 char *replace_string(const char *str, const char *old, const char *snew);
 
 /*------------------------------------*
- *          Json
+ *  ### Json
  *------------------------------------*/
 /*
  *  If exclusive then let file opened and return the fd, else close the file
@@ -381,7 +376,7 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
 
 
 /*---------------------------------*
- *      Walkdir functions
+ *  ### Walkdir functions
  *---------------------------------*/
 typedef enum {
     WD_RECURSIVE            = 0x0001,   /* traverse all tree */
@@ -448,7 +443,7 @@ PUBLIC char **get_ordered_filename_array(
 PUBLIC void free_ordered_filename_array(char **array, int size);
 
 /*---------------------------------*
- *      Time functions
+ *  ### Time functions
  *---------------------------------*/
 typedef uintmax_t timestamp_t;
 #define PRItime PRIuMAX
@@ -662,7 +657,7 @@ Error Handling:
  */
 
 /*---------------------------------*
- *      Utilities functions
+ *  ### Utilities functions
  *---------------------------------*/
 typedef int (*view_fn_t)(const char *format, ...)JANSSON_ATTRS((format(printf, 1, 2)));
 PUBLIC void tdump(const char *prefix, const uint8_t *s, size_t len, view_fn_t view, int nivel);
@@ -696,7 +691,7 @@ PUBLIC int create_uuid(char *bf, int bfsize);   // Create a new random uuid (use
 PUBLIC const char *node_uuid(void);             // Get the uuid of the machine
 
 /*------------------------------------*
- *      Common protocols
+ *  ### Common protocols
  *------------------------------------*/
 /**rst**
    Register a gclass with a communication protocol
@@ -718,12 +713,12 @@ PUBLIC void comm_prot_free(void);
 #endif
 
 /*------------------------------------*
- *      Daemons
+ *  ### Daemons
  *------------------------------------*/
 PUBLIC int launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...); // Return pid of daemon
 
 /*------------------------------------*
- *      Parse url
+ *  ### Parse url
  *------------------------------------*/
 PUBLIC int parse_url(
     hgobj gobj,
@@ -746,13 +741,13 @@ PUBLIC int get_url_schema(
 );
 
 /*------------------------------------*
- *      Debug
+ *  ### Debug
  *------------------------------------*/
 int init_backtrace_with_backtrace(const char *program);
 void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
 
 /*------------------------------------*
- *      GHttp parser
+ *  ### GHttp parser
  *------------------------------------*/
 typedef struct _GHTTP_PARSER {
     http_parser http_parser;
@@ -827,7 +822,7 @@ PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser);
 PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser);
 
 /*------------------------------------*
- *      istream
+ *  ### istream
  *------------------------------------*/
 
 typedef void *istream_h;
