@@ -165,7 +165,6 @@ template = Template("""
 
 # List of names
 names = [
-    "gobj_exec_internal_method",
     "gobj_start(hgobj gobj",
     "gobj_start_childs",
     "gobj_start_tree",
@@ -205,6 +204,7 @@ names = [
     "gobj_find_child",
     "gobj_walk_gobj_childs",
     "gobj_walk_gobj_childs_tree",
+    "gobj_exec_internal_method",
 ]
 
 # Loop through the list of names and create a file for each
