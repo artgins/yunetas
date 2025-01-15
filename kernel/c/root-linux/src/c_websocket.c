@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 
 #include <yuneta_version.h>
-#include <comm_prot.h>
+#include <helpers.h>
 #include <ghttp_parser.h>
 #include <istream.h>
 #include "msg_ievent.h"

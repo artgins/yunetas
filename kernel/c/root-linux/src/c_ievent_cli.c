@@ -15,7 +15,7 @@
 
 #include <kwid.h>
 #include <parse_url.h>
-#include <comm_prot.h>
+#include <helpers.h>
 #include <yuneta_version.h>
 
 #include "c_timer.h"

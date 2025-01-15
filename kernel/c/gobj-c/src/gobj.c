@@ -22,7 +22,6 @@
 #include "json_config.h"
 #include "ansi_escape_codes.h"
 #include "command_parser.h"
-#include "comm_prot.h"
 #include "kwid.h"
 #include "helpers.h"
 #include "gobj.h"

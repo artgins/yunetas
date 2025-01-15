@@ -352,6 +352,29 @@ PUBLIC char *json2str(const json_t *jn); // jn not owned
 **rst**/
 PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
 
+/**rst**
+    Check all refcounts
+**rst**/
+PUBLIC int json_check_refcounts(
+    json_t *kw, // not owned
+    int max_refcount,
+    int *result // firstly initalize to 0
+);
+
+/**rst**
+    Check deeply the refcount of kw
+**rst**/
+PUBLIC int json_print_refcounts(
+    json_t *jn, // not owned
+    int level
+);
+
+/**rst**
+    Check if a string item are in `list` array:
+**rst**/
+PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case);
+
+
 /*---------------------------------*
  *      Walkdir functions
  *---------------------------------*/
@@ -658,28 +681,6 @@ PUBLIC void list_open_files(void);
 PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format);
 
 /**rst**
-    Check all refcounts
-**rst**/
-PUBLIC int json_check_refcounts(
-    json_t *kw, // not owned
-    int max_refcount,
-    int *result // firstly initalize to 0
-);
-
-/**rst**
-    Check deeply the refcount of kw
-**rst**/
-PUBLIC int json_print_refcounts(
-    json_t *jn, // not owned
-    int level
-);
-
-/**rst**
-    Check if a string item are in `list` array:
-**rst**/
-PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL ignore_case);
-
-/**rst**
    Cuenta cuantos caracteres de 'c' hay en 's'
 **rst**/
 PUBLIC int count_char(const char *s, char c);
@@ -688,6 +689,24 @@ PUBLIC const char *get_hostname(void);
 
 PUBLIC int create_uuid(char *bf, int bfsize);   // Create a new random uuid (used by treedb)
 PUBLIC const char *node_uuid(void);             // Get the uuid of the machine
+
+/*------------------------------------*
+ *      Common protocols
+ *------------------------------------*/
+/**rst**
+   Register a gclass with a communication protocol
+**rst**/
+PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema);
+
+/**rst**
+   Get the gclass name implementing the schema
+**rst**/
+PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema);
+
+/**rst**
+   Free comm_prot register
+**rst**/
+PUBLIC void comm_prot_free(void);
 
 #ifdef __cplusplus
 }

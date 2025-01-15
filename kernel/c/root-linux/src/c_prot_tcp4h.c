@@ -10,7 +10,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <netinet/in.h>
-#include <comm_prot.h>
+#include <helpers.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>
 #endif
