@@ -18,7 +18,6 @@
 
 #include <command_parser.h>
 #include <stats_parser.h>
-#include <json_config.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <yev_loop.h>

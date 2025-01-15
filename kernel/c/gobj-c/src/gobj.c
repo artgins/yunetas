@@ -19,7 +19,6 @@
     #include <unistd.h>
 #endif
 
-#include "json_config.h"
 #include "ansi_escape_codes.h"
 #include "command_parser.h"
 #include "kwid.h"
