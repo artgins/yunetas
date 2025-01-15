@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Traverses the immediate child GObjs of the specified parent GObj and applies a user-provided callback function to each.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,45 @@
 **Prototype**
 
 ```C
+
+int gobj_walk_gobj_childs(hgobj gobj, int (*cb)(hgobj child, void *user_data), void *user_data);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj.
+
+* - `cb`
+  - `int (*cb)(hgobj, void *)`
+  - Callback function to be applied to each child GObj.
+
+* - `user_data`
+  - `void *`
+  - Pointer to user-defined data passed to the callback function.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` if the traversal completes successfully.  
+- Returns a negative value if the callback function halts the traversal.
+        
 
 
 <!--====================================================-->

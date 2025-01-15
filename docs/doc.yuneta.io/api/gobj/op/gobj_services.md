@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Lists all service GObjs in the current Yuno. Services are GObjs marked with the service flag, typically representing significant system components.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_services(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON array ([`json_t`](json_t)) of service GObjs, including their metadata.  
+- Returns an empty array if no services are registered.
+        
 
 
 <!--====================================================-->

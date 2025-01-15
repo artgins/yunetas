@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Automatically plays all services marked for autoplay within a Yuno. This ensures that the required services transition into an operational state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_autoplay_services(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All autoplay services were successfully played.  
+- `-1`: An error occurred while playing one or more services.
+        
 
 
 <!--====================================================-->

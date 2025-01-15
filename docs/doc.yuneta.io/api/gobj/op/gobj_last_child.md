@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the last child GObj of the specified parent GObj. This is useful for reverse iteration through child GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_last_child(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj whose last child is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the last child GObj.  
+- Returns `NULL` if the parent GObj has no children.
+        
 
 
 <!--====================================================-->

@@ -10,7 +10,7 @@ template = Template("""
 # `$_name_()`
 <!-- ============================================================== -->
 
-
+$_description_
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,14 +27,19 @@ template = Template("""
 **Prototype**
 
 ```C
+$_prototype_
+
 ```
 
 **Parameters**
 
+$_parameters_
 
 ---
 
 **Return Value**
+
+$_return_value_
 
 
 <!--====================================================-->
@@ -164,7 +169,7 @@ template = Template("""
 """)
 
 # List of names
-names = [
+xnames = [
     "gobj_set_stat",
     "gobj_incr_stat",
     "gobj_decr_stat",
@@ -172,13 +177,50 @@ names = [
     "gobj_jn_stats",
 ]
 
-# Loop through the list of names and create a file for each
-for name in names:
-    # Substitute the variable in the template
-    formatted_text = template.substitute(_name_=name)
+functions = [
+    {
+        "name": "gobj_set_stat",
+        "description": '''
+Set stat
+        ''',
+        "prototype": '''
+int gobj_set_stat(void);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
 
+* - `name`
+  - `const char *`
+  - The name of the GObj to be created.
+
+:::
+        ''',
+
+        "return_value": '''
+- Returns the handle ([`hgobj`](hgobj)) to the created GObj.  
+- Returns `NULL` if the creation fails.
+        '''
+    }
+]
+
+# Loop through the list of names and create a file for each
+for fn in functions:
+    # Substitute the variable in the template
+
+    formatted_text = template.substitute(
+        _name_          = fn['name'],
+        _description_   = fn['description'],
+        _prototype_     = fn['prototype'],
+        _parameters_    = fn['parameters'],
+        _return_value_  = fn['return_value']
+    )
     # Create a unique file name for each name
-    file_name = f"{name.lower()}.md"
+    file_name = f"{fn['name'].lower()}.md"
 
     # Check if the file already exists
     if os.path.exists(file_name):

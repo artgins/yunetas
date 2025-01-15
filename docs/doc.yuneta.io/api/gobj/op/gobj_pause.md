@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Pauses a GObj, transitioning it to the "paused" state. This halts the GObj's activity without stopping it entirely.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_pause(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be paused.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj was successfully paused.  
+- `-1`: An error occurred during the pause process.
+        
 
 
 <!--====================================================-->

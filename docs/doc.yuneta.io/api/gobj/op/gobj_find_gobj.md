@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds a GObj by its name within the hierarchy. This is useful for locating specific GObjs for interaction or management.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_find_gobj(const char *gobj_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj_name`
+  - `const char *`
+  - The name of the GObj to find.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the GObj with the specified name.  
+- Returns `NULL` if no matching GObj is found.
+        
 
 
 <!--====================================================-->

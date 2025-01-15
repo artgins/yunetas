@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Transitions a GObj to the "playing" state. This function ensures that the GObj is in an operational state where it can handle events and perform its intended tasks.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_play(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be transitioned to the "playing" state.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj successfully transitioned to the "playing" state.  
+- `-1`: The transition failed, possibly because the GObj was not in a compatible state.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Returns the total number of child GObjs under the specified parent GObj, with additional filtering options. This allows for more specific queries within the hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+int gobj_child_size2(hgobj gobj, json_t *filter);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj.
+
+* - `filter`
+  - [`json_t *`](json_t)
+  - JSON object containing filter criteria for the child GObjs.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the total number of child GObjs under the specified parent GObj that match the filter criteria.  
+- Returns `0` if no matching child GObjs are found.
+        
 
 
 <!--====================================================-->

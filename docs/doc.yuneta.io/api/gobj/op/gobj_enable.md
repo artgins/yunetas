@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Enables a GObj, making it active. An enabled GObj is ready to start or operate.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_enable(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be enabled.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj was successfully enabled.  
+- `-1`: An error occurred during the enable process.
+        
 
 
 <!--====================================================-->

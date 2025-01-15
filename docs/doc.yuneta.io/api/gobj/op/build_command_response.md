@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Constructs a response for a command executed on a GObj. This function is typically used to standardize the format of command responses.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+json_t *build_command_response(hgobj gobj, int result, const char *message, json_t *kw);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj generating the command response.
+
+* - `result`
+  - `int`
+  - The result code of the command execution (e.g., `0` for success, negative values for errors).
+
+* - `message`
+  - `const char *`
+  - A descriptive message associated with the command's result.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing additional data for the response. Ownership is transferred to the function.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the command response.  
+- The response includes keys like `result`, `message`, and additional data.
+        
 
 
 <!--====================================================-->

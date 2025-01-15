@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Stops the specified GObj and its entire hierarchy of child GObjs. This function ensures that all dependent GObjs are gracefully stopped in a bottom-up manner.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_stop_tree(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the root GObj of the hierarchy to be stopped.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj and its child hierarchy were successfully stopped.  
+- `-1`: An error occurred while stopping one or more GObjs in the hierarchy.
+        
 
 
 <!--====================================================-->

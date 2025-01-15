@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the bottom GObj directly associated with the specified GObj. This function does not traverse the entire hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_bottom_gobj(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose bottom GObj is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the bottom GObj directly associated with the specified GObj.  
+- Returns `NULL` if the GObj does not have a bottom GObj.
+        
 
 
 <!--====================================================-->

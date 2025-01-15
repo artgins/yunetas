@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Stops a GObj, transitioning it to the "stopped" state. Any active processes or resources associated with the GObj may be released.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_stop(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be stopped.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj was successfully stopped.  
+- `-1`: An error occurred during the stop process.
+        
 
 
 <!--====================================================-->

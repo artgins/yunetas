@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set stat
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_set_stat(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `name`
+  - `const char *`
+  - The name of the GObj to be created.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) to the created GObj.  
+- Returns `NULL` if the creation fails.
+        
 
 
 <!--====================================================-->

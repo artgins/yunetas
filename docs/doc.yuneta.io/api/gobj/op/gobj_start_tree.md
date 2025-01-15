@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Recursively starts a GObj and all its descendants, transitioning the entire hierarchy to the "running" state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_start_tree(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the root GObj of the tree to be started.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj tree was successfully started.  
+- `-1`: An error occurred during the start process for one or more GObjs in the tree.
+        
 
 
 <!--====================================================-->

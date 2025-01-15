@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the last bottom GObj in the hierarchy of the specified GObj. This function traverses the bottom hierarchy to find the deepest delegation point.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_last_bottom_gobj(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose last bottom GObj is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the last bottom GObj in the hierarchy.  
+- Returns `NULL` if the GObj has no bottom GObjs.
+        
 
 
 <!--====================================================-->

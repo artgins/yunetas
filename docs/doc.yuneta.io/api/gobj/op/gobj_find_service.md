@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds a service GObj by its name. This allows direct access to a specific service for interaction or management.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_find_service(const char *service_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `service_name`
+  - `const char *`
+  - The name of the service GObj to find.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the service GObj with the specified name.  
+- Returns `NULL` if no matching service is found.
+        
 
 
 <!--====================================================-->

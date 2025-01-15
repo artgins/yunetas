@@ -165,7 +165,7 @@ template = Template("""
 
 # List of names
 names = [
-    "gobj_start(hgobj gobj",
+    "gobj_start",
     "gobj_start_childs",
     "gobj_start_tree",
     "gobj_stop",

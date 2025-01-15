@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks if a GObj matches specified criteria provided in a filter. This is useful for validating or selecting GObjs based on attributes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_match_gobj(hgobj gobj, json_t *filter);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to check.
+
+* - `filter`
+  - [`json_t *`](json_t)
+  - JSON object containing criteria to match.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the GObj matches the filter criteria.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->

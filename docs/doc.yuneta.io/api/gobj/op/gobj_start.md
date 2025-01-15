@@ -1,11 +1,13 @@
 
 
 <!-- ============================================================== -->
-(gobj_start(hgobj gobj())=
-# `gobj_start(hgobj gobj()`
+(gobj_start())=
+# `gobj_start()`
 <!-- ============================================================== -->
 
 
+Starts a GObj, transitioning it to the "running" state. The GObj may execute initialization logic during this process.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_start(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be started.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj was successfully started.  
+- `-1`: An error occurred during the start process.
+        
 
 
 <!--====================================================-->

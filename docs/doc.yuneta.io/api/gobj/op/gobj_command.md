@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Executes a command on the specified GObj. Commands allow direct interaction with GObjs, enabling specific actions or behaviors.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj on which the command is executed.
+
+* - `cmd`
+  - `const char *`
+  - The name of the command to execute.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing parameters for the command. Ownership is transferred to the function.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj initiating the command.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the command's result and data.  
+- Returns `NULL` if the command could not be executed.
+        
 
 
 <!--====================================================-->

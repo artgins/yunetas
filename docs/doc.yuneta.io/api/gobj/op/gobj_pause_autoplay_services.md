@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Pauses all services that were marked for autoplay within a Yuno. This halts their operation without stopping them entirely.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_pause_autoplay_services(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All autoplay services were successfully paused.  
+- `-1`: An error occurred while pausing one or more services.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds a service GObj by its GClass. This allows access to the first service matching the specified GClass type.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_find_service_by_gclass(gclass_name_t gclass_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass_name`
+  - [`gclass_name_t`](gclass_name_t)
+  - The GClass name of the service GObj to find.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the first service matching the specified GClass.  
+- Returns `NULL` if no matching service is found.
+        
 
 
 <!--====================================================-->

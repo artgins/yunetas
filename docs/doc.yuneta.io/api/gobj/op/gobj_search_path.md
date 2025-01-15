@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Searches for a GObj along a specified hierarchical path. This is useful for locating GObjs in complex structures.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_search_path(hgobj gobj, const char *path);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj serving as the search root.
+
+* - `path`
+  - `const char *`
+  - The hierarchical path to search for the GObj.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the GObj located at the specified path.  
+- Returns `NULL` if no matching GObj is found.
+        
 
 
 <!--====================================================-->

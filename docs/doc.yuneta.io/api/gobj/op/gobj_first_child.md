@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the first child GObj of the specified parent GObj. This is useful for iterating through child GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_first_child(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj whose first child is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the first child GObj.  
+- Returns `NULL` if the parent GObj has no children.
+        
 
 
 <!--====================================================-->

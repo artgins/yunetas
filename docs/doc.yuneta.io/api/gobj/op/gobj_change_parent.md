@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Changes the parent of a GObj, reassigning it to a new hierarchy under the specified parent.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+int gobj_change_parent(hgobj gobj, hgobj new_parent);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose parent is being changed.
+
+* - `new_parent`
+  - [`hgobj`](hgobj)
+  - Handle to the new parent GObj.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj's parent was successfully changed.  
+- `-1`: An error occurred during the parent change process.
+        
 
 
 <!--====================================================-->

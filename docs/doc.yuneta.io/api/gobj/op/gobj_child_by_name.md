@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds a child GObj by its name under the specified parent GObj. This allows for direct access to a child GObj within the hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_child_by_name(hgobj gobj, const char *child_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj.
+
+* - `child_name`
+  - `const char *`
+  - The name of the child GObj to find.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the child GObj with the specified name.  
+- Returns `NULL` if no matching child GObj is found.
+        
 
 
 <!--====================================================-->

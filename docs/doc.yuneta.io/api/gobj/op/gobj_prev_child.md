@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the previous sibling GObj of the specified GObj within the same parent hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_prev_child(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose previous sibling is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the previous sibling GObj.  
+- Returns `NULL` if the GObj has no previous sibling.
+        
 
 
 <!--====================================================-->

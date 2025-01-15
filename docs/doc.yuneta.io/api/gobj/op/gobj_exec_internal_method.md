@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Executes an internal method on a GObj. Internal methods are specific to the GClass of the GObj and provide additional functionality.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_exec_internal_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj on which the method will be executed.
+
+* - `method_name`
+  - `const char *`
+  - Name of the internal method to execute.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing parameters for the method. Ownership is transferred to the function.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj initiating the method execution.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the result of the method execution.  
+- Returns `NULL` if the method does not exist or an error occurs.
+        
 
 
 <!--====================================================-->

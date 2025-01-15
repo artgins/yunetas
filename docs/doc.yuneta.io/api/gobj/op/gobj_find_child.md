@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds a child GObj under the specified parent GObj based on specific criteria. This function is useful for advanced child lookups.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_find_child(hgobj gobj, json_t *filter);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj.
+
+* - `filter`
+  - [`json_t *`](json_t)
+  - JSON object containing criteria to find the child GObj.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the child GObj matching the criteria.  
+- Returns `NULL` if no matching child is found.
+        
 
 
 <!--====================================================-->

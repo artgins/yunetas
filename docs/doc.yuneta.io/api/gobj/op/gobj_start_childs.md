@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Starts all child GObjs of the specified parent GObj, transitioning them to the "running" state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_start_childs(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj whose child GObjs will be started.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All child GObjs were successfully started.  
+- `-1`: An error occurred during the start process for one or more child GObjs.
+        
 
 
 <!--====================================================-->

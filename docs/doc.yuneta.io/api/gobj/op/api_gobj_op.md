@@ -4,8 +4,7 @@
 :caption: Operation functions
 :maxdepth: 2
 
-gobj_exec_internal_method.md
-gobj_start(hgobj gobj.md
+gobj_start
 gobj_start_childs.md
 gobj_start_tree.md
 gobj_stop.md
@@ -44,5 +43,6 @@ gobj_match_gobj.md
 gobj_find_child.md
 gobj_walk_gobj_childs.md
 gobj_walk_gobj_childs_tree.md
+gobj_exec_internal_method.md
 
 ```

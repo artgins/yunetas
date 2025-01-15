@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Stops all child GObjs of the specified parent GObj, transitioning them to the "stopped" state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_stop_childs(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj whose child GObjs will be stopped.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All child GObjs were successfully stopped.  
+- `-1`: An error occurred during the stop process for one or more child GObjs.
+        
 
 
 <!--====================================================-->

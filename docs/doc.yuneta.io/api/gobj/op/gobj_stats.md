@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves statistics from the specified GObj. Statistics provide insight into the GObj's operational metrics and performance.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose statistics are being retrieved.
+
+* - `stats`
+  - `const char *`
+  - A string specifying which statistics to retrieve. Can be `NULL` to retrieve all statistics.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing additional options or filters for the statistics request. Ownership is transferred to the function.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj initiating the request.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the requested statistics.  
+- Returns `NULL` if the statistics could not be retrieved.
+        
 
 
 <!--====================================================-->

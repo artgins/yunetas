@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Automatically starts all services marked for autostart within a Yuno. This is typically used during the initialization phase of a Yuno to ensure required services are running.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_autostart_services(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All autostart services were successfully started.  
+- `-1`: An error occurred while starting one or more services.
+        
 
 
 <!--====================================================-->

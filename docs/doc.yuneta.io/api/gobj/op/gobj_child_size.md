@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Returns the total number of child GObjs under the specified parent GObj. This is useful for assessing the scope of a GObj's hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_child_size(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the parent GObj.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the total number of child GObjs under the specified parent GObj.  
+- Returns `0` if the GObj has no children.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the default service GObj for the current Yuno. The default service is typically the primary operational component of the Yuno.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_default_service(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the default service GObj.  
+- Returns `NULL` if no default service is defined.
+        
 
 
 <!--====================================================-->

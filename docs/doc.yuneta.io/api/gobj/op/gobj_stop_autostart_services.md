@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Stops all services that were marked for autostart within a Yuno. This is typically used during the shutdown phase of a Yuno to gracefully stop running services.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_stop_autostart_services(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - None
+  - -
+  - This function does not accept any parameters.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: All autostart services were successfully stopped.  
+- `-1`: An error occurred while stopping one or more services.
+        
 
 
 <!--====================================================-->

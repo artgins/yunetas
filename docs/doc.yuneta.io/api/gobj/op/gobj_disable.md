@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Disables a GObj, marking it as inactive. A disabled GObj cannot be started or operate.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+int gobj_disable(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be disabled.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The GObj was successfully disabled.  
+- `-1`: An error occurred during the disable process.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Sets the bottom GObj in the hierarchy for the specified GObj. This bottom GObj serves as a delegation point for certain operations or attributes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,40 @@
 **Prototype**
 
 ```C
+
+void gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose bottom GObj is being set.
+
+* - `bottom_gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be set as the bottom.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- None.
+        
 
 
 <!--====================================================-->
