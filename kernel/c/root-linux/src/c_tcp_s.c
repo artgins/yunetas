@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <parse_url.h>
+#include <helpers.h>
 #include <kwid.h>
 #include <ytls.h>
 #include <yev_loop.h>

@@ -10,6 +10,7 @@
 #pragma once
 
 #include <sys/stat.h>
+#include "00_http_parser.h"
 #include "gobj.h"
 
 /*

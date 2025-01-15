@@ -14,7 +14,6 @@
 #include <unistd.h>
 
 #include <kwid.h>
-#include <parse_url.h>
 #include <helpers.h>
 #include <yuneta_version.h>
 

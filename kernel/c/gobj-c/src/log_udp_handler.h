@@ -10,7 +10,6 @@
 #pragma once
 
 #include <stdio.h>
-#include <stdarg.h>
 #include "helpers.h"
 
 #ifdef __cplusplus

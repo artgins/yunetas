@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #include <kwid.h>
-#include <parse_url.h>
+#include <helpers.h>
 
 #include "c_timer.h"
 #include "msg_ievent.h"

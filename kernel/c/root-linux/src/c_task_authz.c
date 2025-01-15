@@ -125,7 +125,6 @@ Example of refresh_token
 #include <helpers.h>
 #include <kwid.h>
 #include <command_parser.h>
-#include <parse_url.h>
 #include <helpers.h>
 
 #include "msg_ievent.h"
