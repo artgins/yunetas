@@ -711,3 +711,8 @@ PUBLIC void comm_prot_free(void);
 #ifdef __cplusplus
 }
 #endif
+
+/*------------------------------------*
+ *      Daemons
+ *------------------------------------*/
+PUBLIC int launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...); // Return pid of daemon
