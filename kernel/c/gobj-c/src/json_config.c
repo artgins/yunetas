@@ -17,7 +17,6 @@
 #include <pcre2.h>
 
 #include "helpers.h"
-#include "json_config.h"
 
 // From jannson_private.h
 //extern void* jsonp_malloc(size_t size);

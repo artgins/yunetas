@@ -44,7 +44,6 @@ set (HDRS
     src/command_parser.h
     src/stats_parser.h
     src/testing.h
-    src/json_config.h
     src/rotatory.h
 )
 
