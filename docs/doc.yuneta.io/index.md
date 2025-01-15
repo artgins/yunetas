@@ -109,7 +109,7 @@ api/gobj/api_gobj_dl.md
 :caption: Kwid API
 :maxdepth: 3
 
-api/api_kwid.md
+api/kwid/api_kwid.md
 
 ```
 
