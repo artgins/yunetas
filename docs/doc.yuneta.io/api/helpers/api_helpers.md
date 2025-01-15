@@ -1,7 +1,7 @@
-# Kwid API
+# Helpers API
 
 ```{toctree}
-:caption: kwid functions
+:caption: Helpers functions
 :maxdepth: 2
 
 newdir.md
