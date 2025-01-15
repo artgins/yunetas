@@ -23,7 +23,6 @@ set (SRCS
     src/00_http_parser.c
     src/gobj.c
     src/glog.c
-    src/istream.c
     src/log_udp_handler.c
     src/helpers.c
     src/kwid.c
@@ -39,7 +38,6 @@ set (HDRS
     src/ansi_escape_codes.h
     src/00_http_parser.h
     src/gobj.h
-    src/istream.h
     src/log_udp_handler.h
     src/helpers.h
     src/kwid.h

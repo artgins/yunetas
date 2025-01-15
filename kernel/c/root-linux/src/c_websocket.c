@@ -128,7 +128,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason);
 PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request);
 
 PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE int framehead_consume(FRAME_HEAD *frame, istream istream, char *bf, size_t len);
+PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, size_t len);
 PRIVATE int frame_completed(hgobj gobj);
 
 /***************************************************************************
@@ -172,8 +172,8 @@ typedef struct _PRIVATE_DATA {
     int pingT;
 
     FRAME_HEAD frame_head;
-    istream istream_frame;
-    istream istream_payload;
+    istream_h istream_frame;
+    istream_h istream_payload;
 
     FRAME_HEAD message_head;
     gbuffer_t *gbuf_message;
@@ -683,7 +683,7 @@ PRIVATE int decode_head(FRAME_HEAD *frame, char *data)
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
  ***************************************************************************/
-PRIVATE int framehead_consume(FRAME_HEAD *frame, istream istream, char *bf, size_t len)
+PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, size_t len)
 {
     int total_consumed = 0;
     int consumed;
@@ -1792,7 +1792,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
-    istream istream = priv->istream_frame;
+    istream_h istream = priv->istream_frame;
     int ret = 0;
 
     if(priv->pingT>0) {

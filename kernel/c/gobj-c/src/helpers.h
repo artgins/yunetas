@@ -825,3 +825,56 @@ PUBLIC int ghttp_parser_received( /* Return bytes consumed or -1 if error */
 PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser);
 
 PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser);
+
+/*------------------------------------*
+ *      istream
+ *------------------------------------*/
+
+typedef void *istream_h;
+
+#define ISTREAM_CREATE(var, gobj, data_size, max_size)                  \
+    if(var) {                                                           \
+        gobj_log_error((gobj), LOG_OPT_TRACE_STACK,                     \
+            "function",     "%s", __FUNCTION__,                         \
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,                \
+            "msg",          "%s", "istream_h ALREADY exists! Destroyed",  \
+            NULL                                                        \
+        );                                                              \
+        istream_destroy(var);                                           \
+    }                                                                   \
+    (var) = istream_create((gobj), (data_size), (max_size));
+
+#define ISTREAM_DESTROY(ptr)    \
+    if(ptr) {                   \
+        istream_destroy(ptr);   \
+    }                           \
+    (ptr) = 0;
+
+PUBLIC istream_h istream_create(
+    hgobj gobj,
+    size_t data_size,
+    size_t max_size
+);
+PUBLIC void istream_destroy(istream_h istream_h);
+PUBLIC int istream_read_until_num_bytes(
+    istream_h istream_h,
+    size_t num_bytes,
+    const char *event
+);
+PUBLIC int istream_read_until_delimiter(
+    istream_h istream_h,
+    const char *delimiter,
+    size_t delimiter_size,
+    const char *event
+);
+PUBLIC size_t istream_consume(istream_h istream_h, char *bf, size_t len);
+PUBLIC char *istream_cur_rd_pointer(istream_h istream_h);
+PUBLIC size_t istream_length(istream_h istream_h);
+PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream_h);
+PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream_h);
+PUBLIC int istream_new_gbuffer(istream_h istream_h, size_t data_size, size_t max_size);
+PUBLIC char *istream_extract_matched_data(istream_h istream_h, size_t *len);
+PUBLIC int istream_reset_wr(istream_h istream_h);
+PUBLIC int istream_reset_rd(istream_h istream_h);
+PUBLIC void istream_clear(istream_h istream_h); // reset wr/rd
+PUBLIC BOOL istream_is_completed(istream_h istream_h);

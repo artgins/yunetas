@@ -443,8 +443,8 @@ typedef struct _PRIVATE_DATA {
     int inform_on_close;
 
     FRAME_HEAD frame_head;
-    istream istream_head;
-    istream istream_payload;
+    istream_h istream_head;
+    istream_h istream_payload;
     state_t st;
     int modbus_function;
 
@@ -1783,7 +1783,7 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
  ***************************************************************************/
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, char *bf, int len)
+PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

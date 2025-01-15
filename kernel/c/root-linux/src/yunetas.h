@@ -22,7 +22,6 @@ extern "C"{
 #include <ansi_escape_codes.h>
 #include <command_parser.h>
 #include <helpers.h>
-#include <istream.h>
 #include <json_config.h>
 #include <msg_ievent.h>
 #include <kwid.h>

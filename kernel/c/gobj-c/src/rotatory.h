@@ -39,7 +39,7 @@ extern "C"{
 /*****************************************************************
  *     Structures
  *****************************************************************/
-typedef void * hrotatory_t;
+typedef void * hrotatory_h;
 
 /*****************************************************************
  *     Prototypes
@@ -49,7 +49,7 @@ PUBLIC void rotatory_end(void); // close all
 
 // Return NULL on error
 // Available mask for filename: "DD/MM/CCYY-W-ZZZ"
-PUBLIC hrotatory_t rotatory_open(
+PUBLIC hrotatory_h rotatory_open(
     const char* path,
     size_t bf_size,                     // 0 = default 64K
     size_t max_megas_rotatoryfile_size, // 0 = default 8, In Megas!!
@@ -58,26 +58,26 @@ PUBLIC hrotatory_t rotatory_open(
     int rpermission,
     BOOL exit_on_fail
 );
-PUBLIC void rotatory_close(hrotatory_t hr);
+PUBLIC void rotatory_close(hrotatory_h hr);
 
 PUBLIC int rotatory_subscribe2newfile(
-    hrotatory_t hr,
+    hrotatory_h hr,
     int (*cb_newfile)(void *user_data, const char *old_filename, const char *new_filename),
     void *user_data
 );
 
 // Return -1 if error
-PUBLIC int rotatory_write(hrotatory_t hr, int priority, const char *bf, size_t len);
+PUBLIC int rotatory_write(hrotatory_h hr, int priority, const char *bf, size_t len);
 
 // Max size defined by bf_size in rotatory_open()
-PUBLIC int rotatory_fwrite(hrotatory_t hr_, int priority, const char *format, ...);
+PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ...);
 
 // if hr is null trunk all files
-PUBLIC void rotatory_trunk(hrotatory_t hr);
+PUBLIC void rotatory_trunk(hrotatory_h hr);
  // if hr is null flush all files
-PUBLIC void rotatory_flush(hrotatory_t hr);
+PUBLIC void rotatory_flush(hrotatory_h hr);
 
-PUBLIC const char *rotatory_path(hrotatory_t hr);
+PUBLIC const char *rotatory_path(hrotatory_h hr);
 
 #ifdef __cplusplus
 }

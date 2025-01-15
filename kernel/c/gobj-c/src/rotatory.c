@@ -118,7 +118,7 @@ PUBLIC void rotatory_end(void)
 /*****************************************************************
  *  Return NULL on error
  *****************************************************************/
-PUBLIC hrotatory_t rotatory_open(
+PUBLIC hrotatory_h rotatory_open(
     const char* path,
     size_t bf_size,
     size_t max_megas_rotatoryfile_size,
@@ -273,7 +273,7 @@ PUBLIC hrotatory_t rotatory_open(
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC void rotatory_close(hrotatory_t hr_)
+PUBLIC void rotatory_close(hrotatory_h hr_)
 {
     rotatory_log_t *hr = hr_;
 
@@ -297,7 +297,7 @@ PUBLIC void rotatory_close(hrotatory_t hr_)
  *
  *****************************************************************/
 PUBLIC int rotatory_subscribe2newfile(
-    hrotatory_t hr_,
+    hrotatory_h hr_,
     int (*cb_newfile)(void *user_data, const char *old_filename, const char *new_filename),
     void *user_data)
 {
@@ -311,7 +311,7 @@ PUBLIC int rotatory_subscribe2newfile(
 /*****************************************************************
  *   Return bytes written
  *****************************************************************/
-PUBLIC int rotatory_write(hrotatory_t hr_, int priority, const char* bf, size_t len)
+PUBLIC int rotatory_write(hrotatory_h hr_, int priority, const char* bf, size_t len)
 {
     rotatory_log_t *hr = hr_;
 
@@ -344,7 +344,7 @@ PUBLIC int rotatory_write(hrotatory_t hr_, int priority, const char* bf, size_t 
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC int rotatory_fwrite(hrotatory_t hr_, int priority, const char *format, ...)
+PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ...)
 {
     rotatory_log_t *hr = hr_;
     va_list ap;
@@ -368,7 +368,7 @@ PUBLIC int rotatory_fwrite(hrotatory_t hr_, int priority, const char *format, ..
 /*****************************************************************
  *  if hr is null trunk all files
  *****************************************************************/
-PUBLIC void rotatory_trunk(hrotatory_t hr)
+PUBLIC void rotatory_trunk(hrotatory_h hr)
 {
     if(hr) {
         _rotatory_trunk(hr);
@@ -385,7 +385,7 @@ PUBLIC void rotatory_trunk(hrotatory_t hr)
 /*****************************************************************
  *  if hr is null flush all files
  *****************************************************************/
-PUBLIC void rotatory_flush(hrotatory_t hr)
+PUBLIC void rotatory_flush(hrotatory_h hr)
 {
     if(hr) {
         _rotatory_flush(hr);
@@ -637,7 +637,7 @@ PRIVATE int _translate_mask(rotatory_log_t *hr)
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC const char *rotatory_path(hrotatory_t hr_)
+PUBLIC const char *rotatory_path(hrotatory_h hr_)
 {
     rotatory_log_t *hr = hr_;
     return hr->path;
