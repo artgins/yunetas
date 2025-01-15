@@ -48,6 +48,7 @@ str_concat3.md
 str_concat_free.md
 idx_in_list.md
 str_in_list.md
+json_config.md
 load_persistent_json.md
 load_json_from_file.md
 save_json_to_file.md
