@@ -20,7 +20,6 @@
 #include <gobj.h>
 #include <testing.h>
 #include <ansi_escape_codes.h>
-#include <stacktrace_with_backtrace.h>
 #include <yev_loop.h>
 #include <helpers.h>
 

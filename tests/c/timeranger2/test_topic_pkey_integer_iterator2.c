@@ -14,7 +14,7 @@
 
 #include <gobj.h>
 #include <timeranger2.h>
-#include <stacktrace_with_backtrace.h>
+#include <helpers.h>
 #include <yev_loop.h>
 #include <kwid.h>
 #include <testing.h>

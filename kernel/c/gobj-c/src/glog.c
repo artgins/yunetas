@@ -21,10 +21,9 @@
 #endif
 
 #include "ansi_escape_codes.h"
-#include "stacktrace_with_backtrace.h"
+#include "helpers.h"
 #include "rotatory.h"
 #include "log_udp_handler.h"
-#include "helpers.h"
 
 extern void jsonp_free(void *ptr);
 

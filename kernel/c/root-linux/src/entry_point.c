@@ -23,7 +23,6 @@
 #include <kwid.h>
 #include <yev_loop.h>
 #include <log_udp_handler.h>
-#include <stacktrace_with_backtrace.h>
 #include <yuneta_version.h>
 #include <rotatory.h>
 
