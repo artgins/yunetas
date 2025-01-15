@@ -20,7 +20,6 @@ extern "C"{
 #include <gobj.h>
 
 #include <ansi_escape_codes.h>
-#include <comm_prot.h>
 #include <command_parser.h>
 #include <ghttp_parser.h>
 #include <helpers.h>
@@ -35,7 +34,6 @@ extern "C"{
 #include <stats_parser.h>
 #include <testing.h>
 #include <ytls.h>
-#include <launch_daemon.h>
 
 #include <c_yuno.h>         // the grandmother
 #include <c_tcp.h>
