@@ -19,13 +19,15 @@
 #include <time.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <syslog.h>
-#include <errno.h>
+
+#include <yuneta_config.h>  /* don't remove */
 
 #ifdef ESP_PLATFORM
 #include "esp_system.h" // For esp_fill_random()
 #elif __linux__
 #include <sys/random.h> // For getrandom()
+#include <syslog.h>
+#include <backtrace.h>
 #endif
 
 #include <arpa/inet.h>   // For htonl and htons
@@ -5644,4 +5646,107 @@ PUBLIC int get_url_schema(
         NULL
     );
     return -1;
+}
+
+
+
+
+                    /*------------------------------------*
+                     *      Debug/Testing
+                     *------------------------------------*/
+
+
+
+
+#if CONFIG_DEBUG_WITH_BACKTRACE
+struct pass_data {
+    loghandler_fwrite_fn_t fwrite_fn;
+    void *h;
+};
+
+PRIVATE char backtrace_initialized = FALSE;
+PRIVATE char program_name[1024];
+
+PRIVATE struct backtrace_state *state = NULL;
+
+PRIVATE void error_callback(void *data_, const char *msg, int errnum)
+{
+    struct pass_data *data = data_;
+    loghandler_fwrite_fn_t fwrite_fn =  data->fwrite_fn;
+    void *h = data->h;
+
+    fwrite_fn(h, LOG_DEBUG, "Error: %s (%d)\n", msg, errnum);
+}
+
+PRIVATE int full_callback(
+    void *data_,
+    uintptr_t pc,
+    const char *filename,
+    int lineno,
+    const char *function
+)
+{
+    struct pass_data *data = data_;
+    loghandler_fwrite_fn_t fwrite_fn =  data->fwrite_fn;
+    void *h = data->h;
+
+    if (filename && function) {
+        fwrite_fn(h, LOG_DEBUG, "%-34s %s:%d (0x%lx) ", function, filename, lineno, (unsigned long)pc);
+    } else if (filename) {
+        fwrite_fn(h, LOG_DEBUG, "%s:%d (0x%lx)", filename, lineno, (unsigned long)pc);
+    } else {
+        fwrite_fn(h, LOG_DEBUG, "(unknown) (0x%lx)", (unsigned long)pc);
+    }
+    return 0;
+}
+#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
+{
+#if CONFIG_DEBUG_WITH_BACKTRACE
+    if(!backtrace_initialized) {
+        return;
+    }
+    struct pass_data {
+        loghandler_fwrite_fn_t fwrite_fn;
+        void *h;
+    } data = {
+        .fwrite_fn = fwrite_fn,
+        .h = h
+    };
+
+    // get symbols and print stack trace
+    fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
+
+    backtrace_full(state, 0, full_callback, error_callback, &data);
+#endif
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int init_backtrace_with_backtrace(const char *program)
+{
+#if CONFIG_DEBUG_WITH_BACKTRACE
+    if(!backtrace_initialized) {
+        // Initialize the backtrace state
+        state = backtrace_create_state(program, 1, error_callback, NULL);
+
+        if (!state) {
+            print_error(
+                PEF_CONTINUE,
+                "Failed to create backtrace state in %s",
+                program
+            );
+            return -1;
+        }
+
+        backtrace_initialized = TRUE;
+    }
+    snprintf(program_name, sizeof(program_name), "%s", program?program:"");
+#endif
+    return 0;
 }

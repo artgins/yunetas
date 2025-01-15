@@ -10,8 +10,9 @@
 #pragma once
 
 #include <sys/stat.h>
-#include "00_http_parser.h"
+#include "00_http_parser.h" /* don't remove */
 #include "gobj.h"
+
 
 /*
  *  Dependencies
@@ -743,3 +744,9 @@ PUBLIC int get_url_schema(
     const char *uri,
     char *schema, size_t schema_size
 );
+
+/*------------------------------------*
+ *      Debug/Testing
+ *------------------------------------*/
+int init_backtrace_with_backtrace(const char *program);
+void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);

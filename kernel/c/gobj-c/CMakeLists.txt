@@ -34,8 +34,6 @@ set (SRCS
     src/testing.c
     src/json_config.c
     src/rotatory.c
-
-    src/stacktrace_with_backtrace.c
 )
 
 set (HDRS
@@ -52,8 +50,6 @@ set (HDRS
     src/testing.h
     src/json_config.h
     src/rotatory.h
-
-    src/stacktrace_with_backtrace.h
 )
 
 ##############################################
