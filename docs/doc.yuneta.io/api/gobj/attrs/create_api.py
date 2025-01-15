@@ -200,7 +200,6 @@ names = [
     "gobj_write_json_attr",
     "gobj_write_new_json_attr",
     "gobj_write_pointer_attr",
-
 ]
 
 # Loop through the list of names and create a file for each
