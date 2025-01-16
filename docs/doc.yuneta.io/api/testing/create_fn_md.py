@@ -168,12 +168,216 @@ $_return_value_
 
 """)
 
-functions = [
+functions_documentation = [
 ]
+functions_documentation.extend([
+    {
+        "name": "capture_log_write",
+        "description": '''
+Write a message to the capture log.
+        ''',
+        "prototype": '''
+PUBLIC int capture_log_write(
+    const char  *message,
+    const char  *log_level
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `message`
+  - `const char *`
+  - The message to write to the capture log.
+
+* - `log_level`
+  - `const char *`
+  - The log level of the message (e.g., `info`, `error`).
+:::
+        ''',
+        "return_value": '''
+Returns `0` on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "set_expected_results",
+        "description": '''
+Set the expected results for a test case.
+        ''',
+        "prototype": '''
+PUBLIC void set_expected_results(
+    const char  *test_name,
+    const char  *expected_result
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `test_name`
+  - `const char *`
+  - The name of the test case.
+
+* - `expected_result`
+  - `const char *`
+  - The expected result for the test case.
+:::
+        ''',
+        "return_value": '''
+No return value. This function sets the expected results for the specified test case.
+        '''
+    },
+    {
+        "name": "test_json_file",
+        "description": '''
+Test if a JSON file meets specific conditions. Works with [`json_t *`](json_t).
+        ''',
+        "prototype": '''
+PUBLIC int test_json_file(
+    const char  *path,
+    int          verbose
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the JSON file.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for the test output.
+:::
+        ''',
+        "return_value": '''
+Returns `0` on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "test_json",
+        "description": '''
+Test if a JSON object meets specific conditions. Works with [`json_t *`](json_t).
+        ''',
+        "prototype": '''
+PUBLIC int test_json(
+    json_t      *json,
+    int          verbose
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - [`json_t *`](json_t)
+  - The JSON object to test.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for the test output.
+:::
+        ''',
+        "return_value": '''
+Returns `0` on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "test_directory_permission",
+        "description": '''
+Test if a directory has the specified permissions.
+        ''',
+        "prototype": '''
+PUBLIC int test_directory_permission(
+    const char  *path,
+    int          mode
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the directory.
+
+* - `mode`
+  - `int`
+  - The permission mode to check (e.g., readable, writable).
+:::
+        ''',
+        "return_value": '''
+Returns `0` if the directory has the specified permissions, or a negative value otherwise.
+        '''
+    },
+    {
+        "name": "test_file_permission_and_size",
+        "description": '''
+Test if a file has the specified permissions and meets size requirements.
+        ''',
+        "prototype": '''
+PUBLIC int test_file_permission_and_size(
+    const char  *path,
+    int          mode,
+    size_t       min_size,
+    size_t       max_size
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the file.
+
+* - `mode`
+  - `int`
+  - The permission mode to check (e.g., readable, writable).
+
+* - `min_size`
+  - `size_t`
+  - The minimum allowed size of the file in bytes.
+
+* - `max_size`
+  - `size_t`
+  - The maximum allowed size of the file in bytes.
+:::
+        ''',
+        "return_value": '''
+Returns `0` if the file meets the specified permissions and size requirements, or a negative value otherwise.
+        '''
+    }
+])
 
 
 # Loop through the list of names and create a file for each
-for fn in functions:
+for fn in functions_documentation:
     # Substitute the variable in the template
 
     formatted_text = template.substitute(

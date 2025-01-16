@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Test if a directory has the specified permissions.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int test_directory_permission(
+    const char  *path,
+    int          mode
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the directory.
+
+* - `mode`
+  - `int`
+  - The permission mode to check (e.g., readable, writable).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` if the directory has the specified permissions, or a negative value otherwise.
+        
 
 
 <!--====================================================-->

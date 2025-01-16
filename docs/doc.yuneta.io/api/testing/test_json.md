@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Test if a JSON object meets specific conditions. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int test_json(
+    json_t      *json,
+    int          verbose
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - [`json_t *`](json_t)
+  - The JSON object to test.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for the test output.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

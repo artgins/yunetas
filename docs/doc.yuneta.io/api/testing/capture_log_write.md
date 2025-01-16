@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write a message to the capture log.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int capture_log_write(
+    const char  *message,
+    const char  *log_level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `message`
+  - `const char *`
+  - The message to write to the capture log.
+
+* - `log_level`
+  - `const char *`
+  - The log level of the message (e.g., `info`, `error`).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

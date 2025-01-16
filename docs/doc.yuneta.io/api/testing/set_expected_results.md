@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set the expected results for a test case.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void set_expected_results(
+    const char  *test_name,
+    const char  *expected_result
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `test_name`
+  - `const char *`
+  - The name of the test case.
+
+* - `expected_result`
+  - `const char *`
+  - The expected result for the test case.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function sets the expected results for the specified test case.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Test if a file has the specified permissions and meets size requirements.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,52 @@
 **Prototype**
 
 ```C
+
+PUBLIC int test_file_permission_and_size(
+    const char  *path,
+    int          mode,
+    size_t       min_size,
+    size_t       max_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the file.
+
+* - `mode`
+  - `int`
+  - The permission mode to check (e.g., readable, writable).
+
+* - `min_size`
+  - `size_t`
+  - The minimum allowed size of the file in bytes.
+
+* - `max_size`
+  - `size_t`
+  - The maximum allowed size of the file in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` if the file meets the specified permissions and size requirements, or a negative value otherwise.
+        
 
 
 <!--====================================================-->
