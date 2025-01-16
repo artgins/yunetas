@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key as a boolean from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kw_get_bool(
+    json_t      *kw,
+    const char  *key,
+    BOOL        default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value will be retrieved as a boolean.
+
+* - `default_value`
+  - `BOOL`
+  - The default value to return if the key does not exist or is not a boolean.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the boolean value of the key, or `default_value` if the key does not exist or is not a boolean.
+        
 
 
 <!--====================================================-->

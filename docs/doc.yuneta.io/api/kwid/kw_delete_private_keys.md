@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove all private keys (keys starting with "_") from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_delete_private_keys(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object from which private keys will be removed.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of private keys removed, or `0` if none were found.
+        
 
 
 <!--====================================================-->

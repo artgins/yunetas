@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key from a sub-dictionary in a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_get_dict_value(
+    json_t      *kw,
+    const char  *key,
+    const char  *subkey
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value is a sub-dictionary.
+
+* - `subkey`
+  - `const char *`
+  - The key to retrieve from the sub-dictionary.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the value of `subkey` in the sub-dictionary, or `NULL` if the key or subkey does not exist.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key from a JSON object as a list. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_get_list(
+    json_t      *kw,
+    const char  *key,
+    BOOL        create
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value will be retrieved as a list.
+
+* - `create`
+  - `BOOL`
+  - If `TRUE`, creates an empty list for the key if it does not exist.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the list, or `NULL` if the key does not exist and `create` is `FALSE`.
+        
 
 
 <!--====================================================-->

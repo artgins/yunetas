@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a deep copy of a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_duplicate(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to duplicate.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a new [`json_t *`](json_t) object that is a deep copy of the input, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

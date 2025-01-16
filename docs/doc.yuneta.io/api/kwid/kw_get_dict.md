@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key from a JSON object as a dictionary. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_get_dict(
+    json_t      *kw,
+    const char  *key,
+    BOOL        create
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value will be retrieved as a dictionary.
+
+* - `create`
+  - `BOOL`
+  - If `TRUE`, creates an empty dictionary for the key if it does not exist.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the dictionary, or `NULL` if the key does not exist and `create` is `FALSE`.
+        
 
 
 <!--====================================================-->

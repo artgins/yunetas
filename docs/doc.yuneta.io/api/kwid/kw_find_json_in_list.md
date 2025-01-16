@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Search for a JSON object in a JSON array. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_find_json_in_list(
+    json_t      *kw,
+    const char  *key,
+    const char  *value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON array to search.
+
+* - `key`
+  - `const char *`
+  - The key to match in the objects within the array.
+
+* - `value`
+  - `const char *`
+  - The value to match for the specified key.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the first JSON object in the array that matches the key-value pair, or `NULL` if not found.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set a value in a JSON sub-dictionary at a specified path. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_set_subdict_value(
+    json_t      *kw,
+    const char  *path,
+    const char  *value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to modify.
+
+* - `path`
+  - `const char *`
+  - The path where the value will be set.
+
+* - `value`
+  - `const char *`
+  - The value to set in the sub-dictionary.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

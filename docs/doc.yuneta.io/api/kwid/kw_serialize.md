@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Serialize a JSON object into a gbuffer for transmission or storage with [`json_t *`](json_t) and [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *kw_serialize(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to serialize.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`gbuffer_t *`](gbuffer_t) containing the serialized JSON data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

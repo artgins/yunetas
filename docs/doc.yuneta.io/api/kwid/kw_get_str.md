@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key as a string from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *kw_get_str(
+    json_t      *kw,
+    const char  *key,
+    const char  *default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value will be retrieved as a string.
+
+* - `default_value`
+  - `const char *`
+  - The default value to return if the key does not exist or is not a string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the string value of the key, or `default_value` if the key does not exist or is not a string.
+        
 
 
 <!--====================================================-->

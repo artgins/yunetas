@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete a subkey from a JSON object at a specified path. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_delete_subkey(
+    json_t      *kw,
+    const char  *path,
+    const char  *key
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to modify.
+
+* - `path`
+  - `const char *`
+  - The path to the subkey's parent object.
+
+* - `key`
+  - `const char *`
+  - The subkey to delete from the parent object.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the subkey does not exist or deletion fails.
+        
 
 
 <!--====================================================-->

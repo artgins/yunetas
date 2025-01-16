@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a clone of a JSON object by excluding specified keys. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_clone_by_not_keys(
+    json_t      *kw,
+    const char  **keys_to_exclude
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to clone.
+
+* - `keys_to_exclude`
+  - `const char **`
+  - A null-terminated array of keys to exclude from the clone.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a new [`json_t *`](json_t) object excluding the specified keys, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

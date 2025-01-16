@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Compare two JSON objects (records) based on their `kwid` fields. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kwid_compare_records(
+    json_t      *record1,
+    json_t      *record2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `record1`
+  - [`json_t *`](json_t)
+  - The first JSON object to compare.
+
+* - `record2`
+  - [`json_t *`](json_t)
+  - The second JSON object to compare.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` if the `kwid` fields are equal, a positive value if `record1` is greater, or a negative value if `record2` is greater.
+        
 
 
 <!--====================================================-->

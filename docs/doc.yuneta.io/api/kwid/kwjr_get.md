@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a JSON value from a JSON object or array based on a JSON path. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kwjr_get(
+    json_t      *kw,
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object or array to query.
+
+* - `path`
+  - `const char *`
+  - The JSON path used to retrieve the value.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the value at the specified path, or `NULL` if the path does not exist.
+        
 
 
 <!--====================================================-->

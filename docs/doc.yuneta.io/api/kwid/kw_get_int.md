@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a key as an integer from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_get_int(
+    json_t      *kw,
+    const char  *key,
+    int         default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key whose value will be retrieved as an integer.
+
+* - `default_value`
+  - `int`
+  - The default value to return if the key does not exist or is not an integer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the integer value of the key, or `default_value` if the key does not exist or is not an integer.
+        
 
 
 <!--====================================================-->

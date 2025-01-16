@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a JSON object contains a specific key with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kw_has_key(
+    json_t      *kw,
+    const char  *key
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key to check for in the JSON object.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the key exists in the JSON object, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value at a specified index in a JSON array (list). Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_get_list_value(
+    json_t      *kw,
+    size_t      index
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON array to query.
+
+* - `index`
+  - `size_t`
+  - The index of the value to retrieve.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the value at the specified index, or `NULL` if the index is out of bounds.
+        
 
 
 <!--====================================================-->

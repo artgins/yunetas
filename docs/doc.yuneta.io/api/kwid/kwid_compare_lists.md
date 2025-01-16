@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Compare two JSON arrays (lists) of objects based on their `kwid` fields. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kwid_compare_lists(
+    json_t      *list1,
+    json_t      *list2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list1`
+  - [`json_t *`](json_t)
+  - The first JSON array to compare.
+
+* - `list2`
+  - [`json_t *`](json_t)
+  - The second JSON array to compare.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` if the lists are equal, a positive value if `list1` is greater, or a negative value if `list2` is greater.
+        
 
 
 <!--====================================================-->

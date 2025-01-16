@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a JSON object matches a specific `nid` (Node ID). Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kwid_match_nid(
+    json_t      *record,
+    const char  *nid
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `record`
+  - [`json_t *`](json_t)
+  - The JSON object to check.
+
+* - `nid`
+  - `const char *`
+  - The `nid` to match against the record.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the `nid` matches the `nid` in the JSON object, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

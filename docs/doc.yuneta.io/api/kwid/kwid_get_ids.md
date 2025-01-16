@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the list of IDs from a JSON object containing `kwid` keys. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kwid_get_ids(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object containing `kwid` keys.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) array containing the IDs, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

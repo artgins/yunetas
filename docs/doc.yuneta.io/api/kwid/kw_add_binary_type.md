@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Add a custom binary type to the system for handling serialization and deserialization with [`json_t *`](json_t) and [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_add_binary_type(
+    const char  *type_name,
+    int         (*serialize)(json_t *, gbuffer_t *),
+    json_t      *(*deserialize)(gbuffer_t *)
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `type_name`
+  - `const char *`
+  - The name of the binary type to add.
+
+* - `serialize`
+  - `int (*)(json_t *, gbuffer_t *)`
+  - A function pointer for serializing data of this type.
+
+* - `deserialize`
+  - `json_t *(*)(gbuffer_t *)`
+  - A function pointer for deserializing data of this type.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

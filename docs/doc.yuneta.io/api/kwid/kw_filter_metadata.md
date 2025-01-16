@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a new JSON object by filtering out metadata keys (keys starting with "__"). Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_filter_metadata(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to filter.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a new [`json_t *`](json_t) object without metadata keys, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

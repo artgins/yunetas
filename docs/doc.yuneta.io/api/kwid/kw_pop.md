@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove a key from a JSON object and return its value. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_pop(
+    json_t      *kw,
+    const char  *key
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to modify.
+
+* - `key`
+  - `const char *`
+  - The key to remove from the JSON object.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the value associated with the removed key, or `NULL` if the key does not exist.
+        
 
 
 <!--====================================================-->

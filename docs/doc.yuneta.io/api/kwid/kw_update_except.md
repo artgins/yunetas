@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Update a JSON object with the contents of another JSON object, excluding specified keys. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_update_except(
+    json_t      *destination,
+    json_t      *source,
+    const char  **keys_to_exclude
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `destination`
+  - [`json_t *`](json_t)
+  - The JSON object to update.
+
+* - `source`
+  - [`json_t *`](json_t)
+  - The JSON object whose contents will be merged into the destination.
+
+* - `keys_to_exclude`
+  - `const char **`
+  - A null-terminated array of keys to exclude from the update.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

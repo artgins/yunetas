@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a clone of a JSON object by including only values from a specified path. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_clone_by_path(
+    json_t      *kw,
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to clone.
+
+* - `path`
+  - `const char *`
+  - The path specifying which parts of the object to include in the clone.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a new [`json_t *`](json_t) object containing only the values from the specified path, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

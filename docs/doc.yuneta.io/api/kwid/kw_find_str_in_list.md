@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a specified string exists in a JSON array. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kw_find_str_in_list(
+    json_t      *kw,
+    const char  *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON array to search.
+
+* - `string`
+  - `const char *`
+  - The string to search for in the array.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the string exists in the array, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

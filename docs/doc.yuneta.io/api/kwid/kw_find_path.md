@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Find a value in a JSON object using a specified path. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_find_path(
+    json_t      *kw,
+    const char  *path,
+    BOOL        create
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to search.
+
+* - `path`
+  - `const char *`
+  - The path to search for in the JSON object.
+
+* - `create`
+  - `BOOL`
+  - If `TRUE`, creates the path if it does not exist.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the value at the specified path, or `NULL` if not found or creation failed.
+        
 
 
 <!--====================================================-->

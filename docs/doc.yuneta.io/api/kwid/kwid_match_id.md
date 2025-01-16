@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a JSON object matches a specific `kwid`. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kwid_match_id(
+    json_t      *record,
+    const char  *kwid
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `record`
+  - [`json_t *`](json_t)
+  - The JSON object to check.
+
+* - `kwid`
+  - `const char *`
+  - The `kwid` to match against the record.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the `kwid` matches the `kwid` in the JSON object, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

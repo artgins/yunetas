@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a word exists in a space-separated string within a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kw_has_word(
+    json_t      *kw,
+    const char  *key,
+    const char  *word
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to query.
+
+* - `key`
+  - `const char *`
+  - The key containing the space-separated string.
+
+* - `word`
+  - `const char *`
+  - The word to search for in the string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the word exists in the string, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

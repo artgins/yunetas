@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set the delimiter used for navigating JSON object paths.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void kw_set_path_delimiter(
+    char delimiter
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `delimiter`
+  - `char`
+  - The character to use as the path delimiter.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function sets the global path delimiter.
+        
 
 
 <!--====================================================-->

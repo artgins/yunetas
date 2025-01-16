@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a JSON object matches a simple key-value pair condition. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL kw_match_simple(
+    json_t      *kw,
+    const char  *key,
+    const char  *value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to check.
+
+* - `key`
+  - `const char *`
+  - The key to match in the JSON object.
+
+* - `value`
+  - `const char *`
+  - The value to match for the specified key.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the key-value pair matches in the JSON object, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

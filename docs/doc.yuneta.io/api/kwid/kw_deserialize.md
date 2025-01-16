@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Deserialize a gbuffer into a JSON object with [`json_t *`](json_t) and [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *kw_deserialize(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer containing the serialized JSON data to deserialize.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) created from the gbuffer, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

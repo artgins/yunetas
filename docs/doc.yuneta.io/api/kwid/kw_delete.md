@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete a key from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_delete(
+    json_t      *kw,
+    const char  *key
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object to modify.
+
+* - `key`
+  - `const char *`
+  - The key to delete from the JSON object.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the key does not exist or deletion fails.
+        
 
 
 <!--====================================================-->

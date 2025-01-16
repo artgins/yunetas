@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Decrease the reference count of a JSON object and free it if the count reaches zero with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void kw_decref(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object whose reference count will be decreased.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the reference count of the JSON object and may free it.
+        
 
 
 <!--====================================================-->

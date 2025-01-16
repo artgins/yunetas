@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove all metadata keys (keys starting with "__") from a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int kw_delete_metadata_keys(
+    json_t      *kw
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - The JSON object from which metadata keys will be removed.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of metadata keys removed, or `0` if none were found.
+        
 
 
 <!--====================================================-->
