@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Initialize a doubly-linked list.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void dl_init(
+    dl_list_t   *list
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to initialize.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function initializes the doubly-linked list.
+        
 
 
 <!--====================================================-->

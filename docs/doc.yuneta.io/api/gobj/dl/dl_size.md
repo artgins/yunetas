@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the number of nodes in the doubly-linked list.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t dl_size(
+    dl_list_t   *list
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of nodes in the doubly-linked list.
+        
 
 
 <!--====================================================-->

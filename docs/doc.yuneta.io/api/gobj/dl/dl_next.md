@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the next element in the doubly-linked list relative to a given node.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC dl_node_t *dl_next(
+    dl_node_t   *node
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `node`
+  - [`dl_node_t *`](dl_node_t)
+  - The current node.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the next node, or `NULL` if there is no next node.
+        
 
 
 <!--====================================================-->

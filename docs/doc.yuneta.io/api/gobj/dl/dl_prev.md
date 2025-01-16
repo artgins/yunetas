@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the previous element in the doubly-linked list relative to a given node.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC dl_node_t *dl_prev(
+    dl_node_t   *node
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `node`
+  - [`dl_node_t *`](dl_node_t)
+  - The current node.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the previous node, or `NULL` if there is no previous node.
+        
 
 
 <!--====================================================-->

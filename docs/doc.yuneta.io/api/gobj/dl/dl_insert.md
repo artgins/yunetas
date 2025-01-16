@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Insert a node into the doubly-linked list before a specified node.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC void dl_insert(
+    dl_list_t   *list,
+    dl_node_t   *node,
+    dl_node_t   *new_node
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to modify.
+
+* - `node`
+  - [`dl_node_t *`](dl_node_t)
+  - The node before which the new node will be inserted.
+
+* - `new_node`
+  - [`dl_node_t *`](dl_node_t)
+  - The new node to insert.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the doubly-linked list.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Add a node to the end of the doubly-linked list.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void dl_add(
+    dl_list_t   *list,
+    dl_node_t   *new_node
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to modify.
+
+* - `new_node`
+  - [`dl_node_t *`](dl_node_t)
+  - The new node to add to the list.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the doubly-linked list.
+        
 
 
 <!--====================================================-->

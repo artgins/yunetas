@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Find a node in the doubly-linked list that matches a given condition.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC dl_node_t *dl_find(
+    dl_list_t   *list,
+    dl_node_t   *(*match_fn)(dl_node_t *, void *),
+    void        *arg
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to search.
+
+* - `match_fn`
+  - `dl_node_t *(*)(dl_node_t *, void *)`
+  - A function pointer to the matching function.
+
+* - `arg`
+  - `void *`
+  - Additional argument passed to the matching function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the first node that matches the condition, or `NULL` if no match is found.
+        
 
 
 <!--====================================================-->

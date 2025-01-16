@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove all nodes from the doubly-linked list.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void dl_flush(
+    dl_list_t   *list
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to flush.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function clears the doubly-linked list.
+        
 
 
 <!--====================================================-->

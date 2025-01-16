@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete a node from the doubly-linked list.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void dl_delete(
+    dl_list_t   *list,
+    dl_node_t   *node
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - [`dl_list_t *`](dl_list_t)
+  - The doubly-linked list to modify.
+
+* - `node`
+  - [`dl_node_t *`](dl_node_t)
+  - The node to delete.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the doubly-linked list.
+        
 
 
 <!--====================================================-->
