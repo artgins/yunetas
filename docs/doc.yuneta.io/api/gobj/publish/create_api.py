@@ -172,7 +172,6 @@ names = [
     "gobj_find_subscribings",
     "gobj_list_subscriptions",
     "gobj_publish_event",
-
 ]
 
 # Loop through the list of names and create a file for each

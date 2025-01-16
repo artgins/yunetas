@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Unsubscribes a GObj from a specific event. This stops the GObj from receiving the specified event.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,45 @@
 **Prototype**
 
 ```C
+
+int gobj_unsubscribe_event(hgobj gobj, gobj_event_t event, hgobj subscriber);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that was publishing the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to unsubscribe from.
+
+* - `subscriber`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that was receiving the event.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The subscription was successfully removed.  
+- `-1`: The unsubscription failed, possibly because the subscription did not exist.
+        
 
 
 <!--====================================================-->

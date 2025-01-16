@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds all events that a GObj is currently subscribed to. This is useful for debugging or monitoring.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_find_subscribings(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose subscriptions are being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON array ([`json_t`](json_t)) containing all events the GObj is subscribed to.  
+- Returns an empty array if the GObj is not subscribed to any events.
+        
 
 
 <!--====================================================-->

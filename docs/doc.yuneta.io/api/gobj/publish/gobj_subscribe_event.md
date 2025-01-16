@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Subscribes a GObj to a specific event. Subscriptions allow GObjs to listen to and handle events published by other GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+int gobj_subscribe_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that will publish the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to subscribe to.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing subscription options or filters. Ownership is transferred to the function.
+
+* - `subscriber`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that will receive the subscribed event.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The subscription was successfully added.  
+- `-1`: The subscription failed, possibly due to invalid parameters.
+        
 
 
 <!--====================================================-->

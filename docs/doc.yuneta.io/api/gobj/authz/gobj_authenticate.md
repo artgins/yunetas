@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Authenticates a user or session based on the provided parameters. This function validates the user's identity and returns relevant authentication data.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,45 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_authenticate(hgobj gobj, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj performing the authentication.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing authentication credentials or parameters. Ownership is transferred to the function.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj initiating the authentication.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing authentication results or metadata.  
+- Returns `NULL` if authentication fails.
+        
 
 
 <!--====================================================-->

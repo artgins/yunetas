@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks if a specific authorization rule applies to the specified GObj. This function validates whether a certain action is permitted.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_authz(hgobj gobj, const char *authz, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj being checked.
+
+* - `authz`
+  - `const char *`
+  - The name of the authorization rule to check.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing additional parameters for the authorization check.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj requesting the authorization check.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the authorization rule applies to the GObj.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->

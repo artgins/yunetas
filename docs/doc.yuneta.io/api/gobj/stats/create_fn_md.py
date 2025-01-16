@@ -10,7 +10,7 @@ template = Template("""
 # `$_name_()`
 <!-- ============================================================== -->
 
-
+$_description_
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,14 +27,19 @@ template = Template("""
 **Prototype**
 
 ```C
+$_prototype_
+
 ```
 
 **Parameters**
 
+$_parameters_
 
 ---
 
 **Return Value**
+
+$_return_value_
 
 
 <!--====================================================-->
@@ -163,43 +168,27 @@ template = Template("""
 
 """)
 
-# List of names
-names = [
-    "gobj_treedbs",
-    "gobj_treedb_topics",
-    "gobj_topic_desc",
-    "gobj_topic_links",
-    "gobj_topic_hooks",
-    "gobj_topic_size",
-    "gobj_create_node",
-    "gobj_update_node",
-    "gobj_delete_node",
-    "gobj_link_nodes",
-    "gobj_unlink_nodes",
-    "gobj_get_node",
-    "gobj_list_nodes",
-    "gobj_list_instances",
-    "gobj_node_parents",
-    "gobj_node_childs",
-    "gobj_topic_jtree",
-    "gobj_node_tree",
-    "gobj_shoot_snap",
-    "gobj_activate_snap",
-    "gobj_list_snaps",
-
+functions = [
 ]
 
-# Loop through the list of names and create a file for each
-for name in names:
-    # Substitute the variable in the template
-    formatted_text = template.substitute(_name_=name)
 
+# Loop through the list of names and create a file for each
+for fn in functions:
+    # Substitute the variable in the template
+
+    formatted_text = template.substitute(
+        _name_          = fn['name'],
+        _description_   = fn['description'],
+        _prototype_     = fn['prototype'],
+        _parameters_    = fn['parameters'],
+        _return_value_  = fn['return_value']
+    )
     # Create a unique file name for each name
-    file_name = f"{name.lower()}.md"
+    file_name = f"{fn['name'].lower()}.md"
 
     # Check if the file already exists
     if os.path.exists(file_name):
-        print(f"File {file_name} already exists. Skipping...")
+        print(f"File {file_name} already exists. =============================> Skipping...")
         continue  # Skip to the next name
 
     # Write the formatted text to the file

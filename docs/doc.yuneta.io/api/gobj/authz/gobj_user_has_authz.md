@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks if a user associated with the specified GObj has the given authorization. This function validates user permissions.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_user_has_authz(hgobj gobj, const char *authz);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj associated with the user.
+
+* - `authz`
+  - `const char *`
+  - The name of the authorization rule to check.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the user has the specified authorization.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->

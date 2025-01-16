@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the global authorization table, which lists all available authorization rules across the system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const sdata_desc_t *gobj_get_global_authz_table(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a pointer to the global authorization table ([`sdata_desc_t`](sdata_desc_t)) containing all defined authorization rules.
+        
 
 
 <!--====================================================-->

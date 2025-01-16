@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Finds all subscriptions for a specific event published by a GObj. This is useful for debugging or monitoring subscriptions.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_find_subscriptions(hgobj gobj, gobj_event_t event);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj publishing the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to find subscriptions for.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON array ([`json_t`](json_t)) containing all subscriptions for the specified event.  
+- Returns an empty array if no subscriptions are found.
+        
 
 
 <!--====================================================-->

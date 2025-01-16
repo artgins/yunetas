@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Publishes an event from a GObj to all its subscribers. This is the primary mechanism for broadcasting events to multiple GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,45 @@
 **Prototype**
 
 ```C
+
+int gobj_publish_event(hgobj gobj, gobj_event_t event, json_t *kw);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj publishing the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to publish.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing data associated with the event. Ownership is transferred to the function.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The event was successfully published to all subscribers.  
+- `-1`: An error occurred while publishing the event.
+        
 
 
 <!--====================================================-->

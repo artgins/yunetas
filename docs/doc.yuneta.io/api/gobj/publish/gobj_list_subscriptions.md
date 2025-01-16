@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Lists all subscriptions of a GObj, providing details about the subscribed events and their filters.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_list_subscriptions(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose subscriptions are being listed.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON array ([`json_t`](json_t)) containing details of all subscriptions for the GObj.  
+- Returns an empty array if the GObj has no subscriptions.
+        
 
 
 <!--====================================================-->

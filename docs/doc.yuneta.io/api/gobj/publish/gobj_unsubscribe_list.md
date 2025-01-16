@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Unsubscribes a GObj from a list of events. This allows batch unsubscription from multiple events at once.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,45 @@
 **Prototype**
 
 ```C
+
+int gobj_unsubscribe_list(hgobj gobj, json_t *event_list, hgobj subscriber);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that was publishing the events.
+
+* - `event_list`
+  - [`json_t *`](json_t)
+  - JSON array containing the list of events to unsubscribe from.
+
+* - `subscriber`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj that was receiving the events.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The subscriptions were successfully removed.  
+- `-1`: The unsubscriptions failed, possibly because one or more subscriptions did not exist.
+        
 
 
 <!--====================================================-->

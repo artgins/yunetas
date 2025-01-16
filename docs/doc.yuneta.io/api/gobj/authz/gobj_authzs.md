@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the authorization rules for the specified GObj, providing a list of all available authorizations.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_authzs(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose authorization rules are being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON array ([`json_t`](json_t)) containing all available authorization rules.  
+- Returns an empty array if no rules are defined.
+        
 
 
 <!--====================================================-->
