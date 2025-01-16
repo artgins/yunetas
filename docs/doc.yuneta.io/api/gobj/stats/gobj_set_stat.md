@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Set stat
+Set a specific statistical value for a GObj.
         
 
 <!------------------------------------------------------------>
@@ -25,7 +25,7 @@ Set stat
 
 ```C
 
-int gobj_set_stat(void);
+PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value);
         
 
 ```
@@ -40,9 +40,17 @@ int gobj_set_stat(void);
   - Type
   - Description
 
-* - `name`
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
   - `const char *`
-  - The name of the GObj to be created.
+  - Path to the statistic to set.
+
+* - `value`
+  - `json_int_t`
+  - The value to set for the specified statistic.
 
 :::
         
@@ -52,8 +60,7 @@ int gobj_set_stat(void);
 **Return Value**
 
 
-- Returns the handle ([`hgobj`](hgobj)) to the created GObj.  
-- Returns `NULL` if the creation fails.
+- Returns the old value of the statistic as `json_int_t`.
         
 
 

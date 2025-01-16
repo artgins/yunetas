@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a specific statistical value for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,40 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to retrieve.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the value of the statistic as `json_int_t`.
+        
 
 
 <!--====================================================-->

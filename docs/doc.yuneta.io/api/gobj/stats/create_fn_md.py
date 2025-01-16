@@ -169,6 +169,165 @@ $_return_value_
 """)
 
 functions = [
+    {
+        "name": "gobj_set_stat",
+        "description": '''
+Set a specific statistical value for a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to set.
+
+* - `value`
+  - `json_int_t`
+  - The value to set for the specified statistic.
+
+:::
+        ''',
+        "return_value": '''
+- Returns the old value of the statistic as `json_int_t`.
+        '''
+    },
+    {
+        "name": "gobj_incr_stat",
+        "description": '''
+Increment a specific statistical value for a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to increment.
+
+* - `value`
+  - `json_int_t`
+  - The value to add to the specified statistic.
+
+:::
+        ''',
+        "return_value": '''
+- Returns the new value of the statistic as `json_int_t`.
+        '''
+    },
+    {
+        "name": "gobj_decr_stat",
+        "description": '''
+Decrement a specific statistical value for a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to decrement.
+
+* - `value`
+  - `json_int_t`
+  - The value to subtract from the specified statistic.
+
+:::
+        ''',
+        "return_value": '''
+- Returns the new value of the statistic as `json_int_t`.
+        '''
+    },
+    {
+        "name": "gobj_get_stat",
+        "description": '''
+Retrieve a specific statistical value for a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to retrieve.
+
+:::
+        ''',
+        "return_value": '''
+- Returns the value of the statistic as `json_int_t`.
+        '''
+    },
+    {
+        "name": "gobj_jn_stats",
+        "description": '''
+Retrieve the JSON representation of all statistics for a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_t *gobj_jn_stats(hgobj gobj);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+:::
+        ''',
+        "return_value": '''
+- Returns a pointer to a JSON object ([`json_t`](json_t)) containing all statistics.  
+  **Note:** The returned JSON object is not owned by the caller.
+        '''
+    }
 ]
 
 

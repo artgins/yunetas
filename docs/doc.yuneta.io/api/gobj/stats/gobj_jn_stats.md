@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the JSON representation of all statistics for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_jn_stats(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a pointer to a JSON object ([`json_t`](json_t)) containing all statistics.  
+  **Note:** The returned JSON object is not owned by the caller.
+        
 
 
 <!--====================================================-->

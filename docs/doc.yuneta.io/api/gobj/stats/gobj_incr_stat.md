@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Increment a specific statistical value for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,44 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj.
+
+* - `path`
+  - `const char *`
+  - Path to the statistic to increment.
+
+* - `value`
+  - `json_int_t`
+  - The value to add to the specified statistic.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the new value of the statistic as `json_int_t`.
+        
 
 
 <!--====================================================-->
