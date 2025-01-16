@@ -1373,7 +1373,7 @@ PUBLIC hgobj gobj_service_factory(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC hgobj gobj_create_gobj(
+PRIVATE hgobj _create_gobj(
     const char *gobj_name,
     gclass_name_t gclass_name,
     json_t *kw, // owned
@@ -1664,7 +1664,7 @@ PUBLIC hgobj gobj_create2(
     hgobj parent,
     gobj_flag_t gobj_flag
 ) {
-    return gobj_create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag);
+    return _create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag);
 }
 
 PUBLIC hgobj gobj_create_yuno(
@@ -1672,7 +1672,7 @@ PUBLIC hgobj gobj_create_yuno(
     gclass_name_t gclass_name,
     json_t *kw // owned
 ) {
-    return gobj_create_gobj(gobj_name, gclass_name, kw, NULL, gobj_flag_yuno);
+    return _create_gobj(gobj_name, gclass_name, kw, NULL, gobj_flag_yuno);
 }
 
 PUBLIC hgobj gobj_create_service(
@@ -1681,7 +1681,7 @@ PUBLIC hgobj gobj_create_service(
     json_t *kw, // owned
     hgobj parent
 ) {
-    return gobj_create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag_service);
+    return _create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag_service);
 }
 
 PUBLIC hgobj gobj_create_default_service(
@@ -1690,7 +1690,7 @@ PUBLIC hgobj gobj_create_default_service(
     json_t *kw, // owned
     hgobj parent
 ) {
-    return gobj_create_gobj(
+    return _create_gobj(
         gobj_name,
         gclass_name,
         kw,
@@ -1705,7 +1705,7 @@ PUBLIC hgobj gobj_create_volatil(
     json_t *kw, // owned
     hgobj parent
 ) {
-    return gobj_create_gobj(
+    return _create_gobj(
         gobj_name,
         gclass_name,
         kw,
@@ -1720,7 +1720,7 @@ PUBLIC hgobj gobj_create_pure_child(
     json_t *kw, // owned
     hgobj parent
 ) {
-    return gobj_create_gobj(
+    return _create_gobj(
         gobj_name,
         gclass_name,
         kw,
@@ -1735,7 +1735,7 @@ PUBLIC hgobj gobj_create(
     json_t *kw, // owned
     hgobj parent
 ) {
-    return gobj_create_gobj(
+    return _create_gobj(
         gobj_name,
         gclass_name,
         kw,
@@ -1846,7 +1846,7 @@ PUBLIC hgobj gobj_create_tree0(
         gobj_flag |= gobj_flag_pure_child;
     }
 
-    hgobj first_child = gobj_create_gobj(name, gclass_name, kw, parent, gobj_flag);
+    hgobj first_child = _create_gobj(name, gclass_name, kw, parent, gobj_flag);
     if(!first_child) {
         gobj_log_error(parent_, 0,
             "function",     "%s", __FUNCTION__,
