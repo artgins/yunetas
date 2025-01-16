@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the owner of the `Yuno` realm. The owner represents the entity responsible for the realm.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_realm_owner(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the owner of the `Yuno` realm.
+        
 
 
 <!--====================================================-->

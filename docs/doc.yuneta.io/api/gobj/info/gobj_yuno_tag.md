@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the tag associated with the `Yuno`. Tags are optional labels used to group or categorize instances.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_tag(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the tag of the `Yuno`, or `NULL` if no tag is set.
+        
 
 
 <!--====================================================-->

@@ -1337,7 +1337,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
     }
 
     json_t *jn_options = kw_get_list(gobj, kw, "options", 0, 0);
-    json_t *jn_data = view_gobj_tree(gobj2read, json_incref(jn_options));
+    json_t *jn_data = gobj_view_tree(gobj2read, json_incref(jn_options));
 
     json_t *kw_response = build_command_response(
         gobj,

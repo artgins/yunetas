@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the attribute schema of a specified GClass or GObj. This schema describes the attributes, their types, and characteristics.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+json_t *get_attrs_schema(hgclass gclass);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass whose attribute schema is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the attribute schema of the specified GClass.
+        
 
 
 <!--====================================================-->

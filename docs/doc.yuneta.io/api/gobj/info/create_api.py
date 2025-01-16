@@ -204,8 +204,7 @@ names = [
     "get_attrs_schema",
     "gclass2json",
     "gobj2json",
-    "view_gobj_tree",
-
+    "gobj_view_tree",
 ]
 
 # Loop through the list of names and create a file for each

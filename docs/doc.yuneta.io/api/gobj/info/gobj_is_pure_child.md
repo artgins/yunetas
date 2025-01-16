@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks if the specified GObj is a "pure child". Pure child GObjs have limited independence and depend on their parent GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_is_pure_child(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj being checked.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the GObj is a pure child.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->

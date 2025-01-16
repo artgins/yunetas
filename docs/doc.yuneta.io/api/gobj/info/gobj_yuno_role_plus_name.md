@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Combines the role and name of the `Yuno` into a single string, providing a more descriptive identifier.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_role_plus_name(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) in the format `"<role>:<name>"`.
+        
 
 
 <!--====================================================-->

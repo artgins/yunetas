@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves a JSON object containing the global variables defined for the GObj system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_global_variables(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing all global variables.
+        
 
 
 <!--====================================================-->

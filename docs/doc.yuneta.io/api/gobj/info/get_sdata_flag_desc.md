@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the description of a specific data flag.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+const char *get_sdata_flag_desc(int flag);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `flag`
+  - `int`
+  - The data flag whose description is being retrieved.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the description of the specified data flag.
+        
 
 
 <!--====================================================-->

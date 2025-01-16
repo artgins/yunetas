@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the unique identifier (ID) of the `Yuno`. This ID is often used to distinguish different instances of the same role or application.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_id(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the unique ID of the `Yuno`.
+        
 
 
 <!--====================================================-->

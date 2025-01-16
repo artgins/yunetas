@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the inherited GClass of the specified GObj. This is used when a GObj derives behavior from another GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+hgclass gobj_typeof_inherited_gclass(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose inherited GClass is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgclass`](hgclass)) of the inherited GClass associated with the GObj.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves a description of the available commands in a GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+json_t *gclass_command_desc(hgclass gclass);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass whose commands are being described.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) describing the commands available in the GClass.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the owner of the node in the `Yuno` system. This owner represents the entity responsible for the node.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_node_owner(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the owner of the node.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the role of the `Yuno` realm. This role describes the purpose or responsibility of the realm.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_realm_role(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the role of the `Yuno` realm.
+        
 
 
 <!--====================================================-->

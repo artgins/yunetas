@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the handle to the GClass associated with a specified GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+hgclass gobj_gclass(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose GClass is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgclass`](hgclass)) to the GClass of the specified GObj.
+        
 
 
 <!--====================================================-->

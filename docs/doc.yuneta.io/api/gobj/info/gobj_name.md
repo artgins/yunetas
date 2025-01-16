@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the name of a specified GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+const char *gobj_name(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose name is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the name of the GObj.
+        
 
 
 <!--====================================================-->

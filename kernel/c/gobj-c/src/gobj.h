@@ -1627,7 +1627,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema)
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
 
 /*
- *  jn_filter of gobj2json and view_gobj_tree: list of strings
+ *  jn_filter of gobj2json and gobj_view_tree: list of strings
             "fullname",
             "shortname",
             "gclass",
@@ -1649,7 +1649,7 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     hgobj gobj,
     json_t *jn_filter // owned
 );
-PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
+PUBLIC json_t *gobj_view_tree(  // Return tree with gobj's tree.
     hgobj gobj,
     json_t *jn_filter // owned
 );

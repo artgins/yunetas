@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the role of the `Yuno`. The `Yuno` role typically describes the function or responsibility of the application.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_role(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the role of the `Yuno`.
+        
 
 
 <!--====================================================-->

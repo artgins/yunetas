@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the maximum system memory available for use.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+size_t get_max_system_memory(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the maximum system memory (`size_t`) available.
+        
 
 
 <!--====================================================-->

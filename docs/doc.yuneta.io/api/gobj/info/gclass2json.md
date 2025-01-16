@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Converts a GClass to its JSON representation. This representation includes metadata, such as methods, attributes, and trace levels.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+json_t *gclass2json(hgclass gclass, int verbose);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - [`hgclass`](hgclass)
+  - Handle to the GClass to be converted to JSON.
+
+* - `verbose`
+  - `int`
+  - Verbosity level for the JSON output:
+    - **`0`**: Basic metadata.
+    - **`1`**: Includes additional details.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) representing the specified GClass.
+        
 
 
 <!--====================================================-->

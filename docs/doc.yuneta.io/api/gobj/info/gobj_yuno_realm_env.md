@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the environment of the `Yuno` realm. The environment specifies the context in which the `Yuno` operates, such as "production" or "testing".
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_realm_env(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the environment of the `Yuno` realm.
+        
 
 
 <!--====================================================-->

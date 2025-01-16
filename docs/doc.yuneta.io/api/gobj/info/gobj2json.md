@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Converts a GObj to its JSON representation. The representation includes information such as attributes, state, and hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+json_t *gobj2json(hgobj gobj, int verbose);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be converted to JSON.
+
+* - `verbose`
+  - `int`
+  - Verbosity level for the JSON output:
+    - **`0`**: Basic metadata.
+    - **`1`**: Includes additional details.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) representing the specified GObj.
+        
 
 
 <!--====================================================-->

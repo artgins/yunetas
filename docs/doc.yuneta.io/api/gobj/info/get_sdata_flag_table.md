@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the table of data flags used in the GObj system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+json_t *get_sdata_flag_table(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) containing the data flag table.
+        
 
 
 <!--====================================================-->

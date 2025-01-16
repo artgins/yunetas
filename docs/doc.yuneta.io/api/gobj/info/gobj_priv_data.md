@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the private data of a GObj, which contains instance-specific data defined by the GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+void *gobj_priv_data(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose private data is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a pointer (`void *`) to the private data of the GObj.
+        
 
 
 <!--====================================================-->

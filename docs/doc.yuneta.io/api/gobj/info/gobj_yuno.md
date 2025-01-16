@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the root GObj, also known as the `Yuno`, which serves as the top-level object in the hierarchy.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_yuno(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) of the root GObj (`Yuno`).
+        
 
 
 <!--====================================================-->

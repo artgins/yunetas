@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the full hierarchical name of a GObj, including its position in the object tree.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+const char *gobj_full_name(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose full name is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the full hierarchical name of the GObj.
+        
 
 
 <!--====================================================-->

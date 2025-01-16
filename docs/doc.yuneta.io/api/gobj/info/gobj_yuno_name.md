@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the name of the `Yuno`. The `Yuno` name typically identifies the top-level GObj instance within the application.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_name(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the name of the `Yuno`.
+        
 
 
 <!--====================================================-->

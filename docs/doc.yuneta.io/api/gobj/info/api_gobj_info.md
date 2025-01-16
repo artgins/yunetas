@@ -43,7 +43,7 @@ get_sdata_flag_desc.md
 get_attrs_schema.md
 gclass2json.md
 gobj2json.md
-view_gobj_tree.md
+gobj_view_tree.md
 
 
 ```

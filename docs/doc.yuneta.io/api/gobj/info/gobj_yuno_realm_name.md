@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the name of the `Yuno` realm. The name typically provides a human-readable identifier for the realm.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_realm_name(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the name of the `Yuno` realm.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the current system memory usage.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+size_t get_cur_system_memory(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the current system memory usage (`size_t`).
+        
 
 
 <!--====================================================-->

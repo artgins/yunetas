@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the realm ID of the `Yuno`. This represents a unique identifier for the realm in which the `Yuno` operates.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,25 @@
 **Prototype**
 
 ```C
+
+const char *gobj_yuno_realm_id(void);
+        
+
 ```
 
 **Parameters**
 
 
+(No parameters for this function)
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the realm ID of the `Yuno`.
+        
 
 
 <!--====================================================-->

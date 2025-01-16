@@ -5993,7 +5993,7 @@ PRIVATE int _add_gobj_tree(
     }
     return 0;
 }
-PUBLIC json_t *view_gobj_tree(  // Return tree with gobj's tree.
+PUBLIC json_t *gobj_view_tree(  // Return tree with gobj's tree.
     hgobj gobj,
     json_t *jn_filter // owned
 ) {

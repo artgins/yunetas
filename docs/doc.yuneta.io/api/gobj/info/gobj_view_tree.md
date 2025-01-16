@@ -1,11 +1,13 @@
 
 
 <!-- ============================================================== -->
-(view_gobj_tree())=
-# `view_gobj_tree()`
+(gobj_view_tree())=
+# `gobj_view_tree()`
 <!-- ============================================================== -->
 
 
+Generates a JSON representation of the GObj tree, including attributes, states, and runtime details such as whether each GObj is running or playing.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,43 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_view_tree(
+    hgobj gobj,      // The root GObj to start from.
+    json_t *jn_filter // Optional filter to refine the view.
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj tree root from where the view should begin.
+
+* - `jn_filter`
+  - [`json_t`](json_t)
+  - A JSON filter to customize the output. This can include attributes like `__state__` or `__gclass_name__`.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object ([`json_t`](json_t)) representing the GObj hierarchy. The returned JSON contains details of attributes, runtime states, and child objects.
+- If an error occurs, the function returns `NULL`.
+        
 
 
 <!--====================================================-->

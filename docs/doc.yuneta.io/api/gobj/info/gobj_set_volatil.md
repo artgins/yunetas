@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Marks the specified GObj as "volatile", making it transient and intended for temporary use.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+void gobj_set_volatil(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to be marked as volatile.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `void`.
+        
 
 
 <!--====================================================-->

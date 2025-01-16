@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Gets the GClass name of a specified GObj. The GClass name represents the type of the GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+gclass_name_t gobj_gclass_name(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose GClass name is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the GClass name ([`gclass_name_t`](gclass_name_t)) of the specified GObj.
+        
 
 
 <!--====================================================-->

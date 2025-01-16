@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the short name of a GObj, which is typically its local identifier without hierarchical context.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+const char *gobj_short_name(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose short name is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a string (`const char *`) containing the short name of the GObj.
+        
 
 
 <!--====================================================-->

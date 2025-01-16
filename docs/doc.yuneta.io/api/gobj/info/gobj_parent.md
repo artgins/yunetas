@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the parent GObj of the specified GObj, reflecting the hierarchical structure.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+hgobj gobj_parent(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose parent is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the handle ([`hgobj`](hgobj)) to the parent GObj.  
+- Returns `NULL` if the GObj has no parent (e.g., the root GObj).
+        
 
 
 <!--====================================================-->
