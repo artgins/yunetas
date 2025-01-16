@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the list of authorization levels.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *authzs_list(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - (none)
+  - (none)
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) array containing the list of authorization levels.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Build documentation for all available commands in a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_build_cmds_doc(
+    hgobj       gobj,
+    const char *topic
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to retrieve command documentation from.
+
+* - `topic`
+  - `const char *`
+  - The topic to filter commands by, or `NULL` for all commands.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the documentation for the commands, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

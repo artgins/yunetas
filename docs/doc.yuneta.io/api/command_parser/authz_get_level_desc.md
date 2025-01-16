@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the description of a specific authorization level.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *authz_get_level_desc(
+    const char  *level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `level`
+  - `const char *`
+  - The authorization level to retrieve the description for.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string containing the description of the authorization level, or `NULL` if the level is not found.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Parse a command and its arguments based on a predefined command structure.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,52 @@
 **Prototype**
 
 ```C
+
+PUBLIC int command_parser(
+    const char  *command_line,
+    const char  *commands[],
+    int         (*callback)(const char *command, const char *args, void *user_data),
+    void        *user_data
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `command_line`
+  - `const char *`
+  - The full command line input to parse.
+
+* - `commands`
+  - `const char *[]`
+  - An array of valid command strings.
+
+* - `callback`
+  - `int (*)(const char *, const char *, void *)`
+  - A function pointer to process each parsed command and its arguments.
+
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the callback function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

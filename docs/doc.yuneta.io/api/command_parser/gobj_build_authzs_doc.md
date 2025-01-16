@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Build documentation for all available authorizations in a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_build_authzs_doc(
+    hgobj       gobj,
+    const char *topic
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to retrieve authorization documentation from.
+
+* - `topic`
+  - `const char *`
+  - The topic to filter authorizations by, or `NULL` for all authorizations.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the documentation for the authorizations, or `NULL` on failure.
+        
 
 
 <!--====================================================-->
