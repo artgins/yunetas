@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Sends an event to a GObj, optionally transferring ownership of the associated data (kw). This is the primary mechanism for triggering actions or changes in GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,49 @@
 **Prototype**
 
 ```C
+
+int gobj_send_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the target GObj receiving the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to send to the target GObj.
+
+* - `kw`
+  - [`json_t *`](json_t)
+  - JSON object containing additional data for the event. Ownership is transferred to the function.
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - Handle to the source GObj sending the event.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The event was successfully processed.  
+- `-1`: An error occurred while processing the event.
+        
 
 
 <!--====================================================-->

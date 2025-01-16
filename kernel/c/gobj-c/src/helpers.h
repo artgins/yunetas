@@ -234,7 +234,7 @@ char *replace_string(const char *str, const char *old, const char *snew);
 
 
   A special key for json_config is ``__json_config_variables__``.
-  If it exists then all strings inside a (^^ ^^) will be replaced
+  If it exists, then all strings inside a (^^ ^^) will be replaced
   by the value found in __json_config_variables__ dict.
 
   A ``__hostname__`` key is added to ``__json_config_variables__`` dict with the hostname.

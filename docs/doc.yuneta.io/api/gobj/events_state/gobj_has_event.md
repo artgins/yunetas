@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks whether the GObj supports the specified event. This is useful for validating event handling capabilities.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_has_event(hgobj gobj, gobj_event_t event);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to check.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event to check.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the GObj supports the specified event.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->

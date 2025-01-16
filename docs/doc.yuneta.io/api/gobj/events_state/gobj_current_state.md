@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the current state of the specified GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+gobj_state_t gobj_current_state(hgobj gobj);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose current state is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the current state ([`gobj_state_t`](gobj_state_t)) of the GObj.  
+- Returns `NULL` if the GObj has no state defined.
+        
 
 
 <!--====================================================-->

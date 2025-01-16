@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Changes the current state of a GObj to the specified new state. This transition is a critical part of the GObj's state machine behavior.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+int gobj_change_state(hgobj gobj, gobj_state_t new_state);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj whose state is being changed.
+
+* - `new_state`
+  - [`gobj_state_t`](gobj_state_t)
+  - The name of the new state to transition to.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: The state was successfully changed.  
+- `-1`: The state transition failed.
+        
 
 
 <!--====================================================-->

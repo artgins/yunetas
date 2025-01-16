@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the type of the specified event. This provides metadata about the event's characteristics.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+int gobj_event_type(hgobj gobj, gobj_event_t event);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj associated with the event.
+
+* - `event`
+  - [`gobj_event_t`](gobj_event_t)
+  - The event whose type is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns an integer representing the event type.  
+- Returns `-1` if the event type could not be determined.
+        
 
 
 <!--====================================================-->

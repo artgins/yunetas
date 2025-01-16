@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieves the type of the event by its name. This is useful for querying metadata about events when their name is known.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+int gobj_event_type_by_name(hgobj gobj, const char *event_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj associated with the event.
+
+* - `event_name`
+  - `const char *`
+  - The name of the event whose type is being queried.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns an integer representing the event type.  
+- Returns `-1` if the event type could not be determined.
+        
 
 
 <!--====================================================-->

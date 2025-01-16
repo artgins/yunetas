@@ -198,6 +198,7 @@ names = [
     "gobj_set_gclass_no_trace",
     "gobj_set_gobj_no_trace",
     "trace_machine",
+    "tab",
 ]
 
 # Loop through the list of names and create a file for each

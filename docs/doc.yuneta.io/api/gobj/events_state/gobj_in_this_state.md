@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Checks whether the GObj is currently in the specified state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,41 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj to check.
+
+* - `state`
+  - [`gobj_state_t`](gobj_state_t)
+  - The state to check against the GObj's current state.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the GObj is in the specified state.  
+- Returns `FALSE` otherwise.
+        
 
 
 <!--====================================================-->
