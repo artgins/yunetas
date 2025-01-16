@@ -1655,6 +1655,97 @@ PUBLIC hgobj gobj_create_gobj(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC hgobj gobj_create2(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent,
+    gobj_flag_t gobj_flag
+) {
+    return gobj_create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag);
+}
+
+PUBLIC hgobj gobj_create_yuno(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw // owned
+) {
+    return gobj_create_gobj(gobj_name, gclass_name, kw, NULL, gobj_flag_yuno);
+}
+
+PUBLIC hgobj gobj_create_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+) {
+    return gobj_create_gobj(gobj_name, gclass_name, kw, parent, gobj_flag_service);
+}
+
+PUBLIC hgobj gobj_create_default_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+) {
+    return gobj_create_gobj(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_default_service|gobj_flag_autostart
+    );
+}
+
+PUBLIC hgobj gobj_create_volatil(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+) {
+    return gobj_create_gobj(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_volatil
+    );
+}
+
+PUBLIC hgobj gobj_create_pure_child(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+) {
+    return gobj_create_gobj(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_pure_child
+    );
+}
+
+PUBLIC hgobj gobj_create(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+) {
+    return gobj_create_gobj(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        0
+    );
+}
+
+
+/***************************************************************************
  *  Create tree
  ***************************************************************************/
 PUBLIC hgobj gobj_create_tree0(

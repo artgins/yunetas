@@ -1223,36 +1223,56 @@ PUBLIC hgobj gobj_service_factory(
     json_t * jn_service_config // owned
 );
 
-PUBLIC hgobj gobj_create_gobj(
+PUBLIC hgobj gobj_create(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+);
+
+PUBLIC hgobj gobj_create2(
     const char *gobj_name,
     gclass_name_t gclass_name,
     json_t *kw, // owned
     hgobj parent,
     gobj_flag_t gobj_flag
 );
-#define gobj_create_yuno(name, gclass, kw) \
-    gobj_create_gobj(name, gclass, kw, NULL, gobj_flag_yuno)
 
-#define gobj_create_service(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_service)
+PUBLIC hgobj gobj_create_yuno(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw // owned
+);
+PUBLIC hgobj gobj_create_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+);
 
 /*
  *  Default service has autostart but no autoplay: it will be played by play method of yuno
  */
-#define gobj_create_default_service(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_default_service|gobj_flag_autostart)
+PUBLIC hgobj gobj_create_default_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+);
 
-#define gobj_create_volatil(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_volatil)
+PUBLIC hgobj gobj_create_volatil(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+);
 
-#define gobj_create_pure_child(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_pure_child)
-
-#define gobj_create(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, 0)
-
-#define gobj_create2(name, gclass, kw, parent, gobj_flag) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag)
+PUBLIC hgobj gobj_create_pure_child(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
+);
 
 /*
  *  'jn_tree' structure
