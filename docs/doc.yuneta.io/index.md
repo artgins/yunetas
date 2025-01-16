@@ -70,8 +70,8 @@ philosophy/philosophy.md
 
 guide/basic_concepts.md
 guide/guide_gclass.md
-guide/guide_sdata.md
 guide/guide_gobj.md
+guide/guide_sdata.md
 guide/guide_kwid.md
 guide/guide_gbuffer.md
 guide/guide_istream.md
