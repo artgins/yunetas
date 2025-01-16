@@ -1461,7 +1461,6 @@ PUBLIC json_t *gobj_local_method(
     json_t *kw,
     hgobj src
 );
-#define gobj_local_method gobj_exec_internal_method
 
 PUBLIC int gobj_start(hgobj gobj);
 PUBLIC int gobj_start_childs(hgobj gobj);   // only direct childs
