@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Shut down the UDP communication system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC void udpc_end(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function shuts down and cleans up resources used by the UDP communication system.
+        
 
 
 <!--====================================================-->

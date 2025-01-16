@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Send data through a UDP communication channel.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int udpc_write(
+    int          handle,
+    const void  *data,
+    size_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the UDP channel to write to.
+
+* - `data`
+  - `const void *`
+  - The data to send.
+
+* - `size`
+  - `size_t`
+  - The size of the data in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully sent, or a negative value on failure.
+        
 
 
 <!--====================================================-->

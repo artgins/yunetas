@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Close a UDP communication channel.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void udpc_close(
+    int handle
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the UDP channel to close.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function closes the specified UDP channel.
+        
 
 
 <!--====================================================-->

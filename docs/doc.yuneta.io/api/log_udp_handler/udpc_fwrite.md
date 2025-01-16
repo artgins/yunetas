@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Send the contents of a file through a UDP communication channel.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int udpc_fwrite(
+    int          handle,
+    FILE        *file
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the UDP channel to write to.
+
+* - `file`
+  - `FILE *`
+  - The file to send through the UDP channel.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully sent, or a negative value on failure.
+        
 
 
 <!--====================================================-->

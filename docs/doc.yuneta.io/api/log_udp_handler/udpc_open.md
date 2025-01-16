@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Open a UDP communication channel.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int udpc_open(
+    const char  *address,
+    int          port
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `address`
+  - `const char *`
+  - The IP address to bind or connect to.
+
+* - `port`
+  - `int`
+  - The port number for the UDP communication.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a handle to the UDP channel on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->
