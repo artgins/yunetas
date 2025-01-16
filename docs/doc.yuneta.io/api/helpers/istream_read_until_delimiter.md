@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Read data from an input stream until a specified delimiter is encountered.
+Read data from an input stream until a specified delimiter is encountered. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -46,7 +46,7 @@ PUBLIC size_t istream_read_until_delimiter(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to read from.
 
 * - `buffer`

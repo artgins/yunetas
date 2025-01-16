@@ -3441,11 +3441,14 @@ PUBLIC void ghttp_parser_reset(void);
         "return_value": '''
 No return value. This function resets the parser's state.
         '''
-    },
+    }
+])
+
+functions_documentation.extend([
     {
         "name": "istream_create",
         "description": '''
-Create an input stream for reading data.
+Create an input stream for reading data. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC istream_t *istream_create(
@@ -3466,13 +3469,13 @@ PUBLIC istream_t *istream_create(
 :::
         ''',
         "return_value": '''
-Returns a pointer to the newly created input stream, or `NULL` on failure.
+Returns a pointer to the newly created [`istream_t *`](istream_t), or `NULL` on failure.
         '''
     },
     {
         "name": "istream_destroy",
         "description": '''
-Destroy an input stream and free associated resources.
+Destroy an input stream and free associated resources. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC void istream_destroy(
@@ -3488,7 +3491,7 @@ PUBLIC void istream_destroy(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to destroy.
 :::
         ''',
@@ -3499,7 +3502,7 @@ No return value. This function frees resources associated with the input stream.
     {
         "name": "istream_read_until_num_bytes",
         "description": '''
-Read data from an input stream until a specified number of bytes is read.
+Read data from an input stream until a specified number of bytes is read. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC size_t istream_read_until_num_bytes(
@@ -3517,7 +3520,7 @@ PUBLIC size_t istream_read_until_num_bytes(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to read from.
 
 * - `buffer`
@@ -3536,7 +3539,7 @@ Returns the number of bytes successfully read, or `0` on failure.
     {
         "name": "istream_read_until_delimiter",
         "description": '''
-Read data from an input stream until a specified delimiter is encountered.
+Read data from an input stream until a specified delimiter is encountered. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC size_t istream_read_until_delimiter(
@@ -3555,7 +3558,7 @@ PUBLIC size_t istream_read_until_delimiter(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to read from.
 
 * - `buffer`
@@ -3574,14 +3577,11 @@ PUBLIC size_t istream_read_until_delimiter(
         "return_value": '''
 Returns the number of bytes successfully read, or `0` on failure.
         '''
-    }
-])
-
-functions_documentation.extend([
+    },
     {
         "name": "istream_consume",
         "description": '''
-Consume a specified number of bytes from the input stream, advancing the read pointer.
+Consume a specified number of bytes from the input stream, advancing the read pointer. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC size_t istream_consume(
@@ -3598,7 +3598,7 @@ PUBLIC size_t istream_consume(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to consume data from.
 
 * - `num_bytes`
@@ -3613,7 +3613,7 @@ Returns the number of bytes successfully consumed, or `0` on failure.
     {
         "name": "istream_cur_rd_pointer",
         "description": '''
-Get the current read pointer for the input stream.
+Get the current read pointer for the input stream. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC const char *istream_cur_rd_pointer(
@@ -3629,7 +3629,7 @@ PUBLIC const char *istream_cur_rd_pointer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to query.
 :::
         ''',
@@ -3640,7 +3640,7 @@ Returns a pointer to the current read position in the input stream.
     {
         "name": "istream_length",
         "description": '''
-Get the length of data available in the input stream.
+Get the length of data available in the input stream. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC size_t istream_length(
@@ -3656,7 +3656,7 @@ PUBLIC size_t istream_length(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to query.
 :::
         ''',
@@ -3667,7 +3667,7 @@ Returns the number of bytes currently available in the input stream.
     {
         "name": "istream_get_gbuffer",
         "description": '''
-Retrieve the current gbuffer from the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+Retrieve the current gbuffer from the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
         ''',
         "prototype": '''
 PUBLIC gbuffer_t *istream_get_gbuffer(
@@ -3683,7 +3683,7 @@ PUBLIC gbuffer_t *istream_get_gbuffer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to retrieve the gbuffer from.
 :::
         ''',
@@ -3694,7 +3694,7 @@ Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) in the input stream,
     {
         "name": "istream_pop_gbuffer",
         "description": '''
-Pop and remove the current gbuffer from the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+Pop and remove the current gbuffer from the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
         ''',
         "prototype": '''
 PUBLIC gbuffer_t *istream_pop_gbuffer(
@@ -3710,7 +3710,7 @@ PUBLIC gbuffer_t *istream_pop_gbuffer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to pop the gbuffer from.
 :::
         ''',
@@ -3721,7 +3721,7 @@ Returns a pointer to the removed [`gbuffer_t *`](gbuffer_t), or `NULL` on failur
     {
         "name": "istream_new_gbuffer",
         "description": '''
-Create and attach a new gbuffer to the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+Create and attach a new gbuffer to the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
         ''',
         "prototype": '''
 PUBLIC gbuffer_t *istream_new_gbuffer(
@@ -3737,21 +3737,18 @@ PUBLIC gbuffer_t *istream_new_gbuffer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to attach the new gbuffer to.
 :::
         ''',
         "return_value": '''
 Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on failure.
         '''
-    }
-])
-
-functions_documentation.extend([
+    },
     {
         "name": "istream_extract_matched_data",
         "description": '''
-Extract data from the input stream that matches a specified pattern or condition.
+Extract data from the input stream that matches a specified pattern or condition. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC size_t istream_extract_matched_data(
@@ -3771,7 +3768,7 @@ PUBLIC size_t istream_extract_matched_data(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to extract data from.
 
 * - `buffer`
@@ -3798,7 +3795,7 @@ Returns the number of bytes of matched data extracted, or `0` if no match was fo
     {
         "name": "istream_reset_wr",
         "description": '''
-Reset the write pointer of the input stream to the beginning.
+Reset the write pointer of the input stream to the beginning. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC void istream_reset_wr(
@@ -3814,7 +3811,7 @@ PUBLIC void istream_reset_wr(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream whose write pointer will be reset.
 :::
         ''',
@@ -3825,7 +3822,7 @@ No return value. This function resets the write pointer of the input stream.
     {
         "name": "istream_reset_rd",
         "description": '''
-Reset the read pointer of the input stream to the beginning.
+Reset the read pointer of the input stream to the beginning. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC void istream_reset_rd(
@@ -3841,7 +3838,7 @@ PUBLIC void istream_reset_rd(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream whose read pointer will be reset.
 :::
         ''',
@@ -3852,7 +3849,7 @@ No return value. This function resets the read pointer of the input stream.
     {
         "name": "istream_clear",
         "description": '''
-Clear the input stream, removing all data and resetting pointers.
+Clear the input stream, removing all data and resetting pointers. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC void istream_clear(
@@ -3868,7 +3865,7 @@ PUBLIC void istream_clear(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to clear.
 :::
         ''',
@@ -3879,7 +3876,7 @@ No return value. This function clears all data from the input stream.
     {
         "name": "istream_is_completed",
         "description": '''
-Check if the input stream has completed reading all data.
+Check if the input stream has completed reading all data. Works with [`istream_t *`](istream_t).
         ''',
         "prototype": '''
 PUBLIC BOOL istream_is_completed(
@@ -3895,7 +3892,7 @@ PUBLIC BOOL istream_is_completed(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to check.
 :::
         ''',
@@ -3904,6 +3901,7 @@ Returns `TRUE` if the input stream has completed reading all data, otherwise ret
         '''
     }
 ])
+
 
 
 # Loop through the list of names and create a file for each

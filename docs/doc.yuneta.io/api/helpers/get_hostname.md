@@ -36,6 +36,10 @@ PUBLIC char *get_hostname(void);
 :::{list-table}
 :widths: 10 5 40
 :header-rows: 1
+* - Key
+  - Type
+  - Description
+
 * - `-`
   - `-`
   - This function does not take any parameters.

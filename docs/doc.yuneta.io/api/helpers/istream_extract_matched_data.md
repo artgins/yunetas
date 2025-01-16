@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Extract data from the input stream that matches a specified pattern or condition.
+Extract data from the input stream that matches a specified pattern or condition. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -47,7 +47,7 @@ PUBLIC size_t istream_extract_matched_data(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to extract data from.
 
 * - `buffer`

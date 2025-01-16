@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Check if the input stream has completed reading all data.
+Check if the input stream has completed reading all data. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC BOOL istream_is_completed(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to check.
 :::
         

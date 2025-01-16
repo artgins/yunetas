@@ -74,6 +74,7 @@ guide/guide_sdata.md
 guide/guide_gobj.md
 guide/guide_kwid.md
 guide/guide_gbuffer.md
+guide/guide_istream.md
 guide/guide_dl.md
 guide/folders.md
 guide/persistent_attrs.md

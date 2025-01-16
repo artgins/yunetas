@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Clear the input stream, removing all data and resetting pointers.
+Clear the input stream, removing all data and resetting pointers. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC void istream_clear(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to clear.
 :::
         

@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Consume a specified number of bytes from the input stream, advancing the read pointer.
+Consume a specified number of bytes from the input stream, advancing the read pointer. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -44,7 +44,7 @@ PUBLIC size_t istream_consume(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to consume data from.
 
 * - `num_bytes`

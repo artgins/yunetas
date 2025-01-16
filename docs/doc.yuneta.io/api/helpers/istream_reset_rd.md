@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Reset the read pointer of the input stream to the beginning.
+Reset the read pointer of the input stream to the beginning. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC void istream_reset_rd(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream whose read pointer will be reset.
 :::
         

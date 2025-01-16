@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Create and attach a new gbuffer to the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+Create and attach a new gbuffer to the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC gbuffer_t *istream_new_gbuffer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to attach the new gbuffer to.
 :::
         

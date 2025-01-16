@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Pop and remove the current gbuffer from the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+Pop and remove the current gbuffer from the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC gbuffer_t *istream_pop_gbuffer(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to pop the gbuffer from.
 :::
         

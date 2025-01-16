@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Destroy an input stream and free associated resources.
+Destroy an input stream and free associated resources. Works with [`istream_t *`](istream_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC void istream_destroy(
   - Description
 
 * - `istream`
-  - `istream_t *`
+  - [`istream_t *`](istream_t)
   - The input stream to destroy.
 :::
         
