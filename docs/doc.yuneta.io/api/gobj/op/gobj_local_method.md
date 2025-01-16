@@ -7,7 +7,7 @@
 
 
 Executes an internal method on a GObj. Internal methods are specific to the GClass of the GObj and provide additional functionality.
-        
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -192,4 +192,3 @@ json_t *gobj_exec_internal_method(hgobj gobj, const char *method_name, json_t *k
 ``````
 
 ```````
-

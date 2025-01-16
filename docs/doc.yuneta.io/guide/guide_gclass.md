@@ -71,9 +71,7 @@ The `GMETHODS` structure in Yuneta defines the global methods that a `GClass` ca
 
 Each method serves a specific purpose and is invoked through the GObject API, enabling dynamic and modular behavior across different `GClasses`.
 
------------------------
-GMETHODS Overview
------------------------
+### GMETHODS List
 
 - **`mt_create`**
    - Purpose: Initializes the GObject. Called when a GObject is instantiated.
@@ -222,31 +220,91 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
 (LMETHOD)=
 ## LMETHOD
 
+### What is an LMETHOD?
+
+The `LMETHOD` structure in the Yuneta framework defines the local methods that can be implemented by a `GClass`. These methods are specific to the internal operation of the `GClass` and are not intended to be invoked dynamically via the GObject API, unlike the global methods (`GMETHODS`).
+
+### Purpose of LMETHODs
+
+- **Encapsulation**:
+    - LMETHODs provide internal functionality for the `GClass`, encapsulating logic that is not exposed externally.
+- **Optimization**:
+    - These methods are typically designed for high-performance, localized operations within the GObject.
+
+### Structure of LMETHOD
+
+An `LMETHOD` typically consists of:
+
+- **Name**:
+    - A unique string identifier for the method.
+    - Used internally to reference the method when required.
+- **Function Pointer**:
+    - A pointer to the corresponding function implementation.
+    - Defines the logic of the method.
+
+Example Definition:
+
+```C
+typedef struct {
+    const char *name;               // Method name
+    int (*function)(hgobj gobj);    // Pointer to the method function
+} LMETHOD;
+```
+
+### Usage of LMETHODs
+
+1. **Internal Operations**:
+    - LMETHODs handle operations that are specific to the `GClass` and are not tied to the global lifecycle or state of the GObject.
+2. **Static Invocation**:
+    - Unlike GMETHODs, LMETHODs are called directly within the `GClass` or its child GObjects and are not dynamically dispatched.
+3. **Implementation Example**:
+    - Suppose a `GClass` has an internal operation to compute statistics:
+
+```C
+PRIVATE int compute_stats(hgobj gobj) {
+    // Internal logic to compute statistics
+    return 0;
+}
+
+PRIVATE const LMETHOD lmt[] = {
+    {"compute_stats", compute_stats},
+    {NULL, NULL} // Terminator
+};
+```
+
+4. **Integration with the GClass**:
+    - The `LMETHOD` array is linked to the `GClass` during its creation, enabling the `GClass` to use these methods internally.
+
+### Summary
+
+LMETHODs are an essential part of the Yuneta framework's modular design, offering a mechanism to implement and encapsulate internal operations within a `GClass`. They complement GMETHODs by focusing on localized functionality, ensuring that the internal workings of a `GClass` are both efficient and well-organized.
+
+
 (gclass_flag_t)=
 ## gclass_flag_t
 
-# `gclass_flag_t` Values
+## `gclass_flag_t` Values
 
 The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` to modify its behavior. These flags are used to control specific operational aspects of the `GClass`.
 
-## List of `gclass_flag_t` Flags
+### List of `gclass_flag_t` Flags
 
 - **`gcflag_manual_start`** (`0x0001`)
-  - **Description**: Prevents the automatic start of the GObject tree. When this flag is set, `gobj_start_tree()` will not start the GObject automatically.
-  - **Use Case**: Manual control over when a GObject tree is started.
+    - **Description**: Prevents the automatic start of the GObject tree. When this flag is set, `gobj_start_tree()` will not start the GObject automatically.
+    - **Use Case**: Manual control over when a GObject tree is started.
 - **`gcflag_no_check_output_events`** (`0x0002`)
-  - **Description**: Disables output event checking. When publishing events, it skips validation against the `output_event_list`.
-  - **Use Case**: Optimization when output event checking is unnecessary.
+    - **Description**: Disables output event checking. When publishing events, it skips validation against the `output_event_list`.
+    - **Use Case**: Optimization when output event checking is unnecessary.
 - **`gcflag_ignore_unknown_attrs`** (`0x0004`)
-  - **Description**: Allows the creation of a GObject even if it contains attributes that are not defined in the `GClass`.
-  - **Use Case**: Flexibility during dynamic object creation when unknown attributes may be present.
+    - **Description**: Allows the creation of a GObject even if it contains attributes that are not defined in the `GClass`.
+    - **Use Case**: Flexibility during dynamic object creation when unknown attributes may be present.
 - **`gcflag_required_start_to_play`** (`0x0008`)
-  - **Description**: Prevents the GObject from entering the "play" state unless it has already been started.
-  - **Use Case**: Ensures proper initialization before transitioning to "play."
+    - **Description**: Prevents the GObject from entering the "play" state unless it has already been started.
+    - **Use Case**: Ensures proper initialization before transitioning to "play."
 - **`gcflag_singleton`** (`0x0010`)
-  - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
-  - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
+    - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
+    - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
 
-## Summary
+### Summary
 
 The `gclass_flag_t` flags provide fine-grained control over the behavior of `GClasses` and their instances, enhancing flexibility and enabling specialized configurations.
