@@ -512,7 +512,7 @@ PRIVATE int execute_action(hgobj gobj)
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec ACTION %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
-    int ret = (int)(size_t)gobj_exec_internal_method(
+    int ret = (int)(size_t)gobj_local_method(
         priv->gobj_jobs,
         action,
         0,
@@ -603,7 +603,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec RESULT %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
-    int ret = (int)(size_t)gobj_exec_internal_method(
+    int ret = (int)(size_t)gobj_local_method(
         priv->gobj_jobs,
         action,
         json_incref(kw),

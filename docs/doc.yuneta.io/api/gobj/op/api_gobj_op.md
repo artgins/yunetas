@@ -43,6 +43,6 @@ gobj_match_gobj.md
 gobj_find_child.md
 gobj_walk_gobj_childs.md
 gobj_walk_gobj_childs_tree.md
-gobj_exec_internal_method.md
+gobj_local_method.md
 
 ```

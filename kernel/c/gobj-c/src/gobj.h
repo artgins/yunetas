@@ -1455,7 +1455,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value);
 /*--------------------------------------------*
  *  Operational functions
  *--------------------------------------------*/
-PUBLIC json_t *gobj_exec_internal_method(
+PUBLIC json_t *gobj_local_method(
     hgobj gobj,
     const char *lmethod,
     json_t *kw,

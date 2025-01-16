@@ -3680,7 +3680,7 @@ PRIVATE json_t *gobj_check_required_attrs(gobj_t *gobj)
 /***************************************************************************
  *  Execute internal method
  ***************************************************************************/
-PUBLIC json_t *gobj_exec_internal_method(
+PUBLIC json_t *gobj_local_method(
     hgobj gobj_,
     const char *lmethod,
     json_t *kw,
