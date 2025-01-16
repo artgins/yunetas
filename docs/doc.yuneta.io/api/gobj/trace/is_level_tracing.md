@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a specific trace level is enabled.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL is_level_tracing(
+    hgobj       gobj,
+    const char  *level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to check for the trace level.
+
+* - `level`
+  - `const char *`
+  - The name of the trace level to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

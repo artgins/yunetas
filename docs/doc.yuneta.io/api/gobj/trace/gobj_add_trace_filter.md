@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Add a specific trace filter for GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_add_trace_filter(
+    const char  *gobj_name,
+    const char  *trace_level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj_name`
+  - `const char *`
+  - The name of the GObj to which the trace filter will be applied.
+
+* - `trace_level`
+  - `const char *`
+  - The trace level to enable for the specified GObj.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

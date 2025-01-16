@@ -23,12 +23,12 @@ Logs an error message and optionally exits or aborts the program.
 
 ```C
 
-        PUBLIC void print_error(
-            pe_flag_t quit,
-            const char *fmt,
-            ...
-        );
-        
+PUBLIC void print_error(
+    pe_flag_t   quit,
+    const char  *fmt,
+    ...
+);
+
 
 ```
 
@@ -184,4 +184,3 @@ This function does not return a value.
 ``````
 
 ```````
-

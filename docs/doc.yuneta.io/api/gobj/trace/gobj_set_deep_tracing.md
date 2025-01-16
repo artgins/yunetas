@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Enable or disable deep tracing for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_set_deep_tracing(
+    hgobj       gobj,
+    BOOL        enable
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj for which deep tracing is being set.
+
+* - `enable`
+  - `BOOL`
+  - If `TRUE`, enables deep tracing; if `FALSE`, disables it.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a hierarchical tree of all disabled trace levels for a GObj and its children.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(
+    hgobj       gobj
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj whose disabled trace levels tree is being retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the hierarchical tree of disabled trace levels for the GObj and its children.
+        
 
 
 <!--====================================================-->

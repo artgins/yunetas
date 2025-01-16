@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a list of all disabled trace levels for a GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_get_gclass_trace_no_level_list(
+    hgclass     gclass
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - `hgclass`
+  - The handle of the GClass whose disabled trace levels are being retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON array containing all disabled trace levels for the GClass.
+        
 
 
 <!--====================================================-->

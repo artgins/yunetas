@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a specific trace level is disabled for a GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL gobj_get_gclass_trace_no_level(
+    hgclass     gclass,
+    const char  *level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - `hgclass`
+  - The handle of the GClass whose trace level is being checked.
+
+* - `level`
+  - `const char *`
+  - The name of the trace level to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the specified trace level is disabled for the GClass, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove a specific trace filter from a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_remove_trace_filter(
+    const char  *gobj_name,
+    const char  *trace_level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj_name`
+  - `const char *`
+  - The name of the GObj from which the trace filter will be removed.
+
+* - `trace_level`
+  - `const char *`
+  - The trace level to remove from the specified GObj.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

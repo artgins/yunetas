@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Log trace information for a state machine.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,52 @@
 **Prototype**
 
 ```C
+
+PUBLIC void trace_machine(
+    const char  *machine_name,
+    const char  *event_name,
+    const char  *state_name,
+    const char  *next_state_name
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `machine_name`
+  - `const char *`
+  - The name of the state machine being traced.
+
+* - `event_name`
+  - `const char *`
+  - The name of the event triggering the trace.
+
+* - `state_name`
+  - `const char *`
+  - The current state of the state machine.
+
+* - `next_state_name`
+  - `const char *`
+  - The next state of the state machine after the event.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function logs trace information.
+        
 
 
 <!--====================================================-->

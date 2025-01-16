@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if deep tracing is enabled for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL gobj_get_deep_tracing(
+    hgobj       gobj
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to check for deep tracing.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if deep tracing is enabled, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

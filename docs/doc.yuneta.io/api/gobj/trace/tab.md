@@ -1,12 +1,12 @@
 
 
 <!-- ============================================================== -->
-(gobj_get_global_trace_level())=
-# `gobj_get_global_trace_level()`
+(tab())=
+# `tab()`
 <!-- ============================================================== -->
 
 
-Get the value of a specific global trace level.
+Provide a tab character or an indented string for formatting purposes.
         
 
 <!------------------------------------------------------------>
@@ -25,8 +25,8 @@ Get the value of a specific global trace level.
 
 ```C
 
-PUBLIC BOOL gobj_get_global_trace_level(
-    const char  *level
+PUBLIC const char *tab(
+    int         count
 );
         
 
@@ -42,9 +42,9 @@ PUBLIC BOOL gobj_get_global_trace_level(
   - Type
   - Description
 
-* - `level`
-  - `const char *`
-  - The name of the global trace level to retrieve.
+* - `count`
+  - `int`
+  - The number of tab characters to generate or apply to the string.
 :::
         
 
@@ -53,7 +53,7 @@ PUBLIC BOOL gobj_get_global_trace_level(
 **Return Value**
 
 
-Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE`.
+Returns a string containing the specified number of tab characters for formatting purposes.
         
 
 

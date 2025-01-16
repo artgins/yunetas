@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the currently applied trace filters as a JSON object.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_get_trace_filter(
+    void
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `void`
+  - `void`
+  - This function takes no arguments.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object containing the currently applied trace filters.
+        
 
 
 <!--====================================================-->

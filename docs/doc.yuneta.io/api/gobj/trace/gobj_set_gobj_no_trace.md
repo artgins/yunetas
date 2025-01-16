@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Disable specific trace levels for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_set_gobj_no_trace(
+    hgobj       gobj,
+    const char  *trace_levels
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj for which the trace levels are being disabled.
+
+* - `trace_levels`
+  - `const char *`
+  - A comma-separated string of trace levels to disable for the GObj.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

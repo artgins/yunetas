@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a string representation of the global trace levels.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,38 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *gobj_repr_global_trace_levels(
+    void
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `void`
+  - `void`
+  - This function takes no arguments.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string representation of all global trace levels currently set.
+        
 
 
 <!--====================================================-->

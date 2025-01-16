@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a list of all trace levels.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,38 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_trace_level_list(
+    void
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `void`
+  - `void`
+  - This function takes no arguments.
+
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON array of all trace levels available in the system.
+        
 
 
 <!--====================================================-->

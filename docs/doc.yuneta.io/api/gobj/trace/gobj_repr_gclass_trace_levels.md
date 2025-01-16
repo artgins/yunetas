@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a string representation of the trace levels for a specific GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *gobj_repr_gclass_trace_levels(
+    hgclass     gclass
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - `hgclass`
+  - The handle of the GClass whose trace levels are being represented.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string representation of the trace levels for the specified GClass.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the value of a specific trace level for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL gobj_get_gobj_trace_level(
+    hgobj       gobj,
+    const char  *level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj whose trace level is being retrieved.
+
+* - `level`
+  - `const char *`
+  - The name of the trace level to retrieve.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the specified trace level is enabled for the GObj, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

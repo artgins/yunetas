@@ -33,5 +33,6 @@ gobj_get_trace_filter.md
 gobj_set_gclass_no_trace.md
 gobj_set_gobj_no_trace.md
 trace_machine.md
+tab.md
 
 ```

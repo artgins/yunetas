@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a specific trace level is disabled for a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL gobj_get_gobj_trace_no_level(
+    hgobj       gobj,
+    const char  *level
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj whose trace level is being checked.
+
+* - `level`
+  - `const char *`
+  - The name of the trace level to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the specified trace level is disabled for the GObj, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

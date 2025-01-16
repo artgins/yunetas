@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Load trace filters from a JSON object and apply them to the GObjs.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_load_trace_filter(
+    json_t      *jn_trace_filter
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn_trace_filter`
+  - `json_t *`
+  - JSON object containing the trace filters to apply.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

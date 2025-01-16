@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Disable specific trace levels for a GClass.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_set_gclass_no_trace(
+    hgclass     gclass,
+    const char  *trace_levels
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gclass`
+  - `hgclass`
+  - The GClass for which the trace levels are being disabled.
+
+* - `trace_levels`
+  - `const char *`
+  - A comma-separated string of trace levels to disable for the GClass.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->
