@@ -21,8 +21,12 @@ Volatile Gobjs are short-lived objects that are automatically destroyed after co
 **Prototype**
 
 ```C
-#define gobj_create_volatil(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_volatil)
+PUBLIC hgobj gobj_create_volatil(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
+);
 ```
 
 **Parameters**

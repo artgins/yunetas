@@ -21,8 +21,11 @@ The Yuno object serves as the root and main entry point for a Yuneta-based appli
 **Prototype**
 
 ```C
-#define gobj_create_yuno(name, gclass, kw) \
-    gobj_create_gobj(name, gclass, kw, NULL, gobj_flag_yuno)
+PUBLIC hgobj gobj_create_yuno(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw // owned
+);
 ```
 
 **Parameters**

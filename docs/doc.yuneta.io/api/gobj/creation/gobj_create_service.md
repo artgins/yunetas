@@ -21,8 +21,12 @@ Service Gobjs are intended to provide specific functionalities and can interact 
 **Prototype**
 
 ```C
-#define gobj_create_service(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_service)
+PUBLIC hgobj gobj_create_service(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
+);
 ```
 
 **Parameters**

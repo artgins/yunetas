@@ -7,7 +7,6 @@
 gobj_create.md
 gobj_create2.md
 gobj_create_default_service.md
-gobj_create_gobj.md
 gobj_create_pure_child.md
 gobj_create_service.md
 gobj_create_tree.md

@@ -20,8 +20,12 @@ Creates a new GObj instance with the default settings.
 **Prototype**
 
 ```C
-#define gobj_create(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, 0)
+PUBLIC hgobj gobj_create(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
+);
 ```
 
 **Parameters**

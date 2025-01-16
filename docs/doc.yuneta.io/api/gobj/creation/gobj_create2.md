@@ -20,8 +20,13 @@ Creates a new GObj instance with customizable flags to modify its behavior.
 **Prototype**
 
 ```C
-#define gobj_create2(name, gclass, kw, parent, gobj_flag) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag)
+PUBLIC hgobj gobj_create2(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent,
+    gobj_flag_t     gobj_flag
+);
 ```
 
 **Parameters**

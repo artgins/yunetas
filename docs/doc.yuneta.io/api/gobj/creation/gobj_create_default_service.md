@@ -21,8 +21,12 @@ Default services have auto-start enabled but require manual playback via the Yun
 **Prototype**
 
 ```C
-#define gobj_create_default_service(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_default_service | gobj_flag_autostart)
+PUBLIC hgobj gobj_create_default_service(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
+);
 
 ```
 

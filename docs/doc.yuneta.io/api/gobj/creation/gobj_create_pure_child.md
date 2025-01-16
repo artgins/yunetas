@@ -21,8 +21,12 @@ Pure child Gobjs inherit certain behaviors and attributes from their parent.
 **Prototype**
 
 ```C
-#define gobj_create_pure_child(name, gclass, kw, parent) \
-    gobj_create_gobj(name, gclass, kw, parent, gobj_flag_pure_child)
+PUBLIC hgobj gobj_create_pure_child(
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
+);
 ```
 
 **Parameters**
