@@ -5,7 +5,7 @@
 # `gobj_malloc_func()`
 <!-- ============================================================== -->
 
-
+Returns the current malloc function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+
+- Returns the current malloc function.
+        
 
 
 <!--====================================================-->

@@ -5,7 +5,7 @@
 # `gobj_strndup()`
 <!-- ============================================================== -->
 
-
+Duplicates a string with a maximum size.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,39 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *gobj_strndup(const char *str, size_t size);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `str`
+  - `const char *`
+  - The string to duplicate.
+
+* - `size`
+  - `size_t`
+  - The maximum number of characters to copy.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a pointer to the duplicated string or `NULL` on failure.
+        
 
 
 <!--====================================================-->

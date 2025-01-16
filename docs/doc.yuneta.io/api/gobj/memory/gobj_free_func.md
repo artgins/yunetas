@@ -5,7 +5,7 @@
 # `gobj_free_func()`
 <!-- ============================================================== -->
 
-
+Returns the current free function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC sys_free_fn_t gobj_free_func(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+
+- Returns the current free function.
+        
 
 
 <!--====================================================-->

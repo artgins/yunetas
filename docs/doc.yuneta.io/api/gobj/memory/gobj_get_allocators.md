@@ -5,7 +5,7 @@
 # `gobj_get_allocators()`
 <!-- ============================================================== -->
 
-
+Retrieves the current memory allocation functions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,52 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_get_allocators(
+    sys_malloc_fn_t *malloc_func,
+    sys_realloc_fn_t *realloc_func,
+    sys_calloc_fn_t *calloc_func,
+    sys_free_fn_t *free_func
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `malloc_func`
+  - `sys_malloc_fn_t *`
+  - Pointer to store the current malloc function.
+
+* - `realloc_func`
+  - `sys_realloc_fn_t *`
+  - Pointer to store the current realloc function.
+
+* - `calloc_func`
+  - `sys_calloc_fn_t *`
+  - Pointer to store the current calloc function.
+
+* - `free_func`
+  - `sys_free_fn_t *`
+  - Pointer to store the current free function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- `0`: Success.
+        
 
 
 <!--====================================================-->

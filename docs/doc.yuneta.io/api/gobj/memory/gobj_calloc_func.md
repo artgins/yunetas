@@ -5,7 +5,7 @@
 # `gobj_calloc_func()`
 <!-- ============================================================== -->
 
-
+Returns the current calloc function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC sys_calloc_fn_t gobj_calloc_func(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+
+- Returns the current calloc function.
+        
 
 
 <!--====================================================-->

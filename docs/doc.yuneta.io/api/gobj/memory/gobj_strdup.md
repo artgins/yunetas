@@ -5,7 +5,7 @@
 # `gobj_strdup()`
 <!-- ============================================================== -->
 
-
+Duplicates a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *gobj_strdup(const char *string);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The string to duplicate.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a pointer to the duplicated string or `NULL` on failure.
+        
 
 
 <!--====================================================-->

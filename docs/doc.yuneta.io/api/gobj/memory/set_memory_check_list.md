@@ -5,7 +5,7 @@
 # `set_memory_check_list()`
 <!-- ============================================================== -->
 
-
+Sets a list of memory references to check for tracking.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,33 @@
 **Prototype**
 
 ```C
+
+PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `memory_check_list`
+  - `unsigned long *`
+  - Pointer to a list of memory references to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+None.
 
 
 <!--====================================================-->

@@ -5,7 +5,7 @@
 # `gobj_get_maximum_block()`
 <!-- ============================================================== -->
 
-
+Returns the maximum block size for memory allocation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gobj_get_maximum_block(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+
+- Returns the maximum memory block size in bytes.
+        
 
 
 <!--====================================================-->

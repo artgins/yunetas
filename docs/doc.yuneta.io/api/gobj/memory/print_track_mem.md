@@ -5,7 +5,7 @@
 # `print_track_mem()`
 <!-- ============================================================== -->
 
-
+Prints a list of tracked memory blocks for debugging.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,21 @@
 **Prototype**
 
 ```C
+
+PUBLIC void print_track_mem(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+None.
 
 
 <!--====================================================-->

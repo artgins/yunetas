@@ -5,7 +5,7 @@
 # `gobj_realloc_func()`
 <!-- ============================================================== -->
 
-
+Returns the current realloc function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC sys_realloc_fn_t gobj_realloc_func(void);
+        
+
 ```
 
 **Parameters**
 
+None.
 
 ---
 
 **Return Value**
+
+
+- Returns the current realloc function.
+        
 
 
 <!--====================================================-->
