@@ -168,12 +168,88 @@ $_return_value_
 
 """)
 
-functions = [
+functions_documentation = [
 ]
+functions_documentation.extend([
+    {
+        "name": "stats_parser",
+        "description": '''
+Parse statistical data from a GObj.
+        ''',
+        "prototype": '''
+PUBLIC json_t *stats_parser(
+    hgobj       gobj,
+    const char *stats_name,
+    const char *options
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to retrieve statistical data from.
+
+* - `stats_name`
+  - `const char *`
+  - The name of the specific statistics to parse, or `NULL` for all statistics.
+
+* - `options`
+  - `const char *`
+  - Options to customize the parsing process (e.g., filters or format specifications).
+:::
+        ''',
+        "return_value": '''
+Returns a [`json_t *`](json_t) object containing the parsed statistical data, or `NULL` on failure.
+        '''
+    },
+    {
+        "name": "build_stats",
+        "description": '''
+Build statistical data for a GObj and format it as a JSON object.
+        ''',
+        "prototype": '''
+PUBLIC json_t *build_stats(
+    hgobj       gobj,
+    const char *stats_name,
+    const char *options
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to build statistical data for.
+
+* - `stats_name`
+  - `const char *`
+  - The name of the specific statistics to build, or `NULL` for all statistics.
+
+* - `options`
+  - `const char *`
+  - Options to customize the data building process (e.g., filters or format specifications).
+:::
+        ''',
+        "return_value": '''
+Returns a [`json_t *`](json_t) object containing the built statistical data, or `NULL` on failure.
+        '''
+    }
+])
 
 
 # Loop through the list of names and create a file for each
-for fn in functions:
+for fn in functions_documentation:
     # Substitute the variable in the template
 
     formatted_text = template.substitute(

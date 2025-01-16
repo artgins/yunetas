@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Build statistical data for a GObj and format it as a JSON object.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *build_stats(
+    hgobj       gobj,
+    const char *stats_name,
+    const char *options
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to build statistical data for.
+
+* - `stats_name`
+  - `const char *`
+  - The name of the specific statistics to build, or `NULL` for all statistics.
+
+* - `options`
+  - `const char *`
+  - Options to customize the data building process (e.g., filters or format specifications).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the built statistical data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

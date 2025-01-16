@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Parse statistical data from a GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *stats_parser(
+    hgobj       gobj,
+    const char *stats_name,
+    const char *options
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj to retrieve statistical data from.
+
+* - `stats_name`
+  - `const char *`
+  - The name of the specific statistics to parse, or `NULL` for all statistics.
+
+* - `options`
+  - `const char *`
+  - Options to customize the parsing process (e.g., filters or format specifications).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the parsed statistical data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->
