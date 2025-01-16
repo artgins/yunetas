@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Append a null-terminated string to the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_append_string(
+    gbuffer_t   *gbuffer,
+    const char  *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to which the string will be appended.
+
+* - `string`
+  - `const char *`
+  - The null-terminated string to append.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

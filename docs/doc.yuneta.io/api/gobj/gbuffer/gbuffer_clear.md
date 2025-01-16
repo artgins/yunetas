@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Clear the contents of the gbuffer and reset its read and write pointers.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_clear(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to clear.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function clears the contents of the gbuffer.
+        
 
 
 <!--====================================================-->

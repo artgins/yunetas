@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Read a single character from the gbuffer and advance the read pointer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_getchar(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer from which a character will be read.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the character read from the gbuffer, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

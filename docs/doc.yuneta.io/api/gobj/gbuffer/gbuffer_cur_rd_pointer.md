@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the current read pointer of the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const void *gbuffer_cur_rd_pointer(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose current read pointer will be retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the current read position in the gbuffer.
+        
 
 
 <!--====================================================-->

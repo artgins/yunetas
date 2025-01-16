@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a new gbuffer with the specified initial and maximum sizes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *gbuffer_create(
+    size_t      initial_size,
+    size_t      max_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `initial_size`
+  - `size_t`
+  - The initial size of the gbuffer in bytes.
+
+* - `max_size`
+  - `size_t`
+  - The maximum allowable size of the gbuffer in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on failure.
+        
 
 
 <!--====================================================-->

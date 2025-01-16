@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Decode a Base64-encoded gbuffer into a string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *gbuffer_base64_to_string(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer containing the Base64-encoded data to decode.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a null-terminated string containing the decoded data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

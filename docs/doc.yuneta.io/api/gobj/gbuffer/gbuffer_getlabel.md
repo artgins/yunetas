@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the label of the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *gbuffer_getlabel(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose label will be retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the label of the gbuffer as a null-terminated string, or `NULL` if no label is set.
+        
 
 
 <!--====================================================-->

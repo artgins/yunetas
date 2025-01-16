@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a gbuffer into a JSON object.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gbuf2json(
+    gbuffer_t   *gbuffer,
+    BOOL        expand
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to convert into a JSON object.
+
+* - `expand`
+  - `BOOL`
+  - If `TRUE`, the gbuffer will be expanded during conversion; otherwise, it will remain as is.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object created from the gbuffer, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

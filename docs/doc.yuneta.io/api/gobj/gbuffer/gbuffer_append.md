@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Append raw data to the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_append(
+    gbuffer_t   *gbuffer,
+    const void  *data,
+    size_t      size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to which data will be appended.
+
+* - `data`
+  - `const void *`
+  - The raw data to append to the gbuffer.
+
+* - `size`
+  - `size_t`
+  - The size of the data to append, in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

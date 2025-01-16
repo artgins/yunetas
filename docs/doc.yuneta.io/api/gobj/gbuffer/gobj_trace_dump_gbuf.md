@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Dump the contents of a gbuffer as trace information.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_trace_dump_gbuf(
+    gbuffer_t   *gbuffer,
+    const char  *format,
+    ...
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose contents will be dumped.
+
+* - `format`
+  - `const char *`
+  - A printf-style format string for the trace message.
+
+* - `...`
+  - `varargs`
+  - Additional arguments for the format string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function logs the contents of the gbuffer as trace information.
+        
 
 
 <!--====================================================-->

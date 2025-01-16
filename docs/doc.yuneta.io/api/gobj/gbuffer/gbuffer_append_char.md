@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Append a single character to the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_append_char(
+    gbuffer_t   *gbuffer,
+    char        c
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to which the character will be appended.
+
+* - `c`
+  - `char`
+  - The character to append to the gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

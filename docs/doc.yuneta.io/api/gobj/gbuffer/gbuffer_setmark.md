@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set a mark at the current read position of the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_setmark(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer where the mark will be set at the current read position.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function sets a mark in the gbuffer.
+        
 
 
 <!--====================================================-->

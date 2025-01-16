@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Deserialize a JSON object into a gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *gbuffer_deserialize(
+    json_t      *json
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - `json_t *`
+  - The JSON object to deserialize into a gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly created [`gbuffer_t *`](gbuffer_t) from the JSON object, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

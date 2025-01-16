@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Increase the reference count of a gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_incref(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose reference count will be increased.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the reference count.
+        
 
 
 <!--====================================================-->

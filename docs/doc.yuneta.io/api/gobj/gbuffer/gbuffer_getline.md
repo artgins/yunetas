@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Read a line of text from the gbuffer, stopping at a newline character or end of buffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *gbuffer_getline(
+    gbuffer_t   *gbuffer,
+    char        *line,
+    size_t      line_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer from which the line will be read.
+
+* - `line`
+  - `char *`
+  - The buffer where the line will be stored.
+
+* - `line_size`
+  - `size_t`
+  - The size of the buffer for the line.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the line read from the gbuffer, or `NULL` if no line can be read.
+        
 
 
 <!--====================================================-->

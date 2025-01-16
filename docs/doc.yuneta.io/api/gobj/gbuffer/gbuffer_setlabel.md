@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set a label for the gbuffer for identification or debugging purposes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_setlabel(
+    gbuffer_t   *gbuffer,
+    const char  *label
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to label.
+
+* - `label`
+  - `const char *`
+  - The label to assign to the gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function sets the label for the gbuffer.
+        
 
 
 <!--====================================================-->

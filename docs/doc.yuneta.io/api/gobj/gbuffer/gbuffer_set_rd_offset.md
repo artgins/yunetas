@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set the read offset of the gbuffer to a specific position.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_set_rd_offset(
+    gbuffer_t   *gbuffer,
+    size_t      offset
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose read offset will be set.
+
+* - `offset`
+  - `size_t`
+  - The new read offset in the gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the offset is invalid.
+        
 
 
 <!--====================================================-->

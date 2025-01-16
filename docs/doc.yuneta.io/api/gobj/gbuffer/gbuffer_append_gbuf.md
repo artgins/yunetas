@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Append the contents of one gbuffer to another.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_append_gbuf(
+    gbuffer_t   *dest,
+    gbuffer_t   *src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `dest`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The destination gbuffer to which data will be appended.
+
+* - `src`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The source gbuffer whose contents will be appended.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Read a block of data from the gbuffer and advance the read pointer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_get(
+    gbuffer_t   *gbuffer,
+    void        *data,
+    size_t      size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer from which data will be read.
+
+* - `data`
+  - `void *`
+  - The buffer where the data will be copied.
+
+* - `size`
+  - `size_t`
+  - The number of bytes to read from the gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the operation fails (e.g., insufficient data).
+        
 
 
 <!--====================================================-->

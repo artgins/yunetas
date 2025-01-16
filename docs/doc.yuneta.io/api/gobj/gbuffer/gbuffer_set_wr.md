@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set the write pointer of the gbuffer to a specific position.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_set_wr(
+    gbuffer_t   *gbuffer,
+    size_t      offset
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose write pointer will be set.
+
+* - `offset`
+  - `size_t`
+  - The new write offset in the gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value if the offset is invalid.
+        
 
 
 <!--====================================================-->

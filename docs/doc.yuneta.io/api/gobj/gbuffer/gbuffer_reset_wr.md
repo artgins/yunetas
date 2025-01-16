@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Reset the write pointer of the gbuffer to the beginning.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_reset_wr(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose write pointer will be reset.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the write pointer of the gbuffer.
+        
 
 
 <!--====================================================-->

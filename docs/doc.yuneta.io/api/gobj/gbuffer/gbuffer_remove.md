@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove and free a gbuffer from memory.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_remove(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to be removed and freed.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on error.
+        
 
 
 <!--====================================================-->

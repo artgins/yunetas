@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Decrease the reference count of a gbuffer and free it if the count reaches zero.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gbuffer_decref(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose reference count will be decreased.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function modifies the reference count and may free the gbuffer.
+        
 
 
 <!--====================================================-->

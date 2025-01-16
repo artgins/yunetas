@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Serialize a gbuffer into a JSON-compatible format.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gbuffer_serialize(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to be serialized.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the serialized gbuffer, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

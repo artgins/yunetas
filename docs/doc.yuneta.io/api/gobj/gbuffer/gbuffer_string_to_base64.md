@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a string into a gbuffer containing its Base64 representation.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *gbuffer_string_to_base64(
+    const char  *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The null-terminated string to encode into Base64.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`gbuffer_t *`](gbuffer_t) containing the Base64-encoded string, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

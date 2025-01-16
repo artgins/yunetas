@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the mark previously set in the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gbuffer_getmark(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose mark will be retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the position of the mark in the gbuffer, or `0` if no mark is set.
+        
 
 
 <!--====================================================-->

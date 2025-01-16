@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the current read offset of the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gbuffer_get_rd_offset(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer whose current read offset will be retrieved.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the current read offset of the gbuffer.
+        
 
 
 <!--====================================================-->

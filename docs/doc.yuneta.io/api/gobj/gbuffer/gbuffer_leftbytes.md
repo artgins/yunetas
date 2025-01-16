@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the number of unread bytes remaining in the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gbuffer_leftbytes(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to query for remaining unread bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of unread bytes left in the gbuffer.
+        
 
 
 <!--====================================================-->

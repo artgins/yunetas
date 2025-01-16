@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON object into a gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *json2gbuf(
+    json_t      *json
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - `json_t *`
+  - The JSON object to convert into a gbuffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly created [`gbuffer_t *`](gbuffer_t) containing the serialized JSON data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

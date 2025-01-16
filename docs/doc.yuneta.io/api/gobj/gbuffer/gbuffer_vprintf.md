@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write formatted data to the gbuffer using a printf-style format string and a `va_list`.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gbuffer_vprintf(
+    gbuffer_t   *gbuffer,
+    const char  *format,
+    va_list     args
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer where the formatted data will be written.
+
+* - `format`
+  - `const char *`
+  - The printf-style format string.
+
+* - `args`
+  - `va_list`
+  - The list of arguments for the format string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of characters written on success, or a negative value if the operation fails.
+        
 
 
 <!--====================================================-->

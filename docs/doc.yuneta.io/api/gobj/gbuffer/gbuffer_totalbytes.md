@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the total number of bytes in the gbuffer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gbuffer_totalbytes(
+    gbuffer_t   *gbuffer
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gbuffer`
+  - [`gbuffer_t *`](gbuffer_t)
+  - The gbuffer to query for the total number of bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the total number of bytes in the gbuffer.
+        
 
 
 <!--====================================================-->
