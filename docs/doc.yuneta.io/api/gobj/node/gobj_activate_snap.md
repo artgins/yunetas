@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Activate a specific snapshot in the GObj's TreeDB.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,53 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_activate_snap(
+    hgobj gobj,
+    const char *tag,
+    json_t *kw,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the activation.
+
+* - `tag`
+  - `const char *`
+  - The tag of the snapshot to activate.
+
+* - `kw`
+  - `json_t *`
+  - JSON data with activation parameters (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` if the snapshot was successfully activated.  
+- Returns `-1` if the operation failed.
+        
 
 
 <!--====================================================-->

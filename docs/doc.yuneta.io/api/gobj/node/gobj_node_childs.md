@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the child nodes of a specific node in a topic.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,68 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_node_childs(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    const char *hook,
+    json_t *filter,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the request.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the node.
+
+* - `kw`
+  - `json_t *`
+  - JSON data identifying the node (owned).
+
+* - `hook`
+  - `const char *`
+  - The relationship type between the node and its children.
+
+* - `filter`
+  - `json_t *`
+  - A filter to narrow down the child nodes (owned).
+
+* - `options`
+  - `json_t *`
+  - Additional options for the retrieval (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object containing the child nodes.  
+If no children exist or the operation fails, returns `NULL`.
+        
 
 
 <!--====================================================-->

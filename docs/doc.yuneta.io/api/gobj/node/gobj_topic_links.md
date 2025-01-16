@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the links associated with a topic in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_topic_links(
+    hgobj gobj,
+    const char *treedb_name,
+    const char *topic_name,
+    json_t *kw,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj from which to query the topic links.
+
+* - `treedb_name`
+  - `const char *`
+  - The name of the treedb.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic.
+
+* - `kw`
+  - [`json_t`](json_t)
+  - Optional parameters to refine the query (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object containing the links of the topic.  
+If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
+        
 
 
 <!--====================================================-->

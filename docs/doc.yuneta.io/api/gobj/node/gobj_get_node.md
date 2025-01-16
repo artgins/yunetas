@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a node from a specific topic in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_get_node(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for retrieving the node.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the node.
+
+* - `kw`
+  - [`json_t`](json_t)
+  - JSON data specifying the node to retrieve (owned).
+
+* - `options`
+  - [`json_t`](json_t)
+  - Additional options for retrieval (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the node.  
+If the node is not found, returns `NULL`.
+        
 
 
 <!--====================================================-->

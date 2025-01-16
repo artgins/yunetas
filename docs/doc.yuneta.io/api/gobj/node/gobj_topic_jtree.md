@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a JSON representation of a topic's hierarchical tree.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,73 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_topic_jtree(
+    hgobj gobj,
+    const char *topic_name,
+    const char *hook,
+    const char *rename_hook,
+    json_t *kw,
+    json_t *filter,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the request.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic.
+
+* - `hook`
+  - `const char *`
+  - The relationship type between nodes.
+
+* - `rename_hook`
+  - `const char *`
+  - Optional parameter to rename the relationship type in the output.
+
+* - `kw`
+  - `json_t *`
+  - JSON data for the base node (owned).
+
+* - `filter`
+  - `json_t *`
+  - A filter to narrow down nodes in the tree (owned).
+
+* - `options`
+  - `json_t *`
+  - Additional options for the tree representation (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the topic's hierarchical tree.  
+If the operation fails, returns `NULL`.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+List all nodes in a specific topic of a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_list_nodes(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *jn_filter,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for listing the nodes.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic to list nodes from.
+
+* - `jn_filter`
+  - [`json_t`](json_t)
+  - JSON filter to refine the results (owned).
+
+* - `options`
+  - [`json_t`](json_t)
+  - Additional options for the list operation (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON array of nodes matching the specified criteria.  
+If no nodes match, returns an empty JSON array.
+        
 
 
 <!--====================================================-->

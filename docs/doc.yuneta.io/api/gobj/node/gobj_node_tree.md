@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a JSON representation of a node's subtree.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_node_tree(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the request.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the node.
+
+* - `kw`
+  - `json_t *`
+  - JSON data identifying the node (owned).
+
+* - `options`
+  - `json_t *`
+  - Additional options for the subtree representation (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the node's subtree.  
+If the operation fails, returns `NULL`.
+        
 
 
 <!--====================================================-->

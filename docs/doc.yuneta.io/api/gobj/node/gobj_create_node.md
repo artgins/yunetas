@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a new node in a specific topic of a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_create_node(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    json_t *jn_options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for creating the node.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic where the node will be created.
+
+* - `kw`
+  - [`json_t`](json_t)
+  - JSON data representing the node attributes (owned).
+
+* - `jn_options`
+  - [`json_t`](json_t)
+  - Additional options for node creation (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object representing the created node.  
+If the creation fails, returns `NULL`.
+        
 
 
 <!--====================================================-->

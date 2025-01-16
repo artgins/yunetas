@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the list of topics for a specific treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,53 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_treedb_topics(
+    hgobj gobj,
+    const char *treedb_name,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj from which to query the treedb topics.
+
+* - `treedb_name`
+  - `const char *`
+  - The name of the treedb.
+
+* - `options`
+  - [`json_t`](json_t)
+  - Optional input parameters specifying how the list is formatted (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON list of topics in the specified treedb.  
+If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
+        
 
 
 <!--====================================================-->

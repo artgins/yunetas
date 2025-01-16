@@ -185,8 +185,7 @@ names = [
     "gobj_node_tree",
     "gobj_shoot_snap",
     "gobj_activate_snap",
-    "gobj_list_snaps",
-
+    "gobj_list_snaps"
 ]
 
 # Loop through the list of names and create a file for each

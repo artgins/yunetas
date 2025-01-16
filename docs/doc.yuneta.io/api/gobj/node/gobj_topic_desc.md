@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the description of a specific topic in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,43 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_topic_desc(
+    hgobj gobj,
+    const char *topic_name
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj from which to query the topic description.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object containing the description of the topic.  
+If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
+        
 
 
 <!--====================================================-->

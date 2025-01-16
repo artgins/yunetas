@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a list of snapshots available in the GObj's TreeDB.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,48 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_list_snaps(
+    hgobj gobj,
+    json_t *filter,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the request.
+
+* - `filter`
+  - `json_t *`
+  - JSON filter for narrowing down the list of snapshots (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON array of available snapshots.  
+If no snapshots are available or the operation fails, returns an empty array.
+        
 
 
 <!--====================================================-->

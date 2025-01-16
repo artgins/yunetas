@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete a node from a specific topic in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,58 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_delete_node(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    json_t *jn_options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for deleting the node.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the node to delete.
+
+* - `kw`
+  - [`json_t`](json_t)
+  - JSON data identifying the node to delete (owned).
+
+* - `jn_options`
+  - [`json_t`](json_t)
+  - Additional options for the delete operation (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the delete request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` if the node was successfully deleted.  
+- Returns `-1` if the deletion failed.
+        
 
 
 <!--====================================================-->

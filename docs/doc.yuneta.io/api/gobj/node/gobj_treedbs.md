@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Return a list of treedb names available in the specified GObj.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,48 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_treedbs(
+    hgobj gobj,
+    json_t *kw,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj to query for treedb names.
+
+* - `kw`
+  - [`json_t`](json_t)
+  - Optional input parameters in JSON format (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON list of treedb names available in the specified GObj.  
+If `gobj` is null or destroyed, returns `NULL`.
+        
 
 
 <!--====================================================-->

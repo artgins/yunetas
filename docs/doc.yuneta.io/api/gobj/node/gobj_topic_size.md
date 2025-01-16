@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the size of a topic based on a specific key in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,48 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t gobj_topic_size(
+    hgobj gobj,
+    const char *topic_name,
+    const char *key
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj containing the topic.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic.
+
+* - `key`
+  - `const char *`
+  - The key to evaluate for the topic size.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the size of the topic as `size_t`.  
+If the `gobj` is null or the key is not found, the size returned is `0`.
+        
 
 
 <!--====================================================-->

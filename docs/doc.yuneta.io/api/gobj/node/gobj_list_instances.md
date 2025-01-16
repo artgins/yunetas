@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve a list of instances for a specific topic in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,63 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_list_instances(
+    hgobj gobj,
+    const char *topic_name,
+    const char *pkey2_field,
+    json_t *jn_filter,
+    json_t *jn_options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for retrieving the instances.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the instances.
+
+* - `pkey2_field`
+  - `const char *`
+  - The secondary key field for filtering instances.
+
+* - `jn_filter`
+  - [`json_t`](json_t)
+  - JSON filter to refine the results (owned).
+
+* - `jn_options`
+  - [`json_t`](json_t)
+  - Additional options for the operation (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON array of instances matching the specified criteria.  
+If no instances match, returns an empty JSON array.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove a link between two nodes in a treedb.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,68 @@
 **Prototype**
 
 ```C
+
+PUBLIC int gobj_unlink_nodes(
+    hgobj gobj,
+    const char *hook,
+    const char *parent_topic_name,
+    json_t *parent,
+    const char *child_topic_name,
+    json_t *child,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj responsible for unlinking the nodes.
+
+* - `hook`
+  - `const char *`
+  - The hook name that defines the relationship.
+
+* - `parent_topic_name`
+  - `const char *`
+  - The topic name of the parent node.
+
+* - `parent`
+  - [`json_t`](json_t)
+  - JSON data identifying the parent node (owned).
+
+* - `child_topic_name`
+  - `const char *`
+  - The topic name of the child node.
+
+* - `child`
+  - [`json_t`](json_t)
+  - JSON data identifying the child node (owned).
+
+* - `src`
+  - [`hgobj`](hgobj)
+  - The source GObj initiating the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` if the link was successfully removed.  
+- Returns `-1` if the operation failed.
+        
 
 
 <!--====================================================-->

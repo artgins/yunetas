@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the parent nodes of a specific node in a topic.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,63 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_node_parents(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *kw,
+    const char *link,
+    json_t *options,
+    hgobj src
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj handle initiating the request.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the node.
+
+* - `kw`
+  - `json_t *`
+  - JSON data identifying the node (owned).
+
+* - `link`
+  - `const char *`
+  - The link type connecting the parent and child nodes.
+
+* - `options`
+  - `json_t *`
+  - Additional options for retrieval (owned).
+
+* - `src`
+  - `hgobj`
+  - The source GObj making the request.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a JSON object containing the parent nodes.  
+If no parents exist or the operation fails, returns `NULL`.
+        
 
 
 <!--====================================================-->
