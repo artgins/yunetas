@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Close a rotatory log file.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void rotatory_close(
+    int handle
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to close.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function closes the specified rotatory log file.
+        
 
 
 <!--====================================================-->

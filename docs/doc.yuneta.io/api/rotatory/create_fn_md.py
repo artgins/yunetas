@@ -172,16 +172,12 @@ functions_documentation = [
 ]
 functions_documentation.extend([
     {
-        "name": "stats_parser",
+        "name": "rotatory_start_up",
         "description": '''
-Parse statistical data from a GObj.
+Initialize the rotatory logging system.
         ''',
         "prototype": '''
-PUBLIC json_t *stats_parser(
-    hgobj       gobj,
-    const char *stats_name,
-    const char *options
-);
+PUBLIC int rotatory_start_up(void);
         ''',
         "parameters": '''
 :::{list-table}
@@ -191,33 +187,50 @@ PUBLIC json_t *stats_parser(
   - Type
   - Description
 
-* - `gobj`
-  - `hgobj`
-  - The GObj to retrieve statistical data from.
-
-* - `stats_name`
-  - `const char *`
-  - The name of the specific statistics to parse, or `NULL` for all statistics.
-
-* - `options`
-  - `const char *`
-  - Options to customize the parsing process (e.g., filters or format specifications).
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
         ''',
         "return_value": '''
-Returns a [`json_t *`](json_t) object containing the parsed statistical data, or `NULL` on failure.
+Returns `0` on success, or a negative value on failure.
         '''
     },
     {
-        "name": "build_stats",
+        "name": "rotatory_end",
         "description": '''
-Build statistical data for a GObj and format it as a JSON object.
+Shut down the rotatory logging system.
         ''',
         "prototype": '''
-PUBLIC json_t *build_stats(
-    hgobj       gobj,
-    const char *stats_name,
-    const char *options
+PUBLIC void rotatory_end(void);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        ''',
+        "return_value": '''
+No return value. This function shuts down and cleans up resources used by the rotatory logging system.
+        '''
+    },
+    {
+        "name": "rotatory_open",
+        "description": '''
+Open a rotatory log file.
+        ''',
+        "prototype": '''
+PUBLIC int rotatory_open(
+    const char  *base_path,
+    size_t       max_size,
+    int          max_files
 );
         ''',
         "parameters": '''
@@ -228,21 +241,198 @@ PUBLIC json_t *build_stats(
   - Type
   - Description
 
-* - `gobj`
-  - `hgobj`
-  - The GObj to build statistical data for.
-
-* - `stats_name`
+* - `base_path`
   - `const char *`
-  - The name of the specific statistics to build, or `NULL` for all statistics.
+  - The base path for the log files.
 
-* - `options`
-  - `const char *`
-  - Options to customize the data building process (e.g., filters or format specifications).
+* - `max_size`
+  - `size_t`
+  - The maximum size of each log file.
+
+* - `max_files`
+  - `int`
+  - The maximum number of log files to keep.
 :::
         ''',
         "return_value": '''
-Returns a [`json_t *`](json_t) object containing the built statistical data, or `NULL` on failure.
+Returns a handle to the rotatory log on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "rotatory_close",
+        "description": '''
+Close a rotatory log file.
+        ''',
+        "prototype": '''
+PUBLIC void rotatory_close(
+    int handle
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to close.
+:::
+        ''',
+        "return_value": '''
+No return value. This function closes the specified rotatory log file.
+        '''
+    },
+    {
+        "name": "rotatory_write",
+        "description": '''
+Write data to a rotatory log file.
+        ''',
+        "prototype": '''
+PUBLIC int rotatory_write(
+    int          handle,
+    const void  *data,
+    size_t       size
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to write to.
+
+* - `data`
+  - `const void *`
+  - The data to write.
+
+* - `size`
+  - `size_t`
+  - The size of the data in bytes.
+:::
+        ''',
+        "return_value": '''
+Returns the number of bytes successfully written, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "rotatory_fwrite",
+        "description": '''
+Write the contents of a file to a rotatory log file.
+        ''',
+        "prototype": '''
+PUBLIC int rotatory_fwrite(
+    int          handle,
+    FILE        *file
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to write to.
+
+* - `file`
+  - `FILE *`
+  - The file to write to the rotatory log.
+:::
+        ''',
+        "return_value": '''
+Returns the number of bytes successfully written, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "rotatory_trunk",
+        "description": '''
+Truncate a rotatory log file, clearing its contents.
+        ''',
+        "prototype": '''
+PUBLIC int rotatory_trunk(
+    int handle
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to truncate.
+:::
+        ''',
+        "return_value": '''
+Returns `0` on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "rotatory_flush",
+        "description": '''
+Flush the data of a rotatory log file to disk.
+        ''',
+        "prototype": '''
+PUBLIC int rotatory_flush(
+    int handle
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to flush.
+:::
+        ''',
+        "return_value": '''
+Returns `0` on success, or a negative value on failure.
+        '''
+    },
+    {
+        "name": "rotatory_path",
+        "description": '''
+Get the path of the currently active file in a rotatory log.
+        ''',
+        "prototype": '''
+PUBLIC const char *rotatory_path(
+    int handle
+);
+        ''',
+        "parameters": '''
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to query.
+:::
+        ''',
+        "return_value": '''
+Returns a string containing the path of the active file, or `NULL` on failure.
         '''
     }
 ])

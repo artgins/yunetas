@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write the contents of a file to a rotatory log file.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int rotatory_fwrite(
+    int          handle,
+    FILE        *file
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to write to.
+
+* - `file`
+  - `FILE *`
+  - The file to write to the rotatory log.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully written, or a negative value on failure.
+        
 
 
 <!--====================================================-->

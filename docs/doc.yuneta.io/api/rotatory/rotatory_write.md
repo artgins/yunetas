@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write data to a rotatory log file.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int rotatory_write(
+    int          handle,
+    const void  *data,
+    size_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to write to.
+
+* - `data`
+  - `const void *`
+  - The data to write.
+
+* - `size`
+  - `size_t`
+  - The size of the data in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully written, or a negative value on failure.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Open a rotatory log file.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int rotatory_open(
+    const char  *base_path,
+    size_t       max_size,
+    int          max_files
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `base_path`
+  - `const char *`
+  - The base path for the log files.
+
+* - `max_size`
+  - `size_t`
+  - The maximum size of each log file.
+
+* - `max_files`
+  - `int`
+  - The maximum number of log files to keep.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a handle to the rotatory log on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

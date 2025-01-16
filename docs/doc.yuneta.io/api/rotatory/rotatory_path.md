@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the path of the currently active file in a rotatory log.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *rotatory_path(
+    int handle
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handle`
+  - `int`
+  - The handle of the rotatory log to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string containing the path of the active file, or `NULL` on failure.
+        
 
 
 <!--====================================================-->
