@@ -1152,9 +1152,9 @@ Retrieve a list of snapshots available in the GObj's TreeDB.
         ''',
         "prototype": '''
 PUBLIC json_t *gobj_list_snaps(
-    hgobj gobj,
-    json_t *filter,
-    hgobj src
+    hgobj       gobj,
+    json_t      *filter,
+    hgobj       src
 );
         ''',
         "parameters": '''

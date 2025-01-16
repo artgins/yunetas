@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+List all registered log handlers and their properties.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,26 @@
 **Prototype**
 
 ```C
+
+json_t *gobj_log_list_handlers(void);
+        
+
 ```
 
 **Parameters**
 
 
+No parameters.
+        
+
 ---
 
 **Return Value**
+
+
+- Returns a JSON object with details about registered handlers.
+- Returns `NULL` if no handlers are registered or in case of an error.
+        
 
 
 <!--====================================================-->

@@ -175,6 +175,8 @@ names = [
     "gobj_log_set_global_handler_option",
     "stdout_write",
     "stdout_fwrite",
+]
+names = [
     "gobj_log_alert",
     "gobj_log_critical",
     "gobj_log_error",
@@ -185,6 +187,8 @@ names = [
     "gobj_get_log_data",
     "gobj_log_clear_counters",
     "gobj_log_last_message",
+]
+names = [
     "gobj_log_set_last_message",
     "set_show_backtrace_fn",
     "print_backtrace",
@@ -194,7 +198,7 @@ names = [
     "gobj_trace_json",
     "gobj_trace_buffer",
     "gobj_trace_dump",
-    "print_error",
+    "print_error"
 ]
 
 # Loop through the list of names and create a file for each

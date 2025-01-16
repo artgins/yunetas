@@ -5,7 +5,7 @@
 # `gobj_log_alert()`
 <!-- ============================================================== -->
 
-
+Logs an alert-level message.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,43 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The gobj instance initiating the log.
+
+* - `opt`
+  - `log_opt_t`
+  - Options for log customization, such as stack tracing or exit behavior.
+
+* - `...`
+  - `variadic`
+  - The message and optional variables for formatting.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- **None**
+        
 
 
 <!--====================================================-->

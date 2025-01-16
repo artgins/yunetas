@@ -5,7 +5,7 @@
 # `trace_vjson()`
 <!-- ============================================================== -->
 
-
+Log a message with a JSON object and additional formatting.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,62 @@
 **Prototype**
 
 ```C
+
+PUBLIC void trace_vjson(
+    hgobj gobj,
+    int priority,
+    json_t *jn_data, // not owned
+    const char *msgset,
+    const char *fmt,
+    va_list ap
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj instance generating the log.
+
+* - `priority`
+  - `int`
+  - Priority level of the log message.
+
+* - `jn_data`
+  - `json_t *`
+  - JSON object to include in the log message.
+
+* - `msgset`
+  - `const char *`
+  - The message set category.
+
+* - `fmt`
+  - `const char *`
+  - Format string for the message.
+
+* - `ap`
+  - `va_list`
+  - Variadic arguments for formatting.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- This function does not return a value.
+        
 
 
 <!--====================================================-->

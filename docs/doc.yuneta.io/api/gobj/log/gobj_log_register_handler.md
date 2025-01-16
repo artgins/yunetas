@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Register a new log handler with the logging system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,53 @@
 **Prototype**
 
 ```C
+
+int gobj_log_register_handler(
+    const char *handler_type,
+    loghandler_close_fn_t close_fn,
+    loghandler_write_fn_t write_fn,
+    loghandler_fwrite_fn_t fwrite_fn
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handler_type`
+  - `const char *`
+  - The type of handler being registered (e.g., "stdout").
+
+* - `close_fn`
+  - `loghandler_close_fn_t`
+  - Function to close the handler.
+
+* - `write_fn`
+  - `loghandler_write_fn_t`
+  - Function to handle standard log writes.
+
+* - `fwrite_fn`
+  - `loghandler_fwrite_fn_t`
+  - Function to handle formatted log writes for backtrace and similar features.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` if the handler was registered successfully.
+- Returns `-1` on error (e.g., invalid parameters or internal issues).
+        
 
 
 <!--====================================================-->

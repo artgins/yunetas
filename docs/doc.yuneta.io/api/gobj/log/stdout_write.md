@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write a log message directly to the stdout handler.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,48 @@
 **Prototype**
 
 ```C
+
+int stdout_write(void *v, int priority, const char *bf, size_t len);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `v`
+  - `void *`
+  - Context or additional data (typically unused).
+
+* - `priority`
+  - `int`
+  - Log priority level.
+
+* - `bf`
+  - `const char *`
+  - Log message buffer.
+
+* - `len`
+  - `size_t`
+  - Length of the log message.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` on success.
+- Returns `-1` on failure.
+        
 
 
 <!--====================================================-->

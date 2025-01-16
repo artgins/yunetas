@@ -5,7 +5,7 @@
 # `gobj_get_log_data()`
 <!-- ============================================================== -->
 
-
+Retrieves internal log data as a JSON object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,24 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *gobj_get_log_data(void);
+        
+
 ```
 
 **Parameters**
 
+This function does not take any parameters.
 
 ---
 
 **Return Value**
+
+
+- Returns a JSON object containing the internal log data.
+- Returns `NULL` on error.
+        
 
 
 <!--====================================================-->

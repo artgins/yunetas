@@ -5,7 +5,7 @@
 # `gobj_trace_msg()`
 <!-- ============================================================== -->
 
-
+Log a trace message with formatting.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_trace_msg(
+    hgobj gobj,
+    const char *fmt,
+    ...
+) JANSSON_ATTRS((format(printf, 2, 3)));
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - The GObj instance generating the log.
+
+* - `fmt`
+  - `const char *`
+  - Format string for the message.
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting the message.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- This function does not return a value.
+        
 
 
 <!--====================================================-->

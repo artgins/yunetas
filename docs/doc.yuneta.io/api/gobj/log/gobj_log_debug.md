@@ -5,7 +5,7 @@
 # `gobj_log_debug()`
 <!-- ============================================================== -->
 
-
+Logs a debug-level message with formatting options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,41 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj instance.
+
+* - `opt`
+  - `log_opt_t`
+  - Log options (e.g., stack trace or additional metadata).
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting the message.
+:::
+        
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

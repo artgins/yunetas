@@ -6,6 +6,10 @@
 <!-- ============================================================== -->
 
 
+Terminate the global logging system. It frees resources associated with logging.
+Better avoided since memory usage for logging is minimal, and logs are generally 
+kept running for the application lifecycle.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +26,25 @@
 **Prototype**
 
 ```C
+
+void glog_end(void);
+        
+
 ```
 
 **Parameters**
 
 
+No parameters.
+        
+
 ---
 
 **Return Value**
+
+
+This function does not return a value.
+        
 
 
 <!--====================================================-->

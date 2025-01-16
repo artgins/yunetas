@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete an existing log handler by its name. If the name is empty, all handlers are deleted.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+int gobj_log_del_handler(const char *handler_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handler_name`
+  - `const char *`
+  - Name of the handler to be deleted. If empty, all handlers are removed.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` on success.
+- Returns `-1` on error (e.g., handler not found).
+        
 
 
 <!--====================================================-->

@@ -5,7 +5,7 @@
 # `gobj_info_msg()`
 <!-- ============================================================== -->
 
-
+Logs an informational message with formatting options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,45 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_info_msg(
+    hgobj gobj,
+    const char *fmt,
+    ...
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj instance.
+
+* - `fmt`
+  - `const char *`
+  - Format string for the informational message.
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting.
+:::
+        
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

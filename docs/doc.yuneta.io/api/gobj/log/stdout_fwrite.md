@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Write a formatted log message to the stdout handler.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,48 @@
 **Prototype**
 
 ```C
+
+int stdout_fwrite(void *v, int priority, const char *format, ...);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `v`
+  - `void *`
+  - Context or additional data (typically unused).
+
+* - `priority`
+  - `int`
+  - Log priority level.
+
+* - `format`
+  - `const char *`
+  - Log message format string (printf style).
+
+* - `...`
+  - ``
+  - Additional arguments matching the format string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` on success.
+- Returns `-1` on failure.
+        
 
 
 <!--====================================================-->

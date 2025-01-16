@@ -5,7 +5,7 @@
 # `print_backtrace()`
 <!-- ============================================================== -->
 
-
+Logs a backtrace to the configured logging output.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,23 @@
 **Prototype**
 
 ```C
+
+PUBLIC void print_backtrace(void);
+    
+
 ```
 
 **Parameters**
 
 
+No parameters.
+    
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

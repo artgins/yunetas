@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set or reset a global option for all log handlers.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,43 @@
 **Prototype**
 
 ```C
+
+int gobj_log_set_global_handler_option(
+    log_handler_opt_t log_handler_opt,
+    BOOL set
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `log_handler_opt`
+  - `log_handler_opt_t`
+  - The global option to configure.
+
+* - `set`
+  - `BOOL`
+  - Whether to enable (`TRUE`) or disable (`FALSE`) the option.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` on success.
+- Returns `-1` on failure.
+        
 
 
 <!--====================================================-->

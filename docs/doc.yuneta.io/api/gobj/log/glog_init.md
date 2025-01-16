@@ -6,6 +6,9 @@
 <!-- ============================================================== -->
 
 
+Initialize the global logging system. This function is typically called at the start of the application
+to ensure logging functionality is ready to use.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +25,25 @@
 **Prototype**
 
 ```C
+
+void glog_init(void);
+        
+
 ```
 
 **Parameters**
 
 
+No parameters.
+        
+
 ---
 
 **Return Value**
+
+
+This function does not return a value.
+        
 
 
 <!--====================================================-->

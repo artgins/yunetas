@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a specific log handler exists.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,36 @@
 **Prototype**
 
 ```C
+
+BOOL gobj_log_exist_handler(const char *handler_name);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handler_name`
+  - `const char *`
+  - The name of the log handler to check for existence.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `TRUE` if the handler exists.
+- Returns `FALSE` if the handler does not exist.
+        
 
 
 <!--====================================================-->

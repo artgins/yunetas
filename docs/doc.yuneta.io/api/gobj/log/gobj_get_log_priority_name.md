@@ -5,7 +5,7 @@
 # `gobj_get_log_priority_name()`
 <!-- ============================================================== -->
 
-
+Retrieves the name of a log priority level.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,36 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *gobj_get_log_priority_name(int priority);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `priority`
+  - `int`
+  - Numeric value representing the log priority level.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns the name of the log priority as a string.
+- Returns `NULL` if the priority level is invalid.
+        
 
 
 <!--====================================================-->

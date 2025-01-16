@@ -5,7 +5,7 @@
 # `set_show_backtrace_fn()`
 <!-- ============================================================== -->
 
-
+Set a function to display the backtrace during error handling.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `show_backtrace_fn`
+  - `show_backtrace_fn_t`
+  - Function pointer to the backtrace display function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- This function does not return a value.
+        
 
 
 <!--====================================================-->

@@ -5,7 +5,7 @@
 # `print_error()`
 <!-- ============================================================== -->
 
-
+Logs an error message and optionally exits or aborts the program.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,43 @@
 **Prototype**
 
 ```C
+
+        PUBLIC void print_error(
+            pe_flag_t quit,
+            const char *fmt,
+            ...
+        );
+        
+
 ```
 
 **Parameters**
 
 
+        :::{list-table}
+        :widths: 10 5 40
+        :header-rows: 1
+        * - Key
+          - Type
+          - Description
+
+        * - `quit`
+          - [`pe_flag_t`](pe_flag_t)
+          - Indicates the action to take after logging the error (e.g., continue, exit, or abort).
+        * - `fmt`
+          - `const char *`
+          - Format string for the error message.
+        * - `...`
+          - `variadic`
+          - Additional arguments for formatting the message.
+        :::
+        
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

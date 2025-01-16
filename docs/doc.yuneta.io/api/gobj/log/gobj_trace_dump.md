@@ -5,7 +5,7 @@
 # `gobj_trace_dump()`
 <!-- ============================================================== -->
 
-
+Logs the content of a buffer in a detailed dump format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,60 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_trace_dump(
+    hgobj gobj,
+    int priority,
+    const char *bf,
+    int len,
+    const char *fmt,
+    ...
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - [`hgobj`](hgobj)
+  - Handle to the GObj instance.
+
+* - `priority`
+  - `int`
+  - Priority level for the log message.
+
+* - `bf`
+  - `const char *`
+  - Pointer to the buffer content.
+
+* - `len`
+  - `int`
+  - Length of the buffer.
+
+* - `fmt`
+  - `const char *`
+  - Format string for additional message details.
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting.
+:::
+        
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

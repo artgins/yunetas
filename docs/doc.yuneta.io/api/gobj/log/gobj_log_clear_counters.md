@@ -5,7 +5,7 @@
 # `gobj_log_clear_counters()`
 <!-- ============================================================== -->
 
-
+Resets all counters associated with logging.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,21 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_log_clear_counters(void);
+        
+
 ```
 
 **Parameters**
 
+This function does not take any parameters.
 
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->

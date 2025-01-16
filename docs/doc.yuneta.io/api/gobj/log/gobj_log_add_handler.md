@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Add a new log handler to the logging system.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,53 @@
 **Prototype**
 
 ```C
+
+int gobj_log_add_handler(
+    const char *handler_name,
+    const char *handler_type,
+    log_handler_opt_t handler_options,
+    void *h
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `handler_name`
+  - `const char *`
+  - Name of the handler being added.
+
+* - `handler_type`
+  - `const char *`
+  - Type of the handler being added.
+
+* - `handler_options`
+  - `log_handler_opt_t`
+  - Options for configuring the handler's behavior.
+
+* - `h`
+  - `void *`
+  - A handle for the handler.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- Returns `0` on success.
+- Returns `-1` on failure (e.g., invalid parameters).
+        
 
 
 <!--====================================================-->

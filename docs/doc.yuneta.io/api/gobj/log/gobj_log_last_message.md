@@ -5,7 +5,7 @@
 # `gobj_log_last_message()`
 <!-- ============================================================== -->
 
-
+Retrieves the most recent log message.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,24 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *gobj_log_last_message(void);
+        
+
 ```
 
 **Parameters**
 
+This function does not take any parameters.
 
 ---
 
 **Return Value**
+
+
+- Returns the most recent log message as a string.
+- Returns `NULL` if no message is available.
+        
 
 
 <!--====================================================-->

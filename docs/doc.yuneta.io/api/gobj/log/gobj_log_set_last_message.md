@@ -5,7 +5,7 @@
 # `gobj_log_set_last_message()`
 <!-- ============================================================== -->
 
-
+Set the last log message for later retrieval.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,39 @@
 **Prototype**
 
 ```C
+
+PUBLIC void gobj_log_set_last_message(const char *msg, ...);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `msg`
+  - `const char *`
+  - The message to set as the last log message.
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting the message.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+- This function does not return a value.
+        
 
 
 <!--====================================================-->

@@ -5,7 +5,7 @@
 # `gobj_trace_json()`
 <!-- ============================================================== -->
 
-
+Logs a JSON object with a trace message.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +22,47 @@
 **Prototype**
 
 ```C
+
+        PUBLIC void gobj_trace_json(
+            hgobj gobj,
+            json_t *jn,
+            const char *fmt,
+            ...
+        );
+        
+
 ```
 
 **Parameters**
 
 
+        :::{list-table}
+        :widths: 10 5 40
+        :header-rows: 1
+        * - Key
+          - Type
+          - Description
+
+        * - `gobj`
+          - [`hgobj`](hgobj)
+          - Handle to the GObj instance.
+        * - `jn`
+          - `json_t *`
+          - JSON object to log.
+        * - `fmt`
+          - `const char *`
+          - Format string for the log message.
+        * - `...`
+          - `variadic`
+          - Additional arguments for formatting the message.
+        :::
+        
+
 ---
 
 **Return Value**
+
+This function does not return a value.
 
 
 <!--====================================================-->
